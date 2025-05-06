@@ -5,6 +5,8 @@ services:
     build:
       dockerfile: Dockerfile
       context: .
+      args:
+        VITE_SERVER_URL: ${VITE_SERVER_URL}
       labels:
         - "cz.mendelu.pef.devops.description=$CI_COMMIT_MESSAGE"
         - "cz.mendelu.pef.devops.author=$CI_COMMIT_AUTHOR"
