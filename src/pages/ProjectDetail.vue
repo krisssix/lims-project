@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import {useRoute} from "vue-router";
 import {onBeforeMount} from "vue";
-import {useProjectStore} from "@/stores/project";
+import {useProjectStore} from "@/stores/project/project";
 
 const route = useRoute()
 const router = useRouter()
@@ -16,13 +16,10 @@ const props = defineProps({
 })
 
 function onReturn(){
-  console.log('return')
   projectStore.clearProject()
 }
 
 async function onSubmit(){
-  console.log('submit')
-  console.log('project to save ', projectStore.blankProject)
   await projectStore.saveProject(projectStore.blankProject)
   await projectStore.clearProject()
 

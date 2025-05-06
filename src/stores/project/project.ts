@@ -6,13 +6,23 @@ export const useProjectStore = defineStore('project', ()=>{
   // states
   const allProjects = ref([]);
   const projectId = ref(undefined)
+  const selectedProject = ref({
+    name: '',
+    description: '',
+    startDate: null,
+    endDate: null,
+    users: [],
+    color: '',
+    boardTemplate: null
+  })
   const blankProject = ref({
     name: '',
     description: '',
     startDate: null,
     endDate: null,
     users: [],
-    color: ''
+    color: '',
+    boardTemplate: null
   })
 
   // getters
@@ -22,12 +32,23 @@ export const useProjectStore = defineStore('project', ()=>{
     projectId.value = id
   }
 
+  async function fetchProject(id) {
+    try{
+      const response = await get(`project/${id}`)
+      return response.data.content
+    }catch (e) {
+      console.error(e)
+    }
+  }
+  function selectProject(project){
+    Object.assign(selectedProject.value, project)
+  }
   // actions
   async function fetchAllProjects(){
     try {
       const data = await get('project')
       allProjects.value = data.data.items
-      console.log('all projects ',data.data.items)
+
     } catch (e) {
       console.error(e)
     }
@@ -40,7 +61,8 @@ export const useProjectStore = defineStore('project', ()=>{
       startDate: null,
       endDate: null,
       users: [],
-      color: ''
+      color: '',
+      boardTemplate: null
     }
   }
 
@@ -51,10 +73,11 @@ export const useProjectStore = defineStore('project', ()=>{
         description: project.description,
         startDate: project.startDate,
         endDate: project.endDate,
-        color: project.color
+        color: project.color,
+        boardTemplate: project.boardTemplate
       }
       const response = await post('project',data)
-      console.log('saved, response ', response.data.content)
+      return response.data.content.id
     } catch (e) {
       console.error(e)
     }
@@ -67,6 +90,9 @@ export const useProjectStore = defineStore('project', ()=>{
     setProjectId,
     blankProject,
     clearProject,
-    saveProject
+    saveProject,
+    fetchProject,
+    selectProject,
+    selectedProject
   }
 })

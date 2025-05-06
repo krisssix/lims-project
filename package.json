@@ -17,6 +17,7 @@
     "core-js": "^3.37.1",
     "roboto-fontface": "*",
     "vue": "^3.4.31",
+    "vue-draggable-next": "^2.2.1",
     "vuetify": "^3.6.14"
   },
   "devDependencies": {

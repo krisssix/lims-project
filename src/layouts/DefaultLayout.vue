@@ -1,7 +1,6 @@
 <template>
-  <AppToolbar />
   <v-main>
-    <v-container>
+    <v-container :fluid="true">
       <router-view />
     </v-container>
   </v-main>

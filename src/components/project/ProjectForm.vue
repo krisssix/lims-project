@@ -1,13 +1,10 @@
 <script setup lang="ts">
 import {computed, nextTick, onMounted} from "vue";
-import {useProjectStore} from "@/stores/project";
 
 const props = defineProps({
   isNew: Boolean,
   project: Object
 })
-
-const emit = defineEmits(['onSubmit','onReturn'])
 
 const usersSelector = ref(null)
 
@@ -18,6 +15,18 @@ const maxStartDate= new Date().toISOString().substr(0, 10)
 const minEndDate = new Date().toISOString().substr(0, 10)
 
 const search = ref(null)
+
+const boardTemplate = ref(null)
+const boardTemplateVariants = [
+  {
+    title: 'Prázdné',
+    value: 'EMPTY'
+  },
+  {
+    title: 'Kanban',
+    value: 'KANBAN'
+  },]
+
 const hardcodedUsers = ref([
   {
     id: 0,
@@ -43,14 +52,6 @@ const hardCodedColors = ref([
   'bg-cyan-darken-2',
   'bg-orange-darken-2'
 ])
-
-const hardcodedProjectColors = [
-  'deep-orange-darken-3',
-  'light-green-darken-3',
-  'teal-darken-3',
-  'deep-purple-darken-3',
-  'purple-darken-3'
-]
 
 const startDateTextField = ref('')
 const endDateTextField = ref('')
@@ -81,14 +82,12 @@ function today(){
 }
 
 function isObject(value) {
-  console.log('is object ', value instanceof Object, value)
   return value instanceof Object;
 }
 
 function userSelected(selected){
   if(isObject(selected)){
     // remove from hardcoded users
-    console.log('selected id', selected.id)
 
     hardcodedUsers.value = [...hardcodedUsers.value.filter(user => user.id !== selected.id)];
 
@@ -112,7 +111,6 @@ function userRemoved(removed){
     name: removed.name,
   })
   hardCodedColors.value.push(removed.color)
-  console.log('colors ', hardCodedColors.value)
   users.value = [...users.value.filter(user => user.id !== removed.id)]
 }
 
@@ -128,9 +126,20 @@ function isSelected(color){
   }
 }
 
-onMounted(()=>{
-  console.log('blank edited project ', props.project)
-})
+function boardTemplateSelected(value){
+  props.project.boardTemplate = value
+  if(value === 'KANBAN'){
+    boardTemplate.value = {
+      title: 'Kanban',
+      value: 'KANBAN'
+    }
+  } else {
+    boardTemplate.value = {
+      title: 'Prázdné',
+      value: 'EMPTY'
+    }
+  }
+}
 </script>
 
 <template>
@@ -157,7 +166,6 @@ onMounted(()=>{
       :max="maxStartDate"
       v-model="startDateDatePicker"
       @update:modelValue="(value)=>{
-          console.log('change date ', value)
           props.project.startDate = convertToTimestamp(value)
           startDateTextField = formatDate(value)
           showDateStartPicker = false
@@ -208,7 +216,6 @@ onMounted(()=>{
         :min="minEndDate"
         v-model="endDateDatePicker"
         @update:modelValue="(value)=>{
-          console.log('change date ', value)
           props.project.endDate = convertToTimestamp(value)
           endDateTextField = formatDate(value)
           showDateEndPicker = false
@@ -262,19 +269,18 @@ onMounted(()=>{
     <div @click="selectColor('purple-darken-3')" class="circleSize rounded-circle bg-purple-darken-3 " :class="isSelected('purple-darken-3')"/>
   </div>
 
-<!--  <v-row class="pt-5" justify="space-between">-->
-<!--    <v-col cols="auto">-->
-<!--      <v-btn @click="emit('return')" color="primary" variant="outlined">-->
-<!--        zrušit-->
-<!--      </v-btn >-->
-<!--    </v-col>-->
-<!--    <v-col cols="auto">-->
-<!--      <v-btn @click="emit('submit')"  color="primary">-->
-<!--        uložit-->
-<!--      </v-btn >-->
-<!--    </v-col>-->
-<!--  </v-row>-->
-
+    <!-- BOARD TEMPLATE -->
+    <h5 class="pt-5">Šablona projektu</h5>
+    <v-select
+      :model-value="boardTemplate"
+      class="pt-5"
+      :items="boardTemplateVariants"
+      @update:model-value="(value) => {boardTemplateSelected(value)}"
+      item-title="title"
+      item-value="value"
+      variant="outlined"
+      hide-details
+    ></v-select>
 </v-form>
 </template>
 

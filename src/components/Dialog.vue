@@ -4,7 +4,8 @@ import {computed} from "vue";
 
 defineProps<{
     isOpen: boolean,
-    width: string | null
+    width: string | null,
+    hideFooter: boolean
 }>()
 
 const isAtTop = ref(true)
@@ -50,6 +51,7 @@ const isAtBottomComp = computed(()=> isAtBottom.value )
     :model-value="isOpen"
     @after-enter="afterEnter"
     @after-leave="afterLeave"
+
   >
     <v-card>
       <v-card-title :class="isAtTopComp ? '' : 'card-title-shadow'">
@@ -58,7 +60,7 @@ const isAtBottomComp = computed(()=> isAtBottom.value )
       <v-card-text>
         <slot name="content"></slot>
       </v-card-text>
-      <v-card-actions :class="isAtBottomComp ? '' : 'card-actions-shadow'">
+      <v-card-actions v-if="!hideFooter" :class="isAtBottomComp ? '' : 'card-actions-shadow'">
         <slot name="footer"></slot>
       </v-card-actions>
     </v-card>

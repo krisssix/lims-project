@@ -7,28 +7,70 @@
 // Composables
 import { createRouter, createWebHistory } from 'vue-router/auto'
 import { setupLayouts } from 'virtual:generated-layouts'
-import { routes } from 'vue-router/auto-routes'
-import * as path from "node:path";
 import Project from "@/pages/Project.vue";
 import ProjectDetail from "@/pages/ProjectDetail.vue";
+import Board from "@/pages/Board.vue";
+import PeopleWork from "@/pages/PeopleWork.vue";
+import Summary from "@/pages/Summary.vue";
+import Measurements from "@/pages/Measurements.vue";
+
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: setupLayouts([
     {
       path: '/',
-      redirect: {name: '/Project'}
+      redirect: {name: 'Projects'}
     },
     {
       path: '/projects',
-      name: '/Project',
-      component: Project
+      name: 'Projects',
+      component: Project,
+      meta: {
+        layout: 'TopBarLayout'
+      }
     },
     {
       path: '/projects/detail/:id',
-      name: '/ProjectDetail',
-      component: ProjectDetail
-    }
+      name: 'ProjectDetail',
+      component: ProjectDetail,
+      meta: {
+        layout: 'DefaultLayout'
+      }
+    },
+    {
+      path: '/project/board/:projectId',
+      name: 'Board',
+      component: Board,
+      meta: {
+        layout: 'SimpleSideNavigationLayout'
+      }
+    },
+    {
+      path: '/project/peopleWork/:projectId',
+      name: 'PeopleWork',
+      component: PeopleWork,
+      meta: {
+        layout: 'SideNavigationLayout'
+      }
+    },
+    {
+      path: '/project/summary/:projectId',
+      name: 'Summary',
+      component: Summary,
+      meta: {
+        layout: 'SideNavigationLayout'
+      }
+    },
+    {
+      path: '/project/measurements/:projectId',
+      name: 'Measurements',
+      component: Measurements,
+      meta: {
+        layout: 'SideNavigationLayout'
+      }
+    },
+
   ]),
 })
 

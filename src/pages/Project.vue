@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import {onMounted, ref} from "vue";
-import {useProjectStore} from "@/stores/project";
+import {useProjectStore} from "@/stores/project/project";
 import {myCustomLightTheme} from "@/plugins/vuetify";
 import Dialog from "@/components/Dialog.vue";
 
@@ -20,16 +20,20 @@ function cancelCreateProject(){
 
 async function submitCreateProject(){
   openCreateProjectDialog.value = false
-  await projectStore.saveProject(projectStore.blankProject)
+  const id = await projectStore.saveProject(projectStore.blankProject)
   await projectStore.clearProject()
-  await projectStore.fetchAllProjects()
+  await router.push({name:'Board',params: {projectId: id}})
 }
 
+function navigate(projectId){
+  router.push({name:'Board',params: {projectId: projectId}})
+}
 
 </script>
 
 <template>
   <Dialog
+    :hide-footer="false"
     :is-open="openCreateProjectDialog"
     :width="null">
     <template v-slot:header>
@@ -60,7 +64,7 @@ async function submitCreateProject(){
 
 <v-row >
   <v-col cols="3" v-for="project in projectStore.allProjects" :key="project.id">
-    <v-card :title="project.name" :color="project.color" :subtitle="project.description">
+    <v-card :link="true" @click="navigate(project.id)" :title="project.name" :color="project.color" :subtitle="project.description">
     </v-card>
   </v-col>
 </v-row>
