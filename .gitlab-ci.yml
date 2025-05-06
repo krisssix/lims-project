@@ -1,0 +1,42 @@
+image: tiangolo/docker-with-compose
+
+stages:
+  - build
+  - deploy
+
+build-app:
+  variables:
+    DOCKER_HOST: $PROD_DOCKER_HOST
+  stage: build
+  script:
+    - docker-compose build
+    - docker image push $REGISTRY_URL/$CI_PROJECT_PATH_SLUG/$CI_COMMIT_REF_SLUG:latest
+
+deploy-app_prod:
+  variables:
+    DOCKER_HOST: $PROD_DOCKER_HOST
+    RULE: Host(`$WEB_HOST`)
+  stage: deploy
+  only:
+    - main
+  script:
+    - docker stack deploy -c docker-compose.yml $CI_PROJECT_PATH_SLUG-$CI_COMMIT_REF_SLUG
+  environment:
+    name: production
+    deployment_tier: production
+    url: https://$WEB_HOST
+    on_stop: stop-app
+
+stop-app:
+  variables:
+    DOCKER_HOST: $PROD_DOCKER_HOST
+    GIT_STRATEGY: none
+  stage: deploy
+  only:
+    - main
+  script:
+    - docker stack rm $CI_PROJECT_PATH_SLUG-$CI_COMMIT_REF_SLUG
+  when: manual
+  environment:
+    name: production
+    action: stop

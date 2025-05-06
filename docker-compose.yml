@@ -1,0 +1,31 @@
+version: "3.7"
+
+services:
+  service:
+    build:
+      dockerfile: Dockerfile
+      context: .
+      labels:
+        - "cz.mendelu.pef.devops.description=$CI_COMMIT_MESSAGE"
+        - "cz.mendelu.pef.devops.author=$CI_COMMIT_AUTHOR"
+    image: $REGISTRY_URL/$CI_PROJECT_PATH_SLUG/$CI_COMMIT_REF_SLUG:latest
+    logging:
+      driver: syslog
+      options:
+        syslog-address: "tcp://glog1.pef.mendelu.cz:10514"
+        tag: "cenagrivet/frontend/{{.ID}}"
+    deploy:
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.$CI_PROJECT_PATH_SLUG.entrypoints=websecure"
+        - "traefik.http.routers.$CI_PROJECT_PATH_SLUG.rule=$RULE"
+        - "traefik.http.routers.$CI_PROJECT_PATH_SLUG.tls.certresolver=letsencryptresolver"
+        - "traefik.http.services.$CI_PROJECT_PATH_SLUG.loadbalancer.server.port=${SERVER_PORT}"
+      replicas: 1
+    networks:
+      - traefik-net
+
+networks:
+  traefik-net:
+    external: true
+
