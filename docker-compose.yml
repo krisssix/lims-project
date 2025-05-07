@@ -15,7 +15,7 @@ services:
       driver: syslog
       options:
         syslog-address: "tcp://glog1.pef.mendelu.cz:10514"
-        tag: "spatialdataservice/cenagrivet/frontend/{{.ID}}"
+        tag: "databrain/frontend/{{.ID}}"
     deploy:
       labels:
         - "traefik.enable=true"
