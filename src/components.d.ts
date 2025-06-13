@@ -18,5 +18,6 @@ declare module 'vue' {
     ProjectForm: typeof import('./components/project/ProjectForm.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
+    UnauthorizedState: typeof import('./components/auth/UnauthorizedState.vue')['default']
   }
 }

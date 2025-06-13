@@ -13,6 +13,10 @@ import Board from "@/pages/Board.vue";
 import PeopleWork from "@/pages/PeopleWork.vue";
 import Summary from "@/pages/Summary.vue";
 import Measurements from "@/pages/Measurements.vue";
+// import { useAuth} from "@/composables/useAuth";
+import AuthSection from "@/AuthSection.vue";
+import Index from "@/pages/index.vue";
+import {isAuthenticated} from "@/auth";
 
 
 const router = createRouter({
@@ -20,57 +24,66 @@ const router = createRouter({
   routes: setupLayouts([
     {
       path: '/',
-      redirect: {name: 'Projects'}
+      component: Index,
     },
     {
-      path: '/projects',
-      name: 'Projects',
-      component: Project,
-      meta: {
-        layout: 'TopBarLayout'
-      }
-    },
-    {
-      path: '/projects/detail/:id',
-      name: 'ProjectDetail',
-      component: ProjectDetail,
+      path: '/auth',
+      component: AuthSection,
+      beforeEnter: requireAuth,
       meta: {
         layout: 'DefaultLayout'
-      }
+      },
+      children: [
+        {
+          path: 'projects',
+          name: 'Projects',
+          component: Project,
+          meta: {
+            layout: 'TopBarLayout'
+          }
+        },
+        {
+          path: 'projects/detail/:id',
+          name: 'ProjectDetail',
+          component: ProjectDetail,
+          meta: {
+            layout: 'DefaultLayout'
+          }
+        },
+        {
+          path: 'project/board/:projectId',
+          name: 'Board',
+          component: Board,
+          meta: {
+            layout: 'SimpleSideNavigationLayout'
+          }
+        },
+        {
+          path: 'project/peopleWork/:projectId',
+          name: 'PeopleWork',
+          component: PeopleWork,
+          meta: {
+            layout: 'SideNavigationLayout'
+          }
+        },
+        {
+          path: 'project/summary/:projectId',
+          name: 'Summary',
+          component: Summary,
+          meta: {
+            layout: 'SideNavigationLayout'
+          }
+        },
+        {
+          path: 'project/measurements/:projectId',
+          name: 'Measurements',
+          component: Measurements,
+          meta: {
+            layout: 'SideNavigationLayout'
+          }
+        },
+      ]
     },
-    {
-      path: '/project/board/:projectId',
-      name: 'Board',
-      component: Board,
-      meta: {
-        layout: 'SimpleSideNavigationLayout'
-      }
-    },
-    {
-      path: '/project/peopleWork/:projectId',
-      name: 'PeopleWork',
-      component: PeopleWork,
-      meta: {
-        layout: 'SideNavigationLayout'
-      }
-    },
-    {
-      path: '/project/summary/:projectId',
-      name: 'Summary',
-      component: Summary,
-      meta: {
-        layout: 'SideNavigationLayout'
-      }
-    },
-    {
-      path: '/project/measurements/:projectId',
-      name: 'Measurements',
-      component: Measurements,
-      meta: {
-        layout: 'SideNavigationLayout'
-      }
-    },
-
   ]),
 })
 
@@ -92,5 +105,18 @@ router.onError((err, to) => {
 router.isReady().then(() => {
   localStorage.removeItem('vuetify:dynamic-reload')
 })
+
+async function requireAuth(to, from, next) {
+   console.log('before guard')
+
+  console.log('isAuthenticated ', isAuthenticated.value)
+
+    if (isAuthenticated) {
+      next();
+    } else {
+      auth.login(to.fullPath)
+      next(false);
+    }
+}
 
 export default router
