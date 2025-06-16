@@ -14,9 +14,15 @@ import App from './App.vue'
 import { createApp } from 'vue'
 import {auth} from "@/stores/auth";
 
-const app = createApp(App)
-await auth.init()
+async function initApp(){
+  const app = createApp(App)
+  await auth.init()
 
-registerPlugins(app)
+  registerPlugins(app)
 
-app.mount('#app')
+  app.mount('#app')
+}
+
+initApp()
+
+

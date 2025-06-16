@@ -10,14 +10,11 @@ declare module 'vue' {
     AppFooter: typeof import('./components/AppFooter.vue')['default']
     AppToolbar: typeof import('./components/AppToolbar.vue')['default']
     CardsList: typeof import('./components/board/CardsList.vue')['default']
-    CustomMainContainer: typeof import('./components/CustomMainContainer.vue')['default']
     Dialog: typeof import('./components/Dialog.vue')['default']
-    HelloWorld: typeof import('./components/HelloWorld.vue')['default']
     LeftNavigation: typeof import('./components/LeftNavigation.vue')['default']
     OpenedCard: typeof import('./components/board/OpenedCard.vue')['default']
     ProjectForm: typeof import('./components/project/ProjectForm.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
-    UnauthorizedState: typeof import('./components/auth/UnauthorizedState.vue')['default']
   }
 }
