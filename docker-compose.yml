@@ -7,6 +7,8 @@ services:
       context: .
       args:
         VITE_SERVER_URL: ${VITE_SERVER_URL}
+        VITE_AUTH_SERVER_URL: ${VITE_AUTH_SERVER_URL}
+        VITE_AUTH_REALM: ${VITE_AUTH_REALM}
       labels:
         - "cz.mendelu.pef.devops.description=$CI_COMMIT_MESSAGE"
         - "cz.mendelu.pef.devops.author=$CI_COMMIT_AUTHOR"
