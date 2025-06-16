@@ -115,7 +115,7 @@ function listMoved(event) {
             <div class="py-1 px-1 rounded-lg options-dots d-flex">
               <v-icon icon="mdi-dots-horizontal"></v-icon>
             </div>
-            <span>{{list.name}} {{list.id}}</span>
+            <span>{{list.name}}</span>
           </div>
           <div class="list-content cursor-pointer text-black">
             <CardsList

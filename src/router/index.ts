@@ -13,31 +13,39 @@ import Board from "@/pages/Board.vue";
 import PeopleWork from "@/pages/PeopleWork.vue";
 import Summary from "@/pages/Summary.vue";
 import Measurements from "@/pages/Measurements.vue";
-// import { useAuth} from "@/composables/useAuth";
-import AuthSection from "@/AuthSection.vue";
-import Index from "@/pages/index.vue";
-import {isAuthenticated} from "@/auth";
+import AuthSection from "@/pages/AuthSection.vue";
+import {auth, isAuthenticated} from "@/stores/auth";
+import LoggedOut from "@/pages/LoggedOut.vue";
+import NotFound from "@/pages/NotFound.vue";
 
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: setupLayouts([
     {
+      path: '/:pathMatch(.*)*',
+      name: 'NotFound',
+      component: NotFound,
+    },
+    {
       path: '/',
-      component: Index,
+      redirect: 'auth/projects',
+    },
+    {
+      path: '/loggedOut',
+      name: 'LoggedOut',
+      component: LoggedOut
     },
     {
       path: '/auth',
       component: AuthSection,
       beforeEnter: requireAuth,
-      meta: {
-        layout: 'DefaultLayout'
-      },
       children: [
         {
           path: 'projects',
           name: 'Projects',
           component: Project,
+          beforeEnter: requireAuth,
           meta: {
             layout: 'TopBarLayout'
           }
@@ -46,6 +54,7 @@ const router = createRouter({
           path: 'projects/detail/:id',
           name: 'ProjectDetail',
           component: ProjectDetail,
+          beforeEnter: requireAuth,
           meta: {
             layout: 'DefaultLayout'
           }
@@ -54,6 +63,7 @@ const router = createRouter({
           path: 'project/board/:projectId',
           name: 'Board',
           component: Board,
+          beforeEnter: requireAuth,
           meta: {
             layout: 'SimpleSideNavigationLayout'
           }
@@ -62,6 +72,7 @@ const router = createRouter({
           path: 'project/peopleWork/:projectId',
           name: 'PeopleWork',
           component: PeopleWork,
+          beforeEnter: requireAuth,
           meta: {
             layout: 'SideNavigationLayout'
           }
@@ -69,6 +80,7 @@ const router = createRouter({
         {
           path: 'project/summary/:projectId',
           name: 'Summary',
+          beforeEnter: requireAuth,
           component: Summary,
           meta: {
             layout: 'SideNavigationLayout'
@@ -77,6 +89,7 @@ const router = createRouter({
         {
           path: 'project/measurements/:projectId',
           name: 'Measurements',
+          beforeEnter: requireAuth,
           component: Measurements,
           meta: {
             layout: 'SideNavigationLayout'
@@ -107,15 +120,11 @@ router.isReady().then(() => {
 })
 
 async function requireAuth(to, from, next) {
-   console.log('before guard')
-
-  console.log('isAuthenticated ', isAuthenticated.value)
-
-    if (isAuthenticated) {
+    if (isAuthenticated.value) {
       next();
     } else {
-      auth.login(to.fullPath)
-      next(false);
+      await auth.login(to.fullPath)
+      next(false)
     }
 }
 

@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import {onMounted, ref} from "vue";
 import {useProjectStore} from "@/stores/project/project";
-import {myCustomLightTheme} from "@/plugins/vuetify";
 import Dialog from "@/components/Dialog.vue";
 
 const projectStore = useProjectStore()

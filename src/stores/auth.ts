@@ -1,5 +1,6 @@
 import Keycloak from "keycloak-js";
 import {config} from "@/config";
+import {ref} from "vue";
 
 export const userIsLoading = ref(true);
 export const isAuthenticated = ref(false);
@@ -8,7 +9,7 @@ export function useAuth() {
   const LOCAL_STORAGE_TOKEN_KEY = "auth_token";
   const isInitialized = ref(false);
   const token = ref(null);
-  const keycloak = Keycloak({
+  const keycloak = new Keycloak({
     url: config.authServer.url,
     realm: config.authServer.realm,
     clientId: "web",
@@ -16,24 +17,20 @@ export function useAuth() {
   });
 
   const init = () => {
-    console.trace('ahooj')
     return keycloak
       .init({
         checkLoginIframe: true,
       })
       .then(() => {
-        console.log('init keycloak ', isAuthenticated.value)
         isInitialized.value = true;
       });
   };
 
   keycloak.onAuthSuccess = () => {
-    console.log("Auth success", keycloak);
     isAuthenticated.value = true;
     token.value = keycloak.token;
     localStorage.setItem(LOCAL_STORAGE_TOKEN_KEY, keycloak.token);
     userIsLoading.value = false;
-    console.log('aaa', userIsLoading.value, isAuthenticated.value)
   };
 
   keycloak.onAuthLogout = () => {
@@ -42,15 +39,14 @@ export function useAuth() {
     localStorage.removeItem(LOCAL_STORAGE_TOKEN_KEY);
   };
 
-  const login = (redirectUri = window.location.pathname) => {
+  const login = async (redirectUri = window.location.pathname) => {
     const cleanUri = redirectUri.replace(/#.*/, "");
-    keycloak.login({ redirectUri: window.location.origin + cleanUri });
+    await keycloak.login({redirectUri: window.location.origin + cleanUri});
   };
 
-  const logout = () => {
-    console.log("keycloak:logout");
+  const logout = async () => {
     localStorage.removeItem(LOCAL_STORAGE_TOKEN_KEY);
-    keycloak.logout({ redirectUri: window.location.origin + "/logged-out" });
+    await keycloak.logout({ redirectUri: window.location.origin + "/loggedOut" });
   };
 
   const getToken = () => {
@@ -72,21 +68,6 @@ export function useAuth() {
     });
   }
 
-  function isLoggedIn() {
-    return this.keycloak.authenticated;
-  }
-
-  const checkLogin = (callback) => {
-    // console.log('checking login', isInitialized.value, isAuthenticated.value)
-    // if (isInitialized.value) {
-    //   callback(isAuthenticated.value);
-    // } else {
-    //   init().then(() => {
-    //     callback(isAuthenticated.value);
-    //   });
-    // }
-  };
-
   return {
     keycloak,
     init,
@@ -97,11 +78,9 @@ export function useAuth() {
     logout,
     getToken,
     renewToken,
-    checkLogin,
-    isLoggedIn,
     isLoading: userIsLoading,
   };
 
 }
 
-export const authInstance = useAuth()
+export const auth = useAuth()

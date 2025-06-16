@@ -3,9 +3,7 @@
 </script>
 
 <template>
-  <div>
-    Neni prihlasen
-  </div>
+  <router-view />
 </template>
 
 <style scoped>
