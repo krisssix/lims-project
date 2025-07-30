@@ -3,57 +3,79 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { get, post } from '@/services/api/api-requests'
 
-export const useMeasurementStore = defineStore('measurement', () => {
-  // Stav
-  const allMeasurements = ref<any[]>([])
-  const selectedMeasurement = ref<any | null>(null)
+/** Tvar requestu pro uložení měření */
+export interface MeasurementRequest {
+  value: number
+  type: string
+  unit: string
+  timestamp: number      // epoch millis
+  boardCardId?: number | null
+}
 
-  // Akce
+/** Tvar response z API */
+export interface MeasurementResponse {
+  id: number
+  value: number
+  type: string
+  unit: string
+  timestamp: string      // ISO‑8601 string z backendu
+  boardCardId: number | null
+}
+
+export const useMeasurementStore = defineStore('measurement', () => {
+  const allMeasurements = ref<MeasurementResponse[]>([])
+  const selectedMeasurement = ref<MeasurementResponse | null>(null)
+
   /**
-   * Načte všechna měření pro daný projekt
    * GET /measurements/project/{projectId}
    */
-  async function fetchAllMeasurements(projectId: number) {
+  async function fetchAllMeasurements(projectId: number): Promise<MeasurementResponse[]> {
     try {
-      const response = await get(`measurements/project/${projectId}`)
-      // API vrací ArrayResponse<MeasurementResponse>
-      allMeasurements.value = response.data.items
-      return response.data.items
-    } catch (e) {
-      console.error('Chyba při načítání měření:', e)
+      const resp = await get<{ items: MeasurementResponse[] }>(`measurements/project/${projectId}`)
+      allMeasurements.value = resp.data.items
+      return allMeasurements.value
+    } catch (err) {
+      console.error('Chyba při načítání měření:', err)
       return []
     }
   }
 
   /**
-   * Načte jedno měření podle ID
    * GET /measurements/project/{projectId}/{measurementId}
    */
-  async function fetchMeasurement(projectId: number, measurementId: number) {
+  async function fetchMeasurement(
+    projectId: number,
+    measurementId: number
+  ): Promise<MeasurementResponse | null> {
     try {
-      const response = await get(`measurements/project/${projectId}/${measurementId}`)
-      // API vrací ObjectResponse<MeasurementResponse>
-      selectedMeasurement.value = response.data.content
-      return response.data.content
-    } catch (e) {
-      console.error('Chyba při načítání jednoho měření:', e)
+      const resp = await get<{ content: MeasurementResponse }>(
+        `measurements/project/${projectId}/${measurementId}`
+      )
+      selectedMeasurement.value = resp.data.content
+      return selectedMeasurement.value
+    } catch (err) {
+      console.error('Chyba při načítání jednoho měření:', err)
       return null
     }
   }
 
   /**
-   * Uloží nové měření
    * POST /measurements/project/{projectId}
    */
-  async function saveMeasurement(projectId: number, measurement: any) {
+  async function saveMeasurement(
+    projectId: number,
+    measurement: MeasurementRequest
+  ): Promise<MeasurementResponse> {
     try {
-      console.log('Sending measurement:', measurement)
-      const response = await post(`measurements/project/${projectId}`, measurement)
-      console.log('Response received:', response.data.content)
-      return response.data.content
-    } catch (e) {
-      console.error('Chyba při ukládání měření:', e)
-      throw e
+      console.log('Sending measurement payload:', measurement)
+      const resp = await post<{ content: MeasurementResponse }>(
+        `measurements/project/${projectId}`,
+        measurement
+      )
+      return resp.data.content
+    } catch (err) {
+      console.error('Chyba při ukládání měření:', err)
+      throw err
     }
   }
 

@@ -15,14 +15,14 @@ const measurements = ref<Array<Record<string, any>>>([])
 
 // všechny sloupce, které chceme vidět
 const headers = [
-  { text: 'ID',              value: 'id' },
-  { text: 'Typ měření',      value: 'type' },
-  { text: 'Přístroj',         value: 'device' },
-  { text: 'Datum měření',     value: 'date' },
-  { text: 'Hodnota',          value: 'value' },
-  { text: 'Jednotka',         value: 'unit' },
-  { text: 'Počet hodnot',     value: 'count' },
-  { text: 'BoardCard ID',     value: 'boardCardId' }
+  { text: 'ID',             value: 'id' },
+  { text: 'Typ měření',     value: 'type' },
+  { text: 'Přístroj',        value: 'device' },
+  { text: 'Datum měření',    value: 'date' },
+  { text: 'Hodnota',         value: 'value' },
+  { text: 'Jednotka',        value: 'unit' },
+  { text: 'Počet hodnot',    value: 'count' },
+  { text: 'BoardCard ID',    value: 'boardCardId' }
 ]
 
 // filtry
@@ -54,20 +54,17 @@ async function loadMeasurements() {
 }
 onMounted(loadMeasurements)
 
-// seřadit od nejnovějšího, potom filtrovat a mapovat na tvar pro tabulku
+// seřadit od nejnovějších, filtrovat a mapovat
 const filteredMeasurements = computed(() => {
   return measurements.value
-    .slice() // klon, abychom nepozměňovali původní pole
-    // 1) seřadit podle timestamp sestupně
+    .slice()
     .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-    // 2) aplikovat filtry
     .filter(m => {
-      const dateMatch = !selectedDate.value || m.date === selectedDate.value || m.timestamp.startsWith(selectedDate.value)
-      const typeMatch = !selectedType.value || m.type === selectedType.value
-      const unitMatch = !selectedUnit.value || m.unit === selectedUnit.value
-      return dateMatch && typeMatch && unitMatch
+      const byDate = !selectedDate.value  || m.date === selectedDate.value || m.timestamp.startsWith(selectedDate.value)
+      const byType = !selectedType.value  || m.type === selectedType.value
+      const byUnit = !selectedUnit.value  || m.unit === selectedUnit.value
+      return byDate && byType && byUnit
     })
-    // 3) mapovat na strukturu, kterou data-table očekává
     .map(m => ({
       id:          m.id,
       type:        m.type,
@@ -86,10 +83,12 @@ async function saveMeasurement() {
     value: newMeasurement.value.value,
     type:  newMeasurement.value.type,
     unit:  newMeasurement.value.unit,
-    date:  newMeasurement.value.date
+    timestamp: new Date(newMeasurement.value.date).getTime(),
+    boardCardId: null
   }
   await measurementStore.saveMeasurement(projectId, payload)
   await loadMeasurements()
+
   newMeasurement.value = {
     value: '',
     type:  '',
@@ -141,12 +140,14 @@ async function saveMeasurement() {
 
       <v-col cols="9">
         <v-sheet elevation="1" class="pa-4">
+          <!-- ZDE: žádný hide-default-header ani show-header -->
           <v-data-table
             :headers="headers"
             :items="filteredMeasurements"
             items-per-page="5"
             class="elevation-1"
-          />
+          >
+          </v-data-table>
         </v-sheet>
       </v-col>
     </v-row>
