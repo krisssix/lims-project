@@ -13,7 +13,7 @@ const projectId = Number((route.params as { projectId: string }).projectId)
 // raw measurements loaded from API
 const measurements = ref<Array<Record<string, any>>>([])
 
-// předefinujeme všechny sloupce, které chceme zobrazit
+// všechny sloupce, které chceme vidět
 const headers = [
   { text: 'ID',              value: 'id' },
   { text: 'Typ měření',      value: 'type' },
@@ -26,21 +26,21 @@ const headers = [
 ]
 
 // filtry
-const selectedDate   = ref<string|null>(null)
-const selectedType   = ref<string|null>(null)
-const selectedUnit   = ref<string|null>(null)
+const selectedDate = ref<string|null>(null)
+const selectedType = ref<string|null>(null)
+const selectedUnit = ref<string|null>(null)
 
 // dialog control
 const dialogOpen = ref(false)
-function openDialog()  { dialogOpen.value = true }
-function closeDialog() { dialogOpen.value = false }
+const openDialog  = () => { dialogOpen.value = true  }
+const closeDialog = () => { dialogOpen.value = false }
 
 // nový záznam
 const newMeasurement = ref<{
   value: number|string,
-  type: string,
-  unit: string,
-  date: string
+  type:  string,
+  unit:  string,
+  date:  string
 }>({
   value: '',
   type:  '',
@@ -48,33 +48,39 @@ const newMeasurement = ref<{
   date:  new Date().toISOString().slice(0, 10)
 })
 
-// načíst všechna měření
+// načíst všechna měření z API
 async function loadMeasurements() {
   measurements.value = await measurementStore.fetchAllMeasurements(projectId)
 }
 onMounted(loadMeasurements)
 
-// připravíme si data s přesnou strukturou pro tabulku
-const filteredMeasurements = computed(() =>
-  measurements.value
+// seřadit od nejnovějšího, potom filtrovat a mapovat na tvar pro tabulku
+const filteredMeasurements = computed(() => {
+  return measurements.value
+    .slice() // klon, abychom nepozměňovali původní pole
+    // 1) seřadit podle timestamp sestupně
+    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+    // 2) aplikovat filtry
+    .filter(m => {
+      const dateMatch = !selectedDate.value || m.date === selectedDate.value || m.timestamp.startsWith(selectedDate.value)
+      const typeMatch = !selectedType.value || m.type === selectedType.value
+      const unitMatch = !selectedUnit.value || m.unit === selectedUnit.value
+      return dateMatch && typeMatch && unitMatch
+    })
+    // 3) mapovat na strukturu, kterou data-table očekává
     .map(m => ({
       id:          m.id,
       type:        m.type,
-      device:      m.device ?? '',       // pokud API nepráví device
-      date:        m.date   || m.timestamp || '',
+      device:      m.device  ?? '',
+      date:        m.date    || new Date(m.timestamp).toLocaleString(),
       value:       m.value,
       unit:        m.unit,
-      count:       m.count  ?? '',       // pokud API nepráví count
+      count:       m.count   ?? '',
       boardCardId: m.boardCardId
     }))
-    .filter(m => {
-      return (!selectedDate.value   || m.date   === selectedDate.value)
-        && (!selectedType.value   || m.type   === selectedType.value)
-        && (!selectedUnit.value   || m.unit   === selectedUnit.value)
-    })
-)
+})
 
-// uložit a znovu načíst
+// uložit nové měření a znovu načíst
 async function saveMeasurement() {
   const payload = {
     value: newMeasurement.value.value,
@@ -108,7 +114,7 @@ async function saveMeasurement() {
       </v-col>
     </v-row>
 
-    <!-- rozložení: filtry + tabulka -->
+    <!-- filtry + tabulka -->
     <v-row>
       <v-col cols="3">
         <v-sheet elevation="1" class="pa-4">
@@ -145,7 +151,7 @@ async function saveMeasurement() {
       </v-col>
     </v-row>
 
-    <!-- Dialog pro nové měření -->
+    <!-- Dialog pro vytvoření měření -->
     <Dialog
       v-model:is-open="dialogOpen"
       width="500px"
