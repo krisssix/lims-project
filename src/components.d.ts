@@ -12,6 +12,7 @@ declare module 'vue' {
     CardsList: typeof import('./components/board/CardsList.vue')['default']
     Dialog: typeof import('./components/Dialog.vue')['default']
     LeftNavigation: typeof import('./components/LeftNavigation.vue')['default']
+    MeasurementForm: typeof import('./components/measurement/MeasurementForm.vue')['default']
     OpenedCard: typeof import('./components/board/OpenedCard.vue')['default']
     ProjectForm: typeof import('./components/project/ProjectForm.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']

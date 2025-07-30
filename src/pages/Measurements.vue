@@ -8,23 +8,32 @@ import { useMeasurementStore } from '@/stores/measurement'
 // stores & routing
 const route = useRoute()
 const measurementStore = useMeasurementStore()
+const projectId = Number((route.params as { projectId: string }).projectId)
 
-// data
+// raw measurements loaded from API
 const measurements = ref<Array<Record<string, any>>>([])
+
+// předefinujeme všechny sloupce, které chceme zobrazit
 const headers = [
-  { text: 'Typ měření', value: 'type' },
-  { text: 'Přístroj', value: 'device' },
-  { text: 'Datum měření', value: 'date' },
-  { text: 'Počet naměřených hodnot', value: 'count' }
+  { text: 'ID',              value: 'id' },
+  { text: 'Typ měření',      value: 'type' },
+  { text: 'Přístroj',         value: 'device' },
+  { text: 'Datum měření',     value: 'date' },
+  { text: 'Hodnota',          value: 'value' },
+  { text: 'Jednotka',         value: 'unit' },
+  { text: 'Počet hodnot',     value: 'count' },
+  { text: 'BoardCard ID',     value: 'boardCardId' }
 ]
 
 // filtry
 const selectedDate   = ref<string|null>(null)
-const selectedMember = ref<string|null>(null)
-const selectedDevice = ref<string|null>(null)
+const selectedType   = ref<string|null>(null)
+const selectedUnit   = ref<string|null>(null)
 
 // dialog control
 const dialogOpen = ref(false)
+function openDialog()  { dialogOpen.value = true }
+function closeDialog() { dialogOpen.value = false }
 
 // nový záznam
 const newMeasurement = ref<{
@@ -34,21 +43,38 @@ const newMeasurement = ref<{
   date: string
 }>({
   value: '',
-  type: '',
-  unit: '',
-  date: new Date().toISOString().slice(0, 10)
+  type:  '',
+  unit:  '',
+  date:  new Date().toISOString().slice(0, 10)
 })
 
-// id projektu z URL
-const projectId = computed(() =>
-  Number((route.params as { projectId: string }).projectId)
+// načíst všechna měření
+async function loadMeasurements() {
+  measurements.value = await measurementStore.fetchAllMeasurements(projectId)
+}
+onMounted(loadMeasurements)
+
+// připravíme si data s přesnou strukturou pro tabulku
+const filteredMeasurements = computed(() =>
+  measurements.value
+    .map(m => ({
+      id:          m.id,
+      type:        m.type,
+      device:      m.device ?? '',       // pokud API nepráví device
+      date:        m.date   || m.timestamp || '',
+      value:       m.value,
+      unit:        m.unit,
+      count:       m.count  ?? '',       // pokud API nepráví count
+      boardCardId: m.boardCardId
+    }))
+    .filter(m => {
+      return (!selectedDate.value   || m.date   === selectedDate.value)
+        && (!selectedType.value   || m.type   === selectedType.value)
+        && (!selectedUnit.value   || m.unit   === selectedUnit.value)
+    })
 )
 
-// otevřít / zavřít
-function openDialog() { dialogOpen.value = true }
-function closeDialog(){ dialogOpen.value = false }
-
-// uložit a zavřít
+// uložit a znovu načíst
 async function saveMeasurement() {
   const payload = {
     value: newMeasurement.value.value,
@@ -56,36 +82,16 @@ async function saveMeasurement() {
     unit:  newMeasurement.value.unit,
     date:  newMeasurement.value.date
   }
-
-  await measurementStore.saveMeasurement(projectId.value, payload)
+  await measurementStore.saveMeasurement(projectId, payload)
   await loadMeasurements()
-
-  // reset formuláře
   newMeasurement.value = {
     value: '',
-    type: '',
-    unit: '',
-    date: new Date().toISOString().slice(0, 10)
+    type:  '',
+    unit:  '',
+    date:  new Date().toISOString().slice(0, 10)
   }
   closeDialog()
 }
-
-// načíst všechna měření
-async function loadMeasurements() {
-  measurements.value = await measurementStore.fetchAllMeasurements(projectId.value)
-}
-
-// filtrovaná data do tabulky
-const filteredMeasurements = computed(() =>
-  measurements.value.filter(m => {
-    return (!selectedDate.value   || m.date   === selectedDate.value)
-      && (!selectedMember.value || m.type   === selectedMember.value)
-      && (!selectedDevice.value || m.device === selectedDevice.value)
-  })
-)
-
-// initial load
-onMounted(loadMeasurements)
 </script>
 
 <template>
@@ -108,19 +114,18 @@ onMounted(loadMeasurements)
         <v-sheet elevation="1" class="pa-4">
           <v-date-picker v-model="selectedDate" color="primary" />
         </v-sheet>
-
         <v-sheet elevation="1" class="pa-4 mt-4">
           <v-select
-            v-model="selectedMember"
+            v-model="selectedType"
             :items="['Teplota DLS','Tlak','Kalibrace']"
             label="Typ měření"
             clearable
             dense
           />
           <v-select
-            v-model="selectedDevice"
-            :items="['M1','M2','M3']"
-            label="Přístroj"
+            v-model="selectedUnit"
+            :items="['C','K','Pa','%']"
+            label="Jednotka"
             clearable
             dense
             class="mt-4"
@@ -142,20 +147,19 @@ onMounted(loadMeasurements)
 
     <!-- Dialog pro nové měření -->
     <Dialog
-      :is-open="dialogOpen"
-      :width="'500px'"
+      v-model:is-open="dialogOpen"
+      width="500px"
       :hide-footer="false"
     >
       <template #header>Nové měření</template>
       <template #content>
-        <!-- vstupní část: vlastní komponenta + další pole -->
         <MeasurementForm v-model="newMeasurement.value" />
-
         <v-select
           v-model="newMeasurement.type"
           :items="['Teplota DLS','Tlak','Kalibrace']"
           label="Typ měření"
           dense
+          class="mt-2"
         />
         <v-select
           v-model="newMeasurement.unit"

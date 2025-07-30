@@ -16,7 +16,7 @@ export async function operation(method, uri, data, headers){
     } else {
       throw e;
     }
-  }s
+  }
 }
 
 async function checkResponse(res) {
