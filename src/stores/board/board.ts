@@ -1,6 +1,6 @@
 import {defineStore} from "pinia";
 import {ref} from "vue";
-import {get, post, put, del, patch} from "@/services/api/api-requests";
+import {get, post, patch} from "@/services/api/api-requests";
 
 export const useBoardStore = defineStore('board', ()=>{
   const lists = ref([])
@@ -39,6 +39,7 @@ export const useBoardStore = defineStore('board', ()=>{
     cardOrder: null
   })
   const cardFetchLoading = ref(false)
+  const listNameCopy = ref('')
 
   async function fetchLists(projectId){
     try {
@@ -227,6 +228,22 @@ export const useBoardStore = defineStore('board', ()=>{
     listsCopy.value = JSON.parse(JSON.stringify(lists.value))
   }
 
+  function setListName(listId, name){
+    const listIndex = lists.value.findIndex(list => list.id === listId)
+    lists.value.at(listIndex).name = name
+    copyLists()
+  }
+
+  async function changeColumnName(listId, name){
+    try {
+      await patch(`boardList/name/${listId}`, {
+        name: name
+      })
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
   return {
     lists,
     openedCard,
@@ -248,7 +265,10 @@ export const useBoardStore = defineStore('board', ()=>{
     filterCardsByMemberUsername,
     returnOriginalLists,
     copyLists,
-    listsCopy
+    listsCopy,
+    listNameCopy,
+    setListName,
+    changeColumnName
   }
 
 })

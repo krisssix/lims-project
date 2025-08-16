@@ -5,12 +5,14 @@ import {computed} from "vue";
 import router from "@/router";
 import {useProjectStore} from "@/stores/project/project";
 import {auth} from "@/stores/auth";
+import {storeToRefs} from "pinia";
 
 
 const boardStore = useBoardStore()
 const projectStore = useProjectStore()
 const route = useRoute()
 
+const { listNameCopy } = storeToRefs(boardStore)
 const loading = ref(true)
 const listName = ref('')
 const isCardOpen = ref(false)
@@ -97,6 +99,19 @@ function toggleFilterMyCards(value){
   }
 }
 
+async function changeColumnName(event, listId){
+  const name = event.target.value
+  if(name.trim()){
+    await boardStore.changeColumnName(listId, name)
+  } else {
+    boardStore.setListName(listId, listNameCopy.value)
+  }
+}
+
+function onFocus(event){
+  listNameCopy.value = event.target.value
+}
+
 </script>
 
 <template>
@@ -163,11 +178,16 @@ function toggleFilterMyCards(value){
             :key="index"
             class="list-card"
           >
-            <div class="list-header ga-2 cursor-pointer text-black">
+            <div class="list-header py-2 ga-2 cursor-pointer text-black">
               <div class="py-1 px-1 rounded-lg options-dots d-flex">
                 <v-icon icon="mdi-dots-horizontal" />
               </div>
-              <span>{{ list.name }}</span>
+              <input
+                v-model="list.name"
+                class="list-name-input"
+                @focus="onFocus"
+                @blur="event => changeColumnName(event, list.id)"
+              >
             </div>
             <div class="list-content cursor-pointer text-black">
               <CardsList
@@ -290,6 +310,18 @@ function toggleFilterMyCards(value){
 
 .options-dots:hover {
   background-color: #cfcfcf;
+}
+
+.list-name-input {
+  border: 1px solid transparent;
+  border-radius: 4px;
+  outline: none;
+  padding: 4px 8px;
+  line-height: 0.2;
+}
+
+.list-name-input:focus {
+  border: 1px solid #ffffff;
 }
 
 </style>
