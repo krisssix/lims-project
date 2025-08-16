@@ -1,21 +1,23 @@
 <script setup lang="ts">
 import {computed, nextTick, onMounted} from "vue";
+import {useUserStore} from "@/stores/user/user";
+import {useProjectStore} from "@/stores/project/project";
+import {formatDateFromTimestamp} from "@/utils/timeFormat";
 
 const props = defineProps({
-  isNew: Boolean,
-  project: Object
+  isNew: Boolean
 })
 
-const usersSelector = ref(null)
+const userStore = useUserStore()
+const { blankProjectMembers } = useProjectStore()
+const projectStore = useProjectStore()
 
+const usersSelector = ref(null)
 const showDateStartPicker = ref(false)
 const showDateEndPicker = ref(false)
-
-const maxStartDate= new Date().toISOString().substr(0, 10)
-const minEndDate = new Date().toISOString().substr(0, 10)
-
+const minEndDate = computed(() => startDateDatePicker.value && startDateDatePicker.value)
+const maxStartDate = computed(() => endDateDatePicker.value && endDateDatePicker.value)
 const search = ref(null)
-
 const boardTemplate = ref(null)
 const boardTemplateVariants = [
   {
@@ -26,58 +28,55 @@ const boardTemplateVariants = [
     title: 'Kanban',
     value: 'KANBAN'
   },]
-
-const hardcodedUsers = ref([
-  {
-    id: 0,
-    name: 'Frank Flores',
-  },
-  {
-    id: 1,
-    name: 'Jimmy Fermin',
-  },
-  {
-    id: 2,
-    name: 'Phillip Martin',
-  },
-  {
-    id: 3,
-    name: 'Albert Dera',
-  },
-])
-
 const hardCodedColors = ref([
   'bg-indigo-darken-2',
   'bg-red-darken-2',
   'bg-cyan-darken-2',
-  'bg-orange-darken-2'
+  'bg-orange-darken-2',
+  'bg-deep-purple-darken-2',
+  'bg-blue-darken-2',
+  'bg-teal-darken-2',
+  'bg-lime-darken-2'
 ])
 
 const startDateTextField = ref('')
 const endDateTextField = ref('')
-
 const startDateDatePicker = ref(null)
 const endDateDatePicker = ref(null)
+const fetchedUsers = ref([])
 
-const users = ref([])
+const valid = ref(false)
+const emptyRuleString = value => {
+  if (typeof value === 'string' && value.trim()) return true
+  return "Povinné"
+}
+const emptyRule = value => {
+  if (value !== null && value !== undefined && value !== '') return true
+  return "Povinné"
+}
+const ruleNumber = value => {
+  if (value === null || value === undefined || value === '') {
+    return "Povinné"
+  }
+  if (/^\d+$/.test(value)) {
+    return true
+  }
+  return "Pouze čísla"
+}
 
+onMounted(async ()=>{
+  const response = await userStore.getAllUsersExcept()
+  fetchedUsers.value.push(...response.items)
+})
 
 function convertToTimestamp(timeFromDatePicker){
   return new Date(timeFromDatePicker).getTime()
 }
 
-function formatDate(timeFromDatePicker){
-  const date = new Date(timeFromDatePicker);
-  const day = String(date.getDate()).padStart(2, '0');
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const year = date.getFullYear();
-  return `${day}.${month}. ${year}`;
-}
-
 function today(){
-  props.project.startDate = new Date().getTime()
+  blankProjectMembers.project.startDate = new Date().getTime()
   startDateDatePicker.value = new Date()
-  startDateTextField.value = formatDate(startDateDatePicker.value)
+  startDateTextField.value = formatDateFromTimestamp(startDateDatePicker.value)
   showDateStartPicker.value = false
 }
 
@@ -86,40 +85,43 @@ function isObject(value) {
 }
 
 function userSelected(selected){
-  if(isObject(selected)){
-    // remove from hardcoded users
+  fetchedUsers.value = [...fetchedUsers.value.filter(user => user.email !== selected.email)];
 
-    hardcodedUsers.value = [...hardcodedUsers.value.filter(user => user.id !== selected.id)];
+  const selectedColor = hardCodedColors.value[0]
+  // selectedUsers.value.push({
+  //   ...selected,
+  //   salary: null,
+  //   color: selectedColor
+  // })
+  blankProjectMembers.members.push({
+    ...selected,
+    salary: null,
+    color: selectedColor
+  })
+  hardCodedColors.value = [...hardCodedColors.value.filter(col => col !== selectedColor)]
 
-    // add to users
-    const selectedColor = hardCodedColors.value[0]
-    users.value.push({
-      ...selected,
-      color: selectedColor,
-      salary: null
-    })
-    hardCodedColors.value = [...hardCodedColors.value.filter(col => col !== selectedColor)]
-    // clear search
-    search.value = null
-    usersSelector.value.blur()
-  }
+  // clear search
+  search.value = null
+  usersSelector.value.blur()
 }
 
 function userRemoved(removed){
-  hardcodedUsers.value.push({
-    id: removed.id,
-    name: removed.name,
+  fetchedUsers.value.push({
+    ...removed,
+    color: null,
+    salary: null
   })
   hardCodedColors.value.push(removed.color)
-  users.value = [...users.value.filter(user => user.id !== removed.id)]
+  //selectedUsers.value = [...selectedUsers.value.filter(user => user.email !== removed.email)]
+  blankProjectMembers.members = [...blankProjectMembers.members.filter(user => user.username !== removed.username)]
 }
 
 function selectColor(name){
-  props.project.color = name
+  blankProjectMembers.project.color = name
 }
 
 function isSelected(color){
-  if (color === props.project.color){
+  if (color === blankProjectMembers.project.color){
     return ' selectedProjectColorBorder'
   } else {
     return  ''
@@ -127,7 +129,7 @@ function isSelected(color){
 }
 
 function boardTemplateSelected(value){
-  props.project.boardTemplate = value
+  blankProjectMembers.project.boardTemplate = value
   if(value === 'KANBAN'){
     boardTemplate.value = {
       title: 'Kanban',
@@ -143,13 +145,13 @@ function boardTemplateSelected(value){
 </script>
 
 <template>
-  <v-form>
+  <v-form v-model="projectStore.isProjectFormValid">
 
   <!-- NAME -->
-  <v-text-field v-model="props.project.name" color="primary" class="pt-5" label="Název" variant="outlined"></v-text-field>
+  <v-text-field hide-details :rules="[emptyRuleString]" v-model="blankProjectMembers.project.name" color="primary" class="pt-5" label="Název" variant="outlined"></v-text-field>
 
   <!-- DESCRIPTION -->
-  <v-textarea v-model="props.project.description" color="primary" label="Popis" variant="outlined"></v-textarea>
+  <v-textarea hide-details :rules="[emptyRuleString]" v-model="blankProjectMembers.project.description" color="primary" class="pt-5" label="Popis" variant="outlined"></v-textarea>
 
   <!-- START DATE -->
   <v-dialog
@@ -166,8 +168,8 @@ function boardTemplateSelected(value){
       :max="maxStartDate"
       v-model="startDateDatePicker"
       @update:modelValue="(value)=>{
-          props.project.startDate = convertToTimestamp(value)
-          startDateTextField = formatDate(value)
+          blankProjectMembers.project.startDate = convertToTimestamp(value)
+          startDateTextField = formatDateFromTimestamp(value)
           showDateStartPicker = false
         }"
     />
@@ -181,7 +183,10 @@ function boardTemplateSelected(value){
   </v-dialog>
 
   <v-text-field
+    :rules="[emptyRuleString]"
+    hide-details
     @click="showDateStartPicker = true"
+    class="pt-5"
     variant="outlined"
     readonly
     prepend-inner-icon="mdi-calendar-month-outline"
@@ -193,6 +198,9 @@ function boardTemplateSelected(value){
   <!-- END DATE -->
 
   <v-text-field
+    :rules="[emptyRuleString]"
+    hide-details
+    class="pt-5"
     @click="showDateEndPicker = true"
     variant="outlined"
     readonly
@@ -216,8 +224,8 @@ function boardTemplateSelected(value){
         :min="minEndDate"
         v-model="endDateDatePicker"
         @update:modelValue="(value)=>{
-          props.project.endDate = convertToTimestamp(value)
-          endDateTextField = formatDate(value)
+          blankProjectMembers.project.endDate = convertToTimestamp(value)
+          endDateTextField = formatDateFromTimestamp(value)
           showDateEndPicker = false
         }"
       />
@@ -225,40 +233,43 @@ function boardTemplateSelected(value){
   </v-dialog>
 
   <!-- USERS -->
-  <h5>Uživatelé</h5>
-  <v-row class="pt-5">
-    <v-col cols="6">
-        <v-row v-if="users.length > 0" v-for="user in users" :key="user.id">
-          <v-col align-self="center">
-                <div class="d-flex flex-row align-center">
-                  <v-icon icon="mdi-account-circle" size="x-large" color="grey-darken-1" />
-                  <span class="pl-2 pr-2">{{user.name}}</span>
-                  <div style="width: 12px;height: 12px" class="rounded-circle " :class="user.color"  />
-                </div>
-          </v-col>
-          <v-col align-self="center">
-            <div class="d-flex flex-row align-center">
-              <v-text-field class="pr-2" hide-details variant="outlined" v-model="user.salary" label="Plat" suffix="Kč"></v-text-field>
-              <v-btn @click="userRemoved(user)" icon="mdi-close"  variant="text" />
-            </div>
-          </v-col>
-        </v-row>
+    <h5 class="pt-5">Uživatelé</h5>
+    <v-row class="pt-5">
+      <v-col cols="6">
+        <div v-if="blankProjectMembers.members.length > 0">
+          <v-row v-for="member in blankProjectMembers.members" :key="member.username">
+            <v-col align-self="center">
+              <div class="d-flex flex-row align-center">
+                <v-icon icon="mdi-account-circle" size="x-large" color="grey-darken-1" />
+                <span class="pl-2 pr-2">{{member.username}}</span>
+                <div style="width: 12px;height: 12px" class="rounded-circle " :class="member.color"  />
+              </div>
+            </v-col>
+            <v-col align-self="center">
+              <div class="d-flex flex-row align-center">
+                <v-text-field hide-details :rules="[ruleNumber]" class="pr-2" variant="outlined" v-model="member.salary" label="Plat" suffix="Kč"></v-text-field>
+                <v-btn @click="userRemoved(member)" icon="mdi-close"  variant="text" />
+              </div>
+            </v-col>
+          </v-row>
+        </div>
+
         <v-combobox
           ref="usersSelector"
-          :class="users.length > 0 ? 'pt-5' : ''"
+          :class="blankProjectMembers.members.length > 0 ? 'pt-5' : ''"
           variant="outlined"
           label="Jméno uživatele"
-          :items="hardcodedUsers"
-          item-title="name"
+          :items="fetchedUsers"
+          item-title="username"
           v-model="search"
           return-object
           @update:modelValue="selected => {
-          userSelected(selected)
-        }"
+            userSelected(selected)
+          }"
         />
+      </v-col>
+    </v-row>
 
-    </v-col>
-  </v-row>
   <!-- COLOR -->
   <h5>Barva</h5>
   <div class="d-flex flex-row ga-4 pt-5">
@@ -272,6 +283,7 @@ function boardTemplateSelected(value){
     <!-- BOARD TEMPLATE -->
     <h5 class="pt-5">Šablona projektu</h5>
     <v-select
+      :rules="[emptyRule]"
       :model-value="boardTemplate"
       class="pt-5"
       :items="boardTemplateVariants"
