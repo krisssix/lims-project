@@ -101,72 +101,103 @@ function toggleFilterMyCards(value){
 
 <template>
   <div class="d-flex flex-column container-height">
-  <v-toolbar color="white" class="border-b-sm pl-3 pr-3" density="comfortable">
-    <v-btn @click="isSideFilterOpen = !isSideFilterOpen" color="primary" variant="tonal">Procházet</v-btn>
-    <v-checkbox-btn color="primary" :model-value="isMyCardsOnly" @update:model-value="value => toggleFilterMyCards(value)"  class="pl-2" label="Přiřazené mě"></v-checkbox-btn>
-  </v-toolbar>
+    <v-toolbar
+      color="white"
+      class="border-b-sm pl-3 pr-3"
+      density="comfortable"
+    >
+      <v-btn
+        color="primary"
+        variant="tonal"
+        @click="isSideFilterOpen = !isSideFilterOpen"
+      >
+        Procházet
+      </v-btn>
+      <v-checkbox-btn
+        color="primary"
+        :model-value="isMyCardsOnly"
+        class="pl-2"
+        label="Přiřazené mě"
+        @update:model-value="value => toggleFilterMyCards(value)"
+      />
+    </v-toolbar>
     <v-container v-if="loading">
       <div class="text-center">
-      <v-progress-circular
-        :size="50"
-        color="primary"
-        indeterminate
-      ></v-progress-circular>
+        <v-progress-circular
+          :size="50"
+          color="primary"
+          indeterminate
+        />
       </div>
     </v-container>
-  <v-container fluid v-else class="overflow-x-scroll overflow-y-hidden flex flex-grow-1" >
-    <OpenedCard
-      :is-open="isCardOpen"
-      :project-members="projectStore.projectMembers"
-      @cancelCard="cancelCard"
-      @saveCard="saveCard"
-    ></OpenedCard>
-    <div class="fill-height d-flex">
-      <v-slide-x-transition>
-        <side-filter @close="isSideFilterOpen = false" :members="projectStore.projectMembers" v-if="isSideFilterOpen" class="mr-7"/>
-      </v-slide-x-transition>
-      <draggable
-        v-model="boardStore.lists"
-        :options="{ group: 'lists' }"
-        group="lists"
-        ghostClass="ghost"
-        class="list-draggable fill-height"
-        @end="listMoved"
-      >
-        <div class="list-card" v-for="(list, index) in boardStore.lists" :key="index">
-          <div class="list-header ga-2 cursor-pointer text-black">
-            <div class="py-1 px-1 rounded-lg options-dots d-flex">
-              <v-icon icon="mdi-dots-horizontal"></v-icon>
-            </div>
-            <span>{{list.name}}</span>
-          </div>
-          <div class="list-content cursor-pointer text-black">
-            <CardsList
-              @open-card="args => openCard(args.id, list.id)"
-              :is-filtered="isMyCardsOnly"
-              :cards="list.cards"
-              :listId="list.id"
-              :listName="list.name" />
-          </div>
-          <div class="list-footer cursor-pointer px-2 py-2">
-            <div
-              @click="openCard(null, list.id)"
-              class="d-flex ga-2 cursor-pointer px-2 py-2 rounded-lg add-card">
-              <v-icon icon="mdi-plus"></v-icon>
-              <span>Přidat kartu</span>
-            </div>
-          </div>
-        </div>
-      </draggable>
-      <input
-        type="text"
-        class="input-new-list"
-        placeholder="Přidat sloupec"
-        v-model="listName"
-        @keyup.enter="addList"
+    <v-container
+      v-else
+      fluid
+      class="overflow-x-scroll overflow-y-hidden flex flex-grow-1"
+    >
+      <OpenedCard
+        :is-open="isCardOpen"
+        :project-members="projectStore.projectMembers"
+        @cancel-card="cancelCard"
+        @save-card="saveCard"
       />
-    </div>
-  </v-container>
+      <div class="fill-height d-flex">
+        <v-slide-x-transition>
+          <side-filter
+            v-if="isSideFilterOpen"
+            :members="projectStore.projectMembers"
+            class="mr-7"
+            @close="isSideFilterOpen = false"
+          />
+        </v-slide-x-transition>
+        <draggable
+          v-model="boardStore.lists"
+          :options="{ group: 'lists' }"
+          group="lists"
+          ghost-class="ghost"
+          class="list-draggable fill-height"
+          @end="listMoved"
+        >
+          <div
+            v-for="(list, index) in boardStore.lists"
+            :key="index"
+            class="list-card"
+          >
+            <div class="list-header ga-2 cursor-pointer text-black">
+              <div class="py-1 px-1 rounded-lg options-dots d-flex">
+                <v-icon icon="mdi-dots-horizontal" />
+              </div>
+              <span>{{ list.name }}</span>
+            </div>
+            <div class="list-content cursor-pointer text-black">
+              <CardsList
+                :is-filtered="isMyCardsOnly"
+                :cards="list.cards"
+                :list-id="list.id"
+                :list-name="list.name"
+                @open-card="args => openCard(args.id, list.id)"
+              />
+            </div>
+            <div class="list-footer cursor-pointer px-2 py-2">
+              <div
+                class="d-flex ga-2 cursor-pointer px-2 py-2 rounded-lg add-card"
+                @click="openCard(null, list.id)"
+              >
+                <v-icon icon="mdi-plus" />
+                <span>Přidat kartu</span>
+              </div>
+            </div>
+          </div>
+        </draggable>
+        <input
+          v-model="listName"
+          type="text"
+          class="input-new-list"
+          placeholder="Přidat sloupec"
+          @keyup.enter="addList"
+        >
+      </div>
+    </v-container>
   </div>
 </template>
 
