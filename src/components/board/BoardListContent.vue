@@ -20,8 +20,8 @@ watch(() => props.cards, (newCards) => {
 }, { immediate: true })
 
 function cardMoved(event){
-  const fromListId = parseInt(event.from.getAttribute('listid'))
-  const toListId = parseInt(event.to.getAttribute('listid'))
+  const fromListId = parseInt(event.from.getAttribute('list-id'))
+  const toListId = parseInt(event.to.getAttribute('list-id'))
 
   if(fromListId === toListId){
     changeInOneList()
