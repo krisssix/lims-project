@@ -3,11 +3,13 @@ import Dialog from "@/components/Dialog.vue";
 import {useBoardStore} from "@/stores/board/board";
 import {computed, ref} from "vue";
 import {auth} from "@/stores/auth";
+import {useCardTimerStore} from "@/stores/board/cardTimer";
 
 const props = defineProps(['isOpen','projectMembers'])
 const emit = defineEmits(['cancelCard','saveCard'])
 
 const {openedCard, cardFetchLoading, openedCardCopy, changeCardDescription, changeCardName, changeCardMember, fetchComments, createComment } = useBoardStore()
+const {fetchTimeRecords, setTimeForTimer } = useCardTimerStore()
 
 function onCancel(){
   emit('cancelCard')
@@ -19,6 +21,7 @@ function onSave(){
 
 const comment = ref('')
 const tab = ref(null)
+
 const isNew = computed(() => {
   return openedCard.id === null;
 })
@@ -41,6 +44,12 @@ watch(() => isNew.value,
     }
   }
 )
+
+async function setTimer(){
+  await fetchTimeRecords(openedCard.id)
+  await setTimeForTimer()
+}
+
 function updateDescription(){
   if(!isNew.value && openedCardCopy.description !== openedCard.description){
     changeCardDescription(openedCard.description, openedCard.id)
@@ -115,6 +124,10 @@ function initials(name){
           @blur="updateName"
         >
         <div class="d-flex ga-2 align-center">
+          <Timer
+            v-if="!isNew"
+            :card-id="openedCard.id"
+          />
           <v-btn
             v-if="!isNew"
             icon="mdi-close"

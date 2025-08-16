@@ -169,6 +169,44 @@ export const useBoardStore = defineStore('board', ()=>{
     }
   }
 
+  async function changeCardMember(newMemberUsername, cardId, boardListId){
+    try {
+      const response = await patch(`boardCard/memberUsername/${cardId}`, {
+        memberUsername: newMemberUsername !== undefined ? newMemberUsername : null
+      }, {'Content-Type': 'application/json'})
+      changeCardMemberInList(response.data.content.memberUsername, cardId, boardListId)
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
+  function changeCardMemberInList(newMemberUsername, cardId, boardListId){
+    const listIndex = lists.value.findIndex(list => list.id === boardListId)
+    const cardIndex = lists.value.at(listIndex).cards.findIndex(card => card.id === cardId)
+    lists.value.at(listIndex).cards.at(cardIndex).memberUsername = newMemberUsername
+  }
+
+  async function createComment(message, username, cardId){
+    try {
+      const response = await post("boardCardComment", {
+        message: message,
+        username: username,
+        cardId: cardId
+      })
+      return response.data.content
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
+  async function fetchComments(cardId){
+    try {
+      const response = await get(`boardCardComment/${cardId}`)
+      return response.data.items
+    } catch (e) {
+      console.error(e)
+    }
+  }
   return {
     lists,
     openedCard,

@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { VueDraggableNext as draggable } from 'vue-draggable-next'
-import {ref} from "vue";
+import {computed, ref} from "vue";
 import {useBoardStore} from "@/stores/board/board";
+import {formatMs} from "../../utils/timeFormat";
 
 const boardStore = useBoardStore()
 
@@ -112,6 +113,29 @@ function findAndSetMovedCard(movedCardNewIndex, toListId){
   return movedCard
 }
 
+function initials(name){
+  return name[0].toUpperCase()
+}
+
+function getMembers(card) {
+  let members = []
+  if(card.memberUsername){
+    card.cardTimerGroupedByUsernameList.forEach(timerGrouped => {
+      if(timerGrouped.username === card.memberUsername){
+        members.unshift(timerGrouped ? timerGrouped : {username: card.memberUsername, sumTime: null})
+      } else {
+        members.push(timerGrouped)
+      }
+    })
+    if(card.cardTimerGroupedByUsernameList.findIndex(timerGrouped => timerGrouped.username === card.memberUsername) === -1){
+      members.unshift({username: card.memberUsername, sumTime: null})
+    }
+  } else {
+    members.push(...card.cardTimerGroupedByUsernameList)
+  }
+  return members
+}
+
 </script>
 
 <template>
@@ -129,6 +153,14 @@ function findAndSetMovedCard(movedCardNewIndex, toListId){
       @click="emit('openCard',{id: card.id})"
     >
       {{ card.name }}
+      <div :key="m.username" v-for="m in getMembers(card)" class="d-flex w-100 align-center justify-space-between mt-1">
+        <div class="font-weight-light">
+          {{ m.sumTime ? formatMs(m.sumTime) : null }}
+        </div>
+        <div :class="`background-circle d-flex align-center justify-center bg-grey-lighten-2 ${m.username === card.memberUsername && 'circle-border' }`">
+          {{ initials(m.username) }}
+        </div>
+      </div>
     </span>
   </draggable>
 </template>
@@ -139,7 +171,8 @@ function findAndSetMovedCard(movedCardNewIndex, toListId){
   background-color: white;
   height: auto;
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  align-items: start;
   padding: 10px;
   border-radius: 5px;
   min-height: 30px;
@@ -151,6 +184,16 @@ function findAndSetMovedCard(movedCardNewIndex, toListId){
 
 .element-card:hover {
   border: solid 1px #5C5C5C;
+}
+
+.background-circle {
+  height: 1.8em;
+  width: 1.8em;
+  border-radius: 100%;
+}
+
+.circle-border {
+  border: 2px solid #0277BD;
 }
 
 </style>
