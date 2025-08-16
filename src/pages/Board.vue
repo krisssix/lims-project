@@ -3,8 +3,12 @@ import {VueDraggableNext as draggable} from 'vue-draggable-next'
 import {useBoardStore} from "@/stores/board/board";
 import {computed} from "vue";
 import router from "@/router";
+import {useProjectStore} from "@/stores/project/project";
+import {auth} from "@/stores/auth";
+
 
 const boardStore = useBoardStore()
+const projectStore = useProjectStore()
 const route = useRoute()
 
 const loading = ref(true)
@@ -17,6 +21,7 @@ const projectId = computed(()=>{
 
 onMounted(async () => {
   await boardStore.fetchLists(projectId.value)
+  await projectStore.fetchProjectMembers(projectId.value)
   loading.value = false
   const openedCardId = await route.query.cardId
   if(openedCardId !== null && !isNaN(openedCardId)){
@@ -95,9 +100,10 @@ function listMoved(event) {
       ></v-progress-circular>
       </div>
     </v-container>
-  <v-container v-else class="overflow-x-scroll overflow-y-hidden flex flex-grow-1" >
+  <v-container fluid v-else class="overflow-x-scroll overflow-y-hidden flex flex-grow-1" >
     <OpenedCard
       :is-open="isCardOpen"
+      :project-members="projectStore.projectMembers"
       @cancelCard="cancelCard"
       @saveCard="saveCard"
     ></OpenedCard>
