@@ -14,6 +14,8 @@ const route = useRoute()
 const loading = ref(true)
 const listName = ref('')
 const isCardOpen = ref(false)
+const isMyCardsOnly = ref(false)
+const isSideFilterOpen = ref(false)
 
 const projectId = computed(()=>{
   return route.params.projectId;
@@ -57,6 +59,7 @@ async function openCard(cardId, boardListId){
 
 async function saveCard(){
   await boardStore.saveCard(projectId.value)
+  boardStore.copyLists()
   boardStore.refreshOpenedCard()
   isCardOpen.value = false
 }
@@ -80,6 +83,17 @@ function listMoved(event) {
 
   if(changedLists.length > 0){
     boardStore.listsOrderChanged(changedLists)
+    boardStore.copyLists()
+  }
+}
+
+function toggleFilterMyCards(value){
+  if(value){
+    isMyCardsOnly.value = true
+    boardStore.filterCardsByMemberUsername([auth.getUserInfo().preferredUsername])
+  } else {
+    isMyCardsOnly.value = false
+    boardStore.returnOriginalLists()
   }
 }
 
@@ -88,8 +102,8 @@ function listMoved(event) {
 <template>
   <div class="d-flex flex-column container-height">
   <v-toolbar color="white" class="border-b-sm pl-3 pr-3" density="comfortable">
-    <v-btn color="primary" variant="tonal">Procházet</v-btn>
-    <v-checkbox-btn class="pl-2" label="Přiřazené mě"></v-checkbox-btn>
+    <v-btn @click="isSideFilterOpen = !isSideFilterOpen" color="primary" variant="tonal">Procházet</v-btn>
+    <v-checkbox-btn color="primary" :model-value="isMyCardsOnly" @update:model-value="value => toggleFilterMyCards(value)"  class="pl-2" label="Přiřazené mě"></v-checkbox-btn>
   </v-toolbar>
     <v-container v-if="loading">
       <div class="text-center">
@@ -108,6 +122,9 @@ function listMoved(event) {
       @saveCard="saveCard"
     ></OpenedCard>
     <div class="fill-height d-flex">
+      <v-slide-x-transition>
+        <side-filter @close="isSideFilterOpen = false" :members="projectStore.projectMembers" v-if="isSideFilterOpen" class="mr-7"/>
+      </v-slide-x-transition>
       <draggable
         v-model="boardStore.lists"
         :options="{ group: 'lists' }"
@@ -126,6 +143,7 @@ function listMoved(event) {
           <div class="list-content cursor-pointer text-black">
             <CardsList
               @open-card="args => openCard(args.id, list.id)"
+              :is-filtered="isMyCardsOnly"
               :cards="list.cards"
               :listId="list.id"
               :listName="list.name" />

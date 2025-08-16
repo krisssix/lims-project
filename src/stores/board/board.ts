@@ -4,6 +4,7 @@ import {get, post, put, del, patch} from "@/services/api/api-requests";
 
 export const useBoardStore = defineStore('board', ()=>{
   const lists = ref([])
+  const listsCopy = ref([])
   const openedCard = ref({
     id: null,
     name: '',
@@ -43,6 +44,7 @@ export const useBoardStore = defineStore('board', ()=>{
     try {
       const data = await get('boardList/allByProject/'+projectId)
       lists.value = data.data.items
+      listsCopy.value = JSON.parse(JSON.stringify(data.data.items))
     } catch (e) {
       console.error(e)
     }
@@ -56,6 +58,7 @@ export const useBoardStore = defineStore('board', ()=>{
         listOrder: listOrder
       })
       lists.value.push({...data.data.content})
+      listsCopy.value = JSON.parse(JSON.stringify(lists.value))
     } catch (e) {
       console.error(e)
     }
@@ -75,21 +78,23 @@ export const useBoardStore = defineStore('board', ()=>{
       const data = await post('boardCard/', {
         name: openedCard.value.name,
         description: openedCard.value.description,
-        cardOrder: Number(openedCard.value.order),
+        cardOrder: Number(openedCard.value.cardOrder),
         projectId: Number(projectId),
-        boardListId: Number(openedCard.value.boardListId)
+        boardListId: Number(openedCard.value.boardListId),
+        memberUsername: openedCard.value.member ? openedCard.value.member.username : "",
       })
 
       addCardToList(data.data.content.boardListId, {
         id: data.data.content.id,
         name: data.data.content.name,
-        order: data.data.content.cardOrder,
-        member: null,
+        cardOrder: data.data.content.cardOrder,
+        memberUsername: data.data.content.member ? data.data.content.member.username : null,
         measurements: [],
         description: '',
         comments: [],
         events: [],
-        boardListId: data.data.content.boardListId
+        boardListId: data.data.content.boardListId,
+        cardTimerGroupedByUsernameList: []
       })
     } catch (e) {
       console.error(e)
@@ -207,6 +212,21 @@ export const useBoardStore = defineStore('board', ()=>{
       console.error(e)
     }
   }
+
+  function filterCardsByMemberUsername(usernameList) {
+    lists.value = listsCopy.value.map(list => ({
+      ...list,
+      cards: list.cards.filter(card => usernameList.includes(card.memberUsername))
+    }))
+  }
+  function returnOriginalLists(){
+    lists.value = JSON.parse(JSON.stringify(listsCopy.value))
+  }
+
+  function copyLists(){
+    listsCopy.value = JSON.parse(JSON.stringify(lists.value))
+  }
+
   return {
     lists,
     openedCard,
@@ -221,7 +241,14 @@ export const useBoardStore = defineStore('board', ()=>{
     cardFetchLoading,
     openedCardCopy,
     changeCardName,
-    changeCardDescription
+    changeCardDescription,
+    changeCardMember,
+    createComment,
+    fetchComments,
+    filterCardsByMemberUsername,
+    returnOriginalLists,
+    copyLists,
+    listsCopy
   }
 
 })

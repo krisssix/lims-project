@@ -7,7 +7,8 @@ import {formatMs} from "../../utils/timeFormat";
 const boardStore = useBoardStore()
 
 const props = defineProps({
-  cards: Object,
+  cards: Array,
+  isFiltered: Boolean
 })
 
 const emit = defineEmits(['openCard'])
@@ -85,16 +86,16 @@ function findListsInfo(toListId, fromListId){
 }
 
 function changeInOneList(){
-  let changedCards = []
-  cards_ref.value.forEach((card, index) => {
-    if (card.cardOrder !== index){
-      card.cardOrder = index
-      changedCards.push(card)
+    let changedCards = []
+    cards_ref.value.forEach((card, index) => {
+      if (card.cardOrder !== index){
+        card.cardOrder = index
+        changedCards.push(card)
+      }
+    })
+    if (changedCards.length > 0){
+      boardStore.cardsOrderChanged(changedCards)
     }
-  })
-  if (changedCards.length > 0){
-    boardStore.cardsOrderChanged(changedCards)
-  }
 }
 
 function changeOrderFromCurrentList(changedCards){

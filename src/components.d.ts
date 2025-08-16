@@ -9,12 +9,18 @@ declare module 'vue' {
   export interface GlobalComponents {
     AppFooter: typeof import('./components/AppFooter.vue')['default']
     AppToolbar: typeof import('./components/AppToolbar.vue')['default']
+    BarChart: typeof import('./components/sumarry/BarChart.vue')['default']
     CardsList: typeof import('./components/board/CardsList.vue')['default']
+    CommentRow: typeof import('./components/board/CommentRow.vue')['default']
     Dialog: typeof import('./components/Dialog.vue')['default']
     LeftNavigation: typeof import('./components/LeftNavigation.vue')['default']
     OpenedCard: typeof import('./components/board/OpenedCard.vue')['default']
     ProjectForm: typeof import('./components/project/ProjectForm.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
+    SideFilter: typeof import('./components/board/sideFilter/SideFilter.vue')['default']
+    SideFilterRow: typeof import('./components/board/sideFilter/SideFilterRow.vue')['default']
+    Timer: typeof import('./components/board/Timer.vue')['default']
+    TimerTable: typeof import('./components/board/TimerTable.vue')['default']
   }
 }
