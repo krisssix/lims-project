@@ -15,6 +15,10 @@ export function useAuth() {
     clientId: "web",
     publicClient: true,
   });
+  const userInfo = reactive({
+    preferredUsername: '',
+    email: ''
+  })
 
   const init = () => {
     return keycloak
@@ -68,6 +72,27 @@ export function useAuth() {
     });
   }
 
+  function parseJwt (token) {
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function (c) {
+      return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+    }).join(''));
+
+    return JSON.parse(jsonPayload);
+  }
+
+  const getUserInfo = () => {
+    if(userInfo.preferredUsername != ''){
+      return userInfo
+    } else {
+      const parsedToken = parseJwt(getToken())
+      userInfo.email = parsedToken.email
+      userInfo.preferredUsername = parsedToken.preferred_username
+      return userInfo
+    }
+  };
+
   return {
     keycloak,
     init,
@@ -79,6 +104,7 @@ export function useAuth() {
     getToken,
     renewToken,
     isLoading: userIsLoading,
+    getUserInfo
   };
 
 }
