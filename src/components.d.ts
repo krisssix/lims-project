@@ -16,6 +16,7 @@ declare module 'vue' {
     CardsListContent: typeof import('./components/board/CardsListContent.vue')['default']
     CardsLists: typeof import('./components/board/CardsLists.vue')['default']
     CommentRow: typeof import('./components/board/card/CommentRow.vue')['default']
+    DatePicker: typeof import('./components/DatePicker.vue')['default']
     Dialog: typeof import('./components/Dialog.vue')['default']
     LeftNavigation: typeof import('./components/LeftNavigation.vue')['default']
     OpenedCard: typeof import('./components/board/card/OpenedCard.vue')['default']
@@ -24,6 +25,7 @@ declare module 'vue' {
     RouterView: typeof import('vue-router')['RouterView']
     SideFilter: typeof import('./components/board/sideFilter/SideFilter.vue')['default']
     SideFilterRow: typeof import('./components/board/sideFilter/SideFilterRow.vue')['default']
+    TimePicker: typeof import('./components/TimePicker.vue')['default']
     Timer: typeof import('./components/board/card/Timer.vue')['default']
     TimerTable: typeof import('./components/board/card/TimerTable.vue')['default']
   }
