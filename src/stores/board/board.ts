@@ -1,6 +1,6 @@
 import {defineStore} from "pinia";
 import {ref} from "vue";
-import {get, post, patch} from "@/services/api/api-requests";
+import {get, post, patch, del} from "@/services/api/api-requests";
 
 export const useBoardStore = defineStore('board', ()=>{
   const lists = ref([])
@@ -244,6 +244,20 @@ export const useBoardStore = defineStore('board', ()=>{
     }
   }
 
+  async function deleteList(listId){
+    console.log('deleting ', listId)
+    try {
+      await del(`boardList/${listId}`)
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
+  function removeFromLists(listId){
+    lists.value = lists.value.filter(list => list.id !== listId)
+    copyLists()
+  }
+
   return {
     lists,
     openedCard,
@@ -268,7 +282,9 @@ export const useBoardStore = defineStore('board', ()=>{
     listsCopy,
     listNameCopy,
     setListName,
-    changeColumnName
+    changeColumnName,
+    deleteList,
+    removeFromLists
   }
 
 })
