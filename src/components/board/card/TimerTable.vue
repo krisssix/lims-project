@@ -3,9 +3,11 @@ import {useCardTimerStore} from "@/stores/board/cardTimer";
 import {computed} from "vue";
 import {formatDateFromTimestamp, formatMs, formatTimeFromTimestamp} from "@/utils/timeFormat";
 import {storeToRefs} from "pinia";
+import TimeRecordForm from "@/components/board/card/TimeRecordForm.vue";
 
 const cardTimerStore = useCardTimerStore()
 const { timeRecords } = storeToRefs(cardTimerStore)
+const timeRecordDialog = ref(false)
 
 const headers = ref([
   { title: 'Uživatel', key: 'username', align: 'start' },
@@ -41,20 +43,14 @@ function remove(value){
 
 <template>
   <div class="d-flex flex-row w-100 justify-end">
-    <v-btn
-      class="me-2"
-      text="Přidat čas"
-      variant="text"
-      color="primary"
-      @click="menu = !menu"
-    />
+    <time-record-form />
   </div>
   <v-data-table
     :items="items"
     :headers="headers"
   >
     <template #item.actions="{ item }">
-      <div class="d-flex ga-2 justify-end"pracov>
+      <div class="d-flex ga-2 justify-end">
         <v-icon
           color="medium-emphasis"
           icon="mdi-pencil"

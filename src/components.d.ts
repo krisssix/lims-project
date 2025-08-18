@@ -27,6 +27,7 @@ declare module 'vue' {
     SideFilterRow: typeof import('./components/board/sideFilter/SideFilterRow.vue')['default']
     TimePicker: typeof import('./components/TimePicker.vue')['default']
     Timer: typeof import('./components/board/card/Timer.vue')['default']
+    TimeRecordForm: typeof import('./components/board/card/TimeRecordForm.vue')['default']
     TimerTable: typeof import('./components/board/card/TimerTable.vue')['default']
   }
 }
