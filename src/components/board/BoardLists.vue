@@ -2,12 +2,51 @@
 import {storeToRefs} from "pinia";
 import {useBoardStore} from "@/stores/board/board";
 import BoardListContent from "@/components/board/BoardListContent.vue";
+import router from "@/router";
+import {useProjectStore} from "@/stores/project/project";
+import {computed} from "vue";
+
+const emit = defineEmits(['open-card'])
 
 const boardStore = useBoardStore()
+const projectStore = useProjectStore()
 const { listNameCopy } = storeToRefs(boardStore)
 const isConfirmDialogOpen = ref(false)
 const selectedListId = ref(null)
 const loading = ref(false)
+const route = useRoute()
+
+const projectId = computed(()=>{
+  return route.params.projectId;
+})
+
+onMounted(async () => {
+  await boardStore.fetchLists(projectId.value)
+  await projectStore.fetchProjectMembers(projectId.value)
+  const openedCardId = await route.query.cardId
+  if(openedCardId !== null && !isNaN(openedCardId)){
+    await openCard(parseInt(openedCardId))
+  }
+  if(isNaN(openedCardId)){
+    await router.replace({name: 'Board', query: {}})
+    emit('open-card', { isOpen: false })
+  }
+})
+
+async function openCard(cardId, boardListId){
+  if(cardId === null){
+    // new
+    boardStore.openedCard.boardListId = boardListId
+    emit('open-card', { isOpen: true })
+    const list = boardStore.lists.find(l => l.id === boardListId)
+    boardStore.openedCard.order = list.cards.length
+  } else {
+    // fetch card
+    emit('open-card', { isOpen: true })
+    await boardStore.fetchCard(cardId)
+    await router.replace({name: 'Board', query: {cardId: cardId }})
+  }
+}
 
 async function changeColumnName(event, listId){
   const name = event.target.value

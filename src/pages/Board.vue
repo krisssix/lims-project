@@ -2,16 +2,16 @@
 import {VueDraggableNext as draggable} from 'vue-draggable-next'
 import {useBoardStore} from "@/stores/board/board";
 import {computed} from "vue";
-import router from "@/router";
 import {useProjectStore} from "@/stores/project/project";
 import {auth} from "@/stores/auth";
 import BoardLists from "@/components/board/BoardLists.vue";
+import router from "@/router";
 
 const boardStore = useBoardStore()
 const projectStore = useProjectStore()
+
 const route = useRoute()
 
-const loading = ref(true)
 const listName = ref('')
 const isCardOpen = ref(false)
 const isMyCardsOnly = ref(false)
@@ -21,55 +21,12 @@ const projectId = computed(()=>{
   return route.params.projectId;
 })
 
-onMounted(async () => {
-  await boardStore.fetchLists(projectId.value)
-  await projectStore.fetchProjectMembers(projectId.value)
-  loading.value = false
-  const openedCardId = await route.query.cardId
-  if(openedCardId !== null && !isNaN(openedCardId)){
-    await openCard(parseInt(openedCardId))
-  }
-  if(isNaN(openedCardId)){
-    await router.replace({name: 'Board', query: {}})
-    isCardOpen.value = false
-  }
-})
 
 async function addList(){
   if(listName.value.trim() !== ''){
     await boardStore.saveList(projectId.value, listName.value, boardStore.lists.length)
     listName.value = ''
   }
-}
-
-async function openCard(cardId, boardListId){
-  if(cardId === null){
-    // new
-    boardStore.openedCard.boardListId = boardListId
-    isCardOpen.value = true
-    const list = boardStore.lists.find(l => l.id === boardListId)
-    boardStore.openedCard.order = list.cards.length
-  } else {
-    // fetch card
-    isCardOpen.value = true
-    await boardStore.fetchCard(cardId)
-    await router.replace({name: 'Board', query: {cardId: cardId }})
-  }
-}
-
-async function saveCard(){
-  await boardStore.saveCard(projectId.value)
-  boardStore.copyLists()
-  boardStore.refreshOpenedCard()
-  isCardOpen.value = false
-}
-
-function cancelCard(){
-  isCardOpen.value = false
-  setTimeout(() => {
-    boardStore.refreshOpenedCard()
-  },200)
-  router.replace({name: 'Board', query: {}})
 }
 
 function listMoved(event) {
@@ -95,6 +52,25 @@ function toggleFilterMyCards(value){
     isMyCardsOnly.value = false
     boardStore.returnOriginalLists()
   }
+}
+
+async function saveCard(){
+  await boardStore.saveCard(projectId.value)
+  boardStore.copyLists()
+  boardStore.refreshOpenedCard()
+  isCardOpen.value = false
+}
+
+function cancelCard(){
+  isCardOpen.value = false
+  setTimeout(() => {
+    boardStore.refreshOpenedCard()
+  },200)
+  router.replace({name: 'Board', query: {}})
+}
+
+function openCard(args){
+  isCardOpen.value = args.isOpen
 }
 
 </script>
@@ -158,7 +134,9 @@ function toggleFilterMyCards(value){
           class="list-draggable fill-height"
           @end="listMoved"
         >
-          <board-lists />
+          <board-lists
+            @open-card="openCard"
+          />
         </draggable>
         <input
           v-model="listName"
