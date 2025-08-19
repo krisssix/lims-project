@@ -1,5 +1,5 @@
 import {defineStore} from "pinia";
-import {get, post} from "@/services/api/api-requests";
+import {del, get, post} from "@/services/api/api-requests";
 import {auth} from "@/stores/auth";
 
 export const useCardTimerStore = defineStore('cardTimer', ()=>{
@@ -16,6 +16,7 @@ export const useCardTimerStore = defineStore('cardTimer', ()=>{
   async function createTimeRecord(requestData){
     try {
       const response = await post('boardCardTimer', requestData)
+      console.log('time response ', response.data.content)
       timeRecords.value.push(response.data.content)
     } catch (e) {
       console.error(e)
@@ -46,6 +47,18 @@ export const useCardTimerStore = defineStore('cardTimer', ()=>{
     time.value = newTime
   }
 
+  async function deleteTimeRecord(id){
+    try {
+      await del(`boardCardTimer/${id}`)
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
+  function removeFromTimeRecords(id){
+    timeRecords.value = timeRecords.value.filter(timeRecord => timeRecord.id !== id)
+  }
+
   return {
     createTimeRecord,
     timeRecords,
@@ -53,6 +66,8 @@ export const useCardTimerStore = defineStore('cardTimer', ()=>{
     fetchTimeRecords,
     setTimeForTimer,
     time,
-    setTime
+    setTime,
+    deleteTimeRecord,
+    removeFromTimeRecords
   }
 })

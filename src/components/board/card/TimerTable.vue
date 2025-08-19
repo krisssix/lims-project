@@ -35,8 +35,9 @@ function edit(value) {
   console.log('edit ', value)
 }
 
-function remove(value){
-  console.log('remove ', value)
+async function remove(value){
+  cardTimerStore.removeFromTimeRecords(value.id)
+  await cardTimerStore.deleteTimeRecord(value.id)
 }
 
 </script>
