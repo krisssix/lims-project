@@ -1,4 +1,7 @@
 <script setup lang="ts">
+const dialog = ref(false)
+const loading = ref(false)
+
 const timeFrom = ref(null)
 const dateFrom = ref(null)
 const timeTo = ref(null)
@@ -36,10 +39,43 @@ function update(updatedItem, args){
   }
 }
 
+function getTimestamp(date, time){
+  const [hours, minutes] = time.split(":").map(Number);
+  const newDate = new Date(date);
+  newDate.setHours(hours, minutes, 0, 0);
+  return newDate.getTime()
+}
+
+async function save(){
+  loading.value = true
+  await cardTimerStore.createTimeRecord({
+    username: auth.getUserInfo().preferredUsername,
+    startTime: getTimestamp(dateFrom.value.value, timeFrom.value.value),
+    endTime: getTimestamp(dateTo.value.value, timeTo.value.value),
+    cardId: boardStore.openedCard.id
+  })
+  dialog.value = false
+  reset()
+  loading.value = false
+}
+
+function close(){
+  dialog.value = false
+  reset()
+}
+
+function reset() {
+  timeFrom.value = null
+  dateFrom.value = null
+  timeTo.value = null
+  dateTo.value = null
+}
+
 </script>
 
 <template>
   <v-dialog
+    v-model="dialog"
     width="800"
   >
     <template #activator="{ props: activatorProps }">
@@ -94,13 +130,26 @@ function update(updatedItem, args){
         <v-card-actions>
           <v-btn
             text="Zrušit"
+            @click="close"
           />
           <v-btn
+            :width="100"
             :disabled="!isValid"
             variant="flat"
-            text="Uložit"
             color="primary"
-          />
+            @click="save"
+          >
+            <v-progress-circular
+              v-if="loading"
+              :size="20"
+              :width="1"
+              color="white"
+              indeterminate
+            />
+            <div class="ml-1">
+              Uložit
+            </div>
+          </v-btn>
         </v-card-actions>
       </v-card>
     </template>
