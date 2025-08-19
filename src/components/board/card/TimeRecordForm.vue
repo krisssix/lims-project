@@ -1,4 +1,11 @@
 <script setup lang="ts">
+import {useCardTimerStore} from "@/stores/board/cardTimer";
+import {auth} from "@/stores/auth";
+import {useBoardStore} from "@/stores/board/board";
+
+const cardTimerStore = useCardTimerStore()
+const boardStore = useBoardStore()
+
 const dialog = ref(false)
 const loading = ref(false)
 
@@ -6,6 +13,9 @@ const timeFrom = ref(null)
 const dateFrom = ref(null)
 const timeTo = ref(null)
 const dateTo = ref(null)
+
+const dateToRef = useTemplateRef('date-to')
+const dateFromRef = useTemplateRef('date-from')
 
 const maxDateFrom = computed(() => dateTo.value && dateTo.value.value)
 const maxTimeFrom = computed(() => {
@@ -32,9 +42,17 @@ function update(updatedItem, args){
       break;
     case 'timeTo': timeTo.value = args
       break;
-    case 'dateFrom': dateFrom.value = args
+    case 'dateFrom':
+        dateFrom.value = args
+        if(!dateTo.value){
+          dateToRef.value.update(dateFrom.value.value)
+        }
       break;
-    case 'dateTo': dateTo.value = args
+    case 'dateTo':
+        dateTo.value = args
+        if(!dateFrom.value){
+          dateFromRef.value.update(dateTo.value.value)
+        }
       break;
   }
 }
@@ -95,6 +113,7 @@ function reset() {
         <v-row class="px-5 pt-3">
           <v-col cols="6">
             <date-picker
+              ref="date-from"
               text-field-label="Datum od"
               :max="maxDateFrom"
               @update="args => update('dateFrom', args)"
@@ -114,6 +133,7 @@ function reset() {
         <v-row class="px-5 pt-3">
           <v-col cols="6">
             <date-picker
+              ref="date-to"
               text-field-label="Datum do"
               :min="minDateTo"
               @update="args => update('dateTo', args)"

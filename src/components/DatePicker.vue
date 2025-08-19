@@ -24,6 +24,11 @@ function today(){
   update(new Date())
 }
 
+defineExpose({
+  update,
+  today
+})
+
 </script>
 
 <template>
