@@ -11,7 +11,7 @@ function update(value){
   emit('update',{
     value: value
   })
-  showMenu.value = false
+  //showMenu.value = false
 }
 
 </script>
