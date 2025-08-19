@@ -5,9 +5,21 @@ const timeTo = ref(null)
 const dateTo = ref(null)
 
 const maxDateFrom = computed(() => dateTo.value && dateTo.value.value)
-const maxTimeFrom = computed(() => timeTo.value && timeTo.value.value)
+const maxTimeFrom = computed(() => {
+  const hasAllValues = dateTo.value && dateFrom.value && timeTo.value
+  if (hasAllValues && dateTo.value.dateFormated === dateFrom.value.dateFormated) {
+    return timeTo.value.value
+  }
+  return null
+})
 const minDateTo = computed(() => dateFrom.value && dateFrom.value.value)
-const minTimeTo = computed(() => timeFrom.value && timeFrom.value.value)
+const minTimeTo = computed(() => {
+  const hasAllValues = dateTo.value && dateFrom.value && timeFrom.value
+  if ( hasAllValues && dateTo.value.dateFormated === dateFrom.value.dateFormated) {
+    return timeFrom.value.value
+  }
+  return null
+})
 
 const isValid = computed(() => timeFrom.value && timeTo.value && dateFrom.value && dateTo.value)
 
