@@ -72,6 +72,7 @@ async function save(){
     endTime: getTimestamp(dateTo.value.value, timeTo.value.value),
     cardId: boardStore.openedCard.id
   })
+  cardTimerStore.setTimeForTimer()
   dialog.value = false
   reset()
   loading.value = false

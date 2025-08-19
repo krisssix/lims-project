@@ -37,6 +37,7 @@ function edit(value) {
 
 async function remove(value){
   cardTimerStore.removeFromTimeRecords(value.id)
+  cardTimerStore.setTimeForTimer()
   await cardTimerStore.deleteTimeRecord(value.id)
 }
 
