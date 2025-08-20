@@ -73,6 +73,19 @@ function openCard(args){
   isCardOpen.value = args.isOpen
 }
 
+function toggleSideFilter(){
+  isSideFilterOpen.value = !isSideFilterOpen.value
+  if(isSideFilterOpen.value){
+    isMyCardsOnly.value = false
+    boardStore.returnOriginalLists()
+  }
+}
+
+function closeSideFilter(){
+  boardStore.returnOriginalLists()
+  isSideFilterOpen.value = false
+}
+
 </script>
 
 <template>
@@ -85,12 +98,13 @@ function openCard(args){
       <v-btn
         color="primary"
         variant="tonal"
-        @click="isSideFilterOpen = !isSideFilterOpen"
+        @click="toggleSideFilter"
       >
         Procházet
       </v-btn>
       <v-checkbox-btn
         color="primary"
+        :disabled="isSideFilterOpen"
         :model-value="isMyCardsOnly"
         class="pl-2"
         label="Přiřazené mě"
@@ -123,7 +137,7 @@ function openCard(args){
             v-if="isSideFilterOpen"
             :members="projectStore.projectMembers"
             class="mr-7"
-            @close="isSideFilterOpen = false"
+            @close="closeSideFilter"
           />
         </v-slide-x-transition>
         <draggable
