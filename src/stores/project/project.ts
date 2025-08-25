@@ -25,6 +25,22 @@ export const useProjectStore = defineStore('project', ()=>{
     boardTemplate: null
   })
 
+  const blankProjectMembers = reactive({
+    project: {
+      name: '',
+      description: '',
+      startDate: null,
+      endDate: null,
+      color: 'deep-orange-darken-3',
+      boardTemplate: null
+    },
+    members: []
+  })
+
+  const isProjectFormValid = ref(false)
+
+  const projectMembers = ref([])
+
   // getters
 
   // setters
@@ -44,9 +60,14 @@ export const useProjectStore = defineStore('project', ()=>{
     Object.assign(selectedProject.value, project)
   }
   // actions
-  async function fetchAllProjects(){
+  async function fetchAllProjects(username = null){
     try {
-      const data = await get('project')
+      const isMe = username === null ? 'true' : 'false'
+      let url = `project?isMe=${isMe}`
+      if (username !== null) {
+        url += `&username=${encodeURIComponent(username)}`
+      }
+      const data = await get(url)
       allProjects.value = data.data.items
 
     } catch (e) {
@@ -66,18 +87,43 @@ export const useProjectStore = defineStore('project', ()=>{
     }
   }
 
-  async function saveProject(project) {
+  async function saveProject(projectMember, userInfo) {
     try {
       const data = {
-        name: project.name,
-        description: project.description,
-        startDate: project.startDate,
-        endDate: project.endDate,
-        color: project.color,
-        boardTemplate: project.boardTemplate
+        projectRequest: projectMember.project,
+        members: [
+          {
+            username: userInfo.preferredUsername,
+            color: 'black',
+            salary: 300,
+          },
+          ...projectMember.members
+        ]
       }
-      const response = await post('project',data)
-      return response.data.content.id
+      const response = await post('projectMember', data)
+      return response.data.content
+
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
+  function clearProjectMember(){
+    blankProjectMembers.members = []
+    blankProjectMembers.project = {
+      name: '',
+      description: '',
+      startDate: null,
+      endDate: null,
+      color: '',
+      boardTemplate: null
+    }
+  }
+
+  async function fetchProjectMembers(projectId){
+    try {
+      const response = await get('projectMember/' + projectId)
+      projectMembers.value = [...response.data.content.members]
     } catch (e) {
       console.error(e)
     }
@@ -93,6 +139,11 @@ export const useProjectStore = defineStore('project', ()=>{
     saveProject,
     fetchProject,
     selectProject,
-    selectedProject
+    selectedProject,
+    blankProjectMembers,
+    clearProjectMember,
+    fetchProjectMembers,
+    projectMembers,
+    isProjectFormValid
   }
 })

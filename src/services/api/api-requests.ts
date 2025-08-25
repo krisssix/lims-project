@@ -19,5 +19,5 @@ export async function patch(uri, data, headers) {
 }
 
 export async function del(uri, headers) {
-  return await operation(HttpMethod.DELETE, uri, data, headers)
+  return await operation(HttpMethod.DELETE, uri, null, headers)
 }

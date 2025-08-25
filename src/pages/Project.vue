@@ -2,6 +2,7 @@
 import {onMounted, ref} from "vue";
 import {useProjectStore} from "@/stores/project/project";
 import Dialog from "@/components/Dialog.vue";
+import {auth} from "@/stores/auth";
 
 const projectStore = useProjectStore()
 const router = useRouter()
@@ -18,10 +19,10 @@ function cancelCreateProject(){
 }
 
 async function submitCreateProject(){
+  const projectMember = await projectStore.saveProject(projectStore.blankProjectMembers, auth.getUserInfo())
   openCreateProjectDialog.value = false
-  const id = await projectStore.saveProject(projectStore.blankProject)
-  await projectStore.clearProject()
-  await router.push({name:'Board',params: {projectId: id}})
+  await projectStore.clearProjectMember()
+  await router.push({name:'Board',params: {projectId: projectMember.projectId}})
 }
 
 function navigate(projectId){
@@ -41,12 +42,17 @@ function navigate(projectId){
     <template v-slot:content>
       <ProjectForm
         :is-new="true"
-        :project="projectStore.blankProject"
       />
     </template>
     <template v-slot:footer>
       <v-btn @click="cancelCreateProject" variant="text">Zrušit</v-btn>
-      <v-btn @click="submitCreateProject" color="primary" variant="flat">Vytvořit</v-btn>
+      <v-btn
+        :disabled="!projectStore.isProjectFormValid"
+        color="primary"
+        variant="flat"
+        @click="submitCreateProject">
+          Vytvořit
+      </v-btn>
     </template>
   </Dialog>
   <v-row class="w-100" >

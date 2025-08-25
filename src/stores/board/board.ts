@@ -1,9 +1,10 @@
 import {defineStore} from "pinia";
 import {ref} from "vue";
-import {get, post, put, del, patch} from "@/services/api/api-requests";
+import {get, post, patch, del} from "@/services/api/api-requests";
 
 export const useBoardStore = defineStore('board', ()=>{
   const lists = ref([])
+  const listsCopy = ref([])
   const openedCard = ref({
     id: null,
     name: '',
@@ -38,11 +39,13 @@ export const useBoardStore = defineStore('board', ()=>{
     cardOrder: null
   })
   const cardFetchLoading = ref(false)
+  const listNameCopy = ref('')
 
   async function fetchLists(projectId){
     try {
       const data = await get('boardList/allByProject/'+projectId)
       lists.value = data.data.items
+      listsCopy.value = JSON.parse(JSON.stringify(data.data.items))
     } catch (e) {
       console.error(e)
     }
@@ -56,6 +59,7 @@ export const useBoardStore = defineStore('board', ()=>{
         listOrder: listOrder
       })
       lists.value.push({...data.data.content})
+      listsCopy.value = JSON.parse(JSON.stringify(lists.value))
     } catch (e) {
       console.error(e)
     }
@@ -75,21 +79,23 @@ export const useBoardStore = defineStore('board', ()=>{
       const data = await post('boardCard/', {
         name: openedCard.value.name,
         description: openedCard.value.description,
-        cardOrder: Number(openedCard.value.order),
+        cardOrder: Number(openedCard.value.cardOrder),
         projectId: Number(projectId),
-        boardListId: Number(openedCard.value.boardListId)
+        boardListId: Number(openedCard.value.boardListId),
+        memberUsername: openedCard.value.member ? openedCard.value.member.username : "",
       })
 
       addCardToList(data.data.content.boardListId, {
         id: data.data.content.id,
         name: data.data.content.name,
-        order: data.data.content.cardOrder,
-        member: null,
+        cardOrder: data.data.content.cardOrder,
+        memberUsername: data.data.content.member ? data.data.content.member.username : null,
         measurements: [],
         description: '',
         comments: [],
         events: [],
-        boardListId: data.data.content.boardListId
+        boardListId: data.data.content.boardListId,
+        cardTimerGroupedByUsernameList: []
       })
     } catch (e) {
       console.error(e)
@@ -169,6 +175,89 @@ export const useBoardStore = defineStore('board', ()=>{
     }
   }
 
+  async function changeCardMember(newMemberUsername, cardId, boardListId){
+    try {
+      const response = await patch(`boardCard/memberUsername/${cardId}`, {
+        memberUsername: newMemberUsername !== undefined ? newMemberUsername : null
+      }, {'Content-Type': 'application/json'})
+      changeCardMemberInList(response.data.content.memberUsername, cardId, boardListId)
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
+  function changeCardMemberInList(newMemberUsername, cardId, boardListId){
+    const listIndex = lists.value.findIndex(list => list.id === boardListId)
+    const cardIndex = lists.value.at(listIndex).cards.findIndex(card => card.id === cardId)
+    lists.value.at(listIndex).cards.at(cardIndex).memberUsername = newMemberUsername
+  }
+
+  async function createComment(message, username, cardId){
+    try {
+      const response = await post("boardCardComment", {
+        message: message,
+        username: username,
+        cardId: cardId
+      })
+      return response.data.content
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
+  async function fetchComments(cardId){
+    try {
+      const response = await get(`boardCardComment/${cardId}`)
+      return response.data.items
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
+  function filterCardsByMemberUsername(usernameList) {
+    lists.value = listsCopy.value.map(list => ({
+      ...list,
+      cards: list.cards.filter(card => usernameList.includes(card.memberUsername))
+    }))
+  }
+  function returnOriginalLists(){
+    lists.value = JSON.parse(JSON.stringify(listsCopy.value))
+  }
+
+  function copyLists(){
+    listsCopy.value = JSON.parse(JSON.stringify(lists.value))
+  }
+
+  function setListName(listId, name){
+    const listIndex = lists.value.findIndex(list => list.id === listId)
+    lists.value.at(listIndex).name = name
+    copyLists()
+  }
+
+  async function changeColumnName(listId, name){
+    try {
+      await patch(`boardList/name/${listId}`, {
+        name: name
+      })
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
+  async function deleteList(listId){
+    console.log('deleting ', listId)
+    try {
+      await del(`boardList/${listId}`)
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
+  function removeFromLists(listId){
+    lists.value = lists.value.filter(list => list.id !== listId)
+    copyLists()
+  }
+
   return {
     lists,
     openedCard,
@@ -183,7 +272,19 @@ export const useBoardStore = defineStore('board', ()=>{
     cardFetchLoading,
     openedCardCopy,
     changeCardName,
-    changeCardDescription
+    changeCardDescription,
+    changeCardMember,
+    createComment,
+    fetchComments,
+    filterCardsByMemberUsername,
+    returnOriginalLists,
+    copyLists,
+    listsCopy,
+    listNameCopy,
+    setListName,
+    changeColumnName,
+    deleteList,
+    removeFromLists
   }
 
 })
