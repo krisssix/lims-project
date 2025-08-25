@@ -18,6 +18,10 @@ const links = [
     componentName: 'Measurements',
   },
   {
+    title: 'Rezervace',
+    componentName: 'Reservations',
+  },
+  {
     title: 'Lidé a práce',
     componentName: 'PeopleWork',
   },

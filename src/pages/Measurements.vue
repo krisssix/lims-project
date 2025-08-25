@@ -48,6 +48,26 @@ const newMeasurement = ref<{
   date:  new Date().toISOString().slice(0, 10)
 })
 
+
+const hardcodedUsers = ref([
+  {
+    id: 0,
+    name: 'Frank Flores',
+  },
+  {
+    id: 1,
+    name: 'Jimmy Fermin',
+  },
+  {
+    id: 2,
+    name: 'Phillip Martin',
+  },
+  {
+    id: 3,
+    name: 'Albert Dera',
+  },
+])
+
 // načíst všechna měření z API
 async function loadMeasurements() {
   measurements.value = await measurementStore.fetchAllMeasurements(projectId)
