@@ -82,21 +82,27 @@ const filteredMeasurements = computed(() => {
 
 // uložit nové měření a znovu načíst
 async function saveMeasurement() {
-  const payload = {
-    value: newMeasurement.value.value,
-    type:  newMeasurement.value.type,
-    unit:  newMeasurement.value.unit,
-    date:  newMeasurement.value.date
+  // "YYYY-MM-DD" -> epoch millis (0:00 UTC)
+  const d = newMeasurement.value.date
+  const ts = new Date(`${d}T00:00:00Z`).getTime()
+
+  const payload: MeasurementRequest = {
+    value: Number(newMeasurement.value.value),   // z "23" -> 23
+    type:  newMeasurement.value.type.trim(),
+    unit:  newMeasurement.value.unit.trim(),
+    timestamp: ts,
+    // boardCardId: null, // pokud teď nemáš, nech pryč nebo null
   }
-  await measurementStore.saveMeasurement(projectId, payload)
-  await loadMeasurements()
-  newMeasurement.value = {
-    value: '',
-    type:  '',
-    unit:  '',
-    date:  new Date().toISOString().slice(0, 10)
+
+  try {
+    await measurementStore.saveMeasurement(projectId, payload)
+    await loadMeasurements()
+    newMeasurement.value = { value: '', type: '', unit: '', date: new Date().toISOString().slice(0,10) }
+    closeDialog()
+  } catch (e: any) {
+    console.error('Save failed:', e.response?.data ?? e)
+    // zobraz toast/dialog, ať se chyba neztratí
   }
-  closeDialog()
 }
 </script>
 
