@@ -1,142 +1,192 @@
 <script setup lang="ts">
 import { VueDraggableNext as draggable } from 'vue-draggable-next'
-import {computed, ref} from "vue";
+import {watch, ref} from "vue";
 import {useBoardStore} from "@/stores/board/board";
 import {formatMs} from "../../utils/timeFormat";
 
 const boardStore = useBoardStore()
 
-const props = defineProps({
-  cards: Array,
-  isFiltered: Boolean
-})
+type MemberGroup = {
+  username?: string
+  sumTime?: number | null
+}
 
-const emit = defineEmits(['openCard'])
+type Card = {
+  id: number | string
+  name?: string
+  cardOrder?: number
+  boardListId?: number
+  memberUsername?: string
+  cardTimerGroupedByUsernameList?: MemberGroup[] | null
+  // ... případně další pole, která v appce máte
+}
 
-const cards_ref = ref([])
+const props = defineProps<{
+  cards: Card[]
+  isFiltered: boolean
+}>()
 
-watch(() => props.cards, (newCards) => {
-  cards_ref.value = newCards
-}, { immediate: true })
+const emit = defineEmits<{
+  (e: 'openCard', payload: { id: Card['id'] }): void
+}>()
 
-function cardMoved(event){
+const cards_ref = ref<Card[]>([])
+
+watch(
+  () => props.cards,
+  (newCards) => {
+    cards_ref.value = Array.isArray(newCards) ? [...newCards] : []
+  },
+  { immediate: true }
+)
+
+function cardMoved(event: any) {
   const fromListId = parseInt(event.from.getAttribute('list-id'))
   const toListId = parseInt(event.to.getAttribute('list-id'))
 
-  if(fromListId === toListId){
+  if (fromListId === toListId) {
     changeInOneList()
-  } else {
-    let changedCards = []
-
-    changeOrderFromCurrentList(changedCards)
-
-    const movedCardNewIndex = parseInt(event.newIndex)
-    let movedCard = findAndSetMovedCard(movedCardNewIndex, toListId)
-    changedCards.push(movedCard)
-
-    const { toListIndex, fromListIndex, toList } = findListsInfo(toListId, fromListId)
-
-    let toListCards = []
-    // if the list is empty, the only card id the moved one
-    if (toList.cards.length === 0){
-      toListCards.push(movedCard)
-    } else {
-      toList.cards.forEach((card,index) => {
-        if(index >= movedCardNewIndex){
-          if(index === movedCardNewIndex){
-            toListCards.push(movedCard)
-          }
-          // cards after the moved one
-          card.cardOrder = index + 1
-          changedCards.push(card)
-          toListCards.push(card)
-        } else {
-          // cards before the moved one
-          toListCards.push(card)
-        }
-      })
-      // if the card is moved to the end of list
-      if((toList.cards.length - 1) < movedCardNewIndex){
-        toListCards.push(movedCard)
-      }
-    }
-
-    // send to backend
-    boardStore.cardsOrderChanged(changedCards)
-
-    // update lists frontend
-    boardStore.replaceCards(fromListIndex, cards_ref.value)
-    boardStore.replaceCards(toListIndex, toListCards)
-
+    return
   }
+
+  const changedCards: Card[] = []
+
+  changeOrderFromCurrentList(changedCards)
+
+  const movedCardNewIndex = parseInt(event.newIndex)
+  const movedCard = findAndSetMovedCard(movedCardNewIndex, toListId)
+  if (!movedCard) {
+    // bezpečnostní pojistka – nic neposílej, když nevíme co se hýblo
+    return
+  }
+  changedCards.push(movedCard)
+
+  const { toListIndex, fromListIndex, toList } = findListsInfo(toListId, fromListId)
+
+  if (
+    typeof toListIndex === 'undefined' ||
+    typeof fromListIndex === 'undefined' ||
+    !toList
+  ) {
+    // když se nepodaří najít listy, nepokračuj
+    return
+  }
+
+  const toListCards: Card[] = []
+  if (toList.cards.length === 0) {
+    // list byl prázdný
+    toListCards.push(movedCard)
+  } else {
+    toList.cards.forEach((card: Card, index: number) => {
+      if (index >= movedCardNewIndex) {
+        if (index === movedCardNewIndex) {
+          toListCards.push(movedCard)
+        }
+        // karty po přesunuté
+        card.cardOrder = index + 1
+        changedCards.push(card)
+        toListCards.push(card)
+      } else {
+        // karty před přesunutou
+        toListCards.push(card)
+      }
+    })
+
+    // když se přesune na úplný konec
+    if ((toList.cards.length - 1) < movedCardNewIndex) {
+      toListCards.push(movedCard)
+    }
+  }
+
+  // pošli změny do backendu
+  boardStore.cardsOrderChanged(changedCards)
+
+  // a aktualizuj store lokálně
+  boardStore.replaceCards(fromListIndex, cards_ref.value)
+  boardStore.replaceCards(toListIndex, toListCards)
 }
 
-function findListsInfo(toListId, fromListId){
-  let toListIndex, fromListIndex, toList  = null
-  boardStore.lists.forEach((list, index) => {
-    if(list.id === toListId){
+function findListsInfo(toListId: number, fromListId: number) {
+  let toListIndex: number | undefined
+  let fromListIndex: number | undefined
+  let toList: any = null
+
+  boardStore.lists.forEach((list: any, index: number) => {
+    if (list.id === toListId) {
       toListIndex = index
       toList = list
     }
-    if (list.id === fromListId){
+    if (list.id === fromListId) {
       fromListIndex = index
     }
   })
-  return {toListIndex, fromListIndex, toList}
+  return { toListIndex, fromListIndex, toList }
 }
 
-function changeInOneList(){
-    let changedCards = []
-    cards_ref.value.forEach((card, index) => {
-      if (card.cardOrder !== index){
-        card.cardOrder = index
-        changedCards.push(card)
-      }
-    })
-    if (changedCards.length > 0){
-      boardStore.cardsOrderChanged(changedCards)
-    }
-}
-
-function changeOrderFromCurrentList(changedCards){
+function changeInOneList() {
+  const changedCards: Card[] = []
   cards_ref.value.forEach((card, index) => {
-    if (card.cardOrder !== index){
+    if (card.cardOrder !== index) {
+      card.cardOrder = index
+      changedCards.push(card)
+    }
+  })
+  if (changedCards.length > 0) {
+    boardStore.cardsOrderChanged(changedCards)
+  }
+}
+
+function changeOrderFromCurrentList(changedCards: Card[]) {
+  cards_ref.value.forEach((card, index) => {
+    if (card.cardOrder !== index) {
       card.cardOrder = index
       changedCards.push(card)
     }
   })
 }
 
-function findAndSetMovedCard(movedCardNewIndex, toListId){
-  let movedCard = props.cards.find(card => !cards_ref.value.some(card_ref => card.id === card_ref.id))
-  movedCard.cardOrder = movedCardNewIndex
-  movedCard.boardListId = toListId
-  return movedCard
+function findAndSetMovedCard(movedCardNewIndex: number, toListId: number): Card | null {
+  // karta, která chybí v cards_ref oproti props.cards, je ta přesunutá
+  const moved = props.cards.find(
+    (card) => !cards_ref.value.some((c) => c.id === card.id)
+  )
+  if (!moved) return null
+  moved.cardOrder = movedCardNewIndex
+  moved.boardListId = toListId
+  return moved
 }
 
-function initials(name){
-  return name[0].toUpperCase()
+function initials(name?: string) {
+  const n = typeof name === 'string' && name.length ? name : '?'
+  return n[0].toUpperCase()
 }
 
-function getMembers(card) {
-  let members = []
-  if(card.memberUsername){
-    card.cardTimerGroupedByUsernameList.forEach(timerGrouped => {
-      if(timerGrouped.username === card.memberUsername){
-        members.unshift(timerGrouped ? timerGrouped : {username: card.memberUsername, sumTime: null})
-      } else {
-        members.push(timerGrouped)
-      }
-    })
-    if(card.cardTimerGroupedByUsernameList.findIndex(timerGrouped => timerGrouped.username === card.memberUsername) === -1){
-      members.unshift({username: card.memberUsername, sumTime: null})
+function getMembers(card: Card): MemberGroup[] {
+  const groups: MemberGroup[] = Array.isArray(card?.cardTimerGroupedByUsernameList)
+    ? card.cardTimerGroupedByUsernameList.filter(Boolean)
+    : []
+
+  const members: MemberGroup[] = []
+  const preferred = card?.memberUsername
+
+  if (preferred) {
+    const idx = groups.findIndex((g) => g?.username === preferred)
+    if (idx >= 0) {
+      // preferovaného dej dopředu
+      members.push(groups[idx]!)
+      groups.forEach((g, i) => {
+        if (i !== idx) members.push(g)
+      })
+    } else {
+      // preferovaný neexistuje v datech → doplň placeholder dopředu
+      members.push({ username: preferred, sumTime: null })
+      members.push(...groups)
     }
   } else {
-    members.push(...card.cardTimerGroupedByUsernameList)
+    members.push(...groups)
   }
   return members
 }
-
 </script>
 
 <template>
@@ -144,22 +194,33 @@ function getMembers(card) {
     v-model="cards_ref"
     :options="{ group: 'cards' }"
     group="cards"
-    ghostClass="ghost"
-    @end="cardMoved">
+    ghost-class="ghost"
+    @end="cardMoved"
+  >
     <span
       class="element-card"
       v-for="(card, index) in cards_ref"
-      :key="index"
-      :id="card.id"
-      @click="emit('openCard',{id: card.id})"
+      :key="card?.id ?? `card-${index}`"
+      :id="card?.id"
+      @click="emit('openCard', { id: card?.id })"
     >
-      {{ card.name }}
-      <div :key="m.username" v-for="m in getMembers(card)" class="d-flex w-100 align-center justify-space-between mt-1">
+      {{ card?.name }}
+
+      <div
+        v-for="(m, mIdx) in getMembers(card)"
+        :key="m?.username ?? `u-${mIdx}`"
+        class="d-flex w-100 align-center justify-space-between mt-1"
+      >
         <div class="font-weight-light">
-          {{ m.sumTime ? formatMs(m.sumTime) : null }}
+          {{ m?.sumTime ? formatMs(m.sumTime) : null }}
         </div>
-        <div :class="`background-circle d-flex align-center justify-center bg-grey-lighten-2 ${m.username === card.memberUsername && 'circle-border' }`">
-          {{ initials(m.username) }}
+        <div
+          :class="[
+            'background-circle','d-flex','align-center','justify-center','bg-grey-lighten-2',
+            m?.username === card?.memberUsername ? 'circle-border' : ''
+          ]"
+        >
+          {{ initials(m?.username) }}
         </div>
       </div>
     </span>
@@ -196,5 +257,4 @@ function getMembers(card) {
 .circle-border {
   border: 2px solid #0277BD;
 }
-
 </style>
