@@ -17,6 +17,7 @@ import AuthSection from "@/pages/AuthSection.vue";
 import {auth, isAuthenticated} from "@/stores/auth";
 import LoggedOut from "@/pages/LoggedOut.vue";
 import NotFound from "@/pages/NotFound.vue";
+import Reservations from "@/pages/Reservations.vue";
 
 
 const router = createRouter({
@@ -95,6 +96,15 @@ const router = createRouter({
             layout: 'SideNavigationLayout'
           }
         },
+        {
+          path: 'project/reservations/:projectId',
+          name: 'Reservations',
+          beforeEnter: requireAuth,
+          component: Reservations,
+          meta: {
+            layout: 'SideNavigationLayout'
+          }
+        }
       ]
     },
   ]),

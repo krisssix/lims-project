@@ -18,6 +18,10 @@ const links = [
     componentName: 'Measurements',
   },
   {
+    title: 'Rezervace',
+    componentName: 'Reservations',
+  },
+  {
     title: 'Lidé a práce',
     componentName: 'PeopleWork',
   },
@@ -25,6 +29,7 @@ const links = [
     title: 'Souhrn',
     componentName: 'Summary',
   }
+
 ]
 
 function isActive(componentName){
