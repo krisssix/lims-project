@@ -40,6 +40,7 @@ export const useBoardStore = defineStore('board', ()=>{
   })
   const cardFetchLoading = ref(false)
   const listNameCopy = ref('')
+  const isBoardFiltered = ref(false)
 
   async function fetchLists(projectId){
     try {
@@ -215,17 +216,23 @@ export const useBoardStore = defineStore('board', ()=>{
   }
 
   function filterCardsByMemberUsername(usernameList) {
+    isBoardFiltered.value = true
     lists.value = listsCopy.value.map(list => ({
       ...list,
       cards: list.cards.filter(card => usernameList.includes(card.memberUsername))
     }))
   }
   function returnOriginalLists(){
+    isBoardFiltered.value = false
     lists.value = JSON.parse(JSON.stringify(listsCopy.value))
   }
 
   function copyLists(){
     listsCopy.value = JSON.parse(JSON.stringify(lists.value))
+  }
+
+  function sortListCardsInCopy(listIndex) {
+    listsCopy.value.at(listIndex).cards.sort((a, b) => a.cardOrder - b.cardOrder);
   }
 
   function setListName(listId, name){
@@ -284,7 +291,9 @@ export const useBoardStore = defineStore('board', ()=>{
     setListName,
     changeColumnName,
     deleteList,
-    removeFromLists
+    removeFromLists,
+    isBoardFiltered,
+    sortListCardsInCopy
   }
 
 })

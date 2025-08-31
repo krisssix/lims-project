@@ -147,7 +147,6 @@ async function deleteList(){
     </div>
     <div class="list-content cursor-pointer text-black">
       <board-list-content
-        :is-filtered="isMyCardsOnly"
         :cards="list.cards"
         :list-id="list.id"
         :list-name="list.name"

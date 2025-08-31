@@ -1,14 +1,13 @@
 <script setup lang="ts">
-import { VueDraggableNext as draggable } from 'vue-draggable-next'
-import {computed, ref} from "vue";
+import {VueDraggableNext as draggable} from 'vue-draggable-next'
+import {ref} from "vue";
 import {useBoardStore} from "@/stores/board/board";
 import {formatMs} from "../../utils/timeFormat";
 
 const boardStore = useBoardStore()
 
 const props = defineProps({
-  cards: Array,
-  isFiltered: Boolean
+  cards: Array
 })
 
 const emit = defineEmits(['openCard'])
@@ -19,55 +18,107 @@ watch(() => props.cards, (newCards) => {
   cards_ref.value = newCards
 }, { immediate: true })
 
-function cardMoved(event){
+async function cardMoved(event){
   const fromListId = parseInt(event.from.getAttribute('list-id'))
   const toListId = parseInt(event.to.getAttribute('list-id'))
 
+  let movedCard = event.item._underlying_vm_
+  const movedCardNewIndex = event.newIndex
+
+
   if(fromListId === toListId){
-    changeInOneList()
-  } else {
-    let changedCards = []
-
-    changeOrderFromCurrentList(changedCards)
-
-    const movedCardNewIndex = parseInt(event.newIndex)
-    let movedCard = findAndSetMovedCard(movedCardNewIndex, toListId)
-    changedCards.push(movedCard)
-
-    const { toListIndex, fromListIndex, toList } = findListsInfo(toListId, fromListId)
-
-    let toListCards = []
-    // if the list is empty, the only card id the moved one
-    if (toList.cards.length === 0){
-      toListCards.push(movedCard)
+    if(boardStore.isBoardFiltered){
+      await changeInOneListFiltered(movedCard, movedCardNewIndex)
     } else {
-      toList.cards.forEach((card,index) => {
-        if(index >= movedCardNewIndex){
-          if(index === movedCardNewIndex){
-            toListCards.push(movedCard)
-          }
-          // cards after the moved one
-          card.cardOrder = index + 1
+      await changeInOneList()
+    }
+  } else {
+    if(boardStore.isBoardFiltered){
+      let changedCards = []
+      const { toListIndex, fromListIndex, toList } = findListsInfo(toListId, fromListId)
+
+      // from list - remove
+      boardStore.listsCopy.at(fromListIndex).cards = boardStore.listsCopy.at(fromListIndex).cards.filter(card => card.id !== movedCard.id)
+      boardStore.listsCopy.at(fromListIndex).cards.forEach((card, index) => {
+        if(card.cardOrder !== index){
+          card.cardOrder = index
           changedCards.push(card)
-          toListCards.push(card)
-        } else {
-          // cards before the moved one
-          toListCards.push(card)
         }
       })
-      // if the card is moved to the end of list
-      if((toList.cards.length - 1) < movedCardNewIndex){
-        toListCards.push(movedCard)
+      // to list - add
+      boardStore.lists.at(toListIndex).cards.splice(movedCardNewIndex, 0, movedCard)
+      const filteredCards = boardStore.lists.at(toListIndex).cards
+
+      const { neighbor, direction } = findNeighbor(movedCardNewIndex, filteredCards)
+
+      if(neighbor){
+        const listIndex = boardStore.listsCopy.findIndex(list => list.id === neighbor.boardListId);
+        const list = boardStore.listsCopy[listIndex];
+        const listCardsCopy = list.cards
+
+        const neighborCardIndexInCopy = listCardsCopy.findIndex(card => card.id === neighbor.id)
+
+        insertElementAt(movedCard, listIndex, neighborCardIndexInCopy)
+
+        boardStore.listsCopy.at(toListIndex).cards.forEach((card, index) => {
+          if(card.cardOrder !== index){
+            card.cardOrder = index
+            changedCards.push(card)
+          }
+        })
+        await boardStore.cardsOrderChanged(changedCards)
+      } else {
+        // empty filtered list, new card is pushed in the end of the list of original list
+        movedCard.cardOrder = boardStore.listsCopy.at(toListIndex).cards.length
+        boardStore.listsCopy.at(toListIndex).cards.push(movedCard)
+        await boardStore.cardsOrderChanged(changedCards)
       }
+    } else {
+      let changedCards = []
+
+      changeOrderFromCurrentList(changedCards)
+
+      const movedCardNewIndex = parseInt(event.newIndex)
+      let movedCard = findAndSetMovedCard(movedCardNewIndex, toListId)
+      changedCards.push(movedCard)
+
+      const { toListIndex, fromListIndex, toList } = findListsInfo(toListId, fromListId)
+
+      let toListCards = []
+      // if the list is empty, the only card id the moved one
+      if (toList.cards.length === 0){
+        toListCards.push(movedCard)
+      } else {
+        toList.cards.forEach((card,index) => {
+          if(index >= movedCardNewIndex){
+            if(index === movedCardNewIndex){
+              toListCards.push(movedCard)
+            }
+            // cards after the moved one
+            card.cardOrder = index + 1
+            changedCards.push(card)
+            toListCards.push(card)
+          } else {
+            // cards before the moved one
+            toListCards.push(card)
+          }
+        })
+        // if the card is moved to the end of list
+        if((toList.cards.length - 1) < movedCardNewIndex){
+          toListCards.push(movedCard)
+        }
+      }
+
+      // send to backend
+      await boardStore.cardsOrderChanged(changedCards)
+
+      // update lists frontend
+      boardStore.replaceCards(fromListIndex, cards_ref.value)
+      boardStore.replaceCards(toListIndex, toListCards)
+      boardStore.copyLists()
+      boardStore.sortListCardsInCopy(fromListIndex)
+      boardStore.sortListCardsInCopy(toListIndex)
     }
-
-    // send to backend
-    boardStore.cardsOrderChanged(changedCards)
-
-    // update lists frontend
-    boardStore.replaceCards(fromListIndex, cards_ref.value)
-    boardStore.replaceCards(toListIndex, toListCards)
-
   }
 }
 
@@ -85,17 +136,67 @@ function findListsInfo(toListId, fromListId){
   return {toListIndex, fromListIndex, toList}
 }
 
-function changeInOneList(){
-    let changedCards = []
-    cards_ref.value.forEach((card, index) => {
-      if (card.cardOrder !== index){
-        card.cardOrder = index
-        changedCards.push(card)
+async function changeInOneList(){
+      let changedCards = []
+      cards_ref.value.forEach((card, index) => {
+        if (card.cardOrder !== index){
+          card.cardOrder = index
+          changedCards.push(card)
+        }
+      })
+      if (changedCards.length > 0){
+        await boardStore.cardsOrderChanged(changedCards)
+        boardStore.copyLists()
+        const listIndex = boardStore.lists.findIndex(list=> list.id === changedCards.at(0).boardListId)
+        boardStore.sortListCardsInCopy(listIndex)
       }
-    })
-    if (changedCards.length > 0){
-      boardStore.cardsOrderChanged(changedCards)
+}
+
+async function changeInOneListFiltered(movedCard, movedCardNewIndex){
+  const { neighbor, direction } = findNeighbor(movedCardNewIndex, cards_ref.value)
+  const listIndex = boardStore.listsCopy.findIndex(list => list.id === neighbor.boardListId);
+  const list = boardStore.listsCopy[listIndex];
+  const listCardsCopy = list.cards
+
+  const movedCardIndexInCopy = listCardsCopy.findIndex(card => card.id === movedCard.id)
+  const neighborCardIndexInCopy = listCardsCopy.findIndex(card => card.id === neighbor.id)
+
+  moveElement(listIndex, movedCardIndexInCopy, neighborCardIndexInCopy)
+
+  let changedCards = []
+  boardStore.listsCopy.at(listIndex).cards.forEach((card, index) => {
+    if(card.cardOrder !== index){
+      card.cardOrder = index
+      changedCards.push(card)
     }
+  })
+  if (changedCards.length > 0){
+    await boardStore.cardsOrderChanged(changedCards)
+  }
+}
+
+function moveElement(listIndex, fromIndex, toIndex) {
+  if (fromIndex === toIndex) return;
+  const element = boardStore.listsCopy.at(listIndex).cards.splice(fromIndex, 1)[0];
+  boardStore.listsCopy.at(listIndex).cards.splice(toIndex, 0, element);
+}
+
+function insertElementAt(element, listIndex, toIndex){
+  boardStore.listsCopy.at(listIndex).cards.splice(toIndex, 0, element)
+}
+
+function findNeighbor(index, filteredCards){
+  if (filteredCards.length <= 1) {
+    return { neighbor: null, direction: null }
+  }
+
+  const previous = index > 0 ? filteredCards[index - 1] : null
+  const next = index < filteredCards.length - 1 ? filteredCards[index + 1] : null
+
+  if (previous) return { neighbor: previous, direction: 'previous' }
+  if (next) return { neighbor: next, direction: 'next' }
+
+  return { neighbor: null, direction: null }
 }
 
 function changeOrderFromCurrentList(changedCards){
