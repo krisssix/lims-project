@@ -24,10 +24,10 @@ watch(localValue, (newVal) => {
       v-model="localValue"
       label="Hodnota měření"
       type="number"
-      variant="filled"
+      variant="outlined"
       hide-details
       dense
-      class="mt-2"
+      class="mb-4"
     />
   </v-form>
 </template>

@@ -15,14 +15,18 @@ const measurements = ref<Array<Record<string, any>>>([])
 const headers = [
   { title: 'ID',           key: 'id' },
   { title: 'Typ měření',   key: 'type' },
-  { title: 'Přístroj',     key: 'device' },     // zobrazujeme z m.unit
+  { title: 'Přístroj',     key: 'device' },
   { title: 'Datum měření', key: 'date' },
   { title: 'Hodnota',      key: 'value' },
+  // { title: 'Jednotka',  key: 'unit' },
+ // { title: 'Počet hodnot', key: 'count' },
+ // { title: 'BoardCard ID', key: 'boardCardId' },
 ]
 
 /* ---------- Filtry ---------- */
 const selectedDate = ref<string|null>(null)
 const selectedType = ref<string|null>(null)
+/** „Jednotka“ je od teď „Přístroj“ */
 const selectedDevice = ref<string|null>(null)
 const deviceOptions = ['M1', 'M2', 'M3']
 
@@ -31,65 +35,23 @@ const dialogOpen = ref(false)
 const openDialog  = () => (dialogOpen.value = true)
 const closeDialog = () => (dialogOpen.value = false)
 
+/** Pozn.: `unit` dál posíláme do BE, ale v UI je to „Přístroj“ */
 const newMeasurement = ref<{ value: number|string; type: string; unit: string; date: string }>({
   value: '',
   type: '',
-  unit: '', // M1/M2/M3 – do BE stále posíláme jako "unit"
+  unit: '', // sem přijde M1/M2/M3
   date: new Date().toISOString().slice(0, 10),
 })
 
-/* ---------- Přehled šablon / Průvodce šablonou ---------- */
+/* ---------- Dialog: Přehled šablon (2 kroky) ---------- */
 const templatesOpen = ref(false)
-type TemplatesMode = 'list' | 'wizard'
-const templatesMode = ref<TemplatesMode>('list')
-
-const openTemplates = () => {
-  templatesMode.value = 'list'
-  templatesOpen.value = true
-}
-const closeTemplates = () => { templatesOpen.value = false }
-
-function useTemplate(t: TemplateItem) {
-  // předvyplň do průvodce
-  selectedTemplateName.value = t.name
-  selectedDeviceId.value = t.device // 'M1' | 'M2' | 'M3'
-  templatesMode.value = 'wizard'
-  templatesStep.value = 2
-}
-
-/** FAKE data do “Přehledu šablon” */
-type TemplateItem = { id: number; name: string; device: 'M1'|'M2'|'M3' }
-const allTemplates = ref<TemplateItem[]>([
-  { id: 1,  name: 'Měření teploty vzorku',     device: 'M1' },
-  { id: 2,  name: 'Stanovení pH roztoku',      device: 'M1' },
-  { id: 3,  name: 'Vážování materiálu',        device: 'M1' },
-  { id: 4,  name: 'Fotometrická analýza',      device: 'M1' },
-  { id: 5,  name: 'Titrace kyseliny',          device: 'M1' },
-  { id: 6,  name: 'Kalibrace teplotního senzoru', device: 'M2' },
-  { id: 7,  name: 'Sledování vlhkosti',        device: 'M2' },
-  { id: 8,  name: 'Spektrální měření UV–VIS',   device: 'M2' },
-  { id: 9,  name: 'Mikroskopické snímání',     device: 'M3' },
-  { id: 10, name: 'Test viskozity',            device: 'M3' },
-])
-
-const listQuery = ref('')
-const listDevice = ref<string | null>(null)
-const filteredTemplateList = computed(() => {
-  const q = listQuery.value.trim().toLowerCase()
-  return allTemplates.value.filter(t => {
-    const okDev = !listDevice.value || t.device === listDevice.value
-    const okQ   = !q || t.name.toLowerCase().includes(q)
-    return okDev && okQ
-  })
-})
-const deviceColor = (dev: string) =>
-  dev === 'M1' ? 'deep-purple' : dev === 'M2' ? 'blue' : 'teal'
-
-/** Průvodce */
 const templatesStep = ref<1 | 2>(1)
+const openTemplates = () => { templatesStep.value = 1; templatesOpen.value = true }
+const closeTemplates = () => { templatesOpen.value = false }
 const fields = ref<any[]>([])
 const draftId = ref<string | null>(null)
 
+/* Krok 1: název šablony + přístroj (design) */
 const templateNames = ref<string[]>(['DLS – Zetasizer'])
 const selectedTemplateName = ref<string | null>(templateNames.value[0])
 function onTemplateChange(val: string | null) {
@@ -98,17 +60,19 @@ function onTemplateChange(val: string | null) {
 type DeviceOption = { id: string; name: string; color: string }
 const devices = ref<DeviceOption[]>([
   { id: 'M1', name: 'M1', color: 'deep-purple' },
-  { id: 'M2', name: 'M2', color: 'blue' },
-  { id: 'M3', name: 'M3', color: 'teal' },
+  { id: 'M2', name: 'M2', color: 'teal' },
+  { id: 'M3', name: 'M3', color: 'indigo' },
 ])
 const selectedDeviceId = ref<string>(devices.value[0].id)
-const continueFromTemplates = () => {
+const selectedDeviceObj = computed<DeviceOption | undefined>(() =>
+  devices.value.find(d => d.id === selectedDeviceId.value)
+)
+function continueFromTemplates() {
   if (!selectedTemplateName.value) return
   templatesStep.value = 2
-  templatesMode.value = 'wizard'
 }
 
-/* --- helpers datum --- */
+/* --- pomocné funkce pro datum --- */
 function toMs(v: unknown): number {
   if (typeof v === 'number') return v
   if (v instanceof Date) return v.getTime()
@@ -135,12 +99,13 @@ function dayBoundsLocal(val: string | Date) {
   const base = (val instanceof Date)
     ? val
     : (/^\d{4}-\d{2}-\d{2}$/.test(val) ? new Date(val + 'T00:00:00') : new Date(val))
+
   const start = new Date(base.getFullYear(), base.getMonth(), base.getDate(), 0, 0, 0, 0).getTime()
   const end   = new Date(base.getFullYear(), base.getMonth(), base.getDate(), 23, 59, 59, 999).getTime()
   return { start, end }
 }
 
-/* --- definice polí (krok 2) --- */
+/* Krok 2: definice polí šablony (design) */
 type FieldRow = { id: string; type: string; required: boolean; name: string }
 const fieldTypeOptions = [
   { label: 'Float',   value: 'float' },
@@ -185,12 +150,13 @@ onMounted(loadMeasurements)
 /* --- computed: seřadit + filtrovat + mapovat --- */
 const filteredMeasurements = computed(() => {
   const bounds = selectedDate.value ? dayBoundsLocal(selectedDate.value) : null
+
   return measurements.value
     .slice()
     .sort((a, b) => toMs(b.timestamp) - toMs(a.timestamp))
     .filter(m => {
       if (selectedType.value && m.type !== selectedType.value) return false
-      if (selectedDevice.value && m.unit !== selectedDevice.value) return false // unit = device (BE)
+      if (selectedDevice.value && m.unit !== selectedDevice.value) return false // unit = device (v BE)
       if (!bounds) return true
       const t = toMs(m.timestamp)
       if (Number.isNaN(t)) return false
@@ -199,9 +165,12 @@ const filteredMeasurements = computed(() => {
     .map(m => ({
       id:          m.id,
       type:        m.type,
-      device:      m.unit ?? m.device ?? '', // zobraz „Přístroj“
+      /** ZOBRAZUJEME „Přístroj“ – bereme ho z m.unit */
+      device:      m.unit ?? m.device ?? '',
       date:        m.date || formatLocal(m.timestamp),
       value:       m.value,
+      count:       m.count ?? '',
+      boardCardId: m.boardCardId,
     }))
 })
 
@@ -209,12 +178,14 @@ const filteredMeasurements = computed(() => {
 async function saveMeasurement() {
   const d = newMeasurement.value.date
   const ts = new Date(`${d}T00:00:00`).getTime()
+
   const payload: MeasurementRequest = {
     value: Number(newMeasurement.value.value),
     type: newMeasurement.value.type.trim(),
-    unit: newMeasurement.value.unit.trim(),  // M1/M2/M3
+    unit: newMeasurement.value.unit.trim(), // tady bude „M1/M2/M3“
     timestamp: ts,
   }
+
   try {
     await measurementStore.saveMeasurement(projectId, payload)
     await loadMeasurements()
@@ -247,13 +218,17 @@ async function saveMeasurement() {
             v-model="selectedType"
             :items="['Teplota DLS','Tlak','Kalibrace']"
             label="Typ měření"
-            clearable density="comfortable"
+            clearable
+            density="comfortable"
           />
+          <!-- „Jednotka“ => „Přístroj“ -->
           <v-select
             v-model="selectedDevice"
             :items="deviceOptions"
             label="Přístroj"
-            clearable density="comfortable" class="mt-4"
+            clearable
+            density="comfortable"
+            class="mt-4"
           />
         </v-sheet>
       </v-col>
@@ -270,15 +245,33 @@ async function saveMeasurement() {
       </v-col>
     </v-row>
 
-    <!-- Dialogy -->
-    <!-- Nové měření -->
+    <!-- Dialog: nové měření -->
     <Dialog v-model:is-open="dialogOpen" width="500px" :hide-footer="false">
       <template #header>Nové měření</template>
       <template #content>
         <MeasurementForm v-model="newMeasurement.value" />
-        <v-select v-model="newMeasurement.type" :items="['Teplota DLS','Tlak','Kalibrace']" label="Typ měření" density="comfortable" class="mt-2" />
-        <v-select v-model="newMeasurement.unit" :items="deviceOptions" label="Přístroj" density="comfortable" class="mt-2" />
-        <v-text-field v-model="newMeasurement.date" label="Datum měření" type="date" density="comfortable" class="mt-2" />
+        <v-select
+          v-model="newMeasurement.type"
+          :items="['Teplota DLS','Tlak','Kalibrace']"
+          label="Typ měření"
+          density="comfortable"
+          class="mt-2"
+        />
+        <!-- „unit“ v BE = „Přístroj“ v UI -->
+        <v-select
+          v-model="newMeasurement.unit"
+          :items="deviceOptions"
+          label="Přístroj"
+          density="comfortable"
+          class="mt-2"
+        />
+        <v-text-field
+          v-model="newMeasurement.date"
+          label="Datum měření"
+          type="date"
+          density="comfortable"
+          class="mt-2"
+        />
       </template>
       <template #footer>
         <v-btn color="primary" @click="saveMeasurement">Uložit</v-btn>
@@ -286,74 +279,11 @@ async function saveMeasurement() {
       </template>
     </Dialog>
 
-    <!-- Přehled šablon / Průvodce -->
+    <!-- Dialog: Přehled šablon (2 kroky) – beze změny funkce -->
     <Dialog v-model:is-open="templatesOpen" width="1000px" :hide-footer="false">
-      <template #header>
-        {{ templatesMode === 'list' ? 'Přehled šablon' : 'Vytvoření nové šablony' }}
-      </template>
+      <template #header>Vytvoření nové šablony</template>
 
-      <!-- LIST -->
-      <template v-if="templatesMode === 'list'" #content>
-        <div class="d-flex align-center justify-space-between mb-4">
-          <div class="d-flex align-center" style="gap:12px; max-width: 520px; width: 100%;">
-            <v-text-field
-              v-model="listQuery"
-              placeholder="Vyhledávání..."
-              density="comfortable"
-              variant="outlined"
-              hide-details
-              prepend-inner-icon="mdi-magnify"
-              class="flex-grow-1"
-            />
-            <v-select
-              v-model="listDevice"
-              :items="deviceOptions"
-              label="Přístroj"
-              density="comfortable"
-              variant="outlined"
-              hide-details
-              style="max-width: 150px"
-              clearable
-            />
-          </div>
-          <v-btn color="primary" @click="templatesMode='wizard'; templatesStep=1">VYTVOŘIT ŠABLONU</v-btn>
-        </div>
-
-        <v-sheet rounded="lg" border>
-          <v-list lines="one">
-            <v-list-subheader class="text-uppercase text-caption">
-              <div class="d-flex w-100">
-                <div style="width:72px">Přístroj</div>
-                <div class="flex-grow-1">Název šablony</div>
-              </div>
-            </v-list-subheader>
-
-            <v-list-item
-              v-for="t in filteredTemplateList"
-              :key="t.id"
-              class="py-2 clickable"
-              @click="useTemplate(t)"
-            >
-              <template #prepend>
-                <div style="width:72px" class="d-flex align-center">
-                  <v-chip :color="deviceColor(t.device)" text-color="white" size="small">{{ t.device }}</v-chip>
-                </div>
-              </template>
-              <v-list-item-title>{{ t.name }}</v-list-item-title>
-            </v-list-item>
-
-            <!-- prázdný stav -->
-            <div v-if="filteredTemplateList.length === 0" class="pa-4">
-              <v-alert type="info" variant="tonal" density="comfortable">
-                Žádné šablony neodpovídají filtru/​vyhledávání.
-              </v-alert>
-            </div>
-          </v-list>
-        </v-sheet>
-      </template>
-
-      <!-- WIZARD -->
-      <template v-else #content>
+      <template v-if="templatesStep === 1" #content>
         <v-row>
           <v-col cols="12" md="6">
             <v-combobox
@@ -396,7 +326,9 @@ async function saveMeasurement() {
             </v-select>
           </v-col>
         </v-row>
+      </template>
 
+      <template v-else #content>
         <v-btn size="small" color="primary" class="mb-3" @click="addField">PŘIDAT NOVÉ POLE</v-btn>
         <div class="text-subtitle-2 mb-2">Primární data</div>
 
@@ -418,7 +350,9 @@ async function saveMeasurement() {
               :items="fieldTypeOptions"
               item-title="label"
               item-value="value"
-              hide-details density="compact" variant="plain"
+              hide-details
+              density="compact"
+              variant="plain"
             />
           </template>
 
@@ -430,7 +364,9 @@ async function saveMeasurement() {
             <v-text-field
               v-model="item.name"
               :data-draft="item._draft ? item.id : null"
-              hide-details density="compact" variant="plain"
+              hide-details
+              density="compact"
+              variant="plain"
             />
           </template>
 
@@ -446,16 +382,14 @@ async function saveMeasurement() {
       <template #footer>
         <div class="w-100 d-flex align-center">
           <div>
-            <v-btn v-if="templatesMode==='wizard'" variant="text" class="mr-2" @click="templatesMode='list'">ZPĚT NA PŘEHLED</v-btn>
-            <v-btn v-else color="primary" variant="tonal" disabled>EXPORTOVAT</v-btn>
+            <v-btn variant="text" class="mr-2" :disabled="templatesStep === 1" @click="templatesStep = 1">ZPĚT</v-btn>
+            <v-btn color="primary" variant="tonal" disabled>EXPORTOVAT</v-btn>
           </div>
           <v-spacer />
           <div>
             <v-btn variant="text" class="mr-2" @click="closeTemplates">ZRUŠIT</v-btn>
-            <v-btn v-if="templatesMode==='list'" color="primary" @click="templatesMode='wizard'; templatesStep=1">
-              VYTVOŘIT ŠABLONU
-            </v-btn>
-            <v-btn v-else color="primary" @click="saveTemplate">ULOŽIT</v-btn>
+            <v-btn color="primary" v-if="templatesStep === 1" @click="continueFromTemplates">POKRAČOVAT</v-btn>
+            <v-btn color="primary" v-else @click="saveTemplate">ULOŽIT</v-btn>
           </div>
         </div>
       </template>
