@@ -1,8 +1,16 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import Dialog from '@/components/Dialog.vue'
 
-/** --- helpers: local YYYY-MM-DD <-> Date (no UTC surprises) --- */
+/** ---------- LocalStorage persistence ---------- */
+const LS_KEY = 'reservations_state_v1'
+type PersistState = {
+  eventsByDay: Record<string, ResItem[]>
+  selectedDate?: string
+  viewMode?: ViewMode
+}
+
+/** --- helpers: local YYYY-MM-DD <-> Date --- */
 function toYmdLocal(d: Date) {
   const y = d.getFullYear()
   const m = String(d.getMonth() + 1).padStart(2, '0')
@@ -33,7 +41,7 @@ function goToday() {
   selectedDate.value = toYmdLocal(new Date())
 }
 
-/** --- formátování lokálním časem (hoisted formatters) --- */
+/** --- formátování lokálním časem --- */
 const fmtDateLongFmt = new Intl.DateTimeFormat('cs-CZ', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
 const fmtTimeFmt     = new Intl.DateTimeFormat('cs-CZ', { hour: '2-digit', minute: '2-digit' })
 const fmtDetailDateFmt = new Intl.DateTimeFormat('cs-CZ', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' })
@@ -44,7 +52,7 @@ const fmtTime     = (d: Date) => fmtTimeFmt.format(d)
 const fmtDetailDate = (d: Date) => fmtDetailDateFmt.format(d)
 const fmtDetailTime = (d: Date) => fmtDetailTimeFmt.format(d)
 
-/** --- filtry (zatím jen design) --- */
+/** --- filtry (jen UI) --- */
 const pickedMembers = ref<string[]>([])
 const pickedDevices = ref<string[]>([])
 const members = ['Jenny Fermin', 'Miloš Novák', 'Anna K.']
@@ -105,7 +113,7 @@ function sameDay(a: Date, b: Date) {
 }
 const currentDay = computed(() => fromYmdLocal(selectedDate.value))
 
-/** ========= ÚLOŽIŠTĚ REZERVACÍ (reaktivní) ========= */
+/** ========= ÚLOŽIŠTĚ REZERVACÍ + PERSISTENCE ========= */
 const eventsByDay = ref<Record<string, ResItem[]>>({})
 function dateKey(d: Date) {
   const m = (d.getMonth() + 1).toString().padStart(2, '0')
@@ -127,7 +135,7 @@ function toIsoLocal(d: Date) {
   return `${yyyy}-${mm}-${dd}T${hh}:${mi}:${ss}`
 }
 
-/** Seed initial fake data once for the currently selected day and its week */
+/** Seed fake data pro hezký start (jen pokud pro daný den nic není) */
 let autoId = 1
 const titles = [
   'Kalibrace A', 'Kontrola', 'Měření enzymatiky', 'Viskozita', 'Mikroskop indexy',
@@ -185,8 +193,37 @@ function seedDay(day: Date) {
   items.sort((a, b) => +new Date(a.start) - +new Date(b.start))
   eventsByDay.value[key] = items
 }
+
+/** Načtení/uložení do localStorage */
+function loadPersisted() {
+  try {
+    const raw = localStorage.getItem(LS_KEY)
+    if (!raw) return
+    const parsed = JSON.parse(raw) as PersistState
+    if (parsed?.eventsByDay) {
+      eventsByDay.value = parsed.eventsByDay
+      const maxId = Object.values(parsed.eventsByDay).flat().reduce((m, i) => Math.max(m, i.id), 0)
+      autoId = Math.max(autoId, maxId + 1)
+    }
+    if (parsed?.selectedDate) selectedDate.value = parsed.selectedDate
+    if (parsed?.viewMode) viewMode.value = parsed.viewMode
+  } catch (e) {
+    console.warn('Failed to load reservations from LS', e)
+  }
+}
+function savePersisted() {
+  const state: PersistState = {
+    eventsByDay: eventsByDay.value,
+    selectedDate: selectedDate.value,
+    viewMode: viewMode.value,
+  }
+  localStorage.setItem(LS_KEY, JSON.stringify(state))
+}
+watch([eventsByDay, selectedDate, viewMode], savePersisted, { deep: true })
+
+/** Seed current day and its week if empty */
 onMounted(() => {
-  // seed current day and its week for nicer first render
+  loadPersisted()
   const d = currentDay.value
   seedDay(d)
   weekRange(d).forEach(seedDay)
@@ -275,7 +312,6 @@ function eventsCollide(a: ResItem, b: ResItem): boolean {
 }
 
 function layoutForTrack(trackEvents: ResItem[]): EventLayout {
-  // Sort by start asc, then end asc
   const evs = [...trackEvents].sort((a, b) => {
     const as = +new Date(a.start), bs = +new Date(b.start)
     if (as !== bs) return as - bs
@@ -338,7 +374,6 @@ function layoutForTrack(trackEvents: ResItem[]): EventLayout {
   return layout
 }
 
-// Precompute layout maps for current views
 const layoutDailyByDevice = computed<Record<string, EventLayout>>(() => {
   const out: Record<string, EventLayout> = {}
   for (const d of devices.value) {
@@ -358,17 +393,41 @@ const layoutWeeklyByDay = computed<Record<string, EventLayout>>(() => {
   return out
 })
 
-/** --- Drag & drop (move events) --- */
+/** --- Drag & drop – svižný ghost jako na Boardu + CLICK guard --- */
 type DragState = {
   id: number
   pointerId: number
   offsetY: number
+  offsetX: number
+  originTop: number
+  originLeft: number
   durationMin: number
   origDayKey: string
   origDeviceId: string
   view: ViewMode
+  ghostEl: HTMLElement
 }
 const drag = ref<DragState | null>(null)
+let movePending = false
+let lastMoveEvent: PointerEvent | null = null
+let highlightEl: HTMLElement | null = null
+
+// click guard
+const DRAG_CLICK_THRESHOLD = 5
+const pointerStart = ref<{ x: number; y: number }>({ x: 0, y: 0 })
+const movedBeyondThreshold = ref(false)
+const suppressClick = ref(false)
+let suppressTimer: number | null = null
+
+function attachHighlight(el: HTMLElement | null) {
+  if (highlightEl && highlightEl !== el) highlightEl.classList.remove('drop-highlight')
+  highlightEl = el
+  if (highlightEl) highlightEl.classList.add('drop-highlight')
+}
+function clearHighlight() {
+  if (highlightEl) highlightEl.classList.remove('drop-highlight')
+  highlightEl = null
+}
 
 function onEventPointerDown(e: PointerEvent, item: ResItem) {
   if (e.button !== 0) return
@@ -378,17 +437,64 @@ function onEventPointerDown(e: PointerEvent, item: ResItem) {
   const rect = target.getBoundingClientRect()
   const start = new Date(item.start)
   const end   = new Date(item.end)
+
+  // click guard init
+  pointerStart.value = { x: e.clientX, y: e.clientY }
+  movedBeyondThreshold.value = false
+
+  // vytvoř ghost element (nezávislý na Vue reaktivitě)
+  const ghost = target.cloneNode(true) as HTMLElement
+  ghost.classList.add('drag-ghost')
+  ghost.style.width = rect.width + 'px'
+  ghost.style.height = rect.height + 'px'
+  ghost.style.left = rect.left + 'px'
+  ghost.style.top = rect.top + 'px'
+  document.body.appendChild(ghost)
+
   drag.value = {
     id: item.id,
     pointerId: e.pointerId,
     offsetY: e.clientY - rect.top,
+    offsetX: e.clientX - rect.left,
+    originTop: rect.top,
+    originLeft: rect.left,
     durationMin: Math.max(15, Math.round((end.getTime() - start.getTime()) / 60000)),
     origDayKey: dateKey(start),
     origDeviceId: item.deviceId,
     view: viewMode.value,
+    ghostEl: ghost,
   }
-  ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+
+  try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId) } catch {}
+  window.addEventListener('pointermove', onPointerMove, { passive: true })
   window.addEventListener('pointerup', onPointerUp, { once: true })
+}
+
+function onPointerMove(ev: PointerEvent) {
+  if (!drag.value) return
+  lastMoveEvent = ev
+  const dxAbs = Math.abs(ev.clientX - pointerStart.value.x)
+  const dyAbs = Math.abs(ev.clientY - pointerStart.value.y)
+  if (dxAbs > DRAG_CLICK_THRESHOLD || dyAbs > DRAG_CLICK_THRESHOLD) movedBeyondThreshold.value = true
+
+  if (!movePending) {
+    movePending = true
+    requestAnimationFrame(() => {
+      movePending = false
+      if (!drag.value || !lastMoveEvent) return
+      const d = drag.value
+      const e = lastMoveEvent
+
+      // posuň ghost v obou osách (aby byl vidět i mezi sloupci)
+      const newLeft = e.clientX - d.offsetX
+      const newTop = e.clientY - d.offsetY
+      d.ghostEl.style.transform = `translate(${newLeft - d.originLeft}px, ${newTop - d.originTop}px)`
+
+      // highlight trácku pod kurzorem
+      const hit = findTrackAt(e.clientX, e.clientY)
+      attachHighlight(hit?.el ?? null)
+    })
+  }
 }
 
 function findTrackAt(x: number, y: number) {
@@ -422,21 +528,16 @@ function commitMove(d: DragState, x: number, y: number) {
 
   if (d.view === 'daily-machines' && type === 'device') {
     newDeviceId = id
-    newDayKey = d.origDayKey
   } else if ((d.view === 'week-work' || d.view === 'week-all') && type === 'day') {
     newDayKey = id
   } else {
-    // unsupported drop target
     return
   }
 
-  // compute new start/end
   const [Y, M, D] = newDayKey.split('-').map(Number)
   const baseDay = new Date(Y, (M || 1) - 1, D || 1, 0, 0, 0, 0)
   let startMinutes = minutesFromTrackY(y, rect, d.offsetY)
-  // clamp end within bounds
   const endMinutes = Math.min(H_END * 60, startMinutes + d.durationMin)
-  // if the end overflows, shift up
   if (endMinutes - startMinutes < d.durationMin) {
     startMinutes = Math.max(H_START * 60, endMinutes - d.durationMin)
   }
@@ -445,13 +546,11 @@ function commitMove(d: DragState, x: number, y: number) {
   startDate.setHours(Math.floor(startMinutes / 60), startMinutes % 60, 0, 0)
   const endDate = new Date(startDate.getTime() + d.durationMin * 60000)
 
-  // update storage
   const sourceArr = eventsByDay.value[d.origDayKey] || []
   const srcIdx = sourceArr.findIndex(x => x.id === d.id)
   if (srcIdx === -1) return
   const ev = sourceArr[srcIdx]
 
-  // if moving across days, remove from source and push to target
   if (newDayKey !== d.origDayKey) {
     sourceArr.splice(srcIdx, 1)
     const targetArr = ensureDay(baseDay)
@@ -464,7 +563,6 @@ function commitMove(d: DragState, x: number, y: number) {
     })
     targetArr.sort((a, b) => +new Date(a.start) - +new Date(b.start))
   } else {
-    // same day -> update in place and sort
     ev.deviceId = newDeviceId
     ev.start = toIsoLocal(startDate)
     ev.end = toIsoLocal(endDate)
@@ -473,12 +571,35 @@ function commitMove(d: DragState, x: number, y: number) {
 }
 
 function onPointerUp(e: PointerEvent) {
+  window.removeEventListener('pointermove', onPointerMove)
   if (!drag.value) return
+
+  // pokud se hýblo, potlač klik po dropu
+  if (movedBeyondThreshold.value) {
+    suppressClick.value = true
+    if (suppressTimer) window.clearTimeout(suppressTimer)
+    suppressTimer = window.setTimeout(() => { suppressClick.value = false }, 200)
+  }
+
   commitMove(drag.value, e.clientX, e.clientY)
+  // úklid
+  clearHighlight()
+  try { (e.target as HTMLElement)?.releasePointerCapture?.(drag.value.pointerId) } catch {}
+  drag.value.ghostEl.remove()
   drag.value = null
 }
 
-/** --- Click-to-create in calendar --- */
+onBeforeUnmount(() => {
+  window.removeEventListener('pointermove', onPointerMove)
+})
+
+function onEventClick(itemId: number, e: MouseEvent) {
+  // otevřít detail jen při čistém kliku (bez drag)
+  if (suppressClick.value || movedBeyondThreshold.value || drag.value) return
+  openMenu.value[itemId] = true
+}
+
+/** --- Click-to-create --- */
 const createOpen = ref(false)
 const createForm = ref<{
   title: string
@@ -489,9 +610,8 @@ const createForm = ref<{
 } | null>(null)
 
 function onTrackClick(evt: MouseEvent, ctx: { type: 'device'|'day'; deviceId?: string; day?: Date }) {
-  // if we are finishing a drag, ignore click
-  if (drag.value) return
-
+  // pokud se právě dnd dokončilo, ignoruj click
+  if (drag.value || suppressClick.value) return
   const track = (evt.currentTarget as HTMLElement | null)
   if (!track) return
   const rect = track.getBoundingClientRect()
@@ -523,7 +643,6 @@ function saveCreatedEvent() {
   let end   = setHM(day, endHM)
   if (end <= start) end = new Date(start.getTime() + 30 * 60000)
 
-  // clamp into schedule bounds
   const clampStart = new Date(day); clampStart.setHours(H_START, 0, 0, 0)
   const clampEnd   = new Date(day); clampEnd.setHours(H_END, 0, 0, 0)
   if (start < clampStart) start = clampStart
@@ -544,7 +663,7 @@ function saveCreatedEvent() {
   createForm.value = null
 }
 
-/** --- dialog (old placeholder actions kept for compatibility) --- */
+/** --- dialog/menus --- */
 const openMenu = ref<Record<number, boolean>>({})
 </script>
 
@@ -567,7 +686,6 @@ const openMenu = ref<Record<number, boolean>>({})
         <v-card class="mb-3">
           <v-card-text class="d-flex flex-wrap align-center">
             <v-btn color="primary" class="mr-2" @click="() => {
-              // otevřít prázdný dialog na 09:00
               const day = fromYmdLocal(selectedDate)
               const start = new Date(day); start.setHours(9, 0, 0, 0)
               const end = new Date(start.getTime() + 60*60000)
@@ -579,7 +697,7 @@ const openMenu = ref<Record<number, boolean>>({})
                 endHM: (end.getHours()+'').padStart(2,'0') + ':' + (end.getMinutes()+'').padStart(2,'0'),
               }
               createOpen = true
-            }">VYTVOŘIT REZERVACI </v-btn>
+            }">VYTVOŘIT REZERVACI</v-btn>
 
             <v-menu>
               <template #activator="{ props }">
@@ -639,7 +757,6 @@ const openMenu = ref<Record<number, boolean>>({})
                     :data-track-id="d.id"
                     @click.self="onTrackClick($event, { type: 'device', deviceId: d.id })"
                   >
-                    <!-- každá událost -->
                     <v-menu
                       v-for="i in itemsForDay.filter(x => x.deviceId === d.id)"
                       :key="i.id"
@@ -649,12 +766,14 @@ const openMenu = ref<Record<number, boolean>>({})
                       max-width="520"
                       :close-on-content-click="false"
                       transition="fade-transition"
+                      :open-on-click="false"
                     >
                       <template #activator="{ props }">
                         <div
                           class="event"
                           v-bind="props"
                           @pointerdown.stop.prevent="onEventPointerDown($event, i)"
+                          @click.stop="onEventClick(i.id, $event)"
                           :style="{
                             top: topFromDate(new Date(i.start)) + 'px',
                             height: heightFromRange(new Date(i.start), new Date(i.end)) + 'px',
@@ -668,7 +787,6 @@ const openMenu = ref<Record<number, boolean>>({})
                         </div>
                       </template>
 
-                      <!-- obsah detailu -->
                       <v-card class="detail-card pa-3">
                         <div class="d-flex align-start">
                           <v-icon :color="deviceColorOf(i.deviceId)" size="16" class="mr-3 mt-1">mdi-checkbox-blank-circle</v-icon>
@@ -780,12 +898,14 @@ const openMenu = ref<Record<number, boolean>>({})
                       max-width="520"
                       :close-on-content-click="false"
                       transition="fade-transition"
+                      :open-on-click="false"
                     >
                       <template #activator="{ props }">
                         <div
                           class="event"
                           v-bind="props"
                           @pointerdown.stop.prevent="onEventPointerDown($event, i)"
+                          @click.stop="onEventClick(i.id, $event)"
                           :style="{
                             top: topFromDate(new Date(i.start)) + 'px',
                             height: heightFromRange(new Date(i.start), new Date(i.end)) + 'px',
@@ -845,7 +965,7 @@ const openMenu = ref<Record<number, boolean>>({})
       </v-col>
     </v-row>
 
-    <!-- Dialog – vytvoření rezervace klikem -->
+    <!-- Dialog – vytvoření rezervace -->
     <Dialog v-model:is-open="createOpen" width="600px" :hide-footer="false">
       <template #header>Vytvořit rezervaci</template>
       <template #content>
@@ -900,9 +1020,29 @@ const openMenu = ref<Record<number, boolean>>({})
 </template>
 
 <style scoped>
+/* Event základ */
 .event { cursor: grab; user-select: none; }
+.event:active { cursor: grabbing; }
 
-/* pop-over */
+/* Ghost element pro svižný drag (DOM, mimo Vue render) */
+.drag-ghost {
+  position: fixed;
+  z-index: 9999;
+  pointer-events: none;
+  opacity: .9;
+  box-shadow: 0 8px 20px rgba(0,0,0,.20);
+  border-radius: 10px;
+  background: white;
+  will-change: transform;
+}
+
+/* Zvýraznění tracku pod kurzorem */
+.drop-highlight {
+  outline: 2px dashed var(--v-theme-primary);
+  outline-offset: -2px;
+}
+
+/* pop-over detail */
 .detail-card {
   background: #eceff1;
   border-radius: 14px;
@@ -946,7 +1086,7 @@ const openMenu = ref<Record<number, boolean>>({})
 }
 .event-title {
   font-weight: 600;
-  line-height: 1.1;
+  line-height: 1.2;
   overflow: hidden;
   display: -webkit-box;
   -webkit-box-orient: vertical;
@@ -956,7 +1096,6 @@ const openMenu = ref<Record<number, boolean>>({})
   word-break: keep-all;
   overflow-wrap: break-word;
   hyphens: auto;
-  line-height: 1.2;
 }
 .event-time {
   white-space: nowrap;
