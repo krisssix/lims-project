@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import Dialog from '@/components/Dialog.vue'
 
 /** --- helpers: local YYYY-MM-DD <-> Date (no UTC surprises) --- */
@@ -13,6 +13,14 @@ function fromYmdLocal(s: string) {
   const [y, m, d] = s.split('-').map(Number)
   return new Date(y, (m || 1) - 1, d || 1, 0, 0, 0, 0)
 }
+function setHM(base: Date, hm: string) {
+  const [h, m] = hm.split(':').map(v => parseInt(v, 10) || 0)
+  const d = new Date(base)
+  d.setHours(h, m, 0, 0)
+  return d
+}
+function pad2(n: number) { return String(n).padStart(2, '0') }
+function hmFromDate(d: Date) { return `${pad2(d.getHours())}:${pad2(d.getMinutes())}` }
 
 /** --- datum / navigace --- */
 const selectedDate = ref<string>(toYmdLocal(new Date())) // YYYY-MM-DD
@@ -40,14 +48,14 @@ const fmtDetailTime = (d: Date) => fmtDetailTimeFmt.format(d)
 const pickedMembers = ref<string[]>([])
 const pickedDevices = ref<string[]>([])
 const members = ['Jenny Fermin', 'Miloš Novák', 'Anna K.']
-const devices = [
+const devices = ref([
   { id: 'M1', name: 'M1', color: 'deep-purple' },
   { id: 'M2', name: 'M2', color: 'blue' },
   { id: 'M3', name: 'M3', color: 'teal' },
   { id: 'Spektro1', name: 'Spektro1', color: 'orange' },
   { id: 'Spektro2', name: 'Spektro2', color: 'amber' },
-]
-const colsDevices = computed(() => devices.length)
+])
+const colsDevices = computed(() => devices.value.length)
 
 /** --- přepínání pohledů --- */
 type ViewMode = 'daily-machines' | 'daily-list' | 'week-work' | 'week-all'
@@ -66,7 +74,7 @@ type ResItem = {
   id: number
   title: string
   deviceId: string
-  start: string  // ISO bez zóny (bere se jako lokální)
+  start: string  // ISO local-like string (no TZ)
   end: string
   status: 'plan' | 'running' | 'done'
 }
@@ -75,6 +83,7 @@ const H_END   = 13  // 13:00
 const TRACK_HEIGHT = 640
 const hourTicks = computed(() => H_END - H_START + 1)
 const tickHeight = computed(() => TRACK_HEIGHT / hourTicks.value)
+const GRID_MINUTES = 15 // snap to 15 min
 
 const PX_PER_MIN = computed(() => TRACK_HEIGHT / ((H_END - H_START) * 60))
 function topFromDate(d: Date) {
@@ -85,6 +94,8 @@ function heightFromRange(start: Date, end: Date) {
   const diff = (end.getTime() - start.getTime()) / (1000 * 60)
   return Math.max(24, diff * PX_PER_MIN.value)
 }
+function clamp(v: number, min: number, max: number) { return Math.max(min, Math.min(max, v)) }
+function roundToStep(v: number, step: number) { return Math.round(v / step) * step }
 
 /** --- helpery data --- */
 function sameDay(a: Date, b: Date) {
@@ -94,24 +105,17 @@ function sameDay(a: Date, b: Date) {
 }
 const currentDay = computed(() => fromYmdLocal(selectedDate.value))
 
-/** ========= FAKE GENERÁTOR REZERVACÍ ========= */
-const titles = [
-  'Kalibrace A', 'Kontrola', 'Měření enzymatiky', 'Viskozita', 'Mikroskop indexy',
-  'Peptidy', 'Test vzorku', 'Spektrum', 'Údržba', 'Záloha dat'
-]
+/** ========= ÚLOŽIŠTĚ REZERVACÍ (reaktivní) ========= */
+const eventsByDay = ref<Record<string, ResItem[]>>({})
 function dateKey(d: Date) {
   const m = (d.getMonth() + 1).toString().padStart(2, '0')
   const day = d.getDate().toString().padStart(2, '0')
   return `${d.getFullYear()}-${m}-${day}`
 }
-function makeRng(seed: number) {
-  let s = seed >>> 0 || 1
-  return () => {
-    s ^= s << 13; s >>>= 0
-    s ^= s >>> 17; s >>>= 0
-    s ^= s << 5;  s >>>= 0
-    return (s % 1000) / 1000
-  }
+function ensureDay(day: Date): ResItem[] {
+  const k = dateKey(day)
+  if (!eventsByDay.value[k]) eventsByDay.value[k] = []
+  return eventsByDay.value[k]
 }
 function toIsoLocal(d: Date) {
   const yyyy = d.getFullYear()
@@ -123,11 +127,24 @@ function toIsoLocal(d: Date) {
   return `${yyyy}-${mm}-${dd}T${hh}:${mi}:${ss}`
 }
 
-const cache = new Map<string, ResItem[]>() // podle YYYY-MM-DD
+/** Seed initial fake data once for the currently selected day and its week */
 let autoId = 1
-function generateForDay(day: Date): ResItem[] {
+const titles = [
+  'Kalibrace A', 'Kontrola', 'Měření enzymatiky', 'Viskozita', 'Mikroskop indexy',
+  'Peptidy', 'Test vzorku', 'Spektrum', 'Údržba', 'Záloha dat'
+]
+function makeRng(seed: number) {
+  let s = seed >>> 0 || 1
+  return () => {
+    s ^= s << 13; s >>>= 0
+    s ^= s >>> 17; s >>>= 0
+    s ^= s << 5;  s >>>= 0
+    return (s % 1000) / 1000
+  }
+}
+function seedDay(day: Date) {
   const key = dateKey(day)
-  if (cache.has(key)) return cache.get(key)!
+  if (eventsByDay.value[key]?.length) return
   const seed = day.getFullYear() * 10000 + (day.getMonth() + 1) * 100 + day.getDate()
   const rnd  = makeRng(seed)
 
@@ -135,13 +152,13 @@ function generateForDay(day: Date): ResItem[] {
   const total = 4 + Math.floor(rnd() * 6)
 
   const takenByDevice: Record<string, Array<[number, number]>> = {}
-  devices.forEach(d => { takenByDevice[d.id] = [] })
+  devices.value.forEach(d => { takenByDevice[d.id] = [] })
 
   const startMin = H_START * 60
   const endMin   = H_END * 60
 
   for (let i = 0; i < total; i++) {
-    const dev = devices[Math.floor(rnd() * devices.length)]
+    const dev = devices.value[Math.floor(rnd() * devices.value.length)]
     const dur = [45, 60, 75, 90, 105, 120][Math.floor(rnd() * 6)]
     const startCandidate = startMin + Math.floor(rnd() * (endMin - startMin - dur))
     const start = Math.floor(startCandidate / 30) * 30
@@ -166,12 +183,21 @@ function generateForDay(day: Date): ResItem[] {
     items.push({ id: autoId++, title, deviceId: dev.id, start: toIsoLocal(s), end: toIsoLocal(e), status })
   }
   items.sort((a, b) => +new Date(a.start) - +new Date(b.start))
-  cache.set(key, items)
-  return items
+  eventsByDay.value[key] = items
 }
-function itemsFor(d: Date) { return generateForDay(d) }
+onMounted(() => {
+  // seed current day and its week for nicer first render
+  const d = currentDay.value
+  seedDay(d)
+  weekRange(d).forEach(seedDay)
+})
 
 /** --- computed pro aktuální den a tabulku --- */
+function itemsFor(day: Date) {
+  const k = dateKey(day)
+  ensureDay(day)
+  return eventsByDay.value[k]
+}
 const itemsForDay = computed(() => itemsFor(currentDay.value))
 const tableHeaders = [
   { title: 'Datum', key: 'date' },
@@ -202,7 +228,7 @@ const daysForView  = computed(() => viewMode.value === 'week-work' ? weekDaysWor
 const colsWeek     = computed(() => viewMode.value === 'week-work' ? 5 : 7)
 
 /** --- detail: data + formátování --- */
-const deviceColorOf = (id: string) => devices.find(d => d.id === id)?.color || 'deep-purple'
+const deviceColorOf = (id: string) => devices.value.find(d => d.id === id)?.color || 'deep-purple'
 
 /** fake doplňky (vlastník + poznámka) – memoized **/
 const people = ['Kristina Nazarjanová', 'Jenny Fermin', 'Miloš Novák', 'Anna K.', 'Tomáš Marek']
@@ -265,14 +291,12 @@ function layoutForTrack(trackEvents: ResItem[]): EventLayout {
     const start = +new Date(ev.start)
     const end   = +new Date(ev.end)
 
-    // If the event starts after the last group end, flush the group.
     if (lastEnd !== undefined && start >= lastEnd) {
       groups.push(columns)
       columns = []
       lastEnd = undefined
     }
 
-    // Place into first column that doesn't collide with its last event
     let placed = false
     for (const col of columns) {
       const last = col[col.length - 1]
@@ -288,7 +312,6 @@ function layoutForTrack(trackEvents: ResItem[]): EventLayout {
   }
   if (columns.length) groups.push(columns)
 
-  // Pack each group and compute left/width percentages
   const layout: EventLayout = {}
 
   function expand(ev: ResItem, colIdx: number, cols: ResItem[][]): number {
@@ -318,7 +341,7 @@ function layoutForTrack(trackEvents: ResItem[]): EventLayout {
 // Precompute layout maps for current views
 const layoutDailyByDevice = computed<Record<string, EventLayout>>(() => {
   const out: Record<string, EventLayout> = {}
-  for (const d of devices) {
+  for (const d of devices.value) {
     const evs = itemsForDay.value.filter(x => x.deviceId === d.id)
     out[d.id] = layoutForTrack(evs)
   }
@@ -326,7 +349,7 @@ const layoutDailyByDevice = computed<Record<string, EventLayout>>(() => {
 })
 
 const layoutWeeklyByDay = computed<Record<string, EventLayout>>(() => {
-  const days = daysForView.value // reactive (week/all)
+  const days = daysForView.value
   const out: Record<string, EventLayout> = {}
   for (const day of days) {
     const key = dateKey(day)
@@ -335,8 +358,193 @@ const layoutWeeklyByDay = computed<Record<string, EventLayout>>(() => {
   return out
 })
 
-/** --- dialog (placeholder) --- */
+/** --- Drag & drop (move events) --- */
+type DragState = {
+  id: number
+  pointerId: number
+  offsetY: number
+  durationMin: number
+  origDayKey: string
+  origDeviceId: string
+  view: ViewMode
+}
+const drag = ref<DragState | null>(null)
+
+function onEventPointerDown(e: PointerEvent, item: ResItem) {
+  if (e.button !== 0) return
+  const target = e.currentTarget as HTMLElement | null
+  if (!target) return
+
+  const rect = target.getBoundingClientRect()
+  const start = new Date(item.start)
+  const end   = new Date(item.end)
+  drag.value = {
+    id: item.id,
+    pointerId: e.pointerId,
+    offsetY: e.clientY - rect.top,
+    durationMin: Math.max(15, Math.round((end.getTime() - start.getTime()) / 60000)),
+    origDayKey: dateKey(start),
+    origDeviceId: item.deviceId,
+    view: viewMode.value,
+  }
+  ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+  window.addEventListener('pointerup', onPointerUp, { once: true })
+}
+
+function findTrackAt(x: number, y: number) {
+  let el = document.elementFromPoint(x, y) as HTMLElement | null
+  while (el) {
+    if (el.dataset && el.dataset.trackType && el.dataset.trackId) {
+      const type = el.dataset.trackType
+      const id = el.dataset.trackId
+      const rect = el.getBoundingClientRect()
+      return { el, type, id, rect }
+    }
+    el = el.parentElement
+  }
+  return null
+}
+
+function minutesFromTrackY(y: number, rect: DOMRect, offsetY: number) {
+  const relY = clamp(y - rect.top - offsetY, 0, TRACK_HEIGHT)
+  const minutes = (relY / PX_PER_MIN.value) + H_START * 60
+  const snapped = clamp(roundToStep(minutes, GRID_MINUTES), H_START * 60, H_END * 60)
+  return snapped
+}
+
+function commitMove(d: DragState, x: number, y: number) {
+  const hit = findTrackAt(x, y)
+  if (!hit) return
+
+  const { type, id, rect } = hit
+  let newDayKey = d.origDayKey
+  let newDeviceId = d.origDeviceId
+
+  if (d.view === 'daily-machines' && type === 'device') {
+    newDeviceId = id
+    newDayKey = d.origDayKey
+  } else if ((d.view === 'week-work' || d.view === 'week-all') && type === 'day') {
+    newDayKey = id
+  } else {
+    // unsupported drop target
+    return
+  }
+
+  // compute new start/end
+  const [Y, M, D] = newDayKey.split('-').map(Number)
+  const baseDay = new Date(Y, (M || 1) - 1, D || 1, 0, 0, 0, 0)
+  let startMinutes = minutesFromTrackY(y, rect, d.offsetY)
+  // clamp end within bounds
+  const endMinutes = Math.min(H_END * 60, startMinutes + d.durationMin)
+  // if the end overflows, shift up
+  if (endMinutes - startMinutes < d.durationMin) {
+    startMinutes = Math.max(H_START * 60, endMinutes - d.durationMin)
+  }
+
+  const startDate = new Date(baseDay)
+  startDate.setHours(Math.floor(startMinutes / 60), startMinutes % 60, 0, 0)
+  const endDate = new Date(startDate.getTime() + d.durationMin * 60000)
+
+  // update storage
+  const sourceArr = eventsByDay.value[d.origDayKey] || []
+  const srcIdx = sourceArr.findIndex(x => x.id === d.id)
+  if (srcIdx === -1) return
+  const ev = sourceArr[srcIdx]
+
+  // if moving across days, remove from source and push to target
+  if (newDayKey !== d.origDayKey) {
+    sourceArr.splice(srcIdx, 1)
+    const targetArr = ensureDay(baseDay)
+    targetArr.push({
+      ...ev,
+      deviceId: newDeviceId,
+      start: toIsoLocal(startDate),
+      end: toIsoLocal(endDate),
+      status: ev.status,
+    })
+    targetArr.sort((a, b) => +new Date(a.start) - +new Date(b.start))
+  } else {
+    // same day -> update in place and sort
+    ev.deviceId = newDeviceId
+    ev.start = toIsoLocal(startDate)
+    ev.end = toIsoLocal(endDate)
+    sourceArr.sort((a, b) => +new Date(a.start) - +new Date(b.start))
+  }
+}
+
+function onPointerUp(e: PointerEvent) {
+  if (!drag.value) return
+  commitMove(drag.value, e.clientX, e.clientY)
+  drag.value = null
+}
+
+/** --- Click-to-create in calendar --- */
 const createOpen = ref(false)
+const createForm = ref<{
+  title: string
+  deviceId: string
+  dateYmd: string
+  startHM: string
+  endHM: string
+} | null>(null)
+
+function onTrackClick(evt: MouseEvent, ctx: { type: 'device'|'day'; deviceId?: string; day?: Date }) {
+  // if we are finishing a drag, ignore click
+  if (drag.value) return
+
+  const track = (evt.currentTarget as HTMLElement | null)
+  if (!track) return
+  const rect = track.getBoundingClientRect()
+  const baseDay = ctx.type === 'day' ? (ctx.day as Date) : currentDay.value
+  const minutes = minutesFromTrackY(evt.clientY, rect, 0)
+  const start = new Date(baseDay)
+  start.setHours(Math.floor(minutes / 60), minutes % 60, 0, 0)
+  const defaultDur = 60
+  const end = new Date(start.getTime() + defaultDur * 60000)
+  const ymd = toYmdLocal(baseDay)
+
+  const deviceId = ctx.type === 'device' ? (ctx.deviceId as string) : (devices.value[0]?.id || 'M1')
+
+  createForm.value = {
+    title: 'Nová rezervace',
+    deviceId,
+    dateYmd: ymd,
+    startHM: hmFromDate(start),
+    endHM: hmFromDate(end),
+  }
+  createOpen.value = true
+}
+
+function saveCreatedEvent() {
+  if (!createForm.value) return
+  const { title, deviceId, dateYmd, startHM, endHM } = createForm.value
+  const day = fromYmdLocal(dateYmd)
+  let start = setHM(day, startHM)
+  let end   = setHM(day, endHM)
+  if (end <= start) end = new Date(start.getTime() + 30 * 60000)
+
+  // clamp into schedule bounds
+  const clampStart = new Date(day); clampStart.setHours(H_START, 0, 0, 0)
+  const clampEnd   = new Date(day); clampEnd.setHours(H_END, 0, 0, 0)
+  if (start < clampStart) start = clampStart
+  if (end > clampEnd) end = clampEnd
+
+  const arr = ensureDay(day)
+  arr.push({
+    id: autoId++,
+    title: title?.trim() || 'Rezervace',
+    deviceId,
+    start: toIsoLocal(start),
+    end: toIsoLocal(end),
+    status: 'plan',
+  })
+  arr.sort((a, b) => +new Date(a.start) - +new Date(b.start))
+
+  createOpen.value = false
+  createForm.value = null
+}
+
+/** --- dialog (old placeholder actions kept for compatibility) --- */
 const openMenu = ref<Record<number, boolean>>({})
 </script>
 
@@ -358,7 +566,20 @@ const openMenu = ref<Record<number, boolean>>({})
       <v-col cols="12" md="9">
         <v-card class="mb-3">
           <v-card-text class="d-flex flex-wrap align-center">
-            <v-btn color="primary" class="mr-2" @click="createOpen = true">VYTVOŘIT REZERVACI </v-btn>
+            <v-btn color="primary" class="mr-2" @click="() => {
+              // otevřít prázdný dialog na 09:00
+              const day = fromYmdLocal(selectedDate)
+              const start = new Date(day); start.setHours(9, 0, 0, 0)
+              const end = new Date(start.getTime() + 60*60000)
+              createForm = {
+                title: 'Nová rezervace',
+                deviceId: devices[0]?.id || 'M1',
+                dateYmd: selectedDate,
+                startHM: (start.getHours()+'').padStart(2,'0') + ':' + (start.getMinutes()+'').padStart(2,'0'),
+                endHM: (end.getHours()+'').padStart(2,'0') + ':' + (end.getMinutes()+'').padStart(2,'0'),
+              }
+              createOpen = true
+            }">VYTVOŘIT REZERVACI </v-btn>
 
             <v-menu>
               <template #activator="{ props }">
@@ -409,8 +630,16 @@ const openMenu = ref<Record<number, boolean>>({})
                     </div>
                   </div>
 
-                  <div v-for="d in devices" :key="d.id" class="track" :style="{ height: TRACK_HEIGHT + 'px' }">
-                    <!-- každá událost má svůj vlastní v-menu s aktivátorem -->
+                  <div
+                    v-for="d in devices"
+                    :key="d.id"
+                    class="track"
+                    :style="{ height: TRACK_HEIGHT + 'px' }"
+                    :data-track-type="'device'"
+                    :data-track-id="d.id"
+                    @click.self="onTrackClick($event, { type: 'device', deviceId: d.id })"
+                  >
+                    <!-- každá událost -->
                     <v-menu
                       v-for="i in itemsForDay.filter(x => x.deviceId === d.id)"
                       :key="i.id"
@@ -425,6 +654,7 @@ const openMenu = ref<Record<number, boolean>>({})
                         <div
                           class="event"
                           v-bind="props"
+                          @pointerdown.stop.prevent="onEventPointerDown($event, i)"
                           :style="{
                             top: topFromDate(new Date(i.start)) + 'px',
                             height: heightFromRange(new Date(i.start), new Date(i.end)) + 'px',
@@ -448,7 +678,13 @@ const openMenu = ref<Record<number, boolean>>({})
                               <div class="text-subtitle-1 font-weight-medium">{{ i.title }}</div>
                               <div class="d-flex align-center">
                                 <v-btn icon="mdi-pencil-outline" size="small" variant="text" />
-                                <v-btn icon="mdi-delete-outline" size="small" variant="text" />
+                                <v-btn icon="mdi-delete-outline" size="small" variant="text" @click="() => {
+                                  const k = dateKey(new Date(i.start))
+                                  const arr = eventsByDay[k] || []
+                                  const idx = arr.findIndex(x => x.id === i.id)
+                                  if (idx !== -1) arr.splice(idx, 1)
+                                  openMenu[i.id] = false
+                                }" />
                                 <v-btn icon="mdi-close" size="small" variant="text" @click="openMenu[i.id] = false" />
                               </div>
                             </div>
@@ -531,6 +767,9 @@ const openMenu = ref<Record<number, boolean>>({})
                     class="track"
                     :class="{ weekend: [0,6].includes(day.getDay()) }"
                     :style="{ height: TRACK_HEIGHT + 'px' }"
+                    :data-track-type="'day'"
+                    :data-track-id="dateKey(day)"
+                    @click.self="onTrackClick($event, { type: 'day', day })"
                   >
                     <v-menu
                       v-for="i in itemsFor(day)"
@@ -546,6 +785,7 @@ const openMenu = ref<Record<number, boolean>>({})
                         <div
                           class="event"
                           v-bind="props"
+                          @pointerdown.stop.prevent="onEventPointerDown($event, i)"
                           :style="{
                             top: topFromDate(new Date(i.start)) + 'px',
                             height: heightFromRange(new Date(i.start), new Date(i.end)) + 'px',
@@ -567,7 +807,13 @@ const openMenu = ref<Record<number, boolean>>({})
                               <div class="text-subtitle-1 font-weight-medium">{{ i.title }}</div>
                               <div class="d-flex align-center">
                                 <v-btn icon="mdi-pencil-outline" size="small" variant="text" />
-                                <v-btn icon="mdi-delete-outline" size="small" variant="text" />
+                                <v-btn icon="mdi-delete-outline" size="small" variant="text" @click="() => {
+                                  const k = dateKey(new Date(i.start))
+                                  const arr = eventsByDay[k] || []
+                                  const idx = arr.findIndex(x => x.id === i.id)
+                                  if (idx !== -1) arr.splice(idx, 1)
+                                  openMenu[i.id] = false
+                                }" />
                                 <v-btn icon="mdi-close" size="small" variant="text" @click="openMenu[i.id] = false" />
                               </div>
                             </div>
@@ -599,17 +845,54 @@ const openMenu = ref<Record<number, boolean>>({})
       </v-col>
     </v-row>
 
-    <!-- Dialog – placeholder -->
+    <!-- Dialog – vytvoření rezervace klikem -->
     <Dialog v-model:is-open="createOpen" width="600px" :hide-footer="false">
       <template #header>Vytvořit rezervaci</template>
       <template #content>
-        <v-select  :items="['Teplota DLS','Tlak','Kalibrace']" label="Přístroj" density="comfortable" class="mt-2" />
-        <v-select  :items="['Projekt 1','Projekt 2','Projekt 3']" label="Projekt" density="comfortable" class="mt-2" />
-        <v-select v-model="pickedMembers" :items="members" label="Členové" clearable multiple density="comfortable" />
-        <v-textarea label="Poznámka" density="comfortable" class="mt-2" />
+        <v-text-field
+          v-model="createForm!.title"
+          label="Název"
+          density="comfortable"
+          variant="outlined"
+          class="mb-2"
+        />
+        <v-select
+          v-model="createForm!.deviceId"
+          :items="devices"
+          item-title="name"
+          item-value="id"
+          label="Přístroj"
+          density="comfortable"
+          variant="outlined"
+          class="mb-2"
+        />
+        <v-text-field
+          v-model="createForm!.dateYmd"
+          label="Datum"
+          type="date"
+          density="comfortable"
+          variant="outlined"
+          class="mb-2"
+        />
+        <div class="d-flex" style="gap:12px">
+          <v-text-field
+            v-model="createForm!.startHM"
+            label="Začátek"
+            type="time"
+            density="comfortable"
+            variant="outlined"
+          />
+          <v-text-field
+            v-model="createForm!.endHM"
+            label="Konec"
+            type="time"
+            density="comfortable"
+            variant="outlined"
+          />
+        </div>
       </template>
       <template #footer>
-        <v-btn color="primary">Uložit</v-btn>
+        <v-btn color="primary" @click="saveCreatedEvent">Uložit</v-btn>
         <v-btn variant="text" @click="createOpen = false">Zrušit</v-btn>
       </template>
     </Dialog>
@@ -617,7 +900,7 @@ const openMenu = ref<Record<number, boolean>>({})
 </template>
 
 <style scoped>
-.event { cursor: pointer; }
+.event { cursor: grab; user-select: none; }
 
 /* pop-over */
 .detail-card {
@@ -664,8 +947,6 @@ const openMenu = ref<Record<number, boolean>>({})
 .event-title {
   font-weight: 600;
   line-height: 1.1;
-}
-.event-title {
   overflow: hidden;
   display: -webkit-box;
   -webkit-box-orient: vertical;
@@ -681,38 +962,5 @@ const openMenu = ref<Record<number, boolean>>({})
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-@container (max-width: 140px) {
-  .event-title {
-    -webkit-line-clamp: 1;
-  }
-}
-
-@container (max-width: 120px) {
-  .event-title { display: none; }
-  .event { padding: 6px 8px; }
-}
-
-@container (max-width: 100px) {
-  .event-title { position: relative; }
-  .event-title .full { visibility: hidden; }
-  .event-title::after {
-    content: attr(data-short) '…';
-    position: absolute;
-    inset: 0 auto 0 0;
-    visibility: visible;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: clip;
-  }
-  .event { padding: 6px 8px; }
-}
-
-@container (max-width: 90px) {
-  .event-time { font-size: 11px; }
-}
-
-@container (max-width: 80px) {
-  .event-time { font-size: 11px; }
 }
 </style>
