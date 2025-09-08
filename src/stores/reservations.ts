@@ -8,12 +8,31 @@ export type ReservationItem = {
   deviceCode: string
   startTime: number
   endTime: number
-  username: string
+  username: string | null
   projectId: number
-  note?: string
+  note?: string | null
 }
 
 export type DeviceItem = { id: number; code: string; name: string; color?: string }
+
+type CreateReservationPayload = {
+  title: string
+  deviceCode: string
+  startTime: number
+  endTime: number
+  projectId: number
+  username: string
+  note?: string | null
+}
+
+type UpdateReservationPayload = {
+  title?: string
+  deviceCode?: string
+  startTime?: number
+  endTime?: number
+  username?: string | null
+  note?: string | null
+}
 
 export const useReservationsStore = defineStore('reservations', () => {
   const devices = ref<DeviceItem[]>([])
@@ -26,38 +45,32 @@ export const useReservationsStore = defineStore('reservations', () => {
 
   async function fetchByProject(projectId: number, from: number, to: number, deviceCodes: string[] = []) {
     const codes = deviceCodes.length ? `&deviceCodes=${encodeURIComponent(deviceCodes.join(','))}` : ''
-    const resp = await get<{ items: ReservationItem[] }>(`reservations/by-project/${projectId}?from=${from}&to=${to}${codes}`)
+    const resp = await get<{ items: ReservationItem[] }>(
+        `reservations/by-project/${projectId}?from=${from}&to=${to}${codes}`
+    )
     items.value = resp.data.items
     return items.value
   }
 
-  async function createReservation(payload: {
-    title: string
-    deviceCode: string
-    startTime: number
-    endTime: number
-    projectId: number
-    username: string
-    note?: string
-  }) {
+  async function createReservation(payload: CreateReservationPayload) {
     const resp = await post<{ content: ReservationItem }>('reservations', payload)
     items.value.push(resp.data.content)
     return resp.data.content
   }
 
-  async function updateReservation(
-    id: number,
-    payload: { startTime: number; endTime: number; deviceCode: string }
-  ) {
+  async function updateReservation(id: number, payload: UpdateReservationPayload) {
     const resp = await patch<{ content: ReservationItem }>(`reservations/${id}`, payload)
     const idx = items.value.findIndex(i => i.id === id)
     if (idx !== -1) {
       items.value[idx] = { ...items.value[idx], ...resp.data.content }
+    } else {
+      items.value.push(resp.data.content)
     }
     return resp.data.content
   }
 
-  // NEW: update poznámky u rezervace
+  // Legacy – už není potřeba pokud děláme vše jedním PATCHem,
+  // necháváme jen kdyby ještě existovalo staré volání někde ve FE.
   async function updateReservationNote(id: number, note?: string | null) {
     const resp = await patch<{ content: ReservationItem }>(`reservations/${id}/note`, { note: note ?? null })
     const idx = items.value.findIndex(i => i.id === id)
@@ -72,5 +85,14 @@ export const useReservationsStore = defineStore('reservations', () => {
     items.value = items.value.filter(i => i.id !== id)
   }
 
-  return { devices, items, fetchDevices, fetchByProject, createReservation, updateReservation, updateReservationNote, deleteReservation }
+  return {
+    devices,
+    items,
+    fetchDevices,
+    fetchByProject,
+    createReservation,
+    updateReservation,
+    updateReservationNote,
+    deleteReservation
+  }
 })

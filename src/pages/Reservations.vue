@@ -721,23 +721,29 @@ function openEdit(i: ResItem) {
 
 async function saveEditedEvent() {
   if (!editForm.value) return
-  const { id, deviceCode, dateYmd, startHM, endHM, note } = editForm.value
+  const { id, deviceCode, dateYmd, startHM, endHM, note, title, username } = editForm.value
+
   const day = fromYmdLocal(dateYmd)
   let start = setHM(day, startHM)
   let end = setHM(day, endHM)
   if (end <= start) end = new Date(start.getTime() + 30 * 60000)
+
   const clampStart = new Date(day); clampStart.setHours(HOURS_START, 0, 0, 0)
   const clampEnd = new Date(day); clampEnd.setHours(HOURS_END, 0, 0, 0)
   if (start < clampStart) start = clampStart
   if (end > clampEnd) end = clampEnd
 
+  const payload = {
+    title: title?.trim() || 'Rezervace',
+    deviceCode,
+    startTime: start.getTime(),
+    endTime: end.getTime(),
+    username: username?.trim() || null,
+    note: (note ?? '').trim() || null
+  }
+
   try {
-    await reservations.updateReservation(id, {
-      startTime: start.getTime(),
-      endTime: end.getTime(),
-      deviceCode
-    })
-    await reservations.updateReservationNote(id, (note ?? '').trim() || null)
+    await reservations.updateReservation(id, payload)
     editOpen.value = false
     editForm.value = null
     await loadWeekFor(currentDay.value)
@@ -1210,15 +1216,66 @@ const openMenu = ref<Record<number, boolean>>({})
       <template #header>Upravit rezervaci</template>
       <template #content>
         <div v-if="editForm">
-          <v-text-field v-model="editForm.title" label="Název" density="comfortable" variant="outlined" class="mb-2" readonly />
-          <v-select v-model="editForm.deviceCode" :items="allDevices" item-title="name" item-value="id" label="Přístroj" density="comfortable" variant="outlined" class="mb-2" />
-          <v-select v-model="editForm.username" :items="membersList" label="Člen" density="comfortable" variant="outlined" class="mb-2" readonly />
-          <v-text-field v-model="editForm.dateYmd" label="Datum" type="date" density="comfortable" variant="outlined" class="mb-2" />
+          <v-text-field
+            v-model="editForm.title"
+            label="Název"
+            density="comfortable"
+            variant="outlined"
+            class="mb-2"
+            :rules="[v => !!(v && v.trim()) || 'Název je povinný']"
+          />
+          <v-select
+            v-model="editForm.deviceCode"
+            :items="allDevices"
+            item-title="name"
+            item-value="id"
+            label="Přístroj"
+            density="comfortable"
+            variant="outlined"
+            class="mb-2"
+          />
+          <v-select
+            v-model="editForm.username"
+            :items="membersList"
+            label="Člen"
+            density="comfortable"
+            variant="outlined"
+            class="mb-2"
+            :clearable="true"
+          />
+          <v-text-field
+            v-model="editForm.dateYmd"
+            label="Datum"
+            type="date"
+            density="comfortable"
+            variant="outlined"
+            class="mb-2"
+          />
           <div class="d-flex" style="gap:12px">
-            <v-text-field v-model="editForm.startHM" label="Začátek" type="time" density="comfortable" variant="outlined" />
-            <v-text-field v-model="editForm.endHM" label="Konec" type="time" density="comfortable" variant="outlined" />
+            <v-text-field
+              v-model="editForm.startHM"
+              label="Začátek"
+              type="time"
+              density="comfortable"
+              variant="outlined"
+            />
+            <v-text-field
+              v-model="editForm.endHM"
+              label="Konec"
+              type="time"
+              density="comfortable"
+              variant="outlined"
+            />
           </div>
-          <v-textarea v-model="editForm.note" label="Poznámka" auto-grow rows="2" density="comfortable" variant="outlined" class="mt-2" />
+          <v-textarea
+            v-model="editForm.note"
+            label="Poznámka"
+            auto-grow
+            rows="2"
+            density="comfortable"
+            variant="outlined"
+            class="mt-2"
+          />
         </div>
       </template>
       <template #footer>
