@@ -1,4 +1,12 @@
 <script setup lang="ts">
+/**
+ * Reservations calendar (daily / weekly) with:
+ * - Filtering by members & devices
+ * - Drag & Drop (persisted to backend, optimistic with revert)
+ * - Create & Edit dialogs (incl. note)
+ * - Device color based event styling + note indicator icon
+ */
+
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import Dialog from '@/components/Dialog.vue'
@@ -6,220 +14,31 @@ import { useReservationsStore } from '@/stores/reservations'
 import { useProjectStore } from '@/stores/project/project'
 import { auth } from '@/stores/auth'
 
-const route = useRoute()
-const projectId = Number((route.params as any).projectId)
-const reservations = useReservationsStore()
-const projectStore = useProjectStore()
+/* ------------------------------------------------------------------ */
+/* Constants & Types                                                   */
+/* ------------------------------------------------------------------ */
+const HOURS_START = 4          // inclusive (04:00)
+const HOURS_END = 13           // exclusive upper bound for visual grid end hour
+const GRID_MINUTES = 15        // snap step
+const TRACK_HEIGHT = 640       // px height for time grid
+const MIN_EVENT_PX = 24        // minimum visible block height
+const DRAG_CLICK_THRESHOLD = 5 // px movement to treat as drag
 
-/** --- datum / navigace --- */
-function toYmdLocal(d: Date) {
-  const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, '0'), day = String(d.getDate()).padStart(2, '0')
-  return `${y}-${m}-${day}`
-}
-function fromYmdLocal(s: string) {
-  const [y, m, d] = s.split('-').map(Number)
-  return new Date(y, (m || 1) - 1, d || 1, 0, 0, 0, 0)
-}
-function normalizeToDate(v: string | Date): Date { return v instanceof Date ? new Date(v.getFullYear(), v.getMonth(), v.getDate(), 0, 0, 0, 0) : fromYmdLocal(v) }
-const selectedDate = ref<string | Date>(toYmdLocal(new Date()))
-function addDays(n: number) { const d = normalizeToDate(selectedDate.value); d.setDate(d.getDate() + n); selectedDate.value = toYmdLocal(d) }
-function goToday() { selectedDate.value = toYmdLocal(new Date()) }
-
-/** --- formátování --- */
-const fmtDateLongFmt   = new Intl.DateTimeFormat('cs-CZ', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
-const fmtTimeFmt       = new Intl.DateTimeFormat('cs-CZ', { hour: '2-digit', minute: '2-digit' })
-const fmtDetailDateFmt = new Intl.DateTimeFormat('cs-CZ', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' })
-const fmtDetailTimeFmt = new Intl.DateTimeFormat('cs-CZ', { hour: '2-digit', minute: '2-digit' })
-const fmtDateLong      = (d: Date) => fmtDateLongFmt.format(d)
-const fmtTime          = (d: Date) => fmtTimeFmt.format(d)
-const fmtDetailDate    = (d: Date) => fmtDetailDateFmt.format(d)
-const fmtDetailTime    = (d: Date) => fmtDetailTimeFmt.format(d)
-
-/** --- filtry --- */
-const pickedMembers  = ref<string[]>([])
-const pickedDevices  = ref<string[]>([])
-const membersList    = computed<string[]>(() => projectStore.projectMembers.map(m => m.username))
-const allDevices     = computed(() => reservations.devices.map(d => ({ id: d.code, name: d.name, color: d.color || 'primary' })))
-const devicesToShow  = computed(() => !pickedDevices.value.length ? allDevices.value : allDevices.value.filter(d => pickedDevices.value.includes(d.id)))
-
-/** --- přepínání pohledů --- */
 type ViewMode = 'daily-machines' | 'daily-list' | 'week-work' | 'week-all'
-const viewMode = ref<ViewMode>('daily-machines')
-const viewLabel = computed(() => {
-  switch (viewMode.value) {
-    case 'daily-machines': return 'DENNÍ – STROJE'
-    case 'daily-list':     return 'REZERVACE'
-    case 'week-work':      return 'TÝDENNÍ (PRACOVNÍ)'
-    case 'week-all':       return 'TÝDENNÍ (S VÍKENDY)'
-  }
-})
+type StatusType = 'plan' | 'running' | 'done'
 
-/** --- typy a konstanta času --- */
-type ResItem = {
+interface ResItem {
   id: number
   title: string
   deviceId: string
-  start: string
+  start: string        // ISO local (yyyy-MM-ddTHH:mm:ss) stored as string
   end: string
-  status: 'plan' | 'running' | 'done'
+  status: StatusType
   username?: string
   note?: string
 }
-const H_START = 4
-const H_END   = 13
-const TRACK_HEIGHT = 640
-const hourTicks = computed<number>(() => H_END - H_START + 1)
-const tickHeight = computed<number>(() => TRACK_HEIGHT / hourTicks.value)
-const GRID_MINUTES = 15
-const PX_PER_MIN = computed<number>(() => TRACK_HEIGHT / ((H_END - H_START) * 60))
-function topFromDate(d: Date) { const minutes = (d.getHours() - H_START) * 60 + d.getMinutes(); return Math.max(0, minutes * PX_PER_MIN.value) }
-function heightFromRange(start: Date, end: Date) { const diff = (end.getTime() - start.getTime()) / (1000 * 60); return Math.max(24, diff * PX_PER_MIN.value) }
-function clamp(v: number, min: number, max: number) { return Math.max(min, Math.min(max, v)) }
-function roundToStep(v: number, step: number) { return Math.round(v / step) * step }
-function toIsoLocal(d: Date) {
-  const yyyy = d.getFullYear(), mm = String(d.getMonth() + 1).padStart(2, '0'), dd = String(d.getDate()).padStart(2, '0')
-  const hh = String(d.getHours()).padStart(2, '0'), mi = String(d.getMinutes()).padStart(2, '0'), ss = String(d.getSeconds()).padStart(2, '0')
-  return `${yyyy}-${mm}-${dd}T${hh}:${mi}:${ss}`
-}
-function pad2(n: number) { return String(n).padStart(2, '0') }
-function hmFromDate(d: Date) { return `${pad2(d.getHours())}:${pad2(d.getMinutes())}` }
-function setHM(base: Date, hm: string) { const [h, m] = hm.split(':').map(v => parseInt(v, 10) || 0); const d = new Date(base); d.setHours(h, m, 0, 0); return d }
 
-/** --- data + načítání z BE --- */
-const currentDay = computed<Date>(() => normalizeToDate(selectedDate.value))
-const eventsByDay = ref<Record<string, ResItem[]>>({} as Record<string, ResItem[]>)
-function dateKey(d: Date) { const m = (d.getMonth() + 1).toString().padStart(2, '0'); const day = d.getDate().toString().padStart(2, '0'); return `${d.getFullYear()}-${m}-${day}` }
-function ensureDay(day: Date): ResItem[] { const k = dateKey(day); if (!eventsByDay.value[k]) eventsByDay.value[k] = [] as ResItem[]; return eventsByDay.value[k] }
-
-function weekRange(date: Date) {
-  const d = new Date(date); const day = (d.getDay() + 6) % 7
-  const monday = new Date(d); monday.setDate(d.getDate() - day)
-  return Array.from({ length: 7 }, (_, i) => { const x = new Date(monday); x.setDate(monday.getDate() + i); return x })
-}
-const weekDaysAll  = computed<Date[]>(() => weekRange(currentDay.value))
-const weekDaysWork = computed<Date[]>(() => weekDaysAll.value.slice(0, 5))
-const daysForView  = computed<Date[]>(() => viewMode.value === 'week-work' ? weekDaysWork.value : weekDaysAll.value)
-const colsDevices  = computed<number>(() => devicesToShow.value.length)
-const colsWeek     = computed<number>(() => viewMode.value === 'week-work' ? 5 : 7)
-
-function resetAllDays(days: Date[]) { for (const d of days) eventsByDay.value[dateKey(d)] = [] as ResItem[] }
-
-async function loadWeekFor(date: Date) {
-  const days = weekRange(date)
-  const from = new Date(days[0].getFullYear(), days[0].getMonth(), days[0].getDate(), 0, 0, 0, 0).getTime()
-  const last = days[days.length - 1]
-  const to = new Date(last.getFullYear(), last.getMonth(), last.getDate(), 23, 59, 59, 999).getTime()
-
-  resetAllDays(days)
-  const data = await reservations.fetchByProject(projectId, from, to)
-  for (const r of data) {
-    const s = new Date(r.startTime), e = new Date(r.endTime)
-    const item: ResItem = {
-      id: r.id, title: r.title, deviceId: r.deviceCode,
-      start: toIsoLocal(s), end: toIsoLocal(e), status: 'plan',
-      username: r.username, note: r.note
-    }
-    const k = dateKey(s)
-    ensureDay(s).push(item)
-    eventsByDay.value[k].sort((a, b) => +new Date(a.start) - +new Date(b.start))
-  }
-}
-
-onMounted(async () => {
-  await reservations.fetchDevices()
-  await projectStore.fetchProjectMembers(projectId)
-  await loadWeekFor(currentDay.value)
-})
-
-watch(selectedDate, async (v) => {
-  await loadWeekFor(normalizeToDate(v))
-})
-
-/** --- filtrování položek --- */
-function filterItems(arr: ResItem[]): ResItem[] {
-  return arr.filter((i: ResItem) => {
-    const byDevice = !pickedDevices.value.length || pickedDevices.value.includes(i.deviceId)
-    const byMember = !pickedMembers.value.length || pickedMembers.value.includes(i.username || '')
-    return byDevice && byMember
-  })
-}
-function itemsFor(day: Date): ResItem[] { const k = dateKey(day); return (eventsByDay.value[k] ?? []) as ResItem[] }
-const itemsForDayFiltered = computed<ResItem[]>(() => filterItems(itemsFor(currentDay.value)))
-function itemsForDayDevice(deviceId: string): ResItem[] { return itemsForDayFiltered.value.filter((x: ResItem) => x.deviceId === deviceId) }
-
-/** --- barvy zařízení a styl eventu --- */
-const deviceColorOf = (id: string) => allDevices.value.find(d => d.id === id)?.color || 'primary'
-
-/** class podle barvy přístroje – stejné jako legenda (chip tonal). Používáme lighten-4. */
-function eventBgClass(i: ResItem) {
-  const color = deviceColorOf(i.deviceId)
-  // pokud je primary/secondary, utilitka lighten nemusí existovat – použij prostý bg-<color>
-  return color === 'primary' || color === 'secondary'
-    ? `bg-${color}`
-    : `bg-${color}-lighten-4`
-}
-
-function eventStyle(i: ResItem, left: number, width: number) {
-  const color = deviceColorOf(i.deviceId)
-  return {
-    top: topFromDate(new Date(i.start)) + 'px',
-    height: heightFromRange(new Date(i.start), new Date(i.end)) + 'px',
-    left: `calc(${left * 100}% + 8px)`,
-    width: `calc(${width * 100}% - 16px)`,
-    borderLeft: `4px solid var(--v-theme-${color})`,
-    // fallback, kdyby utility class neaplikovala – jemné pozadí ve stylu tonal
-    background: `color-mix(in srgb, var(--v-theme-${color}) 18%, #fff)`,
-  } as Record<string, string>
-}
-function initials(u?: string) { return (u?.[0] || '?').toUpperCase() }
-
-/** --- layout --- */
-type EventLayout = Record<number, { left: number, width: number }>
-function eventsCollide(a: ResItem, b: ResItem): boolean {
-  const aS = new Date(a.start).getTime(), aE = new Date(a.end).getTime()
-  const bS = new Date(b.start).getTime(), bE = new Date(b.end).getTime()
-  return aE > bS && aS < bE
-}
-function layoutForTrack(trackEvents: ResItem[]): EventLayout {
-  const evs = [...trackEvents].sort((a, b) => {
-    const as = +new Date(a.start), bs = +new Date(b.start); if (as !== bs) return as - bs
-    const ae = +new Date(a.end), be = +new Date(b.end); return ae - be
-  })
-  const groups: ResItem[][][] = []; let columns: ResItem[][] = []; let lastEnd: number | undefined
-  for (const ev of evs) {
-    const start = +new Date(ev.start), end = +new Date(ev.end)
-    if (lastEnd !== undefined && start >= lastEnd) { groups.push(columns); columns = []; lastEnd = undefined }
-    let placed = false
-    for (const col of columns) { const last = col[col.length - 1]; if (!eventsCollide(last, ev)) { col.push(ev); placed = true; break } }
-    if (!placed) columns.push([ev])
-    if (lastEnd === undefined || end > lastEnd) lastEnd = end
-  }
-  if (columns.length) groups.push(columns)
-  const layout: EventLayout = {}
-  function expand(ev: ResItem, colIdx: number, cols: ResItem[][]): number {
-    let span = 1; for (let c = colIdx + 1; c < cols.length; c++) { if (cols[c].some(e => eventsCollide(e, ev))) break; span++ }
-    return span
-  }
-  for (const cols of groups) {
-    const n = cols.length
-    cols.forEach((col, i) => { col.forEach(ev => { const span = expand(ev, i, cols); layout[ev.id] = { left: i / n, width: span / n } }) })
-  }
-  return layout
-}
-const layoutDailyByDevice = computed<Record<string, EventLayout>>(() => {
-  const out: Record<string, EventLayout> = {}
-  for (const d of devicesToShow.value) out[d.id] = layoutForTrack(itemsForDayDevice(d.id))
-  return out
-})
-const layoutWeeklyByDay = computed<Record<string, EventLayout>>(() => {
-  const days = daysForView.value
-  const out: Record<string, EventLayout> = {}
-  for (const day of days) out[dateKey(day)] = layoutForTrack(filterItems(itemsFor(day)))
-  return out
-})
-
-/** --- Drag & drop (persist BE, refresh týden) --- */
-type DragState = {
+interface DragState {
   id: number
   pointerId: number
   offsetY: number
@@ -232,14 +51,332 @@ type DragState = {
   view: ViewMode
   ghostEl: HTMLElement
 }
+
+type EventLayout = Record<number, { left: number; width: number }>
+
+/* ------------------------------------------------------------------ */
+/* Stores & Routing                                                    */
+/* ------------------------------------------------------------------ */
+const route = useRoute()
+const projectId = Number((route.params as any).projectId)
+const reservations = useReservationsStore()
+const projectStore = useProjectStore()
+
+/* ------------------------------------------------------------------ */
+/* Date helpers                                                        */
+/* ------------------------------------------------------------------ */
+function toYmdLocal(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+function fromYmdLocal(s: string): Date {
+  const [y, m, d] = s.split('-').map(Number)
+  return new Date(y, (m || 1) - 1, d || 1, 0, 0, 0, 0)
+}
+function normalizeToDate(v: string | Date): Date {
+  return v instanceof Date
+    ? new Date(v.getFullYear(), v.getMonth(), v.getDate(), 0, 0, 0, 0)
+    : fromYmdLocal(v)
+}
+function pad2(n: number): string { return String(n).padStart(2, '0') }
+function hmFromDate(d: Date) { return `${pad2(d.getHours())}:${pad2(d.getMinutes())}` }
+function setHM(base: Date, hm: string) {
+  const [h, m] = hm.split(':').map(v => parseInt(v, 10) || 0)
+  const d = new Date(base)
+  d.setHours(h, m, 0, 0)
+  return d
+}
+function toIsoLocal(d: Date) {
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}` +
+    `T${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`
+}
+
+/* ------------------------------------------------------------------ */
+/* Date selection & navigation                                         */
+/* ------------------------------------------------------------------ */
+const selectedDate = ref<string | Date>(toYmdLocal(new Date()))
+function addDays(n: number) {
+  const d = normalizeToDate(selectedDate.value)
+  d.setDate(d.getDate() + n)
+  selectedDate.value = toYmdLocal(d)
+}
+function goToday() { selectedDate.value = toYmdLocal(new Date()) }
+const currentDay = computed<Date>(() => normalizeToDate(selectedDate.value))
+
+/* ------------------------------------------------------------------ */
+/* Intl formatters                                                     */
+/* ------------------------------------------------------------------ */
+const fmtDateLongFmt   = new Intl.DateTimeFormat('cs-CZ', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+const fmtTimeFmt       = new Intl.DateTimeFormat('cs-CZ', { hour: '2-digit', minute: '2-digit' })
+const fmtDetailDateFmt = new Intl.DateTimeFormat('cs-CZ', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' })
+const fmtDetailTimeFmt = new Intl.DateTimeFormat('cs-CZ', { hour: '2-digit', minute: '2-digit' })
+const fmtDateLong    = (d: Date) => fmtDateLongFmt.format(d)
+const fmtTime        = (d: Date) => fmtTimeFmt.format(d)
+const fmtDetailDate  = (d: Date) => fmtDetailDateFmt.format(d)
+const fmtDetailTime  = (d: Date) => fmtDetailTimeFmt.format(d)
+
+/* ------------------------------------------------------------------ */
+/* Filters                                                             */
+/* ------------------------------------------------------------------ */
+const pickedMembers = ref<string[]>([])
+const pickedDevices = ref<string[]>([])
+const membersList = computed<string[]>(() => projectStore.projectMembers.map(m => m.username))
+const allDevices = computed(() => reservations.devices.map(d => ({
+  id: d.code,
+  name: d.name,
+  color: d.color || 'primary'
+})))
+const devicesToShow = computed(() =>
+  pickedDevices.value.length
+    ? allDevices.value.filter(d => pickedDevices.value.includes(d.id))
+    : allDevices.value
+)
+
+/* ------------------------------------------------------------------ */
+/* View Mode                                                           */
+/* ------------------------------------------------------------------ */
+const viewMode = ref<ViewMode>('daily-machines')
+const viewLabel = computed(() => {
+  switch (viewMode.value) {
+    case 'daily-machines': return 'DENNÍ – STROJE'
+    case 'daily-list': return 'REZERVACE'
+    case 'week-work': return 'TÝDENNÍ (PRACOVNÍ)'
+    case 'week-all': return 'TÝDENNÍ (S VÍKENDY)'
+  }
+})
+
+/* ------------------------------------------------------------------ */
+/* Time grid helpers                                                   */
+/* ------------------------------------------------------------------ */
+const hourTicks = computed<number>(() => HOURS_END - HOURS_START + 1)
+const tickHeight = computed<number>(() => TRACK_HEIGHT / hourTicks.value)
+const PX_PER_MIN = computed<number>(() => TRACK_HEIGHT / ((HOURS_END - HOURS_START) * 60))
+function clamp(v: number, min: number, max: number) { return Math.max(min, Math.min(max, v)) }
+function roundToStep(v: number, step: number) { return Math.round(v / step) * step }
+function topFromDate(d: Date) {
+  const minutes = (d.getHours() - HOURS_START) * 60 + d.getMinutes()
+  return Math.max(0, minutes * PX_PER_MIN.value)
+}
+function heightFromRange(start: Date, end: Date) {
+  const diffMin = (end.getTime() - start.getTime()) / 60000
+  return Math.max(MIN_EVENT_PX, diffMin * PX_PER_MIN.value)
+}
+
+/* ------------------------------------------------------------------ */
+/* Data structures (in-memory events grouped by day)                   */
+/* ------------------------------------------------------------------ */
+const eventsByDay = ref<Record<string, ResItem[]>>({})
+function dateKey(d: Date) {
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`
+}
+function ensureDay(d: Date): ResItem[] {
+  const k = dateKey(d)
+  if (!eventsByDay.value[k]) eventsByDay.value[k] = []
+  return eventsByDay.value[k]
+}
+
+/* ------------------------------------------------------------------ */
+/* Week calculations                                                   */
+/* ------------------------------------------------------------------ */
+function weekRange(date: Date) {
+  const base = new Date(date)
+  const day = (base.getDay() + 6) % 7 // Monday=0
+  const monday = new Date(base)
+  monday.setDate(base.getDate() - day)
+  return Array.from({ length: 7 }, (_, i) => {
+    const x = new Date(monday)
+    x.setDate(monday.getDate() + i)
+    return x
+  })
+}
+const weekDaysAll = computed<Date[]>(() => weekRange(currentDay.value))
+const weekDaysWork = computed<Date[]>(() => weekDaysAll.value.slice(0, 5))
+const daysForView = computed<Date[]>(() =>
+  viewMode.value === 'week-work' ? weekDaysWork.value : weekDaysAll.value
+)
+const colsDevices = computed<number>(() => devicesToShow.value.length)
+const colsWeek = computed<number>(() => viewMode.value === 'week-work' ? 5 : 7)
+
+/* ------------------------------------------------------------------ */
+/* Loading events from backend (week interval)                        */
+/* ------------------------------------------------------------------ */
+function resetAllDays(days: Date[]) {
+  for (const d of days) eventsByDay.value[dateKey(d)] = []
+}
+
+async function loadWeekFor(date: Date) {
+  const days = weekRange(date)
+  const from = new Date(days[0].getFullYear(), days[0].getMonth(), days[0].getDate(), 0, 0, 0, 0).getTime()
+  const last = days[days.length - 1]
+  const to = new Date(last.getFullYear(), last.getMonth(), last.getDate(), 23, 59, 59, 999).getTime()
+
+  resetAllDays(days)
+  const data = await reservations.fetchByProject(projectId, from, to)
+  for (const r of data) {
+    const s = new Date(r.startTime)
+    const e = new Date(r.endTime)
+    const item: ResItem = {
+      id: r.id,
+      title: r.title,
+      deviceId: r.deviceCode,
+      start: toIsoLocal(s),
+      end: toIsoLocal(e),
+      status: 'plan',
+      username: r.username,
+      note: r.note
+    }
+    const list = ensureDay(s)
+    list.push(item)
+    list.sort((a, b) => +new Date(a.start) - +new Date(b.start))
+  }
+}
+
+/* Initial load */
+onMounted(async () => {
+  await reservations.fetchDevices()
+  await projectStore.fetchProjectMembers(projectId)
+  await loadWeekFor(currentDay.value)
+})
+
+/* Reload on selected date change (week-based) */
+watch(selectedDate, async v => {
+  await loadWeekFor(normalizeToDate(v))
+})
+
+/* ------------------------------------------------------------------ */
+/* Filtering                                                           */
+/* ------------------------------------------------------------------ */
+function filterItems(arr: ResItem[]): ResItem[] {
+  return arr.filter(i => {
+    const byDevice = !pickedDevices.value.length || pickedDevices.value.includes(i.deviceId)
+    const byMember = !pickedMembers.value.length || pickedMembers.value.includes(i.username || '')
+    return byDevice && byMember
+  })
+}
+function itemsFor(day: Date): ResItem[] {
+  return eventsByDay.value[dateKey(day)] ?? []
+}
+const itemsForDayFiltered = computed<ResItem[]>(() => filterItems(itemsFor(currentDay.value)))
+function itemsForDayDevice(deviceId: string) {
+  return itemsForDayFiltered.value.filter(i => i.deviceId === deviceId)
+}
+
+/* ------------------------------------------------------------------ */
+/* Device color + event style                                          */
+/* ------------------------------------------------------------------ */
+const deviceColorOf = (id: string) => allDevices.value.find(d => d.id === id)?.color || 'primary'
+
+function eventBgClass(i: ResItem) {
+  const color = deviceColorOf(i.deviceId)
+  return (color === 'primary' || color === 'secondary')
+    ? `bg-${color}`
+    : `bg-${color}-lighten-4`
+}
+
+function eventStyle(i: ResItem, left: number, width: number) {
+  const color = deviceColorOf(i.deviceId)
+  return {
+    top: `${topFromDate(new Date(i.start))}px`,
+    height: `${heightFromRange(new Date(i.start), new Date(i.end))}px`,
+    left: `calc(${left * 100}% + 8px)`,
+    width: `calc(${width * 100}% - 16px)`,
+    borderLeft: `4px solid var(--v-theme-${color})`,
+    background: `color-mix(in srgb, var(--v-theme-${color}) 18%, #fff)`
+  } as Record<string, string>
+}
+
+function initials(u?: string) { return (u?.[0] || '?').toUpperCase() }
+
+/* ------------------------------------------------------------------ */
+/* Layout algorithm (collisions)                                      */
+/* ------------------------------------------------------------------ */
+function eventsCollide(a: ResItem, b: ResItem): boolean {
+  const aS = +new Date(a.start)
+  const aE = +new Date(a.end)
+  const bS = +new Date(b.start)
+  const bE = +new Date(b.end)
+  return aE > bS && aS < bE
+}
+
+function layoutForTrack(trackEvents: ResItem[]): EventLayout {
+  const evs = [...trackEvents].sort((a, b) => {
+    const as = +new Date(a.start), bs = +new Date(b.start)
+    if (as !== bs) return as - bs
+    const ae = +new Date(a.end), be = +new Date(b.end)
+    return ae - be
+  })
+
+  const groups: ResItem[][][] = []
+  let columns: ResItem[][] = []
+  let lastEnd: number | undefined
+
+  for (const ev of evs) {
+    const start = +new Date(ev.start)
+    const end = +new Date(ev.end)
+    if (lastEnd !== undefined && start >= lastEnd) {
+      groups.push(columns)
+      columns = []
+      lastEnd = undefined
+    }
+    let placed = false
+    for (const col of columns) {
+      const last = col[col.length - 1]
+      if (!eventsCollide(last, ev)) {
+        col.push(ev)
+        placed = true
+        break
+      }
+    }
+    if (!placed) columns.push([ev])
+    if (lastEnd === undefined || end > lastEnd) lastEnd = end
+  }
+  if (columns.length) groups.push(columns)
+
+  const layout: EventLayout = {}
+
+  function expand(ev: ResItem, colIdx: number, cols: ResItem[][]) {
+    let span = 1
+    for (let c = colIdx + 1; c < cols.length; c++) {
+      if (cols[c].some(e => eventsCollide(e, ev))) break
+      span++
+    }
+    return span
+  }
+
+  for (const cols of groups) {
+    const n = cols.length
+    cols.forEach((col, i) => {
+      col.forEach(ev => {
+        const span = expand(ev, i, cols)
+        layout[ev.id] = { left: i / n, width: span / n }
+      })
+    })
+  }
+  return layout
+}
+
+const layoutDailyByDevice = computed<Record<string, EventLayout>>(() => {
+  const out: Record<string, EventLayout> = {}
+  for (const d of devicesToShow.value) out[d.id] = layoutForTrack(itemsForDayDevice(d.id))
+  return out
+})
+
+const layoutWeeklyByDay = computed<Record<string, EventLayout>>(() => {
+  const out: Record<string, EventLayout> = {}
+  for (const day of daysForView.value) out[dateKey(day)] = layoutForTrack(filterItems(itemsFor(day)))
+  return out
+})
+
+/* ------------------------------------------------------------------ */
+/* Drag & Drop                                                         */
+/* ------------------------------------------------------------------ */
 const drag = ref<DragState | null>(null)
 let movePending = false
 let lastMoveEvent: PointerEvent | null = null
 let highlightEl: HTMLElement | null = null
-
-// click guard
-const DRAG_CLICK_THRESHOLD = 5
-const pointerStart = ref<{ x: number; y: number }>({ x: 0, y: 0 })
+const pointerStart = ref({ x: 0, y: 0 })
 const movedBeyondThreshold = ref(false)
 const suppressClick = ref(false)
 let suppressTimer: number | null = null
@@ -261,19 +398,18 @@ function onEventPointerDown(e: PointerEvent, item: ResItem) {
 
   const rect = target.getBoundingClientRect()
   const start = new Date(item.start)
-  const end   = new Date(item.end)
+  const end = new Date(item.end)
 
-  // click guard init
   pointerStart.value = { x: e.clientX, y: e.clientY }
   movedBeyondThreshold.value = false
 
-  // vytvoř ghost element (nezávislý na Vue reaktivitě)
   const ghost = target.cloneNode(true) as HTMLElement
   ghost.classList.add('drag-ghost')
   ghost.style.width = rect.width + 'px'
   ghost.style.height = rect.height + 'px'
   ghost.style.left = rect.left + 'px'
   ghost.style.top = rect.top + 'px'
+  ghost.style.pointerEvents = 'none'
   document.body.appendChild(ghost)
 
   drag.value = {
@@ -287,10 +423,10 @@ function onEventPointerDown(e: PointerEvent, item: ResItem) {
     origDayKey: dateKey(start),
     origDeviceId: item.deviceId,
     view: viewMode.value,
-    ghostEl: ghost,
+    ghostEl: ghost
   }
 
-  try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId) } catch {}
+  try { target.setPointerCapture(e.pointerId) } catch {}
   window.addEventListener('pointermove', onPointerMove, { passive: true })
   window.addEventListener('pointerup', onPointerUp, { once: true })
 }
@@ -298,9 +434,9 @@ function onEventPointerDown(e: PointerEvent, item: ResItem) {
 function onPointerMove(ev: PointerEvent) {
   if (!drag.value) return
   lastMoveEvent = ev
-  const dxAbs = Math.abs(ev.clientX - pointerStart.value.x)
-  const dyAbs = Math.abs(ev.clientY - pointerStart.value.y)
-  if (dxAbs > DRAG_CLICK_THRESHOLD || dyAbs > DRAG_CLICK_THRESHOLD) movedBeyondThreshold.value = true
+  const dx = Math.abs(ev.clientX - pointerStart.value.x)
+  const dy = Math.abs(ev.clientY - pointerStart.value.y)
+  if (dx > DRAG_CLICK_THRESHOLD || dy > DRAG_CLICK_THRESHOLD) movedBeyondThreshold.value = true
 
   if (!movePending) {
     movePending = true
@@ -309,26 +445,25 @@ function onPointerMove(ev: PointerEvent) {
       if (!drag.value || !lastMoveEvent) return
       const d = drag.value
       const e = lastMoveEvent
-
-      // posuň ghost v obou osách (aby byl vidět i mezi sloupci)
       const newLeft = e.clientX - d.offsetX
       const newTop = e.clientY - d.offsetY
       d.ghostEl.style.transform = `translate(${newLeft - d.originLeft}px, ${newTop - d.originTop}px)`
-
-      // highlight trácku pod kurzorem
       const hit = findTrackAt(e.clientX, e.clientY)
       attachHighlight(hit?.el ?? null)
     })
   }
 }
+
 function findTrackAt(x: number, y: number) {
   let el = document.elementFromPoint(x, y) as HTMLElement | null
   while (el) {
-    if (el.classList && el.classList.contains('track')) {
-      const type = el.dataset.trackType || ''
-      const id = el.dataset.trackId || ''
-      const rect = el.getBoundingClientRect()
-      return { el, type, id, rect }
+    if (el.classList.contains('track')) {
+      return {
+        el,
+        type: el.dataset.trackType || '',
+        id: el.dataset.trackId || '',
+        rect: el.getBoundingClientRect()
+      }
     }
     el = el.parentElement
   }
@@ -337,9 +472,8 @@ function findTrackAt(x: number, y: number) {
 
 function minutesFromTrackY(y: number, rect: DOMRect, offsetY: number) {
   const relY = clamp(y - rect.top - offsetY, 0, TRACK_HEIGHT)
-  const minutes = (relY / PX_PER_MIN.value) + H_START * 60
-  const snapped = clamp(roundToStep(minutes, GRID_MINUTES), H_START * 60, H_END * 60)
-  return snapped
+  const minutes = (relY / PX_PER_MIN.value) + HOURS_START * 60
+  return clamp(roundToStep(minutes, GRID_MINUTES), HOURS_START * 60, HOURS_END * 60)
 }
 
 async function commitMove(d: DragState, x: number, y: number) {
@@ -358,27 +492,28 @@ async function commitMove(d: DragState, x: number, y: number) {
   const baseDay = new Date(Y, (M || 1) - 1, D || 1, 0, 0, 0, 0)
 
   let startMinutes = minutesFromTrackY(y, rect, d.offsetY)
-  const endMinutes = Math.min(H_END * 60, startMinutes + d.durationMin)
-  if (endMinutes - startMinutes < d.durationMin) startMinutes = Math.max(H_START * 60, endMinutes - d.durationMin)
+  const endMinutes = Math.min(HOURS_END * 60, startMinutes + d.durationMin)
+  if (endMinutes - startMinutes < d.durationMin) {
+    startMinutes = Math.max(HOURS_START * 60, endMinutes - d.durationMin)
+  }
 
-  const startDate = new Date(baseDay); startDate.setHours(Math.floor(startMinutes / 60), startMinutes % 60, 0, 0)
+  const startDate = new Date(baseDay)
+  startDate.setHours(Math.floor(startMinutes / 60), startMinutes % 60, 0, 0)
   const endDate = new Date(startDate.getTime() + d.durationMin * 60000)
 
   const sourceArr = eventsByDay.value[d.origDayKey] || []
-  const srcIdx = sourceArr.findIndex(x => x.id === d.id)
-  if (srcIdx === -1) return
-  const ev = sourceArr[srcIdx]
+  const idx = sourceArr.findIndex(x => x.id === d.id)
+  if (idx === -1) return
+  const ev = sourceArr[idx]
+  const prev = { dayKey: d.origDayKey, deviceId: ev.deviceId, start: ev.start, end: ev.end }
 
   if (newDayKey !== d.origDayKey) {
-    sourceArr.splice(srcIdx, 1)
+    sourceArr.splice(idx, 1)
     const targetArr = ensureDay(baseDay)
-    targetArr.push({
-      ...ev,
-      deviceId: newDeviceId,
-      start: toIsoLocal(startDate),
-      end: toIsoLocal(endDate),
-      status: ev.status,
-    })
+    ev.deviceId = newDeviceId
+    ev.start = toIsoLocal(startDate)
+    ev.end = toIsoLocal(endDate)
+    targetArr.push(ev)
     targetArr.sort((a, b) => +new Date(a.start) - +new Date(b.start))
   } else {
     ev.deviceId = newDeviceId
@@ -386,13 +521,41 @@ async function commitMove(d: DragState, x: number, y: number) {
     ev.end = toIsoLocal(endDate)
     sourceArr.sort((a, b) => +new Date(a.start) - +new Date(b.start))
   }
+
+  try {
+    await reservations.updateReservation(d.id, {
+      startTime: startDate.getTime(),
+      endTime: endDate.getTime(),
+      deviceCode: newDeviceId
+    })
+    await loadWeekFor(currentDay.value)
+  } catch (err) {
+    // Revert optimistic change
+    if (newDayKey !== prev.dayKey) {
+      const newArr = eventsByDay.value[newDayKey] || []
+      const nIdx = newArr.findIndex(x => x.id === d.id)
+      if (nIdx !== -1) newArr.splice(nIdx, 1)
+      const origDate = new Date(prev.start)
+      const origArr = ensureDay(origDate)
+      ev.deviceId = prev.deviceId
+      ev.start = prev.start
+      ev.end = prev.end
+      origArr.push(ev)
+      origArr.sort((a, b) => +new Date(a.start) - +new Date(b.start))
+    } else {
+      ev.deviceId = prev.deviceId
+      ev.start = prev.start
+      ev.end = prev.end
+      sourceArr.sort((a, b) => +new Date(a.start) - +new Date(b.start))
+    }
+    console.error('Reservation update failed, reverted.', err)
+  }
 }
 
 function onPointerUp(e: PointerEvent) {
   window.removeEventListener('pointermove', onPointerMove)
   if (!drag.value) return
 
-  // pokud se hýblo, potlač klik po dropu
   if (movedBeyondThreshold.value) {
     suppressClick.value = true
     if (suppressTimer) window.clearTimeout(suppressTimer)
@@ -400,7 +563,6 @@ function onPointerUp(e: PointerEvent) {
   }
 
   commitMove(drag.value, e.clientX, e.clientY)
-  // úklid
   clearHighlight()
   try { (e.target as HTMLElement)?.releasePointerCapture?.(drag.value.pointerId) } catch {}
   drag.value.ghostEl.remove()
@@ -411,114 +573,243 @@ onBeforeUnmount(() => {
   window.removeEventListener('pointermove', onPointerMove)
 })
 
-function onEventClick(itemId: number, e: MouseEvent) {
-  // otevřít detail jen při čistém kliku (bez drag)
+function onEventClick(id: number, e: MouseEvent) {
   if (suppressClick.value || movedBeyondThreshold.value || drag.value) return
-  openMenu.value[itemId] = true
+  openMenu.value[id] = true
 }
 
-/** --- Click-to-create --- */
+/* ------------------------------------------------------------------ */
+/* Delete                                                              */
+/* ------------------------------------------------------------------ */
+async function handleDelete(i: ResItem) {
+  try {
+    await reservations.deleteReservation(i.id)
+    const k = dateKey(new Date(i.start))
+    const arr = eventsByDay.value[k] || []
+    const idx = arr.findIndex(x => x.id === i.id)
+    if (idx !== -1) arr.splice(idx, 1)
+    openMenu.value[i.id] = false
+    await loadWeekFor(currentDay.value)
+  } catch (e) {
+    console.error('Delete failed', e)
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Create dialog                                                       */
+/* ------------------------------------------------------------------ */
 const createOpen = ref(false)
 const createForm = ref<{
   title: string
-  deviceId: string
+  deviceCode: string
   dateYmd: string
   startHM: string
   endHM: string
+  username: string
+  note?: string
 } | null>(null)
 
-function onTrackClick(evt: MouseEvent, ctx: { type: 'device'|'day'; deviceId?: string; day?: Date }) {
-  // pokud se právě dnd dokončilo, ignoruj click
+function onTrackClick(evt: MouseEvent, ctx: { type: 'device' | 'day'; deviceId?: string; day?: Date }) {
   if (drag.value || suppressClick.value) return
-  const track = (evt.currentTarget as HTMLElement | null)
+  const track = evt.currentTarget as HTMLElement | null
   if (!track) return
   const rect = track.getBoundingClientRect()
-  const baseDay = ctx.type === 'day' ? (ctx.day as Date) : currentDay.value
-  const minutes = minutesFromTrackY(evt.clientY, rect, 0)
-  const start = new Date(baseDay)
-  start.setHours(Math.floor(minutes / 60), minutes % 60, 0, 0)
-  const defaultDur = 60
-  const end = new Date(start.getTime() + defaultDur * 60000)
-  const ymd = toYmdLocal(baseDay)
+  const baseDay = ctx.type === 'day' ? ctx.day as Date : currentDay.value
+  const relY = clamp(evt.clientY - rect.top, 0, TRACK_HEIGHT)
+  const minutes = (relY / PX_PER_MIN.value) + HOURS_START * 60
+  const snapped = clamp(roundToStep(minutes, GRID_MINUTES), HOURS_START * 60, HOURS_END * 60)
 
-  const deviceId = ctx.type === 'device' ? (ctx.deviceId as string) : (devices.value[0]?.id || 'M1')
+  const start = new Date(baseDay)
+  start.setHours(Math.floor(snapped / 60), snapped % 60, 0, 0)
+  const end = new Date(start.getTime() + 60 * 60000)
+  const deviceCode = ctx.type === 'device'
+    ? (ctx.deviceId as string)
+    : (devicesToShow.value[0]?.id || allDevices.value[0]?.id || 'M1')
+  const me = auth.getUserInfo().preferredUsername
 
   createForm.value = {
     title: 'Nová rezervace',
-    deviceId,
-    dateYmd: ymd,
+    deviceCode,
+    dateYmd: toYmdLocal(baseDay),
     startHM: hmFromDate(start),
     endHM: hmFromDate(end),
+    username: me,
+    note: ''
   }
   createOpen.value = true
 }
 
-function saveCreatedEvent() {
+async function saveCreatedEvent() {
   if (!createForm.value) return
-  const { title, deviceId, dateYmd, startHM, endHM } = createForm.value
+  const { title, deviceCode, dateYmd, startHM, endHM, username, note } = createForm.value
   const day = fromYmdLocal(dateYmd)
   let start = setHM(day, startHM)
-  let end   = setHM(day, endHM)
+  let end = setHM(day, endHM)
   if (end <= start) end = new Date(start.getTime() + 30 * 60000)
 
-  const clampStart = new Date(day); clampStart.setHours(H_START, 0, 0, 0)
-  const clampEnd   = new Date(day); clampEnd.setHours(H_END, 0, 0, 0)
+  const clampStart = new Date(day); clampStart.setHours(HOURS_START, 0, 0, 0)
+  const clampEnd = new Date(day); clampEnd.setHours(HOURS_END, 0, 0, 0)
   if (start < clampStart) start = clampStart
   if (end > clampEnd) end = clampEnd
 
-  const arr = ensureDay(day)
-  arr.push({
-    id: autoId++,
-    title: title?.trim() || 'Rezervace',
-    deviceId,
-    start: toIsoLocal(start),
-    end: toIsoLocal(end),
-    status: 'plan',
-  })
-  arr.sort((a, b) => +new Date(a.start) - +new Date(b.start))
-
-  createOpen.value = false
-  createForm.value = null
+  try {
+    const created = await reservations.createReservation({
+      title: title?.trim() || 'Rezervace',
+      deviceCode,
+      startTime: start.getTime(),
+      endTime: end.getTime(),
+      projectId,
+      username,
+      note: note?.trim() || undefined
+    })
+    const arr = ensureDay(day)
+    arr.push({
+      id: created.id,
+      title: created.title,
+      deviceId: created.deviceCode,
+      start: toIsoLocal(start),
+      end: toIsoLocal(end),
+      status: 'plan',
+      username: created.username,
+      note: created.note
+    })
+    arr.sort((a, b) => +new Date(a.start) - +new Date(b.start))
+    createOpen.value = false
+    createForm.value = null
+    suppressClick.value = false
+  } catch (err) {
+    console.error('Save reservation failed', err)
+  }
 }
 
-/** --- dialog/menus --- */
+/* ------------------------------------------------------------------ */
+/* Edit dialog                                                         */
+/* ------------------------------------------------------------------ */
+const editOpen = ref(false)
+const editForm = ref<{
+  id: number
+  title: string
+  deviceCode: string
+  dateYmd: string
+  startHM: string
+  endHM: string
+  username: string
+  note?: string
+} | null>(null)
+
+function openEdit(i: ResItem) {
+  const s = new Date(i.start)
+  const e = new Date(i.end)
+  editForm.value = {
+    id: i.id,
+    title: i.title,
+    deviceCode: i.deviceId,
+    dateYmd: toYmdLocal(new Date(s.getFullYear(), s.getMonth(), s.getDate())),
+    startHM: hmFromDate(s),
+    endHM: hmFromDate(e),
+    username: i.username || '',
+    note: i.note || ''
+  }
+  editOpen.value = true
+}
+
+async function saveEditedEvent() {
+  if (!editForm.value) return
+  const { id, deviceCode, dateYmd, startHM, endHM, note } = editForm.value
+  const day = fromYmdLocal(dateYmd)
+  let start = setHM(day, startHM)
+  let end = setHM(day, endHM)
+  if (end <= start) end = new Date(start.getTime() + 30 * 60000)
+  const clampStart = new Date(day); clampStart.setHours(HOURS_START, 0, 0, 0)
+  const clampEnd = new Date(day); clampEnd.setHours(HOURS_END, 0, 0, 0)
+  if (start < clampStart) start = clampStart
+  if (end > clampEnd) end = clampEnd
+
+  try {
+    await reservations.updateReservation(id, {
+      startTime: start.getTime(),
+      endTime: end.getTime(),
+      deviceCode
+    })
+    await reservations.updateReservationNote(id, (note ?? '').trim() || null)
+    editOpen.value = false
+    editForm.value = null
+    await loadWeekFor(currentDay.value)
+  } catch (e) {
+    console.error('Edit failed', e)
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Menus state                                                         */
+/* ------------------------------------------------------------------ */
 const openMenu = ref<Record<number, boolean>>({})
 </script>
 
 <template>
   <v-container fluid class="pa-4">
     <v-row>
-      <!-- LEVÝ PANEL -->
+      <!-- LEFT PANEL -->
       <v-col cols="3">
         <v-sheet elevation="1" class="pa-4">
           <v-date-picker v-model="selectedDate" color="primary" />
         </v-sheet>
+
         <v-sheet elevation="1" class="pa-4 mt-4">
-          <v-select v-model="pickedMembers" :items="members" label="Členové" clearable multiple density="comfortable" />
-          <v-select v-model="pickedDevices" :items="devices.map(d => d.name)" label="Přístroje" clearable multiple density="comfortable" class="mt-4" />
+          <v-select
+            v-model="pickedMembers"
+            :items="membersList"
+            label="Členové"
+            clearable
+            multiple
+            density="comfortable"
+          />
+          <v-select
+            v-model="pickedDevices"
+            :items="allDevices"
+            item-title="name"
+            item-value="id"
+            label="Přístroje"
+            clearable
+            multiple
+            density="comfortable"
+            class="mt-4"
+          />
         </v-sheet>
       </v-col>
 
-      <!-- PRAVÝ PANEL -->
+      <!-- RIGHT PANEL -->
       <v-col cols="12" md="9">
         <v-card class="mb-3">
           <v-card-text class="d-flex flex-wrap align-center">
-            <v-btn color="primary" class="mr-2" @click="() => {
-              const day = fromYmdLocal(selectedDate)
-              const start = new Date(day); start.setHours(9, 0, 0, 0)
-              const end = new Date(start.getTime() + 60*60000)
-              createForm = {
-                title: 'Nová rezervace',
-                deviceId: devices[0]?.id || 'M1',
-                startHM: (start.getHours()+'').padStart(2,'0') + ':' + (start.getMinutes()+'').padStart(2,'0'),
-                endHM: (end.getHours()+'').padStart(2,'0') + ':' + (end.getMinutes()+'').padStart(2,'0'),
-              }
-              createOpen = true
-            }">VYTVOŘIT REZERVACI</v-btn>
+            <v-btn
+              color="primary"
+              class="mr-2"
+              @click="() => {
+                const day = normalizeToDate(selectedDate)
+                const start = new Date(day); start.setHours(9,0,0,0)
+                const end = new Date(start.getTime() + 60*60000)
+                const me = auth.getUserInfo().preferredUsername
+                createForm = {
+                  title: 'Nová rezervace',
+                  deviceCode: devicesToShow[0]?.id || allDevices[0]?.id || 'M1',
+                  dateYmd: toYmdLocal(day),
+                  startHM: (start.getHours()+'').padStart(2,'0') + ':' + (start.getMinutes()+'').padStart(2,'0'),
+                  endHM: (end.getHours()+'').padStart(2,'0') + ':' + (end.getMinutes()+'').padStart(2,'0'),
+                  username: me,
+                  note: ''
+                }
+                createOpen = true
+              }"
+            >
+              VYTVOŘIT REZERVACI
+            </v-btn>
 
             <v-menu>
               <template #activator="{ props }">
-                <v-btn v-bind="props" append-icon="mdi-menu-down" variant="tonal">{{ viewLabel }}</v-btn>
+                <v-btn v-bind="props" append-icon="mdi-menu-down" variant="tonal">
+                  {{ viewLabel }}
+                </v-btn>
               </template>
               <v-list>
                 <v-list-item @click="viewMode = 'daily-machines'">Denní – stroje</v-list-item>
@@ -532,50 +823,65 @@ const openMenu = ref<Record<number, boolean>>({})
 
             <v-btn variant="tonal" @click="goToday">DNES</v-btn>
             <v-btn icon="mdi-chevron-left" variant="text" @click="addDays(-1)" />
-            <div class="text-subtitle-1 mx-2">{{ fmtDateLong(fromYmdLocal(selectedDate)) }}</div>
+            <div class="text-subtitle-1 mx-2">
+              {{ fmtDateLong(normalizeToDate(selectedDate)) }}
+            </div>
             <v-btn icon="mdi-chevron-right" variant="text" @click="addDays(1)" />
           </v-card-text>
         </v-card>
 
         <v-card>
           <v-card-text>
-            <!-- Denní – stroje -->
+            <!-- DAILY / MACHINES -->
             <div v-if="viewMode === 'daily-machines'">
               <div class="d-flex flex-wrap mb-3">
-                <div v-for="d in devices" :key="d.id" class="d-flex align-center mr-4 mb-1">
+                <div
+                  v-for="d in devicesToShow"
+                  :key="d.id"
+                  class="d-flex align-center mr-4 mb-1"
+                >
                   <v-chip :color="d.color" size="x-small" class="mr-2" />
                   <span class="text-caption">{{ d.name }}</span>
                 </div>
               </div>
 
               <div class="schedule">
-                <!-- hlavička -->
+                <!-- header -->
                 <div class="tracks row header" :style="{ '--cols': String(colsDevices) }">
                   <div class="time-col"></div>
-                  <div v-for="d in devices" :key="d.id" class="track-name">
+                  <div
+                    v-for="d in devicesToShow"
+                    :key="d.id"
+                    class="track-name"
+                  >
                     <div class="weekday">{{ d.name }}</div>
                   </div>
                 </div>
 
-                <!-- tělo -->
+                <!-- body -->
                 <div class="tracks row body" :style="{ '--cols': String(colsDevices) }">
                   <div class="time-col">
-                    <div v-for="h in hourTicks" :key="h" class="time-tick" :style="{ height: tickHeight + 'px' }">
-                      {{ (H_START + h - 1).toString().padStart(2,'0') }}:00
+                    <div
+                      v-for="h in hourTicks"
+                      :key="h"
+                      class="time-tick"
+                      :style="{ height: tickHeight + 'px' }"
+                    >
+                      {{ (HOURS_START + h - 1).toString().padStart(2,'0') }}:00
                     </div>
                   </div>
 
                   <div
-                    v-for="d in devices"
+                    v-for="d in devicesToShow"
                     :key="d.id"
                     class="track"
                     :style="{ height: TRACK_HEIGHT + 'px' }"
-                    :data-track-type="'device'"
+                    data-track-type="device"
                     :data-track-id="d.id"
                     @click.self="onTrackClick($event, { type: 'device', deviceId: d.id })"
                   >
                     <v-menu
-                      v-for="i in itemsForDay.filter(x => x.deviceId === d.id)"
+                      v-for="i in itemsForDayDevice(d.id)"
                       :key="i.id"
                       v-model="openMenu[i.id]"
                       location="bottom start"
@@ -588,39 +894,62 @@ const openMenu = ref<Record<number, boolean>>({})
                       <template #activator="{ props }">
                         <div
                           class="event"
+                          :class="eventBgClass(i)"
                           v-bind="props"
                           @pointerdown.stop.prevent="onEventPointerDown($event, i)"
                           @click.stop="onEventClick(i.id, $event)"
-                          :style="{
-                            top: topFromDate(new Date(i.start)) + 'px',
-                            height: heightFromRange(new Date(i.start), new Date(i.end)) + 'px',
-                            left: `calc(${(layoutDailyByDevice[d.id]?.[i.id]?.left ?? 0) * 100}% + 8px)`,
-                            width: `calc(${(layoutDailyByDevice[d.id]?.[i.id]?.width ?? 1) * 100}% - 16px)`,
-                            borderLeft: `4px solid var(--v-theme-${d.color})`
-                          }"
+                          :style="eventStyle(i, (layoutDailyByDevice[d.id]?.[i.id]?.left ?? 0), (layoutDailyByDevice[d.id]?.[i.id]?.width ?? 1))"
                         >
+                          <v-icon
+                            v-if="i.note && i.note.trim().length"
+                            size="16"
+                            class="event-note-icon"
+                          >
+                            mdi-text
+                          </v-icon>
                           <div class="event-title">{{ i.title }}</div>
-                          <div class="event-time">{{ fmtTime(new Date(i.start)) }} – {{ fmtTime(new Date(i.end)) }}</div>
+                          <div class="event-time">
+                            {{ fmtTime(new Date(i.start)) }} – {{ fmtTime(new Date(i.end)) }}
+                          </div>
+                          <v-avatar size="18" class="event-avatar">
+                            <span>{{ initials(i.username) }}</span>
+                          </v-avatar>
                         </div>
                       </template>
 
                       <v-card class="detail-card pa-3">
                         <div class="d-flex align-start">
-                          <v-icon :color="deviceColorOf(i.deviceId)" size="16" class="mr-3 mt-1">mdi-checkbox-blank-circle</v-icon>
-
+                          <v-icon
+                            :color="deviceColorOf(i.deviceId)"
+                            size="16"
+                            class="mr-3 mt-1"
+                          >
+                            mdi-checkbox-blank-circle
+                          </v-icon>
                           <div class="flex-grow-1">
                             <div class="d-flex align-center justify-space-between mb-1">
-                              <div class="text-subtitle-1 font-weight-medium">{{ i.title }}</div>
+                              <div class="text-subtitle-1 font-weight-medium">
+                                {{ i.title }}
+                              </div>
                               <div class="d-flex align-center">
-                                <v-btn icon="mdi-pencil-outline" size="small" variant="text" />
-                                <v-btn icon="mdi-delete-outline" size="small" variant="text" @click="() => {
-                                  const k = dateKey(new Date(i.start))
-                                  const arr = eventsByDay[k] || []
-                                  const idx = arr.findIndex(x => x.id === i.id)
-                                  if (idx !== -1) arr.splice(idx, 1)
-                                  openMenu[i.id] = false
-                                }" />
-                                <v-btn icon="mdi-close" size="small" variant="text" @click="openMenu[i.id] = false" />
+                                <v-btn
+                                  icon="mdi-pencil-outline"
+                                  size="small"
+                                  variant="text"
+                                  @click="openEdit(i)"
+                                />
+                                <v-btn
+                                  icon="mdi-delete-outline"
+                                  size="small"
+                                  variant="text"
+                                  @click="handleDelete(i)"
+                                />
+                                <v-btn
+                                  icon="mdi-close"
+                                  size="small"
+                                  variant="text"
+                                  @click="openMenu[i.id] = false"
+                                />
                               </div>
                             </div>
 
@@ -634,12 +963,18 @@ const openMenu = ref<Record<number, boolean>>({})
 
                             <div class="d-flex align-center text-medium-emphasis mt-2">
                               <v-icon size="18" class="mr-2">mdi-account-outline</v-icon>
-                              <div class="text-body-2">{{ extrasFor(i).owner }}</div>
+                              <div class="text-body-2">{{ i.username ?? '—' }}</div>
                             </div>
 
-                            <div class="d-flex align-center text-medium-emphasis mt-2">
+                            <div
+                              v-if="i.note && i.note.trim().length"
+                              class="d-flex align-center text-medium-emphasis mt-2"
+                            >
                               <v-icon size="18" class="mr-2">mdi-text</v-icon>
-                              <div class="text-body-2 text-truncate-1">{{ extrasFor(i).note }}</div>
+                              <div
+                                class="text-body-2 text-ellipsis"
+                                :title="i.note"
+                              >{{ i.note }}</div>
                             </div>
                           </div>
                         </div>
@@ -650,27 +985,51 @@ const openMenu = ref<Record<number, boolean>>({})
               </div>
             </div>
 
-            <!-- Denní – seznam -->
+            <!-- DAILY LIST -->
             <div v-else-if="viewMode === 'daily-list'">
-              <v-data-table :headers="tableHeaders" :items="tableItems" items-per-page="10" class="elevation-1">
+              <v-data-table
+                :headers="[
+                  { title: 'Datum', key: 'date' },
+                  { title: 'Stroj', key: 'device' },
+                  { title: 'Stav',  key: 'status' },
+                ]"
+                :items="itemsForDayFiltered.map(i => ({
+                  date: fmtDateLong(new Date(i.start)),
+                  device: i.deviceId,
+                  status: i.status,
+                  _raw: i
+                }))"
+                items-per-page="10"
+                class="elevation-1"
+              >
                 <template #item.status="{ item }">
                   <v-chip
                     size="small"
-                    :color="item._raw.status === 'done' ? 'green' : (item._raw.status === 'running' ? 'blue' : 'grey')"
+                    :color="item._raw.status === 'done'
+                      ? 'green'
+                      : (item._raw.status === 'running'
+                        ? 'blue'
+                        : 'grey')"
                     text-color="white"
                     variant="flat"
                     class="text-capitalize"
                   >
-                    {{ item._raw.status === 'plan' ? 'Plánované' : item._raw.status === 'running' ? 'Probíhá' : 'Dokončeno' }}
+                    {{
+                      item._raw.status === 'plan'
+                        ? 'Plánované'
+                        : item._raw.status === 'running'
+                          ? 'Probíhá'
+                          : 'Dokončeno'
+                    }}
                   </v-chip>
                 </template>
               </v-data-table>
             </div>
 
-            <!-- Týdenní -->
+            <!-- WEEK VIEW -->
             <div v-else>
               <div class="schedule">
-                <!-- hlavička: dny -->
+                <!-- header -->
                 <div class="tracks row header" :style="{ '--cols': String(colsWeek) }">
                   <div class="time-col"></div>
                   <div
@@ -688,11 +1047,16 @@ const openMenu = ref<Record<number, boolean>>({})
                   </div>
                 </div>
 
-                <!-- tělo -->
+                <!-- body -->
                 <div class="tracks row body" :style="{ '--cols': String(colsWeek) }">
                   <div class="time-col">
-                    <div v-for="h in hourTicks" :key="h" class="time-tick" :style="{ height: tickHeight + 'px' }">
-                      {{ (H_START + h - 1).toString().padStart(2,'0') }}:00
+                    <div
+                      v-for="h in hourTicks"
+                      :key="h"
+                      class="time-tick"
+                      :style="{ height: tickHeight + 'px' }"
+                    >
+                      {{ (HOURS_START + h - 1).toString().padStart(2,'0') }}:00
                     </div>
                   </div>
 
@@ -702,12 +1066,12 @@ const openMenu = ref<Record<number, boolean>>({})
                     class="track"
                     :class="{ weekend: [0,6].includes(day.getDay()) }"
                     :style="{ height: TRACK_HEIGHT + 'px' }"
-                    :data-track-type="'day'"
+                    data-track-type="day"
                     :data-track-id="dateKey(day)"
                     @click.self="onTrackClick($event, { type: 'day', day })"
                   >
                     <v-menu
-                      v-for="i in itemsFor(day)"
+                      v-for="i in filterItems(itemsFor(day))"
                       :key="i.id"
                       v-model="openMenu[i.id]"
                       location="bottom start"
@@ -720,40 +1084,63 @@ const openMenu = ref<Record<number, boolean>>({})
                       <template #activator="{ props }">
                         <div
                           class="event"
+                          :class="eventBgClass(i)"
                           v-bind="props"
                           @pointerdown.stop.prevent="onEventPointerDown($event, i)"
                           @click.stop="onEventClick(i.id, $event)"
-                          :style="{
-                            top: topFromDate(new Date(i.start)) + 'px',
-                            height: heightFromRange(new Date(i.start), new Date(i.end)) + 'px',
-                            left: `calc(${(layoutWeeklyByDay[dateKey(day)]?.[i.id]?.left ?? 0) * 100}% + 8px)`,
-                            width: `calc(${(layoutWeeklyByDay[dateKey(day)]?.[i.id]?.width ?? 1) * 100}% - 16px)`,
-                            borderLeft: `4px solid var(--v-theme-${(devices.find(d => d.id === i.deviceId)?.color) || 'primary'})`
-                          }"
+                          :style="eventStyle(i, (layoutWeeklyByDay[dateKey(day)]?.[i.id]?.left ?? 0), (layoutWeeklyByDay[dateKey(day)]?.[i.id]?.width ?? 1))"
                         >
+                          <v-icon
+                            v-if="i.note && i.note.trim().length"
+                            size="16"
+                            class="event-note-icon"
+                          >
+                            mdi-text
+                          </v-icon>
                           <div class="event-title">{{ i.title }}</div>
-                          <div class="event-time">{{ fmtTime(new Date(i.start)) }} – {{ fmtTime(new Date(i.end)) }}</div>
+                          <div class="event-time">
+                            {{ fmtTime(new Date(i.start)) }} – {{ fmtTime(new Date(i.end)) }}
+                          </div>
+                          <v-avatar size="18" class="event-avatar">
+                            <span>{{ initials(i.username) }}</span>
+                          </v-avatar>
                         </div>
                       </template>
 
                       <v-card class="detail-card pa-3">
                         <div class="d-flex align-start">
-                          <v-icon :color="deviceColorOf(i.deviceId)" size="16" class="mr-3 mt-1">mdi-checkbox-blank-circle</v-icon>
+                          <v-icon
+                            :color="deviceColorOf(i.deviceId)"
+                            size="16"
+                            class="mr-3 mt-1"
+                          >
+                            mdi-checkbox-blank-circle
+                          </v-icon>
                           <div class="flex-grow-1">
                             <div class="d-flex align-center justify-space-between mb-1">
                               <div class="text-subtitle-1 font-weight-medium">{{ i.title }}</div>
                               <div class="d-flex align-center">
-                                <v-btn icon="mdi-pencil-outline" size="small" variant="text" />
-                                <v-btn icon="mdi-delete-outline" size="small" variant="text" @click="() => {
-                                  const k = dateKey(new Date(i.start))
-                                  const arr = eventsByDay[k] || []
-                                  const idx = arr.findIndex(x => x.id === i.id)
-                                  if (idx !== -1) arr.splice(idx, 1)
-                                  openMenu[i.id] = false
-                                }" />
-                                <v-btn icon="mdi-close" size="small" variant="text" @click="openMenu[i.id] = false" />
+                                <v-btn
+                                  icon="mdi-pencil-outline"
+                                  size="small"
+                                  variant="text"
+                                  @click="openEdit(i)"
+                                />
+                                <v-btn
+                                  icon="mdi-delete-outline"
+                                  size="small"
+                                  variant="text"
+                                  @click="handleDelete(i)"
+                                />
+                                <v-btn
+                                  icon="mdi-close"
+                                  size="small"
+                                  variant="text"
+                                  @click="openMenu[i.id] = false"
+                                />
                               </div>
                             </div>
+
                             <div class="d-flex align-center text-medium-emphasis mt-1">
                               <v-icon size="18" class="mr-2">mdi-calendar-clock</v-icon>
                               <div class="text-body-2">
@@ -761,13 +1148,21 @@ const openMenu = ref<Record<number, boolean>>({})
                                 {{ fmtDetailTime(new Date(i.start)) }} – {{ fmtDetailTime(new Date(i.end)) }}
                               </div>
                             </div>
+
                             <div class="d-flex align-center text-medium-emphasis mt-2">
                               <v-icon size="18" class="mr-2">mdi-account-outline</v-icon>
-                              <div class="text-body-2">{{ extrasFor(i).owner }}</div>
+                              <div class="text-body-2">{{ i.username ?? '—' }}</div>
                             </div>
-                            <div class="d-flex align-center text-medium-emphasis mt-2">
+
+                            <div
+                              v-if="i.note && i.note.trim().length"
+                              class="d-flex align-center text-medium-emphasis mt-2"
+                            >
                               <v-icon size="18" class="mr-2">mdi-text</v-icon>
-                              <div class="text-body-2 text-truncate-1">{{ extrasFor(i).note }}</div>
+                              <div
+                                class="text-body-2 text-ellipsis"
+                                :title="i.note"
+                              >{{ i.note }}</div>
                             </div>
                           </div>
                         </div>
@@ -782,66 +1177,106 @@ const openMenu = ref<Record<number, boolean>>({})
       </v-col>
     </v-row>
 
-    <!-- Dialog – vytvoření rezervace -->
+    <!-- CREATE DIALOG -->
     <Dialog v-model:is-open="createOpen" width="600px" :hide-footer="false">
       <template #header>Vytvořit rezervaci</template>
       <template #content>
-        <v-text-field
-          v-model="createForm!.title"
-          label="Název"
-          density="comfortable"
-          variant="outlined"
-          class="mb-2"
-        />
-        <v-select
-          v-model="createForm!.deviceId"
-          :items="devices"
-          item-title="name"
-          item-value="id"
-          label="Přístroj"
-          density="comfortable"
-          variant="outlined"
-          class="mb-2"
-        />
-        <v-text-field
-          v-model="createForm!.dateYmd"
-          label="Datum"
-          type="date"
-          density="comfortable"
-          variant="outlined"
-          class="mb-2"
-        />
-        <div class="d-flex" style="gap:12px">
-          <v-text-field
-            v-model="createForm!.startHM"
-            label="Začátek"
-            type="time"
-            density="comfortable"
-            variant="outlined"
-          />
-          <v-text-field
-            v-model="createForm!.endHM"
-            label="Konec"
-            type="time"
-            density="comfortable"
-            variant="outlined"
-          />
+        <div v-if="createForm">
+          <v-text-field v-model="createForm.title" label="Název" density="comfortable" variant="outlined" class="mb-2" />
+          <v-select v-model="createForm.deviceCode" :items="allDevices" item-title="name" item-value="id" label="Přístroj" density="comfortable" variant="outlined" class="mb-2" />
+          <v-select v-model="createForm.username" :items="membersList" label="Člen" density="comfortable" variant="outlined" class="mb-2" />
+          <v-text-field v-model="createForm.dateYmd" label="Datum" type="date" density="comfortable" variant="outlined" class="mb-2" />
+          <div class="d-flex" style="gap:12px">
+            <v-text-field v-model="createForm.startHM" label="Začátek" type="time" density="comfortable" variant="outlined" />
+            <v-text-field v-model="createForm.endHM" label="Konec" type="time" density="comfortable" variant="outlined" />
+          </div>
+          <v-textarea v-model="createForm.note" label="Poznámka" auto-grow rows="2" density="comfortable" variant="outlined" class="mt-2" />
         </div>
       </template>
       <template #footer>
         <v-btn color="primary" @click="saveCreatedEvent">Uložit</v-btn>
-        <v-btn variant="text" @click="createOpen = false">Zrušit</v-btn>
+        <v-btn variant="text" @click="() => { createOpen = false; createForm = null }">Zrušit</v-btn>
+      </template>
+    </Dialog>
+
+    <!-- EDIT DIALOG -->
+    <Dialog v-model:is-open="editOpen" width="600px" :hide-footer="false">
+      <template #header>Upravit rezervaci</template>
+      <template #content>
+        <div v-if="editForm">
+          <v-text-field v-model="editForm.title" label="Název" density="comfortable" variant="outlined" class="mb-2" readonly />
+          <v-select v-model="editForm.deviceCode" :items="allDevices" item-title="name" item-value="id" label="Přístroj" density="comfortable" variant="outlined" class="mb-2" />
+          <v-select v-model="editForm.username" :items="membersList" label="Člen" density="comfortable" variant="outlined" class="mb-2" readonly />
+          <v-text-field v-model="editForm.dateYmd" label="Datum" type="date" density="comfortable" variant="outlined" class="mb-2" />
+          <div class="d-flex" style="gap:12px">
+            <v-text-field v-model="editForm.startHM" label="Začátek" type="time" density="comfortable" variant="outlined" />
+            <v-text-field v-model="editForm.endHM" label="Konec" type="time" density="comfortable" variant="outlined" />
+          </div>
+          <v-textarea v-model="editForm.note" label="Poznámka" auto-grow rows="2" density="comfortable" variant="outlined" class="mt-2" />
+        </div>
+      </template>
+      <template #footer>
+        <v-btn color="primary" @click="saveEditedEvent">Uložit změny</v-btn>
+        <v-btn variant="text" @click="() => { editOpen = false; editForm = null }">Zrušit</v-btn>
       </template>
     </Dialog>
   </v-container>
 </template>
 
 <style scoped>
-/* Event základ */
-.event { cursor: grab; user-select: none; }
+/* Event */
+.event {
+  position: absolute;
+  border-radius: 10px;
+  box-shadow: 0 2px 10px rgba(0,0,0,.06);
+  padding: 8px 10px 20px 10px; /* extra bottom for note icon */
+  cursor: grab;
+  user-select: none;
+}
 .event:active { cursor: grabbing; }
+.event-title {
+  font-weight: 600;
+  line-height: 1.2;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+  text-overflow: ellipsis;
+  white-space: normal;
+}
+.event-time {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.event-avatar {
+  position: absolute;
+  right: 4px;
+  top: 4px;
+  background: #f2f2f2;
+  font-size: 10px;
+  line-height: 18px;
+  text-transform: uppercase;
+}
+.event-note-icon {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  color: rgba(0,0,0,.60);
+  pointer-events: none;
+  opacity: .85;
+}
+.event-note-icon:hover { opacity: 1; }
 
-/* Ghost element pro svižný drag (DOM, mimo Vue render) */
+/* Truncate text utility */
+.text-ellipsis {
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Drag ghost */
 .drag-ghost {
   position: fixed;
   z-index: 9999;
@@ -853,76 +1288,82 @@ const openMenu = ref<Record<number, boolean>>({})
   will-change: transform;
 }
 
-/* Zvýraznění tracku pod kurzorem */
+/* Drop highlight */
 .drop-highlight {
   outline: 2px dashed var(--v-theme-primary);
   outline-offset: -2px;
 }
 
-/* pop-over detail */
+/* Detail popover */
 .detail-card {
   background: #eceff1;
   border-radius: 14px;
   box-shadow: 0 6px 20px rgba(0,0,0,.18);
 }
 
-.text-truncate-1 {
-  white-space: nowrap;
+/* Schedule grid */
+.schedule {
+  border-radius: 12px;
   overflow: hidden;
-  text-overflow: ellipsis;
 }
 
-/* Ghost element pro svižný drag (DOM, mimo Vue render) */
-.drag-ghost { position: fixed; z-index: 9999; pointer-events: none; opacity: .9; box-shadow: 0 8px 20px rgba(0,0,0,.20); border-radius: 10px; background: white; will-change: transform; }
+.tracks.row.header {
+  display: grid;
+  grid-template-columns: 80px repeat(var(--cols, 5), 1fr);
+  gap: 0;
+  border-bottom: 1px solid #e5e5e5;
+}
 
-/* Zvýraznění tracku pod kurzorem */
-.drop-highlight { outline: 2px dashed var(--v-theme-primary); outline-offset: -2px; }
+.tracks.row.body {
+  display: grid;
+  grid-template-columns: 80px repeat(var(--cols, 5), 1fr);
+}
 
-/* pop-over detail */
-.detail-card { background: #eceff1; border-radius: 14px; box-shadow: 0 6px 20px rgba(0,0,0,.18); }
+.time-col {
+  background: #fafafa;
+  border-right: 1px solid #e5e5e5;
+}
 
-/* rozvrh */
-.schedule { border-radius: 12px; overflow: hidden; }
-.tracks.row.header { display: grid; grid-template-columns: 80px repeat(var(--cols, 5), 1fr); gap: 0; border-bottom: 1px solid #e5e5e5; }
-.tracks.row.body   { display: grid; grid-template-columns: 80px repeat(var(--cols, 5), 1fr); }
+.time-tick {
+  padding: 4px 8px;
+  font-size: 12px;
+  color: #777;
+  border-bottom: 1px dashed #eee;
+}
 
-.time-col { background: #fafafa; border-right: 1px solid #e5e5e5; }
-.time-tick { padding: 4px 8px; font-size: 12px; color: #777; border-bottom: 1px dashed #eee; }
-
-.track-name { padding: 12px 8px; text-align: center; border-left: 1px solid #f1f1f1; }
-.track-name .weekday { text-transform: uppercase; font-weight: 700; letter-spacing: .02em; }
+.track-name {
+  padding: 12px 8px;
+  text-align: center;
+  border-left: 1px solid #f1f1f1;
+}
+.track-name .weekday {
+  text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: .02em;
+}
 .track-name.weekend { background: #fafaff; }
 
-.track { position: relative; border-left: 1px solid #f1f1f1; background: repeating-linear-gradient(to bottom, rgba(0,0,0,0.02) 0, rgba(0,0,0,0.02) 40px, transparent 40px, transparent 80px); }
+.track {
+  position: relative;
+  border-left: 1px solid #f1f1f1;
+  background:
+    repeating-linear-gradient(
+      to bottom,
+      rgba(0,0,0,0.02) 0,
+      rgba(0,0,0,0.02) 40px,
+      transparent 40px,
+      transparent 80px
+    );
+}
 .track.weekend {
   background:
     linear-gradient(to bottom, rgba(70,120,255,0.04), rgba(70,120,255,0.04)),
-    repeating-linear-gradient(to bottom, rgba(0,0,0,0.02) 0, rgba(0,0,0,0.02) 40px, transparent 40px, transparent 80px);
-}
-
-.event {
-  position: absolute;
-  background: white;
-  border-radius: 10px;
-  box-shadow: 0 2px 10px rgba(0,0,0,.06);
-  padding: 8px 10px 8px 10px;
-}
-.event-title {
-  font-weight: 600;
-  line-height: 1.2;
-  overflow: hidden;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 1;
-  text-overflow: ellipsis;
-  white-space: normal;
-  word-break: keep-all;
-  overflow-wrap: break-word;
-  hyphens: auto;
-}
-.event-time {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+    repeating-linear-gradient(
+      to bottom,
+      rgba(0,0,0,0.02) 0,
+      rgba(0,0,0,0.02) 40px,
+      transparent 40px,
+      transparent 80px
+    );
 }
 </style>
