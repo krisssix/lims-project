@@ -10,7 +10,7 @@ export type ReservationItem = {
   endTime: number
   username: string | null
   projectId: number
-  note?: string | null
+  note: string | null
 }
 
 export type DeviceItem = { id: number; code: string; name: string; color?: string }
@@ -53,29 +53,42 @@ export const useReservationsStore = defineStore('reservations', () => {
   }
 
   async function createReservation(payload: CreateReservationPayload) {
-    const resp = await post<{ content: ReservationItem }>('reservations', payload)
-    items.value.push(resp.data.content)
+    // payload.note už pošleme jako string | null (ne undefined)
+    const resp = await post<{ content: ReservationItem }>('reservations', {
+      ...payload,
+      note: payload.note ?? null
+    })
+    items.value.push({
+      ...resp.data.content,
+      note: resp.data.content.note ?? null
+    })
     return resp.data.content
   }
 
   async function updateReservation(id: number, payload: UpdateReservationPayload) {
-    const resp = await patch<{ content: ReservationItem }>(`reservations/${id}`, payload)
+    const resp = await patch<{ content: ReservationItem }>(`reservations/${id}`, {
+      ...payload,
+      note: payload.note === undefined ? undefined : (payload.note ?? null)
+    })
     const idx = items.value.findIndex(i => i.id === id)
+    const normalized = { ...resp.data.content, note: resp.data.content.note ?? null }
     if (idx !== -1) {
-      items.value[idx] = { ...items.value[idx], ...resp.data.content }
+      items.value[idx] = { ...items.value[idx], ...normalized }
     } else {
-      items.value.push(resp.data.content)
+      items.value.push(normalized)
     }
     return resp.data.content
   }
 
-  // Legacy – už není potřeba pokud děláme vše jedním PATCHem,
-  // necháváme jen kdyby ještě existovalo staré volání někde ve FE.
   async function updateReservationNote(id: number, note?: string | null) {
     const resp = await patch<{ content: ReservationItem }>(`reservations/${id}/note`, { note: note ?? null })
     const idx = items.value.findIndex(i => i.id === id)
     if (idx !== -1) {
-      items.value[idx] = { ...items.value[idx], ...resp.data.content }
+      items.value[idx] = {
+        ...items.value[idx],
+        ...resp.data.content,
+        note: resp.data.content.note ?? null
+      }
     }
     return resp.data.content
   }

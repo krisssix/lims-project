@@ -31,11 +31,11 @@ interface ResItem {
   id: number
   title: string
   deviceId: string
-  start: string        // ISO local (yyyy-MM-ddTHH:mm:ss) stored as string
+  start: string        // ISO
   end: string
   status: StatusType
-  username?: string
-  note?: string
+  username: string | null
+  note: string | null
 }
 
 interface DragState {
@@ -120,10 +120,6 @@ const fmtDetailTime  = (d: Date) => fmtDetailTimeFmt.format(d)
 /* ------------------------------------------------------------------ */
 /* Filters                                                             */
 /* ------------------------------------------------------------------ */
-interface DeviceView { id: string; name: string; color: string }
-type TableRow = { date: string; device: string; status: StatusType; _raw: ResItem }
-
-
 const pickedMembers = ref<string[]>([])
 const pickedDevices = ref<string[]>([])
 const membersList = computed<string[]>(() =>
@@ -230,9 +226,10 @@ async function loadWeekFor(date: Date) {
       start: toIsoLocal(s),
       end: toIsoLocal(e),
       status: 'plan',
-      username: r.username,
-      note: r.note
+      username: r.username ?? null,
+      note: r.note ?? null
     }
+
     const list = ensureDay(s)
     list.push(item)
     list.sort((a, b) => +new Date(a.start) - +new Date(b.start))
@@ -257,10 +254,11 @@ watch(selectedDate, async v => {
 function filterItems(arr: ResItem[]): ResItem[] {
   return arr.filter(i => {
     const byDevice = !pickedDevices.value.length || pickedDevices.value.includes(i.deviceId)
-    const byMember = !pickedMembers.value.length || pickedMembers.value.includes(i.username || '')
+    const byMember = !pickedMembers.value.length || pickedMembers.value.includes(i.username ?? '')
     return byDevice && byMember
   })
 }
+
 function itemsFor(day: Date): ResItem[] {
   return eventsByDay.value[dateKey(day)] ?? []
 }
@@ -293,7 +291,9 @@ function eventStyle(i: ResItem, left: number, width: number) {
   } as Record<string, string>
 }
 
-function initials(u?: string) { return (u?.[0] || '?').toUpperCase() }
+function initials(u: string | null) {
+  return (u?.[0] ?? '?').toUpperCase()
+}
 
 /* ------------------------------------------------------------------ */
 /* Layout algorithm (collisions)                                      */
@@ -666,7 +666,7 @@ async function saveCreatedEvent() {
       endTime: end.getTime(),
       projectId,
       username,
-      note: note?.trim() || undefined
+      note: note?.trim() || null
     })
     const arr = ensureDay(day)
     arr.push({
@@ -676,8 +676,8 @@ async function saveCreatedEvent() {
       start: toIsoLocal(start),
       end: toIsoLocal(end),
       status: 'plan',
-      username: created.username,
-      note: created.note
+      username: created.username ?? null,
+      note: created.note ?? null
     })
     arr.sort((a, b) => +new Date(a.start) - +new Date(b.start))
     createOpen.value = false
