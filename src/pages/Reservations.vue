@@ -1,10 +1,10 @@
 <script setup lang="ts">
 /**
  * Reservations calendar (daily / weekly) with:
- * - Filtering by members & devices
+ * - Filtering by members and devices
  * - Drag & Drop (persisted to backend, optimistic with revert)
  * - Create & Edit dialogs (incl. note)
- * - Device color based event styling + note indicator icon
+ * - Device color based event styling and note indicator icon
  */
 
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
@@ -120,9 +120,15 @@ const fmtDetailTime  = (d: Date) => fmtDetailTimeFmt.format(d)
 /* ------------------------------------------------------------------ */
 /* Filters                                                             */
 /* ------------------------------------------------------------------ */
+interface DeviceView { id: string; name: string; color: string }
+type TableRow = { date: string; device: string; status: StatusType; _raw: ResItem }
+
+
 const pickedMembers = ref<string[]>([])
 const pickedDevices = ref<string[]>([])
-const membersList = computed<string[]>(() => projectStore.projectMembers.map(m => m.username))
+const membersList = computed<string[]>(() =>
+  projectStore.projectMembers.map((m: { username: string }) => m.username)
+)
 const allDevices = computed(() => reservations.devices.map(d => ({
   id: d.code,
   name: d.name,
