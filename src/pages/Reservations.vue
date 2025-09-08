@@ -1,69 +1,46 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import Dialog from '@/components/Dialog.vue'
+import { useReservationsStore } from '@/stores/reservations'
+import { useProjectStore } from '@/stores/project/project'
+import { auth } from '@/stores/auth'
 
-/** ---------- LocalStorage persistence ---------- */
-const LS_KEY = 'reservations_state_v1'
-type PersistState = {
-  eventsByDay: Record<string, ResItem[]>
-  selectedDate?: string
-  viewMode?: ViewMode
-}
+const route = useRoute()
+const projectId = Number((route.params as any).projectId)
+const reservations = useReservationsStore()
+const projectStore = useProjectStore()
 
-/** --- helpers: local YYYY-MM-DD <-> Date --- */
+/** --- datum / navigace --- */
 function toYmdLocal(d: Date) {
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
+  const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, '0'), day = String(d.getDate()).padStart(2, '0')
   return `${y}-${m}-${day}`
 }
 function fromYmdLocal(s: string) {
   const [y, m, d] = s.split('-').map(Number)
   return new Date(y, (m || 1) - 1, d || 1, 0, 0, 0, 0)
 }
-function setHM(base: Date, hm: string) {
-  const [h, m] = hm.split(':').map(v => parseInt(v, 10) || 0)
-  const d = new Date(base)
-  d.setHours(h, m, 0, 0)
-  return d
-}
-function pad2(n: number) { return String(n).padStart(2, '0') }
-function hmFromDate(d: Date) { return `${pad2(d.getHours())}:${pad2(d.getMinutes())}` }
+function normalizeToDate(v: string | Date): Date { return v instanceof Date ? new Date(v.getFullYear(), v.getMonth(), v.getDate(), 0, 0, 0, 0) : fromYmdLocal(v) }
+const selectedDate = ref<string | Date>(toYmdLocal(new Date()))
+function addDays(n: number) { const d = normalizeToDate(selectedDate.value); d.setDate(d.getDate() + n); selectedDate.value = toYmdLocal(d) }
+function goToday() { selectedDate.value = toYmdLocal(new Date()) }
 
-/** --- datum / navigace --- */
-const selectedDate = ref<string>(toYmdLocal(new Date())) // YYYY-MM-DD
-function addDays(n: number) {
-  const d = fromYmdLocal(selectedDate.value)
-  d.setDate(d.getDate() + n)
-  selectedDate.value = toYmdLocal(d)
-}
-function goToday() {
-  selectedDate.value = toYmdLocal(new Date())
-}
-
-/** --- formátování lokálním časem --- */
-const fmtDateLongFmt = new Intl.DateTimeFormat('cs-CZ', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
-const fmtTimeFmt     = new Intl.DateTimeFormat('cs-CZ', { hour: '2-digit', minute: '2-digit' })
+/** --- formátování --- */
+const fmtDateLongFmt   = new Intl.DateTimeFormat('cs-CZ', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+const fmtTimeFmt       = new Intl.DateTimeFormat('cs-CZ', { hour: '2-digit', minute: '2-digit' })
 const fmtDetailDateFmt = new Intl.DateTimeFormat('cs-CZ', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' })
 const fmtDetailTimeFmt = new Intl.DateTimeFormat('cs-CZ', { hour: '2-digit', minute: '2-digit' })
+const fmtDateLong      = (d: Date) => fmtDateLongFmt.format(d)
+const fmtTime          = (d: Date) => fmtTimeFmt.format(d)
+const fmtDetailDate    = (d: Date) => fmtDetailDateFmt.format(d)
+const fmtDetailTime    = (d: Date) => fmtDetailTimeFmt.format(d)
 
-const fmtDateLong = (d: Date) => fmtDateLongFmt.format(d)
-const fmtTime     = (d: Date) => fmtTimeFmt.format(d)
-const fmtDetailDate = (d: Date) => fmtDetailDateFmt.format(d)
-const fmtDetailTime = (d: Date) => fmtDetailTimeFmt.format(d)
-
-/** --- filtry (jen UI) --- */
-const pickedMembers = ref<string[]>([])
-const pickedDevices = ref<string[]>([])
-const members = ['Jenny Fermin', 'Miloš Novák', 'Anna K.']
-const devices = ref([
-  { id: 'M1', name: 'M1', color: 'deep-purple' },
-  { id: 'M2', name: 'M2', color: 'blue' },
-  { id: 'M3', name: 'M3', color: 'teal' },
-  { id: 'Spektro1', name: 'Spektro1', color: 'orange' },
-  { id: 'Spektro2', name: 'Spektro2', color: 'amber' },
-])
-const colsDevices = computed(() => devices.value.length)
+/** --- filtry --- */
+const pickedMembers  = ref<string[]>([])
+const pickedDevices  = ref<string[]>([])
+const membersList    = computed<string[]>(() => projectStore.projectMembers.map(m => m.username))
+const allDevices     = computed(() => reservations.devices.map(d => ({ id: d.code, name: d.name, color: d.color || 'primary' })))
+const devicesToShow  = computed(() => !pickedDevices.value.length ? allDevices.value : allDevices.value.filter(d => pickedDevices.value.includes(d.id)))
 
 /** --- přepínání pohledů --- */
 type ViewMode = 'daily-machines' | 'daily-list' | 'week-work' | 'week-all'
@@ -82,318 +59,166 @@ type ResItem = {
   id: number
   title: string
   deviceId: string
-  start: string  // ISO local-like string (no TZ)
+  start: string
   end: string
   status: 'plan' | 'running' | 'done'
+  username?: string
+  note?: string
 }
-const H_START = 4   // 4:00
-const H_END   = 13  // 13:00
+const H_START = 4
+const H_END   = 13
 const TRACK_HEIGHT = 640
-const hourTicks = computed(() => H_END - H_START + 1)
-const tickHeight = computed(() => TRACK_HEIGHT / hourTicks.value)
-const GRID_MINUTES = 15 // snap to 15 min
-
-const PX_PER_MIN = computed(() => TRACK_HEIGHT / ((H_END - H_START) * 60))
-function topFromDate(d: Date) {
-  const minutes = (d.getHours() - H_START) * 60 + d.getMinutes()
-  return Math.max(0, minutes * PX_PER_MIN.value)
-}
-function heightFromRange(start: Date, end: Date) {
-  const diff = (end.getTime() - start.getTime()) / (1000 * 60)
-  return Math.max(24, diff * PX_PER_MIN.value)
-}
+const hourTicks = computed<number>(() => H_END - H_START + 1)
+const tickHeight = computed<number>(() => TRACK_HEIGHT / hourTicks.value)
+const GRID_MINUTES = 15
+const PX_PER_MIN = computed<number>(() => TRACK_HEIGHT / ((H_END - H_START) * 60))
+function topFromDate(d: Date) { const minutes = (d.getHours() - H_START) * 60 + d.getMinutes(); return Math.max(0, minutes * PX_PER_MIN.value) }
+function heightFromRange(start: Date, end: Date) { const diff = (end.getTime() - start.getTime()) / (1000 * 60); return Math.max(24, diff * PX_PER_MIN.value) }
 function clamp(v: number, min: number, max: number) { return Math.max(min, Math.min(max, v)) }
 function roundToStep(v: number, step: number) { return Math.round(v / step) * step }
-
-/** --- helpery data --- */
-function sameDay(a: Date, b: Date) {
-  return a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate()
-}
-const currentDay = computed(() => fromYmdLocal(selectedDate.value))
-
-/** ========= ÚLOŽIŠTĚ REZERVACÍ + PERSISTENCE ========= */
-const eventsByDay = ref<Record<string, ResItem[]>>({})
-function dateKey(d: Date) {
-  const m = (d.getMonth() + 1).toString().padStart(2, '0')
-  const day = d.getDate().toString().padStart(2, '0')
-  return `${d.getFullYear()}-${m}-${day}`
-}
-function ensureDay(day: Date): ResItem[] {
-  const k = dateKey(day)
-  if (!eventsByDay.value[k]) eventsByDay.value[k] = []
-  return eventsByDay.value[k]
-}
 function toIsoLocal(d: Date) {
-  const yyyy = d.getFullYear()
-  const mm = String(d.getMonth() + 1).padStart(2, '0')
-  const dd = String(d.getDate()).padStart(2, '0')
-  const hh = String(d.getHours()).padStart(2, '0')
-  const mi = String(d.getMinutes()).padStart(2, '0')
-  const ss = String(d.getSeconds()).padStart(2, '0')
+  const yyyy = d.getFullYear(), mm = String(d.getMonth() + 1).padStart(2, '0'), dd = String(d.getDate()).padStart(2, '0')
+  const hh = String(d.getHours()).padStart(2, '0'), mi = String(d.getMinutes()).padStart(2, '0'), ss = String(d.getSeconds()).padStart(2, '0')
   return `${yyyy}-${mm}-${dd}T${hh}:${mi}:${ss}`
 }
+function pad2(n: number) { return String(n).padStart(2, '0') }
+function hmFromDate(d: Date) { return `${pad2(d.getHours())}:${pad2(d.getMinutes())}` }
+function setHM(base: Date, hm: string) { const [h, m] = hm.split(':').map(v => parseInt(v, 10) || 0); const d = new Date(base); d.setHours(h, m, 0, 0); return d }
 
-/** Seed fake data pro hezký start (jen pokud pro daný den nic není) */
-let autoId = 1
-const titles = [
-  'Kalibrace A', 'Kontrola', 'Měření enzymatiky', 'Viskozita', 'Mikroskop indexy',
-  'Peptidy', 'Test vzorku', 'Spektrum', 'Údržba', 'Záloha dat'
-]
-function makeRng(seed: number) {
-  let s = seed >>> 0 || 1
-  return () => {
-    s ^= s << 13; s >>>= 0
-    s ^= s >>> 17; s >>>= 0
-    s ^= s << 5;  s >>>= 0
-    return (s % 1000) / 1000
-  }
+/** --- data + načítání z BE --- */
+const currentDay = computed<Date>(() => normalizeToDate(selectedDate.value))
+const eventsByDay = ref<Record<string, ResItem[]>>({} as Record<string, ResItem[]>)
+function dateKey(d: Date) { const m = (d.getMonth() + 1).toString().padStart(2, '0'); const day = d.getDate().toString().padStart(2, '0'); return `${d.getFullYear()}-${m}-${day}` }
+function ensureDay(day: Date): ResItem[] { const k = dateKey(day); if (!eventsByDay.value[k]) eventsByDay.value[k] = [] as ResItem[]; return eventsByDay.value[k] }
+
+function weekRange(date: Date) {
+  const d = new Date(date); const day = (d.getDay() + 6) % 7
+  const monday = new Date(d); monday.setDate(d.getDate() - day)
+  return Array.from({ length: 7 }, (_, i) => { const x = new Date(monday); x.setDate(monday.getDate() + i); return x })
 }
-function seedDay(day: Date) {
-  const key = dateKey(day)
-  if (eventsByDay.value[key]?.length) return
-  const seed = day.getFullYear() * 10000 + (day.getMonth() + 1) * 100 + day.getDate()
-  const rnd  = makeRng(seed)
+const weekDaysAll  = computed<Date[]>(() => weekRange(currentDay.value))
+const weekDaysWork = computed<Date[]>(() => weekDaysAll.value.slice(0, 5))
+const daysForView  = computed<Date[]>(() => viewMode.value === 'week-work' ? weekDaysWork.value : weekDaysAll.value)
+const colsDevices  = computed<number>(() => devicesToShow.value.length)
+const colsWeek     = computed<number>(() => viewMode.value === 'week-work' ? 5 : 7)
 
-  const items: ResItem[] = []
-  const total = 4 + Math.floor(rnd() * 6)
+function resetAllDays(days: Date[]) { for (const d of days) eventsByDay.value[dateKey(d)] = [] as ResItem[] }
 
-  const takenByDevice: Record<string, Array<[number, number]>> = {}
-  devices.value.forEach(d => { takenByDevice[d.id] = [] })
+async function loadWeekFor(date: Date) {
+  const days = weekRange(date)
+  const from = new Date(days[0].getFullYear(), days[0].getMonth(), days[0].getDate(), 0, 0, 0, 0).getTime()
+  const last = days[days.length - 1]
+  const to = new Date(last.getFullYear(), last.getMonth(), last.getDate(), 23, 59, 59, 999).getTime()
 
-  const startMin = H_START * 60
-  const endMin   = H_END * 60
-
-  for (let i = 0; i < total; i++) {
-    const dev = devices.value[Math.floor(rnd() * devices.value.length)]
-    const dur = [45, 60, 75, 90, 105, 120][Math.floor(rnd() * 6)]
-    const startCandidate = startMin + Math.floor(rnd() * (endMin - startMin - dur))
-    const start = Math.floor(startCandidate / 30) * 30
-    const end   = start + dur
-    const overlaps = takenByDevice[dev.id].some(([a, b]) => !(end <= a || start >= b))
-    if (overlaps) { i--; continue }
-    takenByDevice[dev.id].push([start, end])
-
-    const s = new Date(day); s.setHours(Math.floor(start / 60), start % 60, 0, 0)
-    const e = new Date(day); e.setHours(Math.floor(end / 60),   end % 60,   0, 0)
-
-    const title = titles[Math.floor(rnd() * titles.length)]
-    let status: ResItem['status'] = 'plan'
-    const now = new Date()
-    if (sameDay(now, day)) {
-      if (now.getTime() > e.getTime()) status = 'done'
-      else if (now.getTime() >= s.getTime() && now.getTime() <= e.getTime()) status = 'running'
-      else status = rnd() > 0.5 ? 'plan' : 'done'
-    } else if (now.getTime() > day.getTime()) status = 'done'
-    else status = 'plan'
-
-    items.push({ id: autoId++, title, deviceId: dev.id, start: toIsoLocal(s), end: toIsoLocal(e), status })
-  }
-  items.sort((a, b) => +new Date(a.start) - +new Date(b.start))
-  eventsByDay.value[key] = items
-}
-
-/** Načtení/uložení do localStorage */
-function loadPersisted() {
-  try {
-    const raw = localStorage.getItem(LS_KEY)
-    if (!raw) return
-    const parsed = JSON.parse(raw) as PersistState
-    if (parsed?.eventsByDay) {
-      eventsByDay.value = parsed.eventsByDay
-      const maxId = Object.values(parsed.eventsByDay).flat().reduce((m, i) => Math.max(m, i.id), 0)
-      autoId = Math.max(autoId, maxId + 1)
+  resetAllDays(days)
+  const data = await reservations.fetchByProject(projectId, from, to)
+  for (const r of data) {
+    const s = new Date(r.startTime), e = new Date(r.endTime)
+    const item: ResItem = {
+      id: r.id, title: r.title, deviceId: r.deviceCode,
+      start: toIsoLocal(s), end: toIsoLocal(e), status: 'plan',
+      username: r.username, note: r.note
     }
-    if (parsed?.selectedDate) selectedDate.value = parsed.selectedDate
-    if (parsed?.viewMode) viewMode.value = parsed.viewMode
-  } catch (e) {
-    console.warn('Failed to load reservations from LS', e)
+    const k = dateKey(s)
+    ensureDay(s).push(item)
+    eventsByDay.value[k].sort((a, b) => +new Date(a.start) - +new Date(b.start))
   }
 }
-function savePersisted() {
-  const state: PersistState = {
-    eventsByDay: eventsByDay.value,
-    selectedDate: selectedDate.value,
-    viewMode: viewMode.value,
-  }
-  localStorage.setItem(LS_KEY, JSON.stringify(state))
-}
-watch([eventsByDay, selectedDate, viewMode], savePersisted, { deep: true })
 
-/** Seed current day and its week if empty */
-onMounted(() => {
-  loadPersisted()
-  const d = currentDay.value
-  seedDay(d)
-  weekRange(d).forEach(seedDay)
+onMounted(async () => {
+  await reservations.fetchDevices()
+  await projectStore.fetchProjectMembers(projectId)
+  await loadWeekFor(currentDay.value)
 })
 
-/** --- computed pro aktuální den a tabulku --- */
-function itemsFor(day: Date) {
-  const k = dateKey(day)
-  ensureDay(day)
-  return eventsByDay.value[k]
-}
-const itemsForDay = computed(() => itemsFor(currentDay.value))
-const tableHeaders = [
-  { title: 'Datum', key: 'date' },
-  { title: 'Stroj', key: 'device' },
-  { title: 'Stav',  key: 'status' },
-]
-const tableItems = computed(() =>
-  itemsForDay.value.map(i => ({
-    date: fmtDateLong(new Date(i.start)),
-    device: i.deviceId,
-    status: i.status,
-    _raw: i,
-  }))
-)
+watch(selectedDate, async (v) => {
+  await loadWeekFor(normalizeToDate(v))
+})
 
-/** --- týden --- */
-function weekRange(date: Date) {
-  const d = new Date(date)
-  const day = (d.getDay() + 6) % 7 // 0=po … 6=ne
-  const monday = new Date(d); monday.setDate(d.getDate() - day)
-  return Array.from({ length: 7 }, (_, i) => {
-    const x = new Date(monday); x.setDate(monday.getDate() + i); return x
+/** --- filtrování položek --- */
+function filterItems(arr: ResItem[]): ResItem[] {
+  return arr.filter((i: ResItem) => {
+    const byDevice = !pickedDevices.value.length || pickedDevices.value.includes(i.deviceId)
+    const byMember = !pickedMembers.value.length || pickedMembers.value.includes(i.username || '')
+    return byDevice && byMember
   })
 }
-const weekDaysAll  = computed(() => weekRange(currentDay.value))
-const weekDaysWork = computed(() => weekDaysAll.value.slice(0, 5))
-const daysForView  = computed(() => viewMode.value === 'week-work' ? weekDaysWork.value : weekDaysAll.value)
-const colsWeek     = computed(() => viewMode.value === 'week-work' ? 5 : 7)
+function itemsFor(day: Date): ResItem[] { const k = dateKey(day); return (eventsByDay.value[k] ?? []) as ResItem[] }
+const itemsForDayFiltered = computed<ResItem[]>(() => filterItems(itemsFor(currentDay.value)))
+function itemsForDayDevice(deviceId: string): ResItem[] { return itemsForDayFiltered.value.filter((x: ResItem) => x.deviceId === deviceId) }
 
-/** --- detail: data + formátování --- */
-const deviceColorOf = (id: string) => devices.value.find(d => d.id === id)?.color || 'deep-purple'
+/** --- barvy zařízení a styl eventu --- */
+const deviceColorOf = (id: string) => allDevices.value.find(d => d.id === id)?.color || 'primary'
 
-/** fake doplňky (vlastník + poznámka) – memoized **/
-const people = ['Kristina Nazarjanová', 'Jenny Fermin', 'Miloš Novák', 'Anna K.', 'Tomáš Marek']
-function seedFromItem(i: ResItem) {
-  let s = i.id
-  for (const ch of i.start) s = ((s << 5) - s) + ch.charCodeAt(0)
-  return s >>> 0
-}
-function rngFrom(seed: number) {
-  let s = seed >>> 0 || 1
-  return () => {
-    s ^= s << 13; s >>>= 0
-    s ^= s >>> 17; s >>>= 0
-    s ^= s << 5;  s >>>= 0
-    return (s >>> 0) / 4294967296
-  }
-}
-const extrasCache = new Map<number, { owner: string; note: string }>()
-function extrasFor(i: ResItem) {
-  const cached = extrasCache.get(i.id)
-  if (cached) return cached
-  const r = rngFrom(seedFromItem(i))
-  const owner = people[Math.floor(r() * people.length)]
-  const notes = [
-    'Lorem ipsum dolor amet Lorem ipsum…',
-    'Kontrolní série A, připravit předhřev…',
-    'Pozn.: vzorky skladovat při 4 °C…',
-  ]
-  const note = notes[Math.floor(r() * notes.length)]
-  const v = { owner, note }
-  extrasCache.set(i.id, v)
-  return v
+/** class podle barvy přístroje – stejné jako legenda (chip tonal). Používáme lighten-4. */
+function eventBgClass(i: ResItem) {
+  const color = deviceColorOf(i.deviceId)
+  // pokud je primary/secondary, utilitka lighten nemusí existovat – použij prostý bg-<color>
+  return color === 'primary' || color === 'secondary'
+    ? `bg-${color}`
+    : `bg-${color}-lighten-4`
 }
 
-/** --- layout: side-by-side packing like Google Calendar --- */
-type EventLayout = Record<number, { left: number; width: number }>
+function eventStyle(i: ResItem, left: number, width: number) {
+  const color = deviceColorOf(i.deviceId)
+  return {
+    top: topFromDate(new Date(i.start)) + 'px',
+    height: heightFromRange(new Date(i.start), new Date(i.end)) + 'px',
+    left: `calc(${left * 100}% + 8px)`,
+    width: `calc(${width * 100}% - 16px)`,
+    borderLeft: `4px solid var(--v-theme-${color})`,
+    // fallback, kdyby utility class neaplikovala – jemné pozadí ve stylu tonal
+    background: `color-mix(in srgb, var(--v-theme-${color}) 18%, #fff)`,
+  } as Record<string, string>
+}
+function initials(u?: string) { return (u?.[0] || '?').toUpperCase() }
 
+/** --- layout --- */
+type EventLayout = Record<number, { left: number, width: number }>
 function eventsCollide(a: ResItem, b: ResItem): boolean {
-  const aS = new Date(a.start).getTime()
-  const aE = new Date(a.end).getTime()
-  const bS = new Date(b.start).getTime()
-  const bE = new Date(b.end).getTime()
+  const aS = new Date(a.start).getTime(), aE = new Date(a.end).getTime()
+  const bS = new Date(b.start).getTime(), bE = new Date(b.end).getTime()
   return aE > bS && aS < bE
 }
-
 function layoutForTrack(trackEvents: ResItem[]): EventLayout {
   const evs = [...trackEvents].sort((a, b) => {
-    const as = +new Date(a.start), bs = +new Date(b.start)
-    if (as !== bs) return as - bs
-    const ae = +new Date(a.end), be = +new Date(b.end)
-    return ae - be
+    const as = +new Date(a.start), bs = +new Date(b.start); if (as !== bs) return as - bs
+    const ae = +new Date(a.end), be = +new Date(b.end); return ae - be
   })
-
-  const groups: ResItem[][][] = []
-  let columns: ResItem[][] = []
-  let lastEnd: number | undefined
-
+  const groups: ResItem[][][] = []; let columns: ResItem[][] = []; let lastEnd: number | undefined
   for (const ev of evs) {
-    const start = +new Date(ev.start)
-    const end   = +new Date(ev.end)
-
-    if (lastEnd !== undefined && start >= lastEnd) {
-      groups.push(columns)
-      columns = []
-      lastEnd = undefined
-    }
-
+    const start = +new Date(ev.start), end = +new Date(ev.end)
+    if (lastEnd !== undefined && start >= lastEnd) { groups.push(columns); columns = []; lastEnd = undefined }
     let placed = false
-    for (const col of columns) {
-      const last = col[col.length - 1]
-      if (!eventsCollide(last, ev)) {
-        col.push(ev)
-        placed = true
-        break
-      }
-    }
+    for (const col of columns) { const last = col[col.length - 1]; if (!eventsCollide(last, ev)) { col.push(ev); placed = true; break } }
     if (!placed) columns.push([ev])
-
     if (lastEnd === undefined || end > lastEnd) lastEnd = end
   }
   if (columns.length) groups.push(columns)
-
   const layout: EventLayout = {}
-
   function expand(ev: ResItem, colIdx: number, cols: ResItem[][]): number {
-    let span = 1
-    for (let c = colIdx + 1; c < cols.length; c++) {
-      if (cols[c].some(e => eventsCollide(e, ev))) break
-      span++
-    }
+    let span = 1; for (let c = colIdx + 1; c < cols.length; c++) { if (cols[c].some(e => eventsCollide(e, ev))) break; span++ }
     return span
   }
-
   for (const cols of groups) {
     const n = cols.length
-    cols.forEach((col, i) => {
-      col.forEach(ev => {
-        const span = expand(ev, i, cols)
-        layout[ev.id] = {
-          left: i / n,
-          width: span / n,
-        }
-      })
-    })
+    cols.forEach((col, i) => { col.forEach(ev => { const span = expand(ev, i, cols); layout[ev.id] = { left: i / n, width: span / n } }) })
   }
   return layout
 }
-
 const layoutDailyByDevice = computed<Record<string, EventLayout>>(() => {
   const out: Record<string, EventLayout> = {}
-  for (const d of devices.value) {
-    const evs = itemsForDay.value.filter(x => x.deviceId === d.id)
-    out[d.id] = layoutForTrack(evs)
-  }
+  for (const d of devicesToShow.value) out[d.id] = layoutForTrack(itemsForDayDevice(d.id))
   return out
 })
-
 const layoutWeeklyByDay = computed<Record<string, EventLayout>>(() => {
   const days = daysForView.value
   const out: Record<string, EventLayout> = {}
-  for (const day of days) {
-    const key = dateKey(day)
-    out[key] = layoutForTrack(itemsFor(day))
-  }
+  for (const day of days) out[dateKey(day)] = layoutForTrack(filterItems(itemsFor(day)))
   return out
 })
 
-/** --- Drag & drop – svižný ghost jako na Boardu + CLICK guard --- */
+/** --- Drag & drop (persist BE, refresh týden) --- */
 type DragState = {
   id: number
   pointerId: number
@@ -496,13 +321,12 @@ function onPointerMove(ev: PointerEvent) {
     })
   }
 }
-
 function findTrackAt(x: number, y: number) {
   let el = document.elementFromPoint(x, y) as HTMLElement | null
   while (el) {
-    if (el.dataset && el.dataset.trackType && el.dataset.trackId) {
-      const type = el.dataset.trackType
-      const id = el.dataset.trackId
+    if (el.classList && el.classList.contains('track')) {
+      const type = el.dataset.trackType || ''
+      const id = el.dataset.trackId || ''
       const rect = el.getBoundingClientRect()
       return { el, type, id, rect }
     }
@@ -518,7 +342,7 @@ function minutesFromTrackY(y: number, rect: DOMRect, offsetY: number) {
   return snapped
 }
 
-function commitMove(d: DragState, x: number, y: number) {
+async function commitMove(d: DragState, x: number, y: number) {
   const hit = findTrackAt(x, y)
   if (!hit) return
 
@@ -526,24 +350,18 @@ function commitMove(d: DragState, x: number, y: number) {
   let newDayKey = d.origDayKey
   let newDeviceId = d.origDeviceId
 
-  if (d.view === 'daily-machines' && type === 'device') {
-    newDeviceId = id
-  } else if ((d.view === 'week-work' || d.view === 'week-all') && type === 'day') {
-    newDayKey = id
-  } else {
-    return
-  }
+  if (d.view === 'daily-machines' && type === 'device') newDeviceId = id
+  else if ((d.view === 'week-work' || d.view === 'week-all') && type === 'day') newDayKey = id
+  else return
 
   const [Y, M, D] = newDayKey.split('-').map(Number)
   const baseDay = new Date(Y, (M || 1) - 1, D || 1, 0, 0, 0, 0)
+
   let startMinutes = minutesFromTrackY(y, rect, d.offsetY)
   const endMinutes = Math.min(H_END * 60, startMinutes + d.durationMin)
-  if (endMinutes - startMinutes < d.durationMin) {
-    startMinutes = Math.max(H_START * 60, endMinutes - d.durationMin)
-  }
+  if (endMinutes - startMinutes < d.durationMin) startMinutes = Math.max(H_START * 60, endMinutes - d.durationMin)
 
-  const startDate = new Date(baseDay)
-  startDate.setHours(Math.floor(startMinutes / 60), startMinutes % 60, 0, 0)
+  const startDate = new Date(baseDay); startDate.setHours(Math.floor(startMinutes / 60), startMinutes % 60, 0, 0)
   const endDate = new Date(startDate.getTime() + d.durationMin * 60000)
 
   const sourceArr = eventsByDay.value[d.origDayKey] || []
@@ -692,7 +510,6 @@ const openMenu = ref<Record<number, boolean>>({})
               createForm = {
                 title: 'Nová rezervace',
                 deviceId: devices[0]?.id || 'M1',
-                dateYmd: selectedDate,
                 startHM: (start.getHours()+'').padStart(2,'0') + ':' + (start.getMinutes()+'').padStart(2,'0'),
                 endHM: (end.getHours()+'').padStart(2,'0') + ':' + (end.getMinutes()+'').padStart(2,'0'),
               }
@@ -1055,6 +872,15 @@ const openMenu = ref<Record<number, boolean>>({})
   text-overflow: ellipsis;
 }
 
+/* Ghost element pro svižný drag (DOM, mimo Vue render) */
+.drag-ghost { position: fixed; z-index: 9999; pointer-events: none; opacity: .9; box-shadow: 0 8px 20px rgba(0,0,0,.20); border-radius: 10px; background: white; will-change: transform; }
+
+/* Zvýraznění tracku pod kurzorem */
+.drop-highlight { outline: 2px dashed var(--v-theme-primary); outline-offset: -2px; }
+
+/* pop-over detail */
+.detail-card { background: #eceff1; border-radius: 14px; box-shadow: 0 6px 20px rgba(0,0,0,.18); }
+
 /* rozvrh */
 .schedule { border-radius: 12px; overflow: hidden; }
 .tracks.row.header { display: grid; grid-template-columns: 80px repeat(var(--cols, 5), 1fr); gap: 0; border-bottom: 1px solid #e5e5e5; }
@@ -1067,10 +893,7 @@ const openMenu = ref<Record<number, boolean>>({})
 .track-name .weekday { text-transform: uppercase; font-weight: 700; letter-spacing: .02em; }
 .track-name.weekend { background: #fafaff; }
 
-.track {
-  position: relative; border-left: 1px solid #f1f1f1;
-  background: repeating-linear-gradient(to bottom, rgba(0,0,0,0.02) 0, rgba(0,0,0,0.02) 40px, transparent 40px, transparent 80px);
-}
+.track { position: relative; border-left: 1px solid #f1f1f1; background: repeating-linear-gradient(to bottom, rgba(0,0,0,0.02) 0, rgba(0,0,0,0.02) 40px, transparent 40px, transparent 80px); }
 .track.weekend {
   background:
     linear-gradient(to bottom, rgba(70,120,255,0.04), rgba(70,120,255,0.04)),
