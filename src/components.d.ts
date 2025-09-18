@@ -19,7 +19,6 @@ declare module 'vue' {
     MeasurementForm: typeof import('./components/board/measurement/MeasurementForm.vue')['default']
     OpenedCard: typeof import('./components/board/card/OpenedCard.vue')['default']
     ProjectForm: typeof import('./components/project/ProjectForm.vue')['default']
-    Reservations: typeof import('./pages/Reservations.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
     SideFilter: typeof import('./components/board/sideFilter/SideFilter.vue')['default']

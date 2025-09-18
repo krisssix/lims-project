@@ -1303,7 +1303,6 @@ const openMenu = ref<Record<number, boolean>>({})
   overflow: hidden;
   display: -webkit-box;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 1;
   text-overflow: ellipsis;
   white-space: normal;
 }
