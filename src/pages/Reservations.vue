@@ -17,21 +17,39 @@ import { auth } from '@/stores/auth'
 /* ------------------------------------------------------------------ */
 /* Constants & Types                                                   */
 /* ------------------------------------------------------------------ */
-const HOURS_START = 4          // inclusive (04:00)
-const HOURS_END = 13           // exclusive upper bound for visual grid end hour
-const GRID_MINUTES = 15        // snap step
-const TRACK_HEIGHT = 640       // px height for time grid
-const MIN_EVENT_PX = 24        // minimum visible block height
-const DRAG_CLICK_THRESHOLD = 5 // px movement to treat as drag
+const HOURS_START = 4
+const HOURS_END = 13           // end boundary (exclusive), i.e. last segment is 12:00–13:00
+const GRID_MINUTES = 15
+const TRACK_HEIGHT = 640       // total px height for [HOURS_START, HOURS_END)
+const MIN_EVENT_PX = 24
+const DRAG_CLICK_THRESHOLD = 5
 
 type ViewMode = 'daily-machines' | 'daily-list' | 'week-work' | 'week-all'
 type StatusType = 'plan' | 'running' | 'done'
+
+type DailyListRow = {
+  id: number
+  date: string
+  time: string
+  device: string
+  title: string
+  user: string
+  note: string
+  status: StatusType
+  _raw: ResItem
+}
+
+function onDailyListRowDblClick(_ev: MouseEvent, payload: { item: DailyListRow }) {
+  // _raw je původní ResItem, který už v handleru openEdit očekáváme
+  openEdit(payload.item._raw)
+}
+
 
 interface ResItem {
   id: number
   title: string
   deviceId: string
-  start: string        // ISO
+  start: string
   end: string
   status: StatusType
   username: string | null
@@ -150,13 +168,15 @@ const viewLabel = computed(() => {
 })
 
 /* ------------------------------------------------------------------ */
-/* Time grid helpers                                                   */
+/* Time grid helpers (FIXED alignment)                                 */
 /* ------------------------------------------------------------------ */
-const hourTicks = computed<number>(() => HOURS_END - HOURS_START + 1)
-const tickHeight = computed<number>(() => TRACK_HEIGHT / hourTicks.value)
-const PX_PER_MIN = computed<number>(() => TRACK_HEIGHT / ((HOURS_END - HOURS_START) * 60))
+const HOUR_SEGMENTS = computed<number>(() => HOURS_END - HOURS_START) // number of full hours (e.g. 9 for 4..13)
+const tickHeight = computed<number>(() => TRACK_HEIGHT / HOUR_SEGMENTS.value)
+const PX_PER_MIN = computed<number>(() => TRACK_HEIGHT / (HOUR_SEGMENTS.value * 60))
+
 function clamp(v: number, min: number, max: number) { return Math.max(min, Math.min(max, v)) }
 function roundToStep(v: number, step: number) { return Math.round(v / step) * step }
+
 function topFromDate(d: Date) {
   const minutes = (d.getHours() - HOURS_START) * 60 + d.getMinutes()
   return Math.max(0, minutes * PX_PER_MIN.value)
@@ -184,7 +204,7 @@ function ensureDay(d: Date): ResItem[] {
 /* ------------------------------------------------------------------ */
 function weekRange(date: Date) {
   const base = new Date(date)
-  const day = (base.getDay() + 6) % 7 // Monday=0
+  const day = (base.getDay() + 6) % 7
   const monday = new Date(base)
   monday.setDate(base.getDate() - day)
   return Array.from({ length: 7 }, (_, i) => {
@@ -229,7 +249,6 @@ async function loadWeekFor(date: Date) {
       username: r.username ?? null,
       note: r.note ?? null
     }
-
     const list = ensureDay(s)
     list.push(item)
     list.sort((a, b) => +new Date(a.start) - +new Date(b.start))
@@ -258,7 +277,6 @@ function filterItems(arr: ResItem[]): ResItem[] {
     return byDevice && byMember
   })
 }
-
 function itemsFor(day: Date): ResItem[] {
   return eventsByDay.value[dateKey(day)] ?? []
 }
@@ -271,14 +289,12 @@ function itemsForDayDevice(deviceId: string) {
 /* Device color + event style                                          */
 /* ------------------------------------------------------------------ */
 const deviceColorOf = (id: string) => allDevices.value.find(d => d.id === id)?.color || 'primary'
-
 function eventBgClass(i: ResItem) {
   const color = deviceColorOf(i.deviceId)
   return (color === 'primary' || color === 'secondary')
     ? `bg-${color}`
     : `bg-${color}-lighten-4`
 }
-
 function eventStyle(i: ResItem, left: number, width: number) {
   const color = deviceColorOf(i.deviceId)
   return {
@@ -290,7 +306,13 @@ function eventStyle(i: ResItem, left: number, width: number) {
     background: `color-mix(in srgb, var(--v-theme-${color}) 18%, #fff)`
   } as Record<string, string>
 }
-
+function deviceHeaderStyle(d: { id: string; color: string }) {
+  const base = `var(--v-theme-${d.color})`
+  return {
+    background: `color-mix(in srgb, ${base} 18%, #ffffff)`,
+    boxShadow: `inset 0 -3px 0 0 ${base}`,
+  }
+}
 function initials(u: string | null) {
   return (u?.[0] ?? '?').toUpperCase()
 }
@@ -305,7 +327,6 @@ function eventsCollide(a: ResItem, b: ResItem): boolean {
   const bE = +new Date(b.end)
   return aE > bS && aS < bE
 }
-
 function layoutForTrack(trackEvents: ResItem[]): EventLayout {
   const evs = [...trackEvents].sort((a, b) => {
     const as = +new Date(a.start), bs = +new Date(b.start)
@@ -313,11 +334,9 @@ function layoutForTrack(trackEvents: ResItem[]): EventLayout {
     const ae = +new Date(a.end), be = +new Date(b.end)
     return ae - be
   })
-
   const groups: ResItem[][][] = []
   let columns: ResItem[][] = []
   let lastEnd: number | undefined
-
   for (const ev of evs) {
     const start = +new Date(ev.start)
     const end = +new Date(ev.end)
@@ -339,9 +358,7 @@ function layoutForTrack(trackEvents: ResItem[]): EventLayout {
     if (lastEnd === undefined || end > lastEnd) lastEnd = end
   }
   if (columns.length) groups.push(columns)
-
   const layout: EventLayout = {}
-
   function expand(ev: ResItem, colIdx: number, cols: ResItem[][]) {
     let span = 1
     for (let c = colIdx + 1; c < cols.length; c++) {
@@ -350,7 +367,6 @@ function layoutForTrack(trackEvents: ResItem[]): EventLayout {
     }
     return span
   }
-
   for (const cols of groups) {
     const n = cols.length
     cols.forEach((col, i) => {
@@ -362,13 +378,11 @@ function layoutForTrack(trackEvents: ResItem[]): EventLayout {
   }
   return layout
 }
-
 const layoutDailyByDevice = computed<Record<string, EventLayout>>(() => {
   const out: Record<string, EventLayout> = {}
   for (const d of devicesToShow.value) out[d.id] = layoutForTrack(itemsForDayDevice(d.id))
   return out
 })
-
 const layoutWeeklyByDay = computed<Record<string, EventLayout>>(() => {
   const out: Record<string, EventLayout> = {}
   for (const day of daysForView.value) out[dateKey(day)] = layoutForTrack(filterItems(itemsFor(day)))
@@ -396,19 +410,15 @@ function clearHighlight() {
   if (highlightEl) highlightEl.classList.remove('drop-highlight')
   highlightEl = null
 }
-
 function onEventPointerDown(e: PointerEvent, item: ResItem) {
   if (e.button !== 0) return
   const target = e.currentTarget as HTMLElement | null
   if (!target) return
-
   const rect = target.getBoundingClientRect()
   const start = new Date(item.start)
   const end = new Date(item.end)
-
   pointerStart.value = { x: e.clientX, y: e.clientY }
   movedBeyondThreshold.value = false
-
   const ghost = target.cloneNode(true) as HTMLElement
   ghost.classList.add('drag-ghost')
   ghost.style.width = rect.width + 'px'
@@ -417,7 +427,6 @@ function onEventPointerDown(e: PointerEvent, item: ResItem) {
   ghost.style.top = rect.top + 'px'
   ghost.style.pointerEvents = 'none'
   document.body.appendChild(ghost)
-
   drag.value = {
     id: item.id,
     pointerId: e.pointerId,
@@ -431,19 +440,16 @@ function onEventPointerDown(e: PointerEvent, item: ResItem) {
     view: viewMode.value,
     ghostEl: ghost
   }
-
   try { target.setPointerCapture(e.pointerId) } catch {}
   window.addEventListener('pointermove', onPointerMove, { passive: true })
   window.addEventListener('pointerup', onPointerUp, { once: true })
 }
-
 function onPointerMove(ev: PointerEvent) {
   if (!drag.value) return
   lastMoveEvent = ev
   const dx = Math.abs(ev.clientX - pointerStart.value.x)
   const dy = Math.abs(ev.clientY - pointerStart.value.y)
   if (dx > DRAG_CLICK_THRESHOLD || dy > DRAG_CLICK_THRESHOLD) movedBeyondThreshold.value = true
-
   if (!movePending) {
     movePending = true
     requestAnimationFrame(() => {
@@ -459,7 +465,6 @@ function onPointerMove(ev: PointerEvent) {
     })
   }
 }
-
 function findTrackAt(x: number, y: number) {
   let el = document.elementFromPoint(x, y) as HTMLElement | null
   while (el) {
@@ -475,44 +480,35 @@ function findTrackAt(x: number, y: number) {
   }
   return null
 }
-
 function minutesFromTrackY(y: number, rect: DOMRect, offsetY: number) {
   const relY = clamp(y - rect.top - offsetY, 0, TRACK_HEIGHT)
   const minutes = (relY / PX_PER_MIN.value) + HOURS_START * 60
   return clamp(roundToStep(minutes, GRID_MINUTES), HOURS_START * 60, HOURS_END * 60)
 }
-
 async function commitMove(d: DragState, x: number, y: number) {
   const hit = findTrackAt(x, y)
   if (!hit) return
-
   const { type, id, rect } = hit
   let newDayKey = d.origDayKey
   let newDeviceId = d.origDeviceId
-
   if (d.view === 'daily-machines' && type === 'device') newDeviceId = id
   else if ((d.view === 'week-work' || d.view === 'week-all') && type === 'day') newDayKey = id
   else return
-
   const [Y, M, D] = newDayKey.split('-').map(Number)
   const baseDay = new Date(Y, (M || 1) - 1, D || 1, 0, 0, 0, 0)
-
   let startMinutes = minutesFromTrackY(y, rect, d.offsetY)
   const endMinutes = Math.min(HOURS_END * 60, startMinutes + d.durationMin)
   if (endMinutes - startMinutes < d.durationMin) {
     startMinutes = Math.max(HOURS_START * 60, endMinutes - d.durationMin)
   }
-
   const startDate = new Date(baseDay)
   startDate.setHours(Math.floor(startMinutes / 60), startMinutes % 60, 0, 0)
   const endDate = new Date(startDate.getTime() + d.durationMin * 60000)
-
   const sourceArr = eventsByDay.value[d.origDayKey] || []
   const idx = sourceArr.findIndex(x => x.id === d.id)
   if (idx === -1) return
   const ev = sourceArr[idx]
   const prev = { dayKey: d.origDayKey, deviceId: ev.deviceId, start: ev.start, end: ev.end }
-
   if (newDayKey !== d.origDayKey) {
     sourceArr.splice(idx, 1)
     const targetArr = ensureDay(baseDay)
@@ -527,7 +523,6 @@ async function commitMove(d: DragState, x: number, y: number) {
     ev.end = toIsoLocal(endDate)
     sourceArr.sort((a, b) => +new Date(a.start) - +new Date(b.start))
   }
-
   try {
     await reservations.updateReservation(d.id, {
       startTime: startDate.getTime(),
@@ -536,7 +531,6 @@ async function commitMove(d: DragState, x: number, y: number) {
     })
     await loadWeekFor(currentDay.value)
   } catch (err) {
-    // Revert optimistic change
     if (newDayKey !== prev.dayKey) {
       const newArr = eventsByDay.value[newDayKey] || []
       const nIdx = newArr.findIndex(x => x.id === d.id)
@@ -557,28 +551,23 @@ async function commitMove(d: DragState, x: number, y: number) {
     console.error('Reservation update failed, reverted.', err)
   }
 }
-
 function onPointerUp(e: PointerEvent) {
   window.removeEventListener('pointermove', onPointerMove)
   if (!drag.value) return
-
   if (movedBeyondThreshold.value) {
     suppressClick.value = true
     if (suppressTimer) window.clearTimeout(suppressTimer)
     suppressTimer = window.setTimeout(() => { suppressClick.value = false }, 200)
   }
-
   commitMove(drag.value, e.clientX, e.clientY)
   clearHighlight()
   try { (e.target as HTMLElement)?.releasePointerCapture?.(drag.value.pointerId) } catch {}
   drag.value.ghostEl.remove()
   drag.value = null
 }
-
 onBeforeUnmount(() => {
   window.removeEventListener('pointermove', onPointerMove)
 })
-
 function onEventClick(id: number, e: MouseEvent) {
   if (suppressClick.value || movedBeyondThreshold.value || drag.value) return
   openMenu.value[id] = true
@@ -600,6 +589,25 @@ async function handleDelete(i: ResItem) {
     console.error('Delete failed', e)
   }
 }
+const confirmDeleteOpen = ref(false)
+const deleteTarget = ref<ResItem | null>(null)
+function askDelete(i: ResItem) {
+  deleteTarget.value = i
+  confirmDeleteOpen.value = true
+}
+async function confirmDelete() {
+  if (!deleteTarget.value) {
+    confirmDeleteOpen.value = false
+    return
+  }
+  await handleDelete(deleteTarget.value)
+  deleteTarget.value = null
+  confirmDeleteOpen.value = false
+}
+function cancelDelete() {
+  confirmDeleteOpen.value = false
+  deleteTarget.value = null
+}
 
 /* ------------------------------------------------------------------ */
 /* Create dialog                                                       */
@@ -620,11 +628,10 @@ function onTrackClick(evt: MouseEvent, ctx: { type: 'device' | 'day'; deviceId?:
   const track = evt.currentTarget as HTMLElement | null
   if (!track) return
   const rect = track.getBoundingClientRect()
-  const baseDay = ctx.type === 'day' ? ctx.day as Date : currentDay.value
+  const baseDay = ctx.type === 'day' ? (ctx.day as Date) : currentDay.value
   const relY = clamp(evt.clientY - rect.top, 0, TRACK_HEIGHT)
   const minutes = (relY / PX_PER_MIN.value) + HOURS_START * 60
   const snapped = clamp(roundToStep(minutes, GRID_MINUTES), HOURS_START * 60, HOURS_END * 60)
-
   const start = new Date(baseDay)
   start.setHours(Math.floor(snapped / 60), snapped % 60, 0, 0)
   const end = new Date(start.getTime() + 60 * 60000)
@@ -632,7 +639,6 @@ function onTrackClick(evt: MouseEvent, ctx: { type: 'device' | 'day'; deviceId?:
     ? (ctx.deviceId as string)
     : (devicesToShow.value[0]?.id || allDevices.value[0]?.id || 'M1')
   const me = auth.getUserInfo().preferredUsername
-
   createForm.value = {
     title: 'Nová rezervace',
     deviceCode,
@@ -645,6 +651,11 @@ function onTrackClick(evt: MouseEvent, ctx: { type: 'device' | 'day'; deviceId?:
   createOpen.value = true
 }
 
+/* Synchronizace změny data v create dialogu se selectedDate */
+watch(() => createForm.value?.dateYmd, (v) => {
+  if (v) selectedDate.value = v
+})
+
 async function saveCreatedEvent() {
   if (!createForm.value) return
   const { title, deviceCode, dateYmd, startHM, endHM, username, note } = createForm.value
@@ -652,12 +663,10 @@ async function saveCreatedEvent() {
   let start = setHM(day, startHM)
   let end = setHM(day, endHM)
   if (end <= start) end = new Date(start.getTime() + 30 * 60000)
-
   const clampStart = new Date(day); clampStart.setHours(HOURS_START, 0, 0, 0)
   const clampEnd = new Date(day); clampEnd.setHours(HOURS_END, 0, 0, 0)
   if (start < clampStart) start = clampStart
   if (end > clampEnd) end = clampEnd
-
   try {
     const created = await reservations.createReservation({
       title: title?.trim() || 'Rezervace',
@@ -666,20 +675,29 @@ async function saveCreatedEvent() {
       endTime: end.getTime(),
       projectId,
       username,
-      note: note?.trim() || null
+      note: (note ?? '').trim() || null
     })
-    const arr = ensureDay(day)
-    arr.push({
-      id: created.id,
-      title: created.title,
-      deviceId: created.deviceCode,
-      start: toIsoLocal(start),
-      end: toIsoLocal(end),
-      status: 'plan',
-      username: created.username ?? null,
-      note: created.note ?? null
-    })
-    arr.sort((a, b) => +new Date(a.start) - +new Date(b.start))
+    // Přepnout selectedDate na datum nové rezervace
+    selectedDate.value = dateYmd
+    // Pokud nová rezervace spadá do jiného týdne, načti jej
+    const currentMonday = weekRange(currentDay.value)[0]
+    const newMonday = weekRange(day)[0]
+    if (currentMonday.getTime() !== newMonday.getTime()) {
+      await loadWeekFor(day)
+    } else {
+      const arr = ensureDay(day)
+      arr.push({
+        id: created.id,
+        title: created.title,
+        deviceId: created.deviceCode,
+        start: toIsoLocal(start),
+        end: toIsoLocal(end),
+        status: 'plan',
+        username: created.username ?? null,
+        note: created.note ?? null
+      })
+      arr.sort((a, b) => +new Date(a.start) - +new Date(b.start))
+    }
     createOpen.value = false
     createForm.value = null
     suppressClick.value = false
@@ -719,20 +737,22 @@ function openEdit(i: ResItem) {
   editOpen.value = true
 }
 
+/* Synchronizace změny data při editaci */
+watch(() => editForm.value?.dateYmd, (v) => {
+  if (v) selectedDate.value = v
+})
+
 async function saveEditedEvent() {
   if (!editForm.value) return
   const { id, deviceCode, dateYmd, startHM, endHM, note, title, username } = editForm.value
-
   const day = fromYmdLocal(dateYmd)
   let start = setHM(day, startHM)
   let end = setHM(day, endHM)
   if (end <= start) end = new Date(start.getTime() + 30 * 60000)
-
   const clampStart = new Date(day); clampStart.setHours(HOURS_START, 0, 0, 0)
   const clampEnd = new Date(day); clampEnd.setHours(HOURS_END, 0, 0, 0)
   if (start < clampStart) start = clampStart
   if (end > clampEnd) end = clampEnd
-
   const payload = {
     title: title?.trim() || 'Rezervace',
     deviceCode,
@@ -741,7 +761,6 @@ async function saveEditedEvent() {
     username: username?.trim() || null,
     note: (note ?? '').trim() || null
   }
-
   try {
     await reservations.updateReservation(id, payload)
     editOpen.value = false
@@ -858,23 +877,22 @@ const openMenu = ref<Record<number, boolean>>({})
               </div>
 
               <div class="schedule">
-                <!-- header -->
                 <div class="tracks row header" :style="{ '--cols': String(colsDevices) }">
                   <div class="time-col"></div>
                   <div
                     v-for="d in devicesToShow"
                     :key="d.id"
                     class="track-name"
+                    :style="deviceHeaderStyle(d)"
                   >
                     <div class="weekday">{{ d.name }}</div>
                   </div>
                 </div>
 
-                <!-- body -->
                 <div class="tracks row body" :style="{ '--cols': String(colsDevices) }">
                   <div class="time-col">
                     <div
-                      v-for="h in hourTicks"
+                      v-for="h in HOUR_SEGMENTS"
                       :key="h"
                       class="time-tick"
                       :style="{ height: tickHeight + 'px' }"
@@ -887,7 +905,7 @@ const openMenu = ref<Record<number, boolean>>({})
                     v-for="d in devicesToShow"
                     :key="d.id"
                     class="track"
-                    :style="{ height: TRACK_HEIGHT + 'px' }"
+                    :style="{ height: TRACK_HEIGHT + 'px', '--tick-h': tickHeight + 'px' }"
                     data-track-type="device"
                     :data-track-id="d.id"
                     @click.self="onTrackClick($event, { type: 'device', deviceId: d.id })"
@@ -923,7 +941,11 @@ const openMenu = ref<Record<number, boolean>>({})
                           <div class="event-time">
                             {{ fmtTime(new Date(i.start)) }} – {{ fmtTime(new Date(i.end)) }}
                           </div>
-                          <v-avatar size="18" class="event-avatar">
+                          <v-avatar
+                            :color="deviceColorOf(i.deviceId)"
+                            size="40"
+                            class="event-avatar"
+                          >
                             <span>{{ initials(i.username) }}</span>
                           </v-avatar>
                         </div>
@@ -954,7 +976,7 @@ const openMenu = ref<Record<number, boolean>>({})
                                   icon="mdi-delete-outline"
                                   size="small"
                                   variant="text"
-                                  @click="handleDelete(i)"
+                                  @click="askDelete(i)"
                                 />
                                 <v-btn
                                   icon="mdi-close"
@@ -1001,19 +1023,56 @@ const openMenu = ref<Record<number, boolean>>({})
             <div v-else-if="viewMode === 'daily-list'">
               <v-data-table
                 :headers="[
-                  { title: 'Datum', key: 'date' },
-                  { title: 'Stroj', key: 'device' },
-                  { title: 'Stav',  key: 'status' },
+                  { title: 'Datum', key: 'date', width: 140 },
+                  { title: 'Čas', key: 'time', width: 160 },
+                  { title: 'Stroj', key: 'device', width: 90 },
+                  { title: 'Název', key: 'title', minWidth: 160 },
+                  { title: 'Člen', key: 'user', width: 120 },
+                  { title: 'Poznámka', key: 'note', minWidth: 160 },
+                  { title: 'Stav', key: 'status', width: 110 },
+                  { title: 'Akce', key: 'actions', width: 110, sortable: false }
                 ]"
                 :items="itemsForDayFiltered.map(i => ({
+                  id: i.id,
                   date: fmtDateLong(new Date(i.start)),
+                  time: fmtTime(new Date(i.start)) + ' – ' + fmtTime(new Date(i.end)),
                   device: i.deviceId,
+                  title: i.title,
+                  user: i.username ?? '—',
+                  note: (i.note && i.note.trim().length) ? i.note : '',
                   status: i.status,
                   _raw: i
                 }))"
-                items-per-page="10"
+                item-key="id"
+                items-per-page="15"
                 class="elevation-1"
+                density="comfortable"
+                @dblclick:row="onDailyListRowDblClick"
+
               >
+                <template #item.title="{ item }">
+                  <span class="d-inline-flex align-center">
+                    {{ item.title }}
+                    <v-icon
+                      v-if="item.note"
+                      size="14"
+                      class="ml-1"
+                      color="grey"
+                      title="Poznámka"
+                    >mdi-text</v-icon>
+                  </span>
+                </template>
+
+                <template #item.note="{ item }">
+                  <span
+                    v-if="item.note"
+                    class="text-truncate"
+                    :title="item.note"
+                    style="max-width:200px; display:inline-block"
+                  >{{ item.note }}</span>
+                  <span v-else class="text-disabled" style="opacity:0.6">—</span>
+                </template>
+
                 <template #item.status="{ item }">
                   <v-chip
                     size="small"
@@ -1035,13 +1094,37 @@ const openMenu = ref<Record<number, boolean>>({})
                     }}
                   </v-chip>
                 </template>
+
+                <template #item.actions="{ item }">
+                  <v-btn
+                    icon="mdi-pencil-outline"
+                    size="x-small"
+                    variant="text"
+                    color="primary"
+                    @click.stop="openEdit(item._raw)"
+                    :title="'Upravit'"
+                  />
+                  <v-btn
+                    icon="mdi-delete-outline"
+                    size="x-small"
+                    variant="text"
+                    color="error"
+                    @click.stop="askDelete(item._raw)"
+                    :title="'Smazat'"
+                  />
+                </template>
+
+                <template #no-data>
+                  <div class="pa-6 text-medium-emphasis text-center">
+                    Žádné rezervace pro tento den.
+                  </div>
+                </template>
               </v-data-table>
             </div>
 
             <!-- WEEK VIEW -->
             <div v-else>
               <div class="schedule">
-                <!-- header -->
                 <div class="tracks row header" :style="{ '--cols': String(colsWeek) }">
                   <div class="time-col"></div>
                   <div
@@ -1059,11 +1142,10 @@ const openMenu = ref<Record<number, boolean>>({})
                   </div>
                 </div>
 
-                <!-- body -->
                 <div class="tracks row body" :style="{ '--cols': String(colsWeek) }">
                   <div class="time-col">
                     <div
-                      v-for="h in hourTicks"
+                      v-for="h in HOUR_SEGMENTS"
                       :key="h"
                       class="time-tick"
                       :style="{ height: tickHeight + 'px' }"
@@ -1077,7 +1159,7 @@ const openMenu = ref<Record<number, boolean>>({})
                     :key="day.toISOString()"
                     class="track"
                     :class="{ weekend: [0,6].includes(day.getDay()) }"
-                    :style="{ height: TRACK_HEIGHT + 'px' }"
+                    :style="{ height: TRACK_HEIGHT + 'px', '--tick-h': tickHeight + 'px' }"
                     data-track-type="day"
                     :data-track-id="dateKey(day)"
                     @click.self="onTrackClick($event, { type: 'day', day })"
@@ -1142,7 +1224,6 @@ const openMenu = ref<Record<number, boolean>>({})
                                   icon="mdi-delete-outline"
                                   size="small"
                                   variant="text"
-                                  @click="handleDelete(i)"
                                 />
                                 <v-btn
                                   icon="mdi-close"
@@ -1283,16 +1364,48 @@ const openMenu = ref<Record<number, boolean>>({})
         <v-btn variant="text" @click="() => { editOpen = false; editForm = null }">Zrušit</v-btn>
       </template>
     </Dialog>
+
+    <!-- CONFIRM DELETE -->
+    <Dialog
+      v-model:is-open="confirmDeleteOpen"
+      width="auto"
+      :hide-footer="true"
+    >
+      <template #content>
+        <div class="pa-4">
+          <div class="text-h6 mb-6">
+            Opravdu chcete rezervaci zrušit?
+          </div>
+          <div class="d-flex align-center" style="gap:14px">
+            <v-btn
+              color="primary"
+              size="large"
+              @click="confirmDelete"
+              :disabled="!deleteTarget"
+            >
+              SMAZAT REZERVACI
+            </v-btn>
+            <v-btn
+              variant="tonal"
+              color="text"
+              size="large"
+              @click="cancelDelete"
+            >
+              PONECHAT REZERVACI
+            </v-btn>
+          </div>
+        </div>
+      </template>
+    </Dialog>
   </v-container>
 </template>
 
 <style scoped>
-/* Event */
 .event {
   position: absolute;
   border-radius: 10px;
   box-shadow: 0 2px 10px rgba(0,0,0,.06);
-  padding: 8px 10px 20px 10px; /* extra bottom for note icon */
+  padding: 8px 10px 20px 10px;
   cursor: grab;
   user-select: none;
 }
@@ -1303,6 +1416,7 @@ const openMenu = ref<Record<number, boolean>>({})
   overflow: hidden;
   display: -webkit-box;
   -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
   text-overflow: ellipsis;
   white-space: normal;
 }
@@ -1316,9 +1430,10 @@ const openMenu = ref<Record<number, boolean>>({})
   right: 4px;
   top: 4px;
   background: #f2f2f2;
-  font-size: 10px;
+  font-size: 18px;
   line-height: 18px;
   text-transform: uppercase;
+  border: 2px solid var(--v-theme-primary);
 }
 .event-note-icon {
   position: absolute;
@@ -1330,7 +1445,6 @@ const openMenu = ref<Record<number, boolean>>({})
 }
 .event-note-icon:hover { opacity: 1; }
 
-/* Truncate text utility */
 .text-ellipsis {
   max-width: 100%;
   white-space: nowrap;
@@ -1338,7 +1452,6 @@ const openMenu = ref<Record<number, boolean>>({})
   text-overflow: ellipsis;
 }
 
-/* Drag ghost */
 .drag-ghost {
   position: fixed;
   z-index: 9999;
@@ -1350,42 +1463,45 @@ const openMenu = ref<Record<number, boolean>>({})
   will-change: transform;
 }
 
-/* Drop highlight */
 .drop-highlight {
   outline: 2px dashed var(--v-theme-primary);
   outline-offset: -2px;
 }
 
-/* Detail popover */
 .detail-card {
   background: #eceff1;
   border-radius: 14px;
   box-shadow: 0 6px 20px rgba(0,0,0,.18);
 }
 
-/* Schedule grid */
+.v-menu > .v-overlay__content > .v-card{
+  background: #F0F4F9;
+  border-radius: 18px;
+}
+
+/* Scheduler */
 .schedule {
   border-radius: 12px;
   overflow: hidden;
 }
 
+/* header/body grids */
 .tracks.row.header {
   display: grid;
   grid-template-columns: 80px repeat(var(--cols, 5), 1fr);
   gap: 0;
   border-bottom: 1px solid #e5e5e5;
 }
-
 .tracks.row.body {
   display: grid;
   grid-template-columns: 80px repeat(var(--cols, 5), 1fr);
 }
 
+/* time column */
 .time-col {
   background: #fafafa;
   border-right: 1px solid #e5e5e5;
 }
-
 .time-tick {
   padding: 4px 8px;
   font-size: 12px;
@@ -1393,6 +1509,7 @@ const openMenu = ref<Record<number, boolean>>({})
   border-bottom: 1px dashed #eee;
 }
 
+/* track headers */
 .track-name {
   padding: 12px 8px;
   text-align: center;
@@ -1405,16 +1522,21 @@ const openMenu = ref<Record<number, boolean>>({})
 }
 .track-name.weekend { background: #fafaff; }
 
+/* tracks with CSS variable-controlled grid height */
 .track {
   position: relative;
   border-left: 1px solid #f1f1f1;
+  /* background pattern aligned to hour height:
+     - thin tint for half hour
+     - transparent to complete hour
+  */
   background:
     repeating-linear-gradient(
       to bottom,
       rgba(0,0,0,0.02) 0,
-      rgba(0,0,0,0.02) 40px,
-      transparent 40px,
-      transparent 80px
+      rgba(0,0,0,0.02) calc(var(--tick-h) / 2),
+      transparent calc(var(--tick-h) / 2),
+      transparent var(--tick-h)
     );
 }
 .track.weekend {
@@ -1423,9 +1545,15 @@ const openMenu = ref<Record<number, boolean>>({})
     repeating-linear-gradient(
       to bottom,
       rgba(0,0,0,0.02) 0,
-      rgba(0,0,0,0.02) 40px,
-      transparent 40px,
-      transparent 80px
+      rgba(0,0,0,0.02) calc(var(--tick-h) / 2),
+      transparent calc(var(--tick-h) / 2),
+      transparent var(--tick-h)
     );
+}
+
+.text-truncate {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 </style>
