@@ -72,9 +72,15 @@ function isFocused(d: Date) { return props.focusEnabled && (focusedDayKey.value 
 function focusDay(d: Date) { if (props.focusEnabled) focusedDayKey.value = keyOf(d) }
 function clearFocus() { focusedDayKey.value = null }
 
-function onDayHeaderClick(d: Date, ev?: MouseEvent) {
+function onDayHeaderClick(d: Date, _ev?: MouseEvent) {
   focusDay(d)
-  ;(ev?.currentTarget as HTMLElement | null)?.closest('.schedule')?.querySelector<HTMLElement>('.scroll-viewport')?.focus()
+  if (viewportEl.value) {
+    try {
+      viewportEl.value.focus({ preventScroll: true } as FocusOptions)
+    } catch {
+      viewportEl.value.focus()
+    }
+  }
 }
 
 function onTrackClickWithFocus(e: MouseEvent, day: Date) {
@@ -461,7 +467,7 @@ function sizeClass(i: ResItem): string {
 .event.event--md .event-avatar { display: none; }
 .event.event--md .event-title { -webkit-line-clamp: 1; }
 .event.event--md .event-time { font-size: 12px; }
-
+.scroll-viewport { overflow-y: auto; outline: none; overflow-anchor: none; }
 /* Detail card */
 .detail-card { background: #eceff1; border-radius: 14px; box-shadow: 0 6px 20px rgba(0,0,0,.18); }
 

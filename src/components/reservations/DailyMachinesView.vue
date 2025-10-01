@@ -188,12 +188,16 @@ function onKeydown(e: KeyboardEvent) {
   if (list[nextIdx]) focusDevice(list[nextIdx])
 }
 
-function onDeviceHeaderClick(d: Device, ev?: MouseEvent) {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function onDeviceHeaderClick(d: Device, _ev?: MouseEvent) {
   focusDevice(d)
-  ;(ev?.currentTarget as HTMLElement | null)
-    ?.closest('.schedule')
-    ?.querySelector<HTMLElement>('.scroll-viewport')
-    ?.focus()
+  if (viewportEl.value) {
+    try {
+      viewportEl.value.focus({ preventScroll: true } as FocusOptions)
+    } catch {
+      viewportEl.value.focus()
+    }
+  }
 }
 
 function onTrackClickWithFocus(e: MouseEvent, d: Device) {
@@ -280,16 +284,11 @@ function closeDetailMenu(id: number, isActive?: Ref<boolean>) {
   if (isActive) isActive.value = false
   props.setMenuOpen(id, false)
 }
-function onCloseMouseDown(id: number, isActive?: Ref<boolean>, ev?: MouseEvent) {
-  ev?.stopPropagation()
-  ev?.preventDefault()
-  closeDetailMenu(id, isActive)
-}
+
 </script>
 
 <template>
   <div ref="root">
-    <!-- Compact filters (narrow widths) -->
     <v-sheet
       v-if="showCompactFilters"
       elevation="1"
@@ -619,7 +618,7 @@ function onCloseMouseDown(id: number, isActive?: Ref<boolean>, ev?: MouseEvent) 
 .dmv-search-input { width: 100%; }
 .dmv-load-btn { height: 40px; min-width: 96px; padding-inline: 12px; }
 .dmv-filters-row-bottom { display: grid; grid-template-columns: 1fr auto; align-items: end; }
-
+.scroll-viewport { overflow-y: auto; outline: none; overflow-anchor: none; }
 /* Default values for CSS vars to silence analyzers and provide fallbacks */
 :root { --tick-h: 80px; }
 </style>
