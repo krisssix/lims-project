@@ -11,10 +11,13 @@ const props = withDefaults(defineProps<{
   mode: Mode                     // 'create' | 'edit'
   saving?: boolean               // show loading on Save
   deletable?: boolean            // show Delete button (usually only in edit mode)
+  titleExtra?: string | null         // volition text za titulem
+
 }>(), {
   width: null,
   saving: false,
   deletable: false,
+  titleExtra: null,                  //
 })
 
 const emit = defineEmits<{
@@ -89,6 +92,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
       <div class="d-flex align-center justify-space-between w-100">
         <div class="text-h6">
           {{ mode === 'create' ? `Vytvořit ${entityLabel}` : `Upravit ${entityLabel}` }}
+          <span v-if="titleExtra" class="ml-2 text-medium-emphasis">· {{ titleExtra }}</span> <!-- ← PŘIDÁNO -->
         </div>
         <div class="d-flex align-center" style="gap: 6px;">
           <!-- Optional right-side header slot (e.g., prev/next buttons) -->
@@ -103,7 +107,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
     </template>
 
     <template #content>
-      <!-- Consumer provides the form via default slot -->
       <slot />
     </template>
 
