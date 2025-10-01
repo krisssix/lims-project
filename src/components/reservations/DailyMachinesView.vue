@@ -280,10 +280,7 @@ watch(showCompactFilters, (v) => {
 })
 
 /* Helpers: reliable programmatic close of the detail menu */
-function closeDetailMenu(id: number, isActive?: Ref<boolean>) {
-  if (isActive) isActive.value = false
-  props.setMenuOpen(id, false)
-}
+
 
 </script>
 

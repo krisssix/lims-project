@@ -72,6 +72,7 @@ function isFocused(d: Date) { return props.focusEnabled && (focusedDayKey.value 
 function focusDay(d: Date) { if (props.focusEnabled) focusedDayKey.value = keyOf(d) }
 function clearFocus() { focusedDayKey.value = null }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function onDayHeaderClick(d: Date, _ev?: MouseEvent) {
   focusDay(d)
   if (viewportEl.value) {
