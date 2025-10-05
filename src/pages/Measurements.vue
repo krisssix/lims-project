@@ -731,6 +731,17 @@ function askDelete() {
   if (!detailItem.value?.id) return
   confirmDeleteOpen.value = true
 }
+
+// Po zavření detailu vynulujeme stav, aby Delete mimo detail nic nevyvolal
+watch(detailOpen, (open) => {
+  if (!open) {
+    detailItem.value = null
+    detailIndex.value = -1
+    detailRows.value = []
+    confirmDeleteOpen.value = false
+  }
+})
+
 async function confirmDelete() {
   if (!detailItem.value?.id) { confirmDeleteOpen.value = false; return }
   deleteLoading.value = true
@@ -749,6 +760,14 @@ async function confirmDelete() {
 }
 function cancelDelete() {
   confirmDeleteOpen.value = false
+}
+
+// Helper: je fokus v editovatelném prvku?
+function isEditableTarget(target: EventTarget | null): boolean {
+  const el = target as HTMLElement | null
+  if (!el) return false
+  const tag = (el.tagName || '').toLowerCase()
+  return tag === 'input' || tag === 'textarea' || tag === 'select' || el.isContentEditable === true
 }
 
 
@@ -790,7 +809,12 @@ function cancelDeleteTemplate(): void {
 
 /* ---------- Klávesové zkratky (globálně) ---------- */
 function onHotkeys(e: KeyboardEvent) {
-  // Toggle postranní panel (sjednocení s Board.vue)
+  const editable = isEditableTarget(e.target)
+
+  if (!templateFormOpen.value && !measurementDialogOpen.value && !overviewOpen.value && !detailOpen.value && editable) {
+    return
+  }
+  // Toggle postranní panel…
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b') { e.preventDefault(); isSideFilterOpen.value = !isSideFilterOpen.value; return }
 
   // Filtry (Left panel)
@@ -805,6 +829,7 @@ function onHotkeys(e: KeyboardEvent) {
   if (e.key === 'ArrowRight' && !measurementDialogOpen.value) { e.preventDefault(); addDays(1); return }
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 't') { e.preventDefault(); goToday(); return }
 
+  // Potvrzení mazání šablony
   if (confirmTemplateDeleteOpen.value) {
     if (e.key === 'Enter') { e.preventDefault(); if (!deleteTemplateLoading.value) void confirmDeleteTemplate(); return }
     if (e.key === 'Escape') { e.preventDefault(); if (!deleteTemplateLoading.value) cancelDeleteTemplate(); return }
@@ -812,6 +837,7 @@ function onHotkeys(e: KeyboardEvent) {
     return
   }
 
+  // Dialog šablony (edit/create)
   if (templateFormOpen.value) {
     if (e.key === 'Escape') { e.preventDefault(); templateFormOpen.value = false; overviewOpen.value = (templateCreateContext.value === 'overview'); return }
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); if (isTemplateValid.value) void saveTemplate(); return }
@@ -841,22 +867,20 @@ function onHotkeys(e: KeyboardEvent) {
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); addField(); return }
   }
 
+  // Potvrzení smazání měření
   if (confirmDeleteOpen.value) {
-    // Enter = potvrdit smazání, Esc = zrušit, nic nepropustit dál
-    if (e.key === 'Enter') { e.preventDefault(); if (!deleteLoading.value) void confirmDelete(); return }
+    if (e.key === 'Enter')  { e.preventDefault(); if (!deleteLoading.value) void confirmDelete(); return }
     if (e.key === 'Escape') { e.preventDefault(); if (!deleteLoading.value) cancelDelete(); return }
     e.preventDefault()
     return
   }
 
   // Detail – navigace a mazání
-  if (detailOpen.value) {
+  if (detailOpen.value && !templateFormOpen.value && !measurementDialogOpen.value && !overviewOpen.value) {
     if (e.key === 'Escape') { e.preventDefault(); detailOpen.value = false; return }
-    if (e.key === 'ArrowUp' || e.key.toLowerCase() === 'k') { e.preventDefault(); prevDetail(); return }
+    if (e.key === 'ArrowUp' || e.key.toLowerCase() === 'k')   { e.preventDefault(); prevDetail(); return }
     if (e.key === 'ArrowDown' || e.key.toLowerCase() === 'j') { e.preventDefault(); nextDetail(); return }
-    if (e.key === 'Delete'
-      //  || e.key === 'Backspace'
-    ) { e.preventDefault(); askDelete(); return }
+    if (e.key === 'Delete') { e.preventDefault(); askDelete(); return }
   }
 }
 onMounted(() => window.addEventListener('keydown', onHotkeys))
@@ -1095,14 +1119,19 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onHotkeys))
             Smazat šablonu (Del)
           </v-btn>
           <v-spacer />
-          <v-btn variant="text" @click="() => { templateFormOpen = false; overviewOpen = templateCreateContext === 'overview' }">
+          <v-btn
+            variant="text"
+            @click="() => { templateFormOpen = false; overviewOpen = templateCreateContext === 'overview' }"
+          >
             Zrušit
           </v-btn>
           <v-btn color="primary" :disabled="!isTemplateValid" @click="saveTemplate">
             Uložit (Ctrl+S)
           </v-btn>
         </template>
+      </Dialog>
 
+      <teleport to="body">
         <Dialog v-model:is-open="confirmTemplateDeleteOpen" width="520px" :hide-footer="true">
           <template #content>
             <form class="pa-4" @submit.prevent="confirmDeleteTemplate" @keydown.enter.prevent="confirmDeleteTemplate">
@@ -1125,7 +1154,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onHotkeys))
             </form>
           </template>
         </Dialog>
-      </Dialog>
+      </teleport>
 
 
       <!-- Dialog: vytvoření nového měření (2 kroky) -->
