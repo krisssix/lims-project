@@ -13,8 +13,13 @@ declare module 'vue' {
     BoardListContent: typeof import('./components/board/BoardListContent.vue')['default']
     BoardLists: typeof import('./components/board/BoardLists.vue')['default']
     CommentRow: typeof import('./components/board/card/CommentRow.vue')['default']
+    DailyListView: typeof import('./components/reservations/DailyListView.vue')['default']
+    DailyMachinesView: typeof import('./components/reservations/DailyMachinesView.vue')['default']
     DatePicker: typeof import('./components/DatePicker.vue')['default']
     Dialog: typeof import('./components/Dialog.vue')['default']
+    EntityEditorDialog: typeof import('./components/EntityEditorDialog.vue')['default']
+    EventDetailCard: typeof import('./components/reservations/EventDetailCard.vue')['default']
+    LeftFiltersPanel: typeof import('./components/LeftFiltersPanel.vue')['default']
     LeftNavigation: typeof import('./components/LeftNavigation.vue')['default']
     MeasurementForm: typeof import('./components/board/measurement/MeasurementForm.vue')['default']
     OpenedCard: typeof import('./components/board/card/OpenedCard.vue')['default']
@@ -27,5 +32,6 @@ declare module 'vue' {
     Timer: typeof import('./components/board/card/Timer.vue')['default']
     TimeRecordForm: typeof import('./components/board/card/TimeRecordForm.vue')['default']
     TimerTable: typeof import('./components/board/card/TimerTable.vue')['default']
+    WeekView: typeof import('./components/reservations/WeekView.vue')['default']
   }
 }

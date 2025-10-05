@@ -1,7 +1,7 @@
 // src/stores/measurement.ts
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { get, post, del } from '@/services/api/api-requests'
+import { get, post, del, patch } from '@/services/api/api-requests'
 
 export type ValueType = 'float'|'int'|'text'|'file'|'bool'|'date'
 
@@ -10,20 +10,6 @@ export type FieldRow = {
   type: 'float' | 'int' | 'text' | 'file' | 'bool' | 'date'
   required: boolean
   name: string
-}
-
-export type TemplateItem = {
-  id: string
-  name: string
-  deviceId: string        // např. 'M1' – kód přístroje
-  deviceColor: string     // barva čipu v UI (např. 'primary', 'deep-purple')
-  fields: FieldRow[]      // definice vstupních polí formuláře měření
-}
-
-export type DeviceItem = {
-  id: string              // kód přístroje (např. 'M1')
-  name: string            // zobrazovaný název (obvykle stejné jako kód)
-  color: string           // barva pro UI (např. 'primary')
 }
 
 export interface MeasuredValue {
@@ -43,6 +29,7 @@ export interface MeasurementRequest {
   unit: string
   timestamp: number
   boardCardId?: number | null
+  note?: string | null            // NEW (FE only, BE may ignore for now)
   values?: MeasuredValue[]
 }
 
@@ -53,9 +40,11 @@ export interface MeasurementResponse {
   unit: string
   timestamp: string | number
   boardCardId: number | null
+  note?: string | null            // NEW (FE only, BE may ignore for now)
   values: MeasuredValue[]
 }
 
+type MeasurementPatch = Partial<Pick<MeasurementRequest, 'value' | 'type' | 'unit' | 'timestamp' | 'values'>>
 
 export const useMeasurementStore = defineStore('measurement', () => {
   const allMeasurements = ref<MeasurementResponse[]>([])
@@ -93,6 +82,24 @@ export const useMeasurementStore = defineStore('measurement', () => {
     }
   }
 
+  async function updateMeasurement(id: number, patchPayload: MeasurementPatch): Promise<MeasurementResponse> {
+    try {
+      const resp = await patch<{ content: MeasurementResponse }>(`measurements/${id}`, patchPayload)
+      const updated = resp.data.content
+      const idx = allMeasurements.value.findIndex(m => m.id === id)
+      if (idx !== -1) {
+        allMeasurements.value[idx] = updated
+      }
+      if (selectedMeasurement.value?.id === id) {
+        selectedMeasurement.value = updated
+      }
+      return updated
+    } catch (err) {
+      console.error('Chyba při aktualizaci měření:', err)
+      throw err
+    }
+  }
+
   async function deleteMeasurement(id: number): Promise<void> {
     try {
       await del(`measurements/${id}`)
@@ -103,12 +110,14 @@ export const useMeasurementStore = defineStore('measurement', () => {
       throw err
     }
   }
+
   return {
     allMeasurements,
     selectedMeasurement,
     fetchAllMeasurements,
     fetchMeasurement,
     saveMeasurement,
+    updateMeasurement,
     deleteMeasurement,
   }
 })

@@ -1,67 +1,111 @@
 <script setup lang="ts">
-import {computed} from "vue";
+import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
+import { useRoute, useRouter, type RouteRecordName, type RouteLocationRaw } from 'vue-router'
+
+type ProjectRouteName = 'Board' | 'Measurements' | 'Reservations' | 'PeopleWork' | 'Summary'
 
 const route = useRoute()
 const router = useRouter()
 
-const projectId = computed(()=>{
-  return route.params.projectId
+function hasProjectId(p: unknown): p is { projectId: string | number } {
+  return typeof p === 'object' && p !== null && 'projectId' in p
+}
+
+const projectId = computed<string>(() => {
+  const params = route.params as unknown
+  return hasProjectId(params) ? String(params.projectId) : ''
 })
 
-const links = [
-  {
-  title: 'Board',
-  componentName: 'Board',
-  },
-  {
-    title: 'Měření',
-    componentName: 'Measurements',
-  },
-  {
-    title: 'Rezervace',
-    componentName: 'Reservations',
-  },
-  {
-    title: 'Lidé a práce',
-    componentName: 'PeopleWork',
-  },
-  {
-    title: 'Souhrn',
-    componentName: 'Summary',
-  }
+const isRail = ref(localStorage.getItem('ui:navRail') === '1')
+function toggleRail() {
+  isRail.value = !isRail.value
+  localStorage.setItem('ui:navRail', isRail.value ? '1' : '0')
+}
 
+function onKey(e: KeyboardEvent) {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b') {
+    e.preventDefault()
+    toggleRail()
+  }
+}
+onMounted(() => window.addEventListener('keydown', onKey))
+onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
+
+const links: Array<{ title: string; componentName: ProjectRouteName; icon: string }> = [
+  { title: 'Board',        componentName: 'Board',        icon: 'mdi-bulletin-board' },
+  { title: 'Měření',       componentName: 'Measurements', icon: 'mdi-flask-outline' },
+  { title: 'Rezervace',    componentName: 'Reservations', icon: 'mdi-calendar' },
+  { title: 'Lidé a práce', componentName: 'PeopleWork',   icon: 'mdi-account-group-outline' },
+  { title: 'Souhrn',       componentName: 'Summary',      icon: 'mdi-chart-bar' },
 ]
 
-function isActive(componentName){
-  return componentName === route.name
+function isActive(componentName: ProjectRouteName) {
+  // route.name can be RouteRecordName | null | undefined. Compare string values safely.
+  return String(route.name ?? '') === String(componentName)
 }
 
-function navigate(componentName){
-  router.push({name: componentName, params: {projectId: projectId.value}})
+function navigate(componentName: ProjectRouteName) {
+  const location = {
+    name: componentName as RouteRecordName,
+    params: { projectId: projectId.value },
+  } satisfies RouteLocationRaw
+
+  router.push(location)
 }
-
-
 </script>
 
 <template>
   <v-navigation-drawer
     permanent
+    :rail="isRail"
+    rail-width="64"
+    width="280"
   >
-    <v-list density="compact" nav>
-      <v-list-item
-        active-color=""
-        @click="navigate(link.componentName)"
-        :active="isActive(link.componentName)"
-        v-for="link in links"
-        link
-        :title="link.title"
-        :key="link.componentName">
+    <template #prepend>
+      <div class="d-flex justify-end pa-2">
+        <v-btn
+          size="small"
+          variant="text"
+          :icon="isRail ? 'mdi-chevron-double-right' : 'mdi-chevron-double-left'"
+          :title="isRail ? 'Rozbalit (Ctrl+B)' : 'Sbalit (Ctrl+B)'"
+          @click="toggleRail"
+        />
+      </div>
+    </template>
 
-      </v-list-item>
+    <v-list
+      density="compact"
+      nav
+    >
+      <template
+        v-for="link in links"
+        :key="link.componentName"
+      >
+        <v-tooltip
+          v-if="isRail"
+          location="end"
+        >
+          <template #activator="{ props }">
+            <v-list-item
+              v-bind="props"
+              :prepend-icon="link.icon"
+              :active="isActive(link.componentName)"
+              @click="navigate(link.componentName)"
+            />
+          </template>
+          <span>{{ link.title }}</span>
+        </v-tooltip>
+
+        <v-list-item
+          v-else
+          :prepend-icon="link.icon"
+          :title="link.title"
+          :active="isActive(link.componentName)"
+          @click="navigate(link.componentName)"
+        />
+      </template>
     </v-list>
   </v-navigation-drawer>
 </template>
 
-<style scoped>
-
-</style>
+<style scoped></style>

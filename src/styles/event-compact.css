@@ -1,0 +1,45 @@
+/* Globální kompaktní režim podle reálné ŠÍŘKY eventu (inline-size).
+   Funguje bez JS; stačí, aby .event byl container a obsah byl v .event-inner. */
+
+:root {
+    /* prahy lze doladit dle UI */
+    --event-w-xs: 72px;   /* pod tímto limitem skryj vše */
+    --event-w-sm: 110px;  /* nech jen titulek */
+    --event-w-md: 160px;  /* titulek + menší čas, bez avataru */
+}
+
+.event { container-type: inline-size; }
+
+
+.event-inner { padding: 8px 10px 20px 10px; }
+
+/* XS – velmi úzké: skryj vše */
+@container (max-width: calc(var(--event-w-xs) - 1px)) {
+    .event-inner { padding: 0 !important; }
+    .event .event-title,
+    .event .event-time,
+    .event .event-note-icon,
+    .event .event-avatar { display: none !important; }
+}
+
+/* SM – nech jen titulek (jednořádkový) */
+@container (min-width: var(--event-w-xs)) and (max-width: calc(var(--event-w-sm) - 1px)) {
+    .event-inner { padding: 4px 8px !important; }
+    .event .event-time,
+    .event .event-note-icon,
+    .event .event-avatar { display: none !important; }
+    .event .event-title {
+        font-size: 12px;
+        white-space: nowrap; text-overflow: ellipsis; overflow: hidden;
+    }
+}
+
+/* MD – bez avataru, menší čas */
+@container (min-width: var(--event-w-sm)) and (max-width: calc(var(--event-w-md) - 1px)) {
+    .event-inner { padding: 6px 8px 10px 8px !important; }
+    .event .event-avatar { display: none !important; }
+    .event .event-title { -webkit-line-clamp: 1; }
+    .event .event-time { font-size: 12px; }
+}
+
+/* LG – široké: vše viditelné (bez speciálních pravidel) */

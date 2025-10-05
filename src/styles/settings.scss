@@ -15,5 +15,44 @@
   --v-theme-teal: #009688;
   --v-theme-blue: #2196f3;
   --v-theme-primary: #1976d2;
-  /* atd. */
+  --event-h-xs: 26px;  /* pod tímto limitem skrýt vše */
+  --event-h-sm: 40px;  /* skrýt čas, avatar, note ikonu; nechat titulek */
+  --event-h-md: 62px;  /* skrýt jen avatar; nechat titulek + čas */
 }
+
+.event {
+  container-type: size;
+}
+
+@container (max-height: calc(var(--event-h-xs) - 1px)) {
+  .event {
+    padding: 0 !important;
+  }
+  .event .event-title,
+  .event .event-time,
+  .event .event-note-icon,
+  .event .event-avatar {
+    display: none !important;
+  }
+}
+
+@container (min-height: var(--event-h-xs)) and (max-height: calc(var(--event-h-sm) - 1px)) {
+  .event { padding: 4px 8px !important; }
+  .event .event-time,
+  .event .event-note-icon,
+  .event .event-avatar { display: none !important; }
+  .event .event-title {
+    font-size: 12px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow: hidden;
+  }
+}
+
+@container (min-height: var(--event-h-sm)) and (max-height: calc(var(--event-h-md) - 1px)) {
+  .event { padding: 6px 8px 10px 8px !important; }
+  .event .event-avatar { display: none !important; }
+  .event .event-title { -webkit-line-clamp: 1; }
+  .event .event-time { font-size: 12px; }
+}
+
