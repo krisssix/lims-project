@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount, watch, type ComponentPublicInstance, type Ref } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch, type ComponentPublicInstance} from 'vue'
 import EventDetailCard from '@/components/reservations/EventDetailCard.vue'
 
 type ResItem = {
