@@ -5,13 +5,6 @@ import { get, post, del, patch } from '@/services/api/api-requests'
 
 export type ValueType = 'float'|'int'|'text'|'file'|'bool'|'date'
 
-export type FieldRow = {
-  id: string
-  type: 'float' | 'int' | 'text' | 'file' | 'bool' | 'date'
-  required: boolean
-  name: string
-}
-
 export interface MeasuredValue {
   orderIndex: number
   name: string
@@ -29,7 +22,10 @@ export interface MeasurementRequest {
   unit: string
   timestamp: number
   boardCardId?: number | null
-  note?: string | null            // NEW (FE only, BE may ignore for now)
+  templateId?: number | null
+  groupId?: string | null
+  note?: string | null
+  measuredByUsername?: string | null
   values?: MeasuredValue[]
 }
 
@@ -38,77 +34,85 @@ export interface MeasurementResponse {
   value: number
   type: string
   unit: string
-  timestamp: string | number
+  timestamp: number | string
   boardCardId: number | null
-  note?: string | null            // NEW (FE only, BE may ignore for now)
+  templateId?: number | null
+  groupId?: string | null
+  note?: string | null
+  measuredByUsername?: string | null
   values: MeasuredValue[]
 }
 
-type MeasurementPatch = Partial<Pick<MeasurementRequest, 'value' | 'type' | 'unit' | 'timestamp' | 'values'>>
+type ApiList<T> = { items: T[] }
+type ApiObject<T> = { content: T }
+
+type MeasurementPatch = Partial<
+  Pick<MeasurementRequest,
+    'value'|'type'|'unit'|'timestamp'|'values'|'templateId'|'groupId'|'note'
+  >
+>
 
 export const useMeasurementStore = defineStore('measurement', () => {
   const allMeasurements = ref<MeasurementResponse[]>([])
   const selectedMeasurement = ref<MeasurementResponse | null>(null)
 
-  async function fetchAllMeasurements(projectId: number): Promise<MeasurementResponse[]> {
-    try {
-      const resp = await get<{ items: MeasurementResponse[] }>(`measurements/project/${projectId}`)
-      allMeasurements.value = resp.data.items || []
-      return allMeasurements.value
-    } catch (err) {
-      console.error('Chyba při načítání měření:', err)
-      return []
+  function normalizeResp(m: MeasurementResponse): MeasurementResponse {
+    return {
+      ...m,
+      note: m.note ?? null,
+      groupId: m.groupId ?? null,
+      templateId: m.templateId ?? null,
+      measuredByUsername: m.measuredByUsername ?? null
     }
+  }
+
+  async function fetchAllMeasurements(projectId: number): Promise<MeasurementResponse[]> {
+    const resp = await get(`measurements/project/${projectId}`, undefined)
+    const data = (resp?.data ?? {}) as ApiList<MeasurementResponse>
+    allMeasurements.value = (Array.isArray(data.items) ? data.items : []).map(normalizeResp)
+    return allMeasurements.value
   }
 
   async function fetchMeasurement(projectId: number, measurementId: number): Promise<MeasurementResponse | null> {
-    try {
-      const resp = await get<{ content: MeasurementResponse }>(`measurements/project/${projectId}/${measurementId}`)
-      selectedMeasurement.value = resp.data.content
-      return selectedMeasurement.value
-    } catch (err) {
-      console.error('Chyba při načítání jednoho měření:', err)
-      return null
-    }
+    const resp = await get(`measurements/project/${projectId}/${measurementId}`, undefined)
+    const data = (resp?.data ?? {}) as ApiObject<MeasurementResponse>
+    selectedMeasurement.value = data.content ? normalizeResp(data.content) : null
+    return selectedMeasurement.value
   }
 
   async function saveMeasurement(projectId: number, measurement: MeasurementRequest): Promise<MeasurementResponse> {
-    try {
-      const resp = await post<{ content: MeasurementResponse }>(`measurements/project/${projectId}`, measurement)
-      return resp.data.content
-    } catch (err) {
-      console.error('Chyba při ukládání měření:', err)
-      throw err
+    const payload: MeasurementRequest = {
+      ...measurement,
+      templateId: measurement.templateId ?? null,
+      groupId: measurement.groupId ?? null,
+      note: measurement.note ?? null,
+      measuredByUsername: measurement.measuredByUsername ?? null
     }
+    const resp = await post(`measurements/project/${projectId}`, payload, undefined)
+    const data = (resp?.data ?? {}) as ApiObject<MeasurementResponse>
+    const saved = data.content ? normalizeResp(data.content) : (null as unknown as MeasurementResponse)
+    return saved
   }
 
   async function updateMeasurement(id: number, patchPayload: MeasurementPatch): Promise<MeasurementResponse> {
-    try {
-      const resp = await patch<{ content: MeasurementResponse }>(`measurements/${id}`, patchPayload)
-      const updated = resp.data.content
-      const idx = allMeasurements.value.findIndex(m => m.id === id)
-      if (idx !== -1) {
-        allMeasurements.value[idx] = updated
-      }
-      if (selectedMeasurement.value?.id === id) {
-        selectedMeasurement.value = updated
-      }
-      return updated
-    } catch (err) {
-      console.error('Chyba při aktualizaci měření:', err)
-      throw err
-    }
+    const resp = await patch(`measurements/${id}`, {
+      ...patchPayload,
+      templateId: patchPayload.templateId === undefined ? undefined : (patchPayload.templateId ?? null),
+      groupId: patchPayload.groupId === undefined ? undefined : (patchPayload.groupId ?? null),
+      note: patchPayload.note === undefined ? undefined : (patchPayload.note ?? null)
+    }, undefined)
+    const data = (resp?.data ?? {}) as ApiObject<MeasurementResponse>
+    const updated = data.content ? normalizeResp(data.content) : (null as unknown as MeasurementResponse)
+    const idx = allMeasurements.value.findIndex(m => m.id === id)
+    if (idx !== -1) allMeasurements.value[idx] = updated
+    if (selectedMeasurement.value?.id === id) selectedMeasurement.value = updated
+    return updated
   }
 
   async function deleteMeasurement(id: number): Promise<void> {
-    try {
-      await del(`measurements/${id}`)
-      allMeasurements.value = allMeasurements.value.filter(m => m.id !== id)
-      if (selectedMeasurement.value?.id === id) selectedMeasurement.value = null
-    } catch (err) {
-      console.error('Chyba při mazání měření:', err)
-      throw err
-    }
+    await del(`measurements/${id}`, undefined)
+    allMeasurements.value = allMeasurements.value.filter(m => m.id !== id)
+    if (selectedMeasurement.value?.id === id) selectedMeasurement.value = null
   }
 
   return {

@@ -1,22 +1,86 @@
-export function formatDateFromTimestamp(timestamp) {
-  const date = new Date(timestamp);
-  const day = String(date.getDate()).padStart(2, '0');
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const year = date.getFullYear();
-  return `${day}.${month}. ${year}`;
+/**
+ * Převod libovolné hodnoty (number|string|Date) na millisekundy.
+ * Vrací NaN pokud není možné převést.
+ */
+function toMillis(src: number | string | Date): number {
+  if (typeof src === 'number') return src
+  if (src instanceof Date) return src.getTime()
+  if (typeof src === 'string') {
+    const trimmed = src.trim()
+    if (!trimmed) return NaN
+    // Podpora ISO nebo pouze číslo (už je v ms)
+    const asNumber = Number(trimmed)
+    if (!Number.isNaN(asNumber)) return asNumber
+    const parsed = Date.parse(trimmed)
+    return Number.isNaN(parsed) ? NaN : parsed
+  }
+  return NaN
 }
 
-export function formatTimeFromTimestamp(timestamp) {
-  const date = new Date(timestamp);
-  const hours = String(date.getHours()).padStart(2, '0');
-  const minutes = String(date.getMinutes()).padStart(2, '0');
-  return `${hours}:${minutes}`;
+export function formatDateFromTimestamp(timestamp: number | string | Date): string {
+  const ms = toMillis(timestamp)
+  if (Number.isNaN(ms)) return ''
+  const date = new Date(ms)
+  const day = String(date.getDate()).padStart(2, '0')
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const year = date.getFullYear()
+  return `${day}.${month}. ${year}`
 }
 
-export function formatMs(durationMs) {
-  const totalSeconds = Math.floor(durationMs / 1000);
-  const hours = String(Math.floor(totalSeconds / 3600)).padStart(2, '0');
-  const minutes = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, '0');
-  const seconds = String(totalSeconds % 60).padStart(2, '0');
-  return `${hours}:${minutes}:${seconds}`;
+export function formatTimeFromTimestamp(timestamp: number | string | Date): string {
+  const ms = toMillis(timestamp)
+  if (Number.isNaN(ms)) return ''
+  const date = new Date(ms)
+  const hours = String(date.getHours()).padStart(2, '0')
+  const minutes = String(date.getMinutes()).padStart(2, '0')
+  return `${hours}:${minutes}`
+}
+
+/**
+ * Formátuje dobu (ms) na HH:MM:SS.
+ * Vrací prázdný řetězec pro záporné nebo NaN.
+ */
+export function formatMs(durationMs: number): string {
+  if (!Number.isFinite(durationMs) || durationMs < 0) return ''
+  const totalSeconds = Math.floor(durationMs / 1000)
+  const hours = String(Math.floor(totalSeconds / 3600)).padStart(2, '0')
+  const minutes = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, '0')
+  const seconds = String(totalSeconds % 60).padStart(2, '0')
+  return `${hours}:${minutes}:${seconds}`
+}
+
+/**
+ * Zkrácený formát trvání pro UI (např. 1h 05m, 05m 07s).
+ */
+export function formatDurationBrief(durationMs: number): string {
+  if (!Number.isFinite(durationMs) || durationMs < 0) return ''
+  const totalSeconds = Math.floor(durationMs / 1000)
+  const h = Math.floor(totalSeconds / 3600)
+  const m = Math.floor((totalSeconds % 3600) / 60)
+  const s = totalSeconds % 60
+  if (h > 0) return `${h}h ${String(m).padStart(2, '0')}m`
+  if (m > 0) return `${m}m ${String(s).padStart(2, '0')}s`
+  return `${s}s`
+}
+
+/**
+ * ISO-like bezpečný formát (YYYY-MM-DD) – vhodný pro exporty.
+ */
+export function formatYmd(timestamp: number | string | Date): string {
+  const ms = toMillis(timestamp)
+  if (Number.isNaN(ms)) return ''
+  const d = new Date(ms)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+/**
+ * Kombinace datum + čas (YYYY-MM-DD HH:MM) – vhodné pro logování.
+ */
+export function formatYmdHm(timestamp: number | string | Date): string {
+  const ms = toMillis(timestamp)
+  if (Number.isNaN(ms)) return ''
+  const d = new Date(ms)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
