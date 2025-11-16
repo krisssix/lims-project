@@ -1,8 +1,17 @@
 <template>
-  <Dialog v-model:is-open="open" width="1000px" :hide-footer="true">
+  <Dialog
+    v-model:is-open="open"
+    width="1000px"
+    :hide-footer="true"
+  >
     <template #content>
-      <div class="pa-4" @keydown="onKeydown">
-        <div class="text-h6 mb-3">Vložení šablony ze schránky</div>
+      <div
+        class="pa-4"
+        @keydown="onKeydown"
+      >
+        <div class="text-h6 mb-3">
+          Vložení šablony ze schránky
+        </div>
 
         <!-- Header row: name + device + actions -->
         <div class="d-flex align-center ga-3 mb-3">
@@ -26,16 +35,30 @@
             style="max-width: 220px"
           >
             <template #selection="{ item }">
-              <v-chip size="small" :color="item.raw?.color" text-color="white">
+              <v-chip
+                size="small"
+                :color="item.raw?.color"
+                text-color="white"
+              >
                 {{ item.raw?.id }}
               </v-chip>
             </template>
           </v-select>
 
-          <v-btn variant="tonal" color="primary" title="Vložit ze schránky (Ctrl+V)" @click="pasteFromClipboard">
+          <v-btn
+            variant="tonal"
+            color="primary"
+            title="Vložit ze schránky (Ctrl+V)"
+            @click="pasteFromClipboard"
+          >
             VLOŽIT ZE SCHRÁNKY
           </v-btn>
-          <v-btn variant="tonal" color="primary" title="Vybrat soubor (Ctrl+O)" @click="triggerFilePick">
+          <v-btn
+            variant="tonal"
+            color="primary"
+            title="Vybrat soubor (Ctrl+O)"
+            @click="triggerFilePick"
+          >
             VYBRAT SOUBOR
           </v-btn>
           <input
@@ -44,8 +67,13 @@
             accept=".csv,.tsv,.txt,text/csv,text/tab-separated-values"
             style="display:none"
             @change="onFilePicked"
-          />
-          <v-btn variant="text" class="ml-2" title="Analyzovat (Ctrl+Enter)" @click="runAnalysis">
+          >
+          <v-btn
+            variant="text"
+            class="ml-2"
+            title="Analyzovat (Ctrl+Enter)"
+            @click="runAnalysis"
+          >
             ANALYZOVAT
           </v-btn>
         </div>
@@ -64,67 +92,105 @@
         />
 
         <!-- Info -->
-        <v-alert v-if="!blocks.length" type="info" density="comfortable" variant="tonal" class="mb-3">
+        <v-alert
+          v-if="!blocks.length"
+          type="info"
+          density="comfortable"
+          variant="tonal"
+          class="mb-3"
+        >
           Vlož hlavičky (případně i s daty) a klikni “ANALYZOVAT” nebo stiskni Ctrl+Enter.
         </v-alert>
 
         <!-- Found blocks & add -->
-        <div v-else class="mb-3">
+        <div
+          v-else
+          class="mb-3"
+        >
           <div class="d-flex align-center ga-3 mb-2">
-            <div class="preview-header">Nalezené bloky vstupu</div>
+            <div class="preview-header">
+              Nalezené bloky vstupu
+            </div>
             <v-spacer />
-            <v-btn variant="text" title="Znovu analyzovat (Ctrl+Enter)" @click="runAnalysis">ANALYZOVAT</v-btn>
+            <v-btn
+              variant="text"
+              title="Znovu analyzovat (Ctrl+Enter)"
+              @click="runAnalysis"
+            >
+              ANALYZOVAT
+            </v-btn>
           </div>
-          <v-table density="compact" class="mb-3">
+          <v-table
+            density="compact"
+            class="mb-3"
+          >
             <thead>
-            <tr>
-              <th style="width:60px">#</th>
-              <th>Typ</th>
-              <th>Náhled</th>
-              <th style="width:140px"></th>
-            </tr>
+              <tr>
+                <th style="width:60px">
+                  #
+                </th>
+                <th>Typ</th>
+                <th>Náhled</th>
+                <th style="width:140px" />
+              </tr>
             </thead>
             <tbody>
-            <tr v-for="(b, i) in blocks" :key="`src-${i}`">
-              <td>{{ i + 1 }}</td>
-              <td>
-                {{ kindLabel(b.kind) }}
-              </td>
-              <td>
-                <div v-if="b.kind === 'table'">
-                  <strong>Hlavičky:</strong>
-                  <span v-for="(h, hi) in (b.headersRaw.slice(0,6))" :key="`h-${hi}`" class="chip">{{ h }}</span>
-                </div>
-                <div v-else-if="b.kind === 'kv'">
-                  <strong>Metadata:</strong>
-                  <span v-for="(p, ki) in (b.pairs.slice(0,4))" :key="`kv-${ki}`" class="chip">{{ p.key }}</span>
-                </div>
-                <div v-else-if="b.kind === 'stats'">
-                  <strong>Statistika:</strong> {{ b.lines[0] }}
-                </div>
-                <div v-else-if="b.kind === 'series'">
-                  <strong>Řada:</strong> {{ b.header || 'Value' }} ({{ b.values.length }} položek)
-                </div>
-              </td>
-              <td class="text-right">
-                <v-btn
-                  size="small"
-                  color="primary"
-                  variant="tonal"
-                  :disabled="pickedBlocks.some(pb => pb.sourceIndex === i)"
-                  @click="addBlockFromSource(i)"
-                >
-                  PŘIDAT DO ŠABLONY
-                </v-btn>
-              </td>
-            </tr>
+              <tr
+                v-for="(b, i) in blocks"
+                :key="`src-${i}`"
+              >
+                <td>{{ i + 1 }}</td>
+                <td>
+                  {{ kindLabel(b.kind) }}
+                </td>
+                <td>
+                  <div v-if="b.kind === 'table'">
+                    <strong>Hlavičky:</strong>
+                    <span
+                      v-for="(h, hi) in (b.headersRaw.slice(0,6))"
+                      :key="`h-${hi}`"
+                      class="chip"
+                    >{{ h }}</span>
+                  </div>
+                  <div v-else-if="b.kind === 'kv'">
+                    <strong>Metadata:</strong>
+                    <span
+                      v-for="(p, ki) in (b.pairs.slice(0,4))"
+                      :key="`kv-${ki}`"
+                      class="chip"
+                    >{{ p.key }}</span>
+                  </div>
+                  <div v-else-if="b.kind === 'stats'">
+                    <strong>Statistika:</strong> {{ b.lines[0] }}
+                  </div>
+                  <div v-else-if="b.kind === 'series'">
+                    <strong>Řada:</strong> {{ b.header || 'Value' }} ({{ b.values.length }} položek)
+                  </div>
+                </td>
+                <td class="text-right">
+                  <v-btn
+                    size="small"
+                    color="primary"
+                    variant="tonal"
+                    :disabled="pickedBlocks.some(pb => pb.sourceIndex === i)"
+                    @click="addBlockFromSource(i)"
+                  >
+                    PŘIDAT DO ŠABLONY
+                  </v-btn>
+                </td>
+              </tr>
             </tbody>
           </v-table>
         </div>
 
         <!-- Picked blocks (the template stack) -->
-        <div v-if="pickedBlocks.length" class="mb-3">
-          <div class="preview-header mb-2">Šablona se skládá z bloků</div>
+        <div
+          v-if="pickedBlocks.length"
+          class="mb-3"
+        >
+          <div class="preview-header mb-2">
+            Šablona se skládá z bloků
+          </div>
 
           <div
             v-for="(pb, pbi) in pickedBlocks"
@@ -132,16 +198,46 @@
             class="picked-block"
           >
             <div class="d-flex align-center ga-2 mb-2">
-              <div class="text-subtitle-2">{{ pbi + 1 }}. {{ pb.title }}</div>
-              <v-chip size="x-small" class="ml-1" color="grey" variant="tonal">zdroj #{{ pb.sourceIndex + 1 }}</v-chip>
+              <div class="text-subtitle-2">
+                {{ pbi + 1 }}. {{ pb.title }}
+              </div>
+              <v-chip
+                size="x-small"
+                class="ml-1"
+                color="grey"
+                variant="tonal"
+              >
+                zdroj #{{ pb.sourceIndex + 1 }}
+              </v-chip>
               <v-spacer />
-              <v-btn icon="mdi-chevron-up" size="small" variant="text" @click="movePickedBlock(pb.id, -1)" :disabled="pbi===0" />
-              <v-btn icon="mdi-chevron-down" size="small" variant="text" @click="movePickedBlock(pb.id, 1)" :disabled="pbi===pickedBlocks.length-1" />
-              <v-btn icon="mdi-delete-outline" size="small" color="error" variant="text" @click="removePickedBlock(pb.id)" />
+              <v-btn
+                icon="mdi-chevron-up"
+                size="small"
+                variant="text"
+                :disabled="pbi===0"
+                @click="movePickedBlock(pb.id, -1)"
+              />
+              <v-btn
+                icon="mdi-chevron-down"
+                size="small"
+                variant="text"
+                :disabled="pbi===pickedBlocks.length-1"
+                @click="movePickedBlock(pb.id, 1)"
+              />
+              <v-btn
+                icon="mdi-delete-outline"
+                size="small"
+                color="error"
+                variant="text"
+                @click="removePickedBlock(pb.id)"
+              />
             </div>
 
             <!-- Block-specific options + preview -->
-            <div v-if="blocks[pb.sourceIndex]?.kind === 'table'" class="mb-2">
+            <div
+              v-if="blocks[pb.sourceIndex]?.kind === 'table'"
+              class="mb-2"
+            >
               <div class="d-flex align-center ga-3 mb-2">
                 <v-switch
                   v-model="pb.headerOverrideEnabled"
@@ -171,9 +267,15 @@
               </div>
 
               <div class="preview-sample">
-                <div style="font-weight:700; margin-bottom:6px;">Hlavičky</div>
+                <div style="font-weight:700; margin-bottom:6px;">
+                  Hlavičky
+                </div>
                 <div style="display:flex; gap:8px; flex-wrap:wrap">
-                  <span v-for="(h, idx) in effectiveHeadersFor(pb)" :key="`eh-${pb.id}-${idx}`" class="chip">{{ h }}</span>
+                  <span
+                    v-for="(h, idx) in effectiveHeadersFor(pb)"
+                    :key="`eh-${pb.id}-${idx}`"
+                    class="chip"
+                  >{{ h }}</span>
                 </div>
                 <div style="margin-top:8px;">
                   <div
@@ -188,29 +290,59 @@
             </div>
 
             <!-- KV preview -->
-            <div v-else-if="blocks[pb.sourceIndex]?.kind === 'kv'" class="mb-2">
-              <div class="preview-header mb-1">Metadata (key:value)</div>
+            <div
+              v-else-if="blocks[pb.sourceIndex]?.kind === 'kv'"
+              class="mb-2"
+            >
+              <div class="preview-header mb-1">
+                Metadata (key:value)
+              </div>
               <v-list density="compact">
-                <v-list-item v-for="(p, i) in ((blocks[pb.sourceIndex] as KvBlock).pairs)" :key="`kv-${pb.id}-${i}`">
+                <v-list-item
+                  v-for="(p, i) in ((blocks[pb.sourceIndex] as KvBlock).pairs)"
+                  :key="`kv-${pb.id}-${i}`"
+                >
                   <v-list-item-title>
                     <strong>{{ p.key }}</strong>: {{ p.value }}
                   </v-list-item-title>
                 </v-list-item>
               </v-list>
               <div class="d-flex ga-2">
-                <v-btn color="primary" variant="tonal" @click="addMetadataAsFieldsTo(pb.id)">PŘIDAT METADATA JAKO POLE</v-btn>
+                <v-btn
+                  color="primary"
+                  variant="tonal"
+                  @click="addMetadataAsFieldsTo(pb.id)"
+                >
+                  PŘIDAT METADATA JAKO POLE
+                </v-btn>
               </div>
             </div>
 
             <!-- Stats / Series preview -->
-            <div v-else-if="blocks[pb.sourceIndex]?.kind === 'stats'" class="mb-2">
-              <div class="preview-header mb-1">Statistické řádky</div>
+            <div
+              v-else-if="blocks[pb.sourceIndex]?.kind === 'stats'"
+              class="mb-2"
+            >
+              <div class="preview-header mb-1">
+                Statistické řádky
+              </div>
               <div class="mono-block">
-                <div v-for="(l, i) in (blocks[pb.sourceIndex] as StatsBlock).lines" :key="`st-${pb.id}-${i}`" class="mono-line">{{ l }}</div>
+                <div
+                  v-for="(l, i) in (blocks[pb.sourceIndex] as StatsBlock).lines"
+                  :key="`st-${pb.id}-${i}`"
+                  class="mono-line"
+                >
+                  {{ l }}
+                </div>
               </div>
             </div>
-            <div v-else-if="blocks[pb.sourceIndex]?.kind === 'series'" class="mb-2">
-              <div class="preview-header mb-1">Řada hodnot</div>
+            <div
+              v-else-if="blocks[pb.sourceIndex]?.kind === 'series'"
+              class="mb-2"
+            >
+              <div class="preview-header mb-1">
+                Řada hodnot
+              </div>
               <div class="mono-block">
                 <div>{{ (blocks[pb.sourceIndex] as SeriesBlock).header }}</div>
                 <div class="mono-line">
@@ -221,11 +353,21 @@
 
             <!-- Field table per picked block -->
             <div class="d-flex align-center ga-2 mb-2">
-              <v-btn size="small" color="primary" variant="tonal" @click="addFieldTo(pb.id)">PŘIDAT POLE</v-btn>
+              <v-btn
+                size="small"
+                color="primary"
+                variant="tonal"
+                @click="addFieldTo(pb.id)"
+              >
+                PŘIDAT POLE
+              </v-btn>
               <v-spacer />
             </div>
 
-            <div v-if="pb.fieldRows.length" class="mb-4">
+            <div
+              v-if="pb.fieldRows.length"
+              class="mb-4"
+            >
               <v-data-table
                 :items="pb.fieldRows"
                 :headers="tableHeaders"
@@ -234,11 +376,11 @@
                 hide-default-footer
                 item-key="orderIndex"
               >
-                <template v-slot:[`item.orderIndex`]="{ item }">
+                <template #[`item.orderIndex`]="{ item }">
                   <span class="text-body-2">{{ item.orderIndex }}</span>
                 </template>
 
-                <template v-slot:[`item.type`]="{ item }">
+                <template #[`item.type`]="{ item }">
                   <v-select
                     v-model="item.type"
                     :items="typeOptions"
@@ -250,11 +392,15 @@
                   />
                 </template>
 
-                <template v-slot:[`item.required`]="{ item }">
-                  <v-checkbox v-model="item.required" density="compact" hide-details />
+                <template #[`item.required`]="{ item }">
+                  <v-checkbox
+                    v-model="item.required"
+                    density="compact"
+                    hide-details
+                  />
                 </template>
 
-                <template v-slot:[`item.name`]="{ item }">
+                <template #[`item.name`]="{ item }">
                   <v-text-field
                     v-model="item.name"
                     density="compact"
@@ -264,11 +410,27 @@
                   />
                 </template>
 
-                <template v-slot:[`item.actions`]="{ index }">
+                <template #[`item.actions`]="{ index }">
                   <div class="d-flex ga-1">
-                    <v-btn icon="mdi-chevron-up" size="x-small" variant="text" @click="moveFieldIn(pb.id, index, -1)" />
-                    <v-btn icon="mdi-chevron-down" size="x-small" variant="text" @click="moveFieldIn(pb.id, index, 1)" />
-                    <v-btn icon="mdi-delete-outline" size="x-small" variant="text" color="error" @click="removeFieldIn(pb.id, index)" />
+                    <v-btn
+                      icon="mdi-chevron-up"
+                      size="x-small"
+                      variant="text"
+                      @click="moveFieldIn(pb.id, index, -1)"
+                    />
+                    <v-btn
+                      icon="mdi-chevron-down"
+                      size="x-small"
+                      variant="text"
+                      @click="moveFieldIn(pb.id, index, 1)"
+                    />
+                    <v-btn
+                      icon="mdi-delete-outline"
+                      size="x-small"
+                      variant="text"
+                      color="error"
+                      @click="removeFieldIn(pb.id, index)"
+                    />
                   </div>
                 </template>
               </v-data-table>
@@ -278,8 +440,18 @@
 
         <!-- Footer actions -->
         <div class="d-flex justify-end ga-2">
-          <v-btn variant="text" @click="cancel">Zrušit (Esc)</v-btn>
-          <v-btn color="primary" :disabled="!deviceCode || !pickedBlocks.length || !hasAnyFields" :loading="loading" @click="confirm">
+          <v-btn
+            variant="text"
+            @click="cancel"
+          >
+            Zrušit (Esc)
+          </v-btn>
+          <v-btn
+            color="primary"
+            :disabled="!deviceCode || !pickedBlocks.length || !hasAnyFields"
+            :loading="loading"
+            @click="confirm"
+          >
             Vytvořit šablonu (Ctrl+Enter)
           </v-btn>
         </div>
