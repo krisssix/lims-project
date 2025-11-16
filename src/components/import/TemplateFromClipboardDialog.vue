@@ -68,161 +68,218 @@
           Vlož hlavičky (případně i s daty) a klikni “ANALYZOVAT” nebo stiskni Ctrl+Enter.
         </v-alert>
 
-        <!-- Block select and options -->
-        <div v-else class="d-flex align-center ga-3 mb-3">
-          <v-select
-            v-model="selectedBlockIndex"
-            :items="blockItems"
-            item-title="label"
-            item-value="value"
-            label="Vybrat blok vstupu"
-            density="comfortable"
-            variant="outlined"
-            hide-details
-            style="min-width: 220px"
-          />
-          <v-switch
-            v-if="selectedBlock?.kind === 'table'"
-            v-model="includeRepeatSets"
-            label="Rozbalit opakované sady"
-            density="comfortable"
-          />
-          <v-spacer />
-          <v-btn variant="text" title="Znovu analyzovat (Ctrl+Enter)" @click="runAnalysis">ANALYZOVAT</v-btn>
-        </div>
-
-        <!-- Preview: table -->
-        <div v-if="selectedBlock?.kind === 'table'" class="mb-3">
+        <!-- Found blocks & add -->
+        <div v-else class="mb-3">
           <div class="d-flex align-center ga-3 mb-2">
-            <v-switch
-              v-model="headerOverrideEnabled"
-              label="Vybrat jinou hlavičku (Alt+H)"
-              density="comfortable"
-            />
-            <v-select
-              v-if="headerOverrideEnabled"
-              v-model="headerOverrideIndex"
-              :items="headerOverrideOptions"
-              item-title="label"
-              item-value="value"
-              label="Řádek pro hlavičku"
-              density="comfortable"
-              variant="outlined"
-              hide-details
-              style="min-width: 260px"
-            />
+            <div class="preview-header">Nalezené bloky vstupu</div>
+            <v-spacer />
+            <v-btn variant="text" title="Znovu analyzovat (Ctrl+Enter)" @click="runAnalysis">ANALYZOVAT</v-btn>
           </div>
-
-          <div class="preview-sample" style="max-height:220px; overflow:auto; border:1px solid #ececec; padding:8px; border-radius:6px; background:#fff">
-            <div style="font-weight:700; margin-bottom:6px;">Hlavičky</div>
-            <div style="display:flex; gap:8px; flex-wrap:wrap">
-              <v-chip
-                v-for="(h, idx) in effectiveHeaders"
-                :key="`hdr-${idx}`"
-                size="small"
-              >{{ h }}</v-chip>
-            </div>
-            <div style="margin-top:8px;">
-              <div
-                v-for="(r, ri) in (selectedBlock.rows.slice(0, 6))"
-                :key="`row-${ri}`"
-                style="font-family: monospace; white-space:pre;"
-              >
-                {{ r.join(' | ') }}
-              </div>
-            </div>
-          </div>
+          <v-table density="compact" class="mb-3">
+            <thead>
+            <tr>
+              <th style="width:60px">#</th>
+              <th>Typ</th>
+              <th>Náhled</th>
+              <th style="width:140px"></th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr v-for="(b, i) in blocks" :key="`src-${i}`">
+              <td>{{ i + 1 }}</td>
+              <td>
+                {{ kindLabel(b.kind) }}
+              </td>
+              <td>
+                <div v-if="b.kind === 'table'">
+                  <strong>Hlavičky:</strong>
+                  <span v-for="(h, hi) in (b.headersRaw.slice(0,6))" :key="`h-${hi}`" class="chip">{{ h }}</span>
+                </div>
+                <div v-else-if="b.kind === 'kv'">
+                  <strong>Metadata:</strong>
+                  <span v-for="(p, ki) in (b.pairs.slice(0,4))" :key="`kv-${ki}`" class="chip">{{ p.key }}</span>
+                </div>
+                <div v-else-if="b.kind === 'stats'">
+                  <strong>Statistika:</strong> {{ b.lines[0] }}
+                </div>
+                <div v-else-if="b.kind === 'series'">
+                  <strong>Řada:</strong> {{ b.header || 'Value' }} ({{ b.values.length }} položek)
+                </div>
+              </td>
+              <td class="text-right">
+                <v-btn
+                  size="small"
+                  color="primary"
+                  variant="tonal"
+                  :disabled="pickedBlocks.some(pb => pb.sourceIndex === i)"
+                  @click="addBlockFromSource(i)"
+                >
+                  PŘIDAT DO ŠABLONY
+                </v-btn>
+              </td>
+            </tr>
+            </tbody>
+          </v-table>
         </div>
 
-        <!-- Preview: metadata (kv) -->
-        <div v-else-if="selectedBlock?.kind === 'kv'" class="mb-3">
-          <div class="preview-header mb-2">Metadata (key:value)</div>
-          <v-list density="compact">
-            <v-list-item v-for="(p, i) in (selectedBlock.pairs)" :key="`kv-${i}`">
-              <v-list-item-title>
-                <strong>{{ p.key }}</strong>: {{ p.value }}
-              </v-list-item-title>
-            </v-list-item>
-          </v-list>
-          <div class="d-flex ga-2">
-            <v-btn color="primary" variant="tonal" @click="addMetadataAsFields">PŘIDAT METADATA JAKO POLE</v-btn>
-          </div>
-        </div>
+        <!-- Picked blocks (the template stack) -->
+        <div v-if="pickedBlocks.length" class="mb-3">
+          <div class="preview-header mb-2">Šablona se skládá z bloků</div>
 
-        <!-- Preview: stats/series -->
-        <div v-else-if="selectedBlock?.kind === 'stats'" class="mb-3">
-          <div class="preview-header mb-2">Statistické řádky</div>
-          <div class="mono-block">
-            <div v-for="(l, i) in selectedBlock.lines" :key="`st-${i}`" class="mono-line">{{ l }}</div>
-          </div>
-        </div>
-        <div v-else-if="selectedBlock?.kind === 'series'" class="mb-3">
-          <div class="preview-header mb-2">Řada hodnot</div>
-          <div class="mono-block">
-            <div>{{ selectedBlock.header }}</div>
-            <div class="mono-line">{{ selectedBlock.values.slice(0, 40).join(', ') }}{{ selectedBlock.values.length > 40 ? ' …' : '' }}</div>
-          </div>
-        </div>
-
-        <!-- Editable template fields -->
-        <div class="d-flex align-center ga-2 mb-2" v-if="selectedBlock">
-          <v-btn size="small" color="primary" variant="tonal" @click="addField">PŘIDAT POLE (Alt+N)</v-btn>
-          <v-spacer />
-        </div>
-
-        <div v-if="fieldRows.length" class="mb-3">
-          <v-data-table
-            :items="fieldRows"
-            :headers="tableHeaders"
-            class="elevation-1"
-            density="comfortable"
-            hide-default-footer
-            item-key="orderIndex"
+          <div
+            v-for="(pb, pbi) in pickedBlocks"
+            :key="pb.id"
+            class="picked-block"
           >
-            <template #item.orderIndex="{ item }">
-              <span class="text-body-2">{{ item.orderIndex }}</span>
-            </template>
+            <div class="d-flex align-center ga-2 mb-2">
+              <div class="text-subtitle-2">{{ pbi + 1 }}. {{ pb.title }}</div>
+              <v-chip size="x-small" class="ml-1" color="grey" variant="tonal">zdroj #{{ pb.sourceIndex + 1 }}</v-chip>
+              <v-spacer />
+              <v-btn icon="mdi-chevron-up" size="small" variant="text" @click="movePickedBlock(pb.id, -1)" :disabled="pbi===0" />
+              <v-btn icon="mdi-chevron-down" size="small" variant="text" @click="movePickedBlock(pb.id, 1)" :disabled="pbi===pickedBlocks.length-1" />
+              <v-btn icon="mdi-delete-outline" size="small" color="error" variant="text" @click="removePickedBlock(pb.id)" />
+            </div>
 
-            <template #item.type="{ item }">
-              <v-select
-                v-model="item.type"
-                :items="typeOptions"
-                item-title="label"
-                item-value="value"
-                density="compact"
-                hide-details
-                variant="plain"
-              />
-            </template>
-
-            <template #item.required="{ item }">
-              <v-checkbox v-model="item.required" density="compact" hide-details />
-            </template>
-
-            <template #item.name="{ item }">
-              <v-text-field
-                v-model="item.name"
-                density="compact"
-                hide-details
-                variant="plain"
-                :placeholder="`Pole ${item.orderIndex}`"
-              />
-            </template>
-
-            <template #item.actions="{ index }">
-              <div class="d-flex ga-1">
-                <v-btn icon="mdi-chevron-up" size="x-small" variant="text" @click="moveField(index, -1)" />
-                <v-btn icon="mdi-chevron-down" size="x-small" variant="text" @click="moveField(index, 1)" />
-                <v-btn icon="mdi-delete-outline" size="x-small" variant="text" color="error" @click="removeField(index)" />
+            <!-- Block-specific options + preview -->
+            <div v-if="blocks[pb.sourceIndex]?.kind === 'table'" class="mb-2">
+              <div class="d-flex align-center ga-3 mb-2">
+                <v-switch
+                  v-model="pb.headerOverrideEnabled"
+                  label="Vybrat jinou hlavičku"
+                  density="comfortable"
+                  @update:model-value="() => updatePickedBlockFields(pb.id)"
+                />
+                <v-select
+                  v-if="pb.headerOverrideEnabled"
+                  v-model="pb.headerOverrideIndex"
+                  :items="headerOverrideOptionsFor(pb)"
+                  item-title="label"
+                  item-value="value"
+                  label="Řádek pro hlavičku"
+                  density="comfortable"
+                  variant="outlined"
+                  hide-details
+                  style="min-width: 260px"
+                  @update:model-value="() => updatePickedBlockFields(pb.id)"
+                />
+                <v-switch
+                  v-model="pb.includeRepeatSets"
+                  label="Rozbalit opakované sady"
+                  density="comfortable"
+                  @update:model-value="() => updatePickedBlockFields(pb.id)"
+                />
               </div>
-            </template>
-          </v-data-table>
+
+              <div class="preview-sample">
+                <div style="font-weight:700; margin-bottom:6px;">Hlavičky</div>
+                <div style="display:flex; gap:8px; flex-wrap:wrap">
+                  <span v-for="(h, idx) in effectiveHeadersFor(pb)" :key="`eh-${pb.id}-${idx}`" class="chip">{{ h }}</span>
+                </div>
+                <div style="margin-top:8px;">
+                  <div
+                    v-for="(r, ri) in ((blocks[pb.sourceIndex] as TableBlock).rows.slice(0, 6))"
+                    :key="`row-${pb.id}-${ri}`"
+                    class="mono-line"
+                  >
+                    {{ r.join(' | ') }}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- KV preview -->
+            <div v-else-if="blocks[pb.sourceIndex]?.kind === 'kv'" class="mb-2">
+              <div class="preview-header mb-1">Metadata (key:value)</div>
+              <v-list density="compact">
+                <v-list-item v-for="(p, i) in ((blocks[pb.sourceIndex] as KvBlock).pairs)" :key="`kv-${pb.id}-${i}`">
+                  <v-list-item-title>
+                    <strong>{{ p.key }}</strong>: {{ p.value }}
+                  </v-list-item-title>
+                </v-list-item>
+              </v-list>
+              <div class="d-flex ga-2">
+                <v-btn color="primary" variant="tonal" @click="addMetadataAsFieldsTo(pb.id)">PŘIDAT METADATA JAKO POLE</v-btn>
+              </div>
+            </div>
+
+            <!-- Stats / Series preview -->
+            <div v-else-if="blocks[pb.sourceIndex]?.kind === 'stats'" class="mb-2">
+              <div class="preview-header mb-1">Statistické řádky</div>
+              <div class="mono-block">
+                <div v-for="(l, i) in (blocks[pb.sourceIndex] as StatsBlock).lines" :key="`st-${pb.id}-${i}`" class="mono-line">{{ l }}</div>
+              </div>
+            </div>
+            <div v-else-if="blocks[pb.sourceIndex]?.kind === 'series'" class="mb-2">
+              <div class="preview-header mb-1">Řada hodnot</div>
+              <div class="mono-block">
+                <div>{{ (blocks[pb.sourceIndex] as SeriesBlock).header }}</div>
+                <div class="mono-line">
+                  {{ (blocks[pb.sourceIndex] as SeriesBlock).values.slice(0, 40).join(', ') }}{{ (blocks[pb.sourceIndex] as SeriesBlock).values.length > 40 ? ' …' : '' }}
+                </div>
+              </div>
+            </div>
+
+            <!-- Field table per picked block -->
+            <div class="d-flex align-center ga-2 mb-2">
+              <v-btn size="small" color="primary" variant="tonal" @click="addFieldTo(pb.id)">PŘIDAT POLE</v-btn>
+              <v-spacer />
+            </div>
+
+            <div v-if="pb.fieldRows.length" class="mb-4">
+              <v-data-table
+                :items="pb.fieldRows"
+                :headers="tableHeaders"
+                class="elevation-1"
+                density="comfortable"
+                hide-default-footer
+                item-key="orderIndex"
+              >
+                <template v-slot:[`item.orderIndex`]="{ item }">
+                  <span class="text-body-2">{{ item.orderIndex }}</span>
+                </template>
+
+                <template v-slot:[`item.type`]="{ item }">
+                  <v-select
+                    v-model="item.type"
+                    :items="typeOptions"
+                    item-title="label"
+                    item-value="value"
+                    density="compact"
+                    hide-details
+                    variant="plain"
+                  />
+                </template>
+
+                <template v-slot:[`item.required`]="{ item }">
+                  <v-checkbox v-model="item.required" density="compact" hide-details />
+                </template>
+
+                <template v-slot:[`item.name`]="{ item }">
+                  <v-text-field
+                    v-model="item.name"
+                    density="compact"
+                    hide-details
+                    variant="plain"
+                    :placeholder="`Pole ${item.orderIndex}`"
+                  />
+                </template>
+
+                <template v-slot:[`item.actions`]="{ index }">
+                  <div class="d-flex ga-1">
+                    <v-btn icon="mdi-chevron-up" size="x-small" variant="text" @click="moveFieldIn(pb.id, index, -1)" />
+                    <v-btn icon="mdi-chevron-down" size="x-small" variant="text" @click="moveFieldIn(pb.id, index, 1)" />
+                    <v-btn icon="mdi-delete-outline" size="x-small" variant="text" color="error" @click="removeFieldIn(pb.id, index)" />
+                  </div>
+                </template>
+              </v-data-table>
+            </div>
+          </div>
         </div>
 
         <!-- Footer actions -->
         <div class="d-flex justify-end ga-2">
           <v-btn variant="text" @click="cancel">Zrušit (Esc)</v-btn>
-          <v-btn color="primary" :disabled="!deviceCode || !fieldRows.length" :loading="loading" @click="confirm">
+          <v-btn color="primary" :disabled="!deviceCode || !pickedBlocks.length || !hasAnyFields" :loading="loading" @click="confirm">
             Vytvořit šablonu (Ctrl+Enter)
           </v-btn>
         </div>
@@ -249,23 +306,41 @@ type DeviceItem = { id: string; name: string; color?: string }
 type FieldType = 'float' | 'int' | 'text' | 'file' | 'bool' | 'date'
 type FieldRow = { orderIndex: number; type: FieldType; required: boolean; name: string }
 
+/** Blok zařazený do šablony */
+type PickedBlock = {
+  id: string
+  sourceIndex: number
+  kind: 'table' | 'stats' | 'series' | 'kv'
+  title: string
+  includeRepeatSets: boolean
+  headerOverrideEnabled: boolean
+  headerOverrideIndex: number | null
+  fieldRows: FieldRow[]
+}
+
+/** Nový payload (kompatibilní – obsahuje i flattened `fields`) */
+type TemplateBlockPayload = {
+  kind: PickedBlock['kind']
+  title: string
+  fields: FieldRow[]
+}
+type TemplatePayload = {
+  deviceCode: string
+  templateName: string
+  blocks: TemplateBlockPayload[]
+  /** backward-compat: všechna pole napříč bloky, v pořadí bloků */
+  fields: FieldRow[]
+}
+
 const props = defineProps<{
   modelValue: boolean
   devices: DeviceItem[]
-  onConfirm?: (payload: {
-    deviceCode: string
-    templateName: string
-    fields: FieldRow[]
-  }) => Promise<void> | void
+  onConfirm?: (payload: TemplatePayload) => Promise<void> | void
 }>()
 
 const emit = defineEmits<{
   (e: 'update:modelValue', v: boolean): void
-  (e: 'confirm', payload: {
-    deviceCode: string
-    templateName: string
-    fields: FieldRow[]
-  }): void
+  (e: 'confirm', payload: TemplatePayload): void
 }>()
 
 /* --------------------- state --------------------- */
@@ -279,18 +354,12 @@ const templateName = ref<string>('Nová šablona')
 const rawText = ref<string>('')
 
 const blocks = ref<Array<TableBlock | StatsBlock | SeriesBlock | KvBlock>>([])
-const selectedBlockIndex = ref<number | null>(null)
-const includeRepeatSets = ref<boolean>(false)
-
-const headerOverrideEnabled = ref<boolean>(false)
-const headerOverrideIndex = ref<number | null>(null)
+const pickedBlocks = ref<PickedBlock[]>([]) // nové
 
 const fileInput = ref<HTMLInputElement | null>(null)
 const loading = ref(false)
 
-/* --------------------- editable fields --------------------- */
-const fieldRows = ref<FieldRow[]>([])
-
+/* --------------------- options for table rendering --------------------- */
 const typeOptions: Array<{ label: string; value: FieldType }> = [
   { label: 'Float', value: 'float' },
   { label: 'Integer', value: 'int' },
@@ -315,14 +384,9 @@ watch(open, async (v) => {
     templateName.value = 'Nová šablona'
     rawText.value = ''
     blocks.value = []
-    selectedBlockIndex.value = null
-    includeRepeatSets.value = false
-    fieldRows.value = []
-    headerOverrideEnabled.value = false
-    headerOverrideIndex.value = null
+    pickedBlocks.value = []
     await nextTick()
-    const el = document.querySelector<HTMLTextAreaElement>('[data-clipboard-input]')
-    el?.focus()
+    document.querySelector<HTMLTextAreaElement>('[data-clipboard-input]')?.focus()
   }
 })
 
@@ -354,30 +418,83 @@ function onFilePicked(e: Event): void {
   reader.readAsText(f)
 }
 
+/* --------------------- parsing --------------------- */
+function runAnalysis(): void {
+  const a: AnalyzeResult = analyzeClipboard(rawText.value, {
+    preferDecimalComma: true,
+    acceptMarkdownTables: true,
+    mergeUnitsWithHeaders: true,
+  })
+  blocks.value = a.blocks
+  if (a.headersRaw && a.headersRaw.length && templateName.value === 'Nová šablona') {
+    templateName.value = a.headersRaw[0] ?? templateName.value
+  }
+}
+
+/* --------------------- picked blocks ops --------------------- */
+function kindLabel(k: PickedBlock['kind'] | TableBlock['kind'] | StatsBlock['kind'] | SeriesBlock['kind'] | KvBlock['kind']): string {
+  return k === 'table' ? 'Tabulka' : k === 'kv' ? 'Metadata' : k === 'stats' ? 'Statistika' : 'Řada'
+}
+
+function addBlockFromSource(sourceIndex: number): void {
+  const b = blocks.value[sourceIndex]
+  if (!b) return
+  if (pickedBlocks.value.some(pb => pb.sourceIndex === sourceIndex)) return
+
+  const pb: PickedBlock = {
+    id: `${sourceIndex}-${Date.now()}`,
+    sourceIndex,
+    kind: b.kind,
+    title: `${kindLabel(b.kind)}`,
+    includeRepeatSets: false,
+    headerOverrideEnabled: false,
+    headerOverrideIndex: null,
+    fieldRows: buildFieldsForBlock(b, { includeRepeatSets: false, headerOverrideEnabled: false, headerOverrideIndex: null })
+  }
+  pickedBlocks.value = [...pickedBlocks.value, pb]
+}
+
+function removePickedBlock(id: string): void {
+  pickedBlocks.value = pickedBlocks.value.filter(x => x.id !== id)
+}
+
+function movePickedBlock(id: string, delta: number): void {
+  const i = pickedBlocks.value.findIndex(x => x.id === id)
+  const j = i + delta
+  if (i < 0 || j < 0 || j >= pickedBlocks.value.length) return
+  const cp = pickedBlocks.value.slice()
+  const [row] = cp.splice(i, 1)
+  cp.splice(j, 0, row)
+  pickedBlocks.value = cp
+}
+
+/* --------------------- field generation per block --------------------- */
 function toFieldType(t: ColumnType): FieldType {
   if (t === 'float' || t === 'int' || t === 'text' || t === 'file' || t === 'bool' || t === 'date') return t
   return 'text'
 }
 
-/* Build editable field rows from the currently selected block or overrides */
-function rebuildFieldRows(): void {
-  const blk = selectedBlock.value
-  if (!blk) { fieldRows.value = []; return }
+function inferFieldTypeFromHeader(header: string): ColumnType {
+  return inferFieldTypeFromParser(header)
+}
 
-  // Determine effective header names
+function buildFieldsForBlock(
+  blk: TableBlock | StatsBlock | SeriesBlock | KvBlock,
+  opts: { includeRepeatSets: boolean; headerOverrideEnabled: boolean; headerOverrideIndex: number | null }
+): FieldRow[] {
   let headerNames: string[] = []
 
   if (blk.kind === 'table') {
     const tbl = blk as TableBlock
-    const baseHeaders = headerOverrideEnabled.value && headerOverrideIndex.value != null
-      ? (tbl.rows[headerOverrideIndex.value] ?? [])
+    const baseHeaders = opts.headerOverrideEnabled && opts.headerOverrideIndex != null
+      ? (tbl.rows[opts.headerOverrideIndex] ?? [])
       : tbl.headersRaw
 
     const headers = baseHeaders.slice()
-    if (!headers.length) { fieldRows.value = []; return }
+    if (!headers.length) return []
 
-    if (!includeRepeatSets.value) {
-      // collapse repeated bases → keep first occurrence
+    if (!opts.includeRepeatSets) {
+      // sloučit replikáty
       const seen = new Set<string>()
       const baseOf = (h: string) => h.trim().replace(/\s+\d+$/u, '')
       const out: string[] = []
@@ -405,52 +522,36 @@ function rebuildFieldRows(): void {
   } else if (blk.kind === 'series') {
     headerNames = [blk.header?.trim() || 'Value']
   } else if (blk.kind === 'kv') {
-    // do not auto-push; handled via "PŘIDAT METADATA JAKO POLE"
-    headerNames = []
+    headerNames = [] // explicitně přes tlačítko
   } else {
     headerNames = ['Value']
   }
 
-  const newRows: FieldRow[] = headerNames.map((h, i) => ({
+  return headerNames.map((h, i) => ({
     orderIndex: i + 1,
     name: h || `Col ${i + 1}`,
-    required: i === 0 ? false : false,
+    required: false,
     type: toFieldType(inferFieldTypeFromHeader(h)),
   }))
-  fieldRows.value = newRows
 }
 
-function runAnalysis(): void {
-  const a: AnalyzeResult = analyzeClipboard(rawText.value)
-  blocks.value = a.blocks as Array<TableBlock | StatsBlock | SeriesBlock | KvBlock>
-  if (a.headersRaw && a.headersRaw.length && templateName.value === 'Nová šablona') {
-    templateName.value = a.headersRaw[0] ?? templateName.value
-  }
-  // Prefer first TABLE block; fallback to first block
-  let idx = blocks.value.findIndex(b => b.kind === 'table')
-  if (idx < 0) idx = blocks.value.length ? 0 : -1
-  selectedBlockIndex.value = idx >= 0 ? idx : null
-  headerOverrideEnabled.value = false
-  headerOverrideIndex.value = null
-  rebuildFieldRows()
+function updatePickedBlockFields(id: string): void {
+  const pb = pickedBlocks.value.find(x => x.id === id)
+  if (!pb) return
+  const src = blocks.value[pb.sourceIndex]
+  if (!src) return
+  pb.fieldRows = buildFieldsForBlock(src, {
+    includeRepeatSets: pb.includeRepeatSets,
+    headerOverrideEnabled: pb.headerOverrideEnabled,
+    headerOverrideIndex: pb.headerOverrideIndex
+  }).map((f, i) => ({ ...f, orderIndex: i + 1 }))
 }
 
-/* --------------------- computed --------------------- */
-const selectedBlock = computed<TableBlock | StatsBlock | SeriesBlock | KvBlock | null>(() => {
-  if (selectedBlockIndex.value == null) return null
-  return blocks.value[selectedBlockIndex.value] ?? null
-})
-const blockItems = computed(() =>
-  blocks.value.map((b, i) => ({
-    label: `${i + 1}. ${b.kind === 'table' ? 'tabulka' : (b.kind === 'stats' ? 'statistika' : (b.kind === 'kv' ? 'metadata' : 'řada'))}`,
-    value: i
-  }))
-)
-
-const headerOverrideOptions = computed(() => {
-  const blk = selectedBlock.value
+/* header override options for given block */
+function headerOverrideOptionsFor(pb: PickedBlock) {
+  const blk = blocks.value[pb.sourceIndex]
   if (!blk || blk.kind !== 'table') return []
-  const rows = blk.rows
+  const rows = (blk as TableBlock).rows
   const items: Array<{ label: string; value: number | null }> = [
     { label: 'Rozpoznaná hlavička', value: null }
   ]
@@ -459,33 +560,104 @@ const headerOverrideOptions = computed(() => {
     items.push({ label: `Řádek ${i + 1}: ${sample}`, value: i })
   }
   return items
-})
-const effectiveHeaders = computed<string[]>(() => {
-  const blk = selectedBlock.value
-  if (!blk || blk.kind !== 'table') return []
-  if (headerOverrideEnabled.value && headerOverrideIndex.value != null) {
-    return (blk.rows[headerOverrideIndex.value] ?? []).map(s => (s ?? '').trim())
-  }
-  return blk.headersRaw
-})
+}
 
-watch([selectedBlockIndex, includeRepeatSets, headerOverrideEnabled, headerOverrideIndex], () => { rebuildFieldRows() })
+/* effective headers for preview (per picked block) */
+function effectiveHeadersFor(pb: PickedBlock): string[] {
+  const blk = blocks.value[pb.sourceIndex]
+  if (!blk || blk.kind !== 'table') return []
+  if (pb.headerOverrideEnabled && pb.headerOverrideIndex != null) {
+    return ((blk as TableBlock).rows[pb.headerOverrideIndex] ?? []).map(s => (s ?? '').trim())
+  }
+  return (blk as TableBlock).headersRaw
+}
+
+/* metadata → fields (per picked block) */
+function addMetadataAsFieldsTo(id: string): void {
+  const pb = pickedBlocks.value.find(x => x.id === id)
+  if (!pb) return
+  const blk = blocks.value[pb.sourceIndex]
+  if (!blk || blk.kind !== 'kv') return
+  const baseIndex = pb.fieldRows.length
+  const rowsToAdd: FieldRow[] = (blk as KvBlock).pairs.map((p, i) => ({
+    orderIndex: baseIndex + i + 1,
+    name: p.key,
+    required: false,
+    type: inferTypeFromSample(p.value)
+  }))
+  pb.fieldRows = [...pb.fieldRows, ...rowsToAdd].map((f, i) => ({ ...f, orderIndex: i + 1 }))
+}
+
+/* ad-hoc value-based inference for metadata values */
+function inferTypeFromSample(sample: string): FieldType {
+  const s = (sample ?? '').trim()
+  if (!s) return 'text'
+  if (/^\d{4}-\d{2}-\d{2}(?:[ T]\d{2}:\d{2}(?::\d{2})?)?$/.test(s) || /^\d{1,2}\.\d{1,2}\.\s*\d{4}(?:\s+\d{1,2}:\d{2}:\d{2})?$/.test(s)) return 'date'
+  if (/^(true|false|1|0|yes|no|y|n|ano|ne|t|f)$/i.test(s)) return 'bool'
+  if (/\.(png|jpg|jpeg|tif|tiff|gif|csv|tsv|txt|pdf|xlsx)$/i.test(s) || /^(https?|s3|file):\/\//i.test(s)) return 'file'
+  const num = Number(s.replace(',', '.'))
+  if (Number.isFinite(num)) {
+    return Number.isInteger(num) ? 'int' : 'float'
+  }
+  return 'text'
+}
+
+/* field row ops (per picked block) */
+function addFieldTo(id: string): void {
+  const pb = pickedBlocks.value.find(x => x.id === id)
+  if (!pb) return
+  pb.fieldRows = [
+    ...pb.fieldRows,
+    { orderIndex: pb.fieldRows.length + 1, name: '', required: false, type: 'text' }
+  ]
+}
+function removeFieldIn(id: string, index: number): void {
+  const pb = pickedBlocks.value.find(x => x.id === id)
+  if (!pb) return
+  if (index < 0 || index >= pb.fieldRows.length) return
+  pb.fieldRows.splice(index, 1)
+  pb.fieldRows = pb.fieldRows.map((f, i) => ({ ...f, orderIndex: i + 1 }))
+}
+function moveFieldIn(id: string, index: number, delta: number): void {
+  const pb = pickedBlocks.value.find(x => x.id === id)
+  if (!pb) return
+  const target = index + delta
+  if (index < 0 || index >= pb.fieldRows.length) return
+  if (target < 0 || target >= pb.fieldRows.length) return
+  const arr = pb.fieldRows.slice()
+  const [row] = arr.splice(index, 1)
+  arr.splice(target, 0, row)
+  pb.fieldRows = arr.map((f, i) => ({ ...f, orderIndex: i + 1 }))
+}
+
+/* --------------------- computed --------------------- */
+const hasAnyFields = computed(() => pickedBlocks.value.some(pb => pb.fieldRows.length > 0))
 
 /* --------------------- confirm/cancel --------------------- */
 async function confirm(): Promise<void> {
-  if (!deviceCode.value || !fieldRows.value.length) return
+  if (!deviceCode.value || !pickedBlocks.value.length || !hasAnyFields.value) return
   loading.value = true
   try {
-    const payload = {
-      deviceCode: deviceCode.value,
-      templateName: (templateName.value || '').trim() || 'Šablona',
-      fields: fieldRows.value.map((f, i) => ({
+    const blocksPayload: TemplateBlockPayload[] = pickedBlocks.value.map(pb => ({
+      kind: pb.kind,
+      title: pb.title,
+      fields: pb.fieldRows.map((f, i) => ({
         orderIndex: i + 1,
         name: f.name.trim() || `Pole ${i + 1}`,
         required: Boolean(f.required),
         type: f.type
       }))
+    }))
+
+    const flatFields: FieldRow[] = blocksPayload.flatMap(b => b.fields)
+
+    const payload: TemplatePayload = {
+      deviceCode: deviceCode.value,
+      templateName: (templateName.value || '').trim() || 'Šablona',
+      blocks: blocksPayload,
+      fields: flatFields // backward-compat
     }
+
     if (typeof props.onConfirm === 'function') {
       await Promise.resolve(props.onConfirm(payload))
     } else {
@@ -505,73 +677,13 @@ function onKeydown(e: KeyboardEvent): void {
   if ((e.ctrlKey || e.metaKey) && key === 'v') { e.preventDefault(); void pasteFromClipboard(); return }
   if ((e.ctrlKey || e.metaKey) && key === 'enter') { e.preventDefault(); runAnalysis(); return }
   if ((e.ctrlKey || e.metaKey) && key === 'o') { e.preventDefault(); triggerFilePick(); return }
-  if (e.altKey && key === 'h') { e.preventDefault(); headerOverrideEnabled.value = !headerOverrideEnabled.value; return }
-  if (e.altKey && key === 'n') { e.preventDefault(); addField(); return }
-  if (e.altKey && (key === 'backspace' || key === 'delete')) { e.preventDefault(); removeField(fieldRows.value.length - 1); return }
-  if (e.altKey && key === 'arrowup') { e.preventDefault(); moveField(fieldRows.value.length - 1, -1); return }
-  if (e.altKey && key === 'arrowdown') { e.preventDefault(); moveField(fieldRows.value.length - 1, 1); return }
-}
-
-/* --------------------- helpers --------------------- */
-function inferFieldTypeFromHeader(header: string): ColumnType {
-  // consistent heuristic with parser
-  return inferFieldTypeFromParser(header, header)
-}
-
-/* metadata → fields */
-function addMetadataAsFields(): void {
-  const blk = selectedBlock.value
-  if (!blk || blk.kind !== 'kv') return
-  const baseIndex = fieldRows.value.length
-  const rowsToAdd: FieldRow[] = blk.pairs.map((p, i) => ({
-    orderIndex: baseIndex + i + 1,
-    name: p.key,
-    required: false,
-    type: inferTypeFromSample(p.value)
-  }))
-  fieldRows.value = [...fieldRows.value, ...rowsToAdd]
-}
-
-/* ad-hoc value-based inference for metadata values */
-function inferTypeFromSample(sample: string): FieldType {
-  const s = (sample ?? '').trim()
-  if (!s) return 'text'
-  if (/^\d{4}-\d{2}-\d{2}(?:[ T]\d{2}:\d{2}(?::\d{2})?)?$/.test(s) || /^\d{1,2}\.\d{1,2}\.\s*\d{4}(?:\s+\d{1,2}:\d{2}:\d{2})?$/.test(s)) return 'date'
-  if (/^(true|false|1|0|yes|no|y|n|ano|ne|t|f)$/i.test(s)) return 'bool'
-  if (/\.(png|jpg|jpeg|tif|tiff|gif|csv|tsv|txt|pdf|xlsx)$/i.test(s) || /^(https?|s3|file):\/\//i.test(s)) return 'file'
-  const num = Number(s.replace(',', '.'))
-  if (Number.isFinite(num)) {
-    return Number.isInteger(num) ? 'int' : 'float'
+  // Alt+N přidá pole do POSLEDNÍHO vybraného bloku (je-li)
+  if (e.altKey && key === 'n') {
+    e.preventDefault()
+    const last = pickedBlocks.value[pickedBlocks.value.length - 1]
+    if (last) addFieldTo(last.id)
+    return
   }
-  return 'text'
-}
-
-/* field row ops */
-function addField(): void {
-  fieldRows.value = [
-    ...fieldRows.value,
-    {
-      orderIndex: fieldRows.value.length + 1,
-      name: '',
-      required: false,
-      type: 'text'
-    }
-  ]
-}
-function removeField(index: number): void {
-  if (index < 0 || index >= fieldRows.value.length) return
-  fieldRows.value.splice(index, 1)
-  // reindex
-  fieldRows.value = fieldRows.value.map((f, i) => ({ ...f, orderIndex: i + 1 }))
-}
-function moveField(index: number, delta: number): void {
-  const target = index + delta
-  if (index < 0 || index >= fieldRows.value.length) return
-  if (target < 0 || target >= fieldRows.value.length) return
-  const arr = fieldRows.value.slice()
-  const [row] = arr.splice(index, 1)
-  arr.splice(target, 0, row)
-  fieldRows.value = arr.map((f, i) => ({ ...f, orderIndex: i + 1 }))
 }
 </script>
 
@@ -584,4 +696,7 @@ function moveField(index: number, delta: number): void {
 .preview-header { font-weight: 600; }
 .mono-block { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; background:#fff; padding:8px; border:1px solid #e3e3e3; border-radius:6px; max-height:160px; overflow:auto; }
 .mono-line { font-family: inherit; white-space: nowrap; font-size: 12px; }
+.chip { display:inline-block; padding:2px 6px; border-radius:12px; background:#f2f2f2; margin-right:6px; margin-bottom:6px; font-size:12px; }
+.picked-block { border:1px solid #ececec; border-radius:8px; padding:10px; background:#fff; margin-bottom:12px; }
+.preview-sample { max-height:220px; overflow:auto; border:1px solid #ececec; padding:8px; border-radius:6px; background:#fff }
 </style>
