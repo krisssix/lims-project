@@ -155,6 +155,12 @@ function startCreateTemplate() {
   formFields.value = [{ id: `f-${Date.now()}`, type: 'float', required: true, name: 'Replika_1' }]
   formOpen.value = true
 }
+
+function openImportTemplate() {
+  templateFromClipboardOpen.value = true
+}
+
+
 function startEditTemplate(t: TemplateItem) {
   formMode.value = 'edit'
   selectedTemplateId.value = t.id
@@ -163,6 +169,8 @@ function startEditTemplate(t: TemplateItem) {
   formFields.value = t.fields.map(f => ({ ...f }))
   formOpen.value = true
 }
+
+
 async function saveTemplate(req: MeasurementTemplateRequest) {
   if (formMode.value === 'create') {
     const saved = await templatesStore.create(projectId, req)
@@ -354,8 +362,14 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onHotkeys))
         </v-col>
       </v-row>
 
-      <TemplatesOverviewDialog v-model="overviewOpen" :templates="templates" :selected-template-id="selectedTemplateId"
-                               @create="startCreateTemplate" @edit="startEditTemplate" />
+      <TemplatesOverviewDialog
+        v-model="overviewOpen"
+        :templates="templates"
+        :selected-template-id="selectedTemplateId"
+        @edit="startEditTemplate"
+        @createBlank="startCreateTemplate"
+        @createFromFile="openImportTemplate"
+      />
 
       <TemplateFormDialog
         v-model="formOpen"
@@ -368,7 +382,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onHotkeys))
         :allow-delete="formMode === 'edit'"
         @save="saveTemplate"
         @delete="askDeleteTemplate"
-        @pasteFromClipboard="() => { /* volitelné, napojte existující pasteTemplateFromClipboard() */ }"
+        @pasteFromClipboard="() => { templateFromClipboardOpen = true }"
       />
 
       <teleport to="body">
@@ -410,8 +424,11 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onHotkeys))
         </template>
       </MeasurementCreateDialog>
 
-      <TemplateFromClipboardDialog v-model="templateFromClipboardOpen" :devices="devices" :on-confirm="createTemplateFromClipboard" />
-
+      <TemplateFromClipboardDialog
+        v-model="templateFromClipboardOpen"
+        :devices="devices"
+        :on-confirm="createTemplateFromClipboard"
+      />
       <MeasurementDetailDialog
         v-model="detailOpen"
         :item="detailItem"

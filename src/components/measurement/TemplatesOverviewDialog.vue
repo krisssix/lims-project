@@ -13,6 +13,8 @@ const emits = defineEmits<{
   (e: 'update:modelValue', v: boolean): void
   (e: 'create'): void
   (e: 'edit', item: TemplateItem): void
+  (e: 'createBlank'): void
+  (e: 'createFromFile'): void
 }>()
 
 const search = ref<string>('')
@@ -74,22 +76,45 @@ watch(() => props.modelValue, (v) => { if (v) void focusSelected() })
             class="search flex-grow-1"
             clearable
           />
-          <v-btn
-            color="primary"
-            class="ml-3"
-            @click="emits('create')"
-          >
-            VYTVOŘIT ŠABLONU
-          </v-btn>
+          <!-- Split create button with actions -->
+          <v-menu location="bottom end" offset="6">
+            <template #activator="{ props: menuProps }">
+              <v-btn
+                color="primary"
+                class="ml-3"
+                v-bind="menuProps"
+                title="Nová šablona (Alt+B prázdná, Alt+I import)"
+              >
+                VYTVOŘIT ŠABLONU
+                <v-icon end icon="mdi-menu-down" class="ml-1" />
+              </v-btn>
+            </template>
+            <v-list density="comfortable">
+              <v-list-item
+                title="Prázdná šablona"
+                subtitle="Ruční definice polí"
+                @click="emits('createBlank')"
+              >
+                <template #prepend><v-icon icon="mdi-file-plus-outline" /></template>
+                <template #append><span class="text-caption text-medium-emphasis">Alt+B</span></template>
+              </v-list-item>
+              <v-divider class="my-1" />
+              <v-list-item
+                title="Import šablony ze souboru"
+                subtitle="CSV / TSV / TXT / Schránka"
+                @click="emits('createFromFile')"
+              >
+                <template #prepend><v-icon icon="mdi-file-import" /></template>
+                <template #append><span class="text-caption text-medium-emphasis">Alt+I</span></template>
+              </v-list-item>
+            </v-list>
+          </v-menu>
         </div>
       </div>
+
       <div class="table-header mt-3">
-        <div class="col-device text-caption text-medium-emphasis">
-          Přístroj
-        </div>
-        <div class="col-name text-caption text-medium-emphasis">
-          Název šablony
-        </div>
+        <div class="col-device text-caption text-medium-emphasis">Přístroj</div>
+        <div class="col-name text-caption text-medium-emphasis">Název šablony</div>
       </div>
     </template>
 
