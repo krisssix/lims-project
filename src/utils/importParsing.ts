@@ -102,6 +102,8 @@ export type ParserOptions = {
   headerScoreThreshold?: number
   /** Treat solitary numbers-per-line as a numeric series block */
   enableSeriesDetection?: boolean
+  /** Force a delimiter instead of auto-detection ('auto' = keep autodetect) */
+  delimiterOverride?: Delimiter | 'auto'
 }
 
 const DEFAULT_OPTS: Required<ParserOptions> = {
@@ -110,6 +112,7 @@ const DEFAULT_OPTS: Required<ParserOptions> = {
   mergeUnitsWithHeaders: true,
   headerScoreThreshold: 0.5,
   enableSeriesDetection: true,
+  delimiterOverride: 'auto',
 }
 
 /* ===================== Helpers ===================== */
@@ -507,7 +510,10 @@ export function analyzeClipboard(rawText: string, options?: ParserOptions): Anal
     const nonEmpty = b.lines.filter(l => safeTrim(l).length > 0)
     if (!nonEmpty.length) continue
 
-    const dd = detectDelimiter(nonEmpty.join('\n'), opts)
+    const dd =
+             opts.delimiterOverride !== 'auto'
+               ? ({ delim: opts.delimiterOverride as Delimiter, reason: 'User override' } as DetectedDelimiter)
+                 : detectDelimiter(nonEmpty.join('\n'), opts)
     const tokenRows = nonEmpty.map(l => smartSplit(l, dd).map(s => unquote(s)))
     delimiterGuesses.push({ blockIndex: bi, chosen: dd, competitors: [
         { delim: 'tab', score: /\t/.test(nonEmpty.join('\n')) ? 1 : 0 },

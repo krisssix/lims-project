@@ -45,6 +45,9 @@
             </template>
           </v-select>
 
+
+
+          <!-- Vložit ze schránky
           <v-btn
             variant="tonal"
             color="primary"
@@ -53,6 +56,28 @@
           >
             VLOŽIT ZE SCHRÁNKY
           </v-btn>
+          -->
+
+          <input
+            ref="fileInput"
+            type="file"
+            accept=".csv,.tsv,.txt,text/csv,text/tab-separated-values"
+            style="display:none"
+            @change="onFilePicked"
+          >
+          <v-select
+            v-model="delimiterOverrideModel"
+            :items="delimiterSelectItems"
+            item-title="label"
+            item-value="value"
+            :return-object="false"
+            label="Oddělovač"
+            density="comfortable"
+            variant="outlined"
+            hide-details
+            style="max-width: 220px"
+          />
+
           <v-btn
             variant="tonal"
             color="primary"
@@ -61,13 +86,6 @@
           >
             VYBRAT SOUBOR
           </v-btn>
-          <input
-            ref="fileInput"
-            type="file"
-            accept=".csv,.tsv,.txt,text/csv,text/tab-separated-values"
-            style="display:none"
-            @change="onFilePicked"
-          >
           <v-btn
             variant="text"
             class="ml-2"
@@ -77,6 +95,8 @@
             ANALYZOVAT
           </v-btn>
         </div>
+
+
 
         <!-- Raw input -->
         <v-textarea
@@ -182,6 +202,7 @@
             </tbody>
           </v-table>
         </div>
+
 
         <!-- Picked blocks (the template stack) -->
         <div
@@ -458,12 +479,83 @@
       </div>
     </template>
   </Dialog>
+
+  <!-- Delimiter picker modal -->
+  <Dialog
+    v-model:is-open="showDelimiterModal"
+    width="720px"
+    :hide-footer="true"
+  >
+    <template #content>
+      <div class="pa-4">
+        <div class="text-h6 mb-3">
+          CSV: vyber oddělovač
+        </div>
+
+        <div class="d-flex align-center ga-3 mb-3">
+          <v-select
+            v-model="modalDelimiter"
+            :items="delimiterSelectItems"
+            item-title="label"
+            item-value="value"
+            label="Oddělovač"
+            density="comfortable"
+            variant="outlined"
+            hide-details
+            style="max-width: 220px"
+          />
+          <div class="text-body-2">
+            Doporučeno: <strong>{{ delimiterSelectItems.find(i => i.value === modalDelimiter)?.label }}</strong>
+          </div>
+        </div>
+
+        <div class="preview-header mb-2">
+          Náhled
+        </div>
+        <v-table
+          density="compact"
+          class="mb-4"
+        >
+          <tbody>
+            <tr
+              v-for="(r, ri) in previewRows"
+              :key="`pv-${ri}`"
+            >
+              <td
+                v-for="(c, ci) in r"
+                :key="`pv-${ri}-${ci}`"
+                style="white-space:nowrap"
+              >
+                {{ c }}
+              </td>
+            </tr>
+          </tbody>
+        </v-table>
+
+        <div class="d-flex justify-end ga-2">
+          <v-btn
+            variant="text"
+            @click="cancelDelimiterChoice"
+          >
+            Zrušit
+          </v-btn>
+          <v-btn
+            color="primary"
+            @click="confirmDelimiterChoice"
+          >
+            Pokračovat
+          </v-btn>
+        </div>
+      </div>
+    </template>
+  </Dialog>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, nextTick, watch } from 'vue'
 import {
   analyzeClipboard,
+  type ParserOptions,
   type ColumnType,
   type AnalyzeResult,
   type TableBlock,
@@ -503,6 +595,18 @@ type TemplatePayload = {
   /** backward-compat: všechna pole napříč bloky, v pořadí bloků */
   fields: FieldRow[]
 }
+
+/** Delimiter override model + items (fixes missing refs) */
+type DelimiterOverride = 'auto' | 'tab' | 'semicolon' | 'comma' | 'pipe' | 'spaces'
+const delimiterOverrideModel = ref<DelimiterOverride>('auto')
+const delimiterSelectItems: Array<{ label: string; value: DelimiterOverride }> = [
+  { label: 'Auto', value: 'auto' },
+  { label: 'Tab', value: 'tab' },
+  { label: 'Středník ;', value: 'semicolon' },
+  { label: 'Čárka ,', value: 'comma' },
+  { label: 'Svislítko |', value: 'pipe' },
+  { label: 'Více mezer', value: 'spaces' },
+]
 
 const props = defineProps<{
   modelValue: boolean
@@ -557,51 +661,199 @@ watch(open, async (v) => {
     rawText.value = ''
     blocks.value = []
     pickedBlocks.value = []
+    delimiterOverrideModel.value = 'auto'
     await nextTick()
     document.querySelector<HTMLTextAreaElement>('[data-clipboard-input]')?.focus()
   }
+})
+
+watch(delimiterOverrideModel, () => {
+  if (rawText.value.trim().length > 0) runAnalysis()
 })
 
 /* --------------------- actions --------------------- */
 async function pasteFromClipboard(): Promise<void> {
   try {
     const txt = await navigator.clipboard.readText()
-    rawText.value = txt
+    rawText.value = normalizeNewlines(txt)
     runAnalysis()
   } catch {
     /* ignore */
   }
 }
 
+function normalizeNewlines(s: string): string {
+  // odstraň BOM, sjednoť CRLF a NBSP → mezera
+  return s.replace(/\uFEFF/g, '').replace(/\r\n?/g, '\n').replace(/\u00A0/g, ' ')
+}
+function countReplacementChars(s: string): number {
+  return (s.match(/\uFFFD/g) || []).length
+}
+function isMostlyPrintable(s: string): boolean {
+  const stripped = s.replace(/[\n\r\t ]+/g, '')
+  const nonPrintable = stripped.match(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g)?.length ?? 0
+  return nonPrintable < Math.max(4, Math.floor(stripped.length * 0.01))
+}
+
+type CandidateEncoding = 'utf-8' | 'windows-1250' | 'windows-1252' | 'iso-8859-2'
+type ScoredText = { text: string; score: number }
+
+/** Robustně načti text z File s autodetekcí kódování (UTF-8/16, CP1250/1252, ISO-8859-2) */
+async function readFileSmart(file: File): Promise<string> {
+  const buf = new Uint8Array(await file.arrayBuffer())
+
+  // BOM
+  if (buf.length >= 2 && buf[0] === 0xFF && buf[1] === 0xFE) {
+    return normalizeNewlines(new TextDecoder('utf-16le').decode(buf))
+  }
+  if (buf.length >= 2 && buf[0] === 0xFE && buf[1] === 0xFF) {
+    return normalizeNewlines(new TextDecoder('utf-16be').decode(buf))
+  }
+  if (buf.length >= 3 && buf[0] === 0xEF && buf[1] === 0xBB && buf[2] === 0xBF) {
+    return normalizeNewlines(new TextDecoder('utf-8').decode(buf))
+  }
+
+  // hodně nulových bajtů → UTF-16LE bez BOM (typické pro CSV z Excelu)
+  const zeroRatio = buf.filter(b => b === 0).length / Math.max(1, buf.length)
+  if (zeroRatio > 0.1) {
+    return normalizeNewlines(new TextDecoder('utf-16le').decode(buf))
+  }
+
+  // vyzkoušej více decoderů a vyber nejlepší (nejméně � a tisknutelné znaky)
+  const candidates: ReadonlyArray<CandidateEncoding> = ['utf-8', 'windows-1250', 'windows-1252', 'iso-8859-2']
+  let best: ScoredText = { text: '', score: Number.POSITIVE_INFINITY }
+
+  for (const enc of candidates) {
+    try {
+      const dec = new TextDecoder(enc, { fatal: false })
+      const text = normalizeNewlines(dec.decode(buf))
+      const score = countReplacementChars(text) + (isMostlyPrintable(text) ? 0 : 1000)
+      if (score < best.score) best = { text, score }
+      if (score === 0) break
+    } catch {
+      // prohlížeč nemusí dané kódování podporovat – přeskoč
+    }
+  }
+
+  // Fallback – aspoň něco (default 'utf-8')
+  return best.text || normalizeNewlines(new TextDecoder().decode(buf))
+}
+
+
+/* ===== Delimiter select modal – state ===== */
+  const showDelimiterModal = ref(false)
+  const uploadBufferText = ref<string>('')        // text CSV čekající na potvrzení
+  const modalDelimiter = ref<DelimiterOverride>('auto')
+  const previewRows = ref<string[][]>([])
+  const previewMaxRows = 8
+  const previewMaxCols = 12
+
+
+  watch(modalDelimiter, (d) => {
+      if (!showDelimiterModal.value) return
+      previewRows.value = tokenizeForPreview(uploadBufferText.value, d)
+      })
+
+function confirmDelimiterChoice(): void {
+  delimiterOverrideModel.value = modalDelimiter.value
+  rawText.value = uploadBufferText.value
+  showDelimiterModal.value = false
+  runAnalysis()
+}
+
+
+function cancelDelimiterChoice(): void {
+  showDelimiterModal.value = false
+  uploadBufferText.value = ''
+}
+
+function guessDelimiterFast(s: string): DelimiterOverride {
+     if (/\t/.test(s)) return 'tab'
+       const semi = (s.match(/;/g) || []).length
+       const comma = (s.match(/,/g) || []).length
+       const pipe = (s.match(/\|/g) || []).length
+       if (semi >= comma && semi >= pipe && semi > 0) return 'semicolon'
+       if (comma >= semi && comma >= pipe && comma > 0) return 'comma'
+       if (pipe > 0) return 'pipe'
+       if (/\s{2,}/.test(s)) return 'spaces'
+       return 'comma'
+      }
+
+
+  function splitCsvLine(line: string, sep: string): string[] {
+     const out: string[] = []
+       let cur = ''
+       let inQ = false
+       for (let i = 0; i < line.length; i++) {
+         const ch = line[i]
+           if (ch === '"') { if (inQ && line[i + 1] === '"') { cur += '"'; i++ } else inQ = !inQ; continue }
+         if (!inQ && ch === sep) { out.push(cur); cur = ''; continue }
+         cur += ch
+         }
+     out.push(cur)
+     return out
+      }
+
+
+  function tokenizeForPreview(text: string, delim: DelimiterOverride): string[][] {
+     const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0).slice(0, previewMaxRows)
+       const dd = delim
+       const sep =
+         dd === 'semicolon' ? ';' :
+           dd === 'comma' ? ',' :
+             dd === 'pipe' ? '|' :
+               dd === 'tab' ? '\t' : null
+               return lines.map(l => {
+           if (dd === 'spaces') return (/\s{2,}/.test(l) ? l.split(/\s{2,}/) : [l]).slice(0, previewMaxCols)
+             if (sep) return splitCsvLine(l, sep).slice(0, previewMaxCols)
+             return [l]
+           })
+      }
+
+
 function triggerFilePick(): void { fileInput.value?.click() }
 function onFilePicked(e: Event): void {
   const input = e.target as HTMLInputElement
   const f = input.files?.[0]
   if (!f) return
-  const reader = new FileReader()
-  reader.onload = () => {
-    const result = reader.result
-    if (typeof result === 'string') {
-      rawText.value = result
-      runAnalysis()
-    }
-    input.value = ''
-  }
-  reader.readAsText(f)
+  readFileSmart(f)
+    .then((text) => {
+     const isCsv = /\.csv$/i.test(f.name) || /text\/csv/i.test(f.type)
+     if (isCsv) {
+       uploadBufferText.value = text
+       modalDelimiter.value = guessDelimiterFast(text)
+       previewRows.value = tokenizeForPreview(text, modalDelimiter.value)
+       showDelimiterModal.value = true
+       } else {
+       rawText.value = text
+         runAnalysis()
+       }
+    })
+    .finally(() => { if (input) input.value = '' })
 }
 
+
+
 /* --------------------- parsing --------------------- */
+type ParserOptionsWithDelim = ParserOptions & { delimiterOverride?: Exclude<DelimiterOverride, 'auto'> }
+
 function runAnalysis(): void {
-  const a: AnalyzeResult = analyzeClipboard(rawText.value, {
+  const opts: ParserOptionsWithDelim = {
     preferDecimalComma: true,
     acceptMarkdownTables: true,
     mergeUnitsWithHeaders: true,
-  })
+  }
+  if (delimiterOverrideModel.value !== 'auto') {
+    opts.delimiterOverride = delimiterOverrideModel.value
+  }
+  const a: AnalyzeResult = analyzeClipboard(rawText.value, opts)
   blocks.value = a.blocks
   if (a.headersRaw && a.headersRaw.length && templateName.value === 'Nová šablona') {
     templateName.value = a.headersRaw[0] ?? templateName.value
   }
 }
+
+
 
 /* --------------------- picked blocks ops --------------------- */
 function kindLabel(k: PickedBlock['kind'] | TableBlock['kind'] | StatsBlock['kind'] | SeriesBlock['kind'] | KvBlock['kind']): string {
