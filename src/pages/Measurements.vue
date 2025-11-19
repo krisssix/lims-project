@@ -3,12 +3,11 @@ import { computed, ref, onMounted, nextTick, watch, onBeforeUnmount } from 'vue'
 import { useRoute } from 'vue-router'
 import LeftFiltersPanel from '@/components/LeftFiltersPanel.vue'
 import Dialog from '@/components/Dialog.vue'
-import TemplateFromClipboardDialog from '@/components/import/TemplateFromClipboardDialog.vue'
 import RepeatSetsControls from '@/components/import/RepeatSetControls.vue'
-
 import MeasurementTable from '@/components/measurement/MeasurementTable.vue'
 import TemplatesOverviewDialog from '@/components/measurement/TemplatesOverviewDialog.vue'
-import TemplateFormDialog from '@/components/measurement/TemplateFormDialog.vue'
+/*  import TemplateFormDialog from '@/components/measurement/TemplateFormDialog.vue'*/
+/*  import TemplateFromClipboardDialog from '@/components/import/TemplateFromClipboardDialog.vue'*/
 import MeasurementCreateDialog from '@/components/measurement/MeasurementCreateDialog.vue'
 import MeasurementDetailDialog from '@/components/measurement/MeasurementDetailDialog.vue'
 
@@ -148,13 +147,6 @@ const formDeviceId = ref<string>('')
 const formFields = ref<FieldRow[]>([])
 
 function openOverview() { overviewOpen.value = true }
-function startCreateTemplate() {
-  formMode.value = 'create'
-  formName.value = ''
-  formDeviceId.value = devices.value[0]?.id || ''
-  formFields.value = [{ id: `f-${Date.now()}`, type: 'float', required: true, name: 'Replika_1' }]
-  formOpen.value = true
-}
 
 function openImportTemplate() {
   templateFromClipboardOpen.value = true
@@ -203,18 +195,41 @@ async function confirmDeleteTemplate() {
   }
 }
 
+const templateWizardOpen = ref(false)
+const wizardMode = ref<'empty' | 'import'>('empty')
+
+function startCreateTemplate() {
+  wizardMode.value = 'empty'
+  templateWizardOpen.value = true
+}
+
+function startCreateTemplateFromFile() {
+  wizardMode.value = 'import'
+  templateWizardOpen.value = true
+}
 /* Template ze schránky dialog (rychlé vytvoření) */
 const templateFromClipboardOpen = ref(false)
-async function createTemplateFromClipboard(payload: { deviceCode: string; templateName: string; fields: Array<{ orderIndex: number; type: FieldRow['type']; required: boolean; name: string }> }) {
-  const req: MeasurementTemplateRequest = { name: payload.templateName.trim() || 'Šablona', deviceCode: payload.deviceCode, fields: payload.fields }
+async function createTemplateFromClipboard(payload: {
+  deviceCode: string
+  templateName: string
+  fields: Array<{ orderIndex: number; type: FieldRow['type']; required: boolean; name: string }>
+}) {
+  const req: MeasurementTemplateRequest = {
+    name: payload.templateName.trim() || 'Šablona',
+    deviceCode: payload.deviceCode,
+    fields: payload.fields
+  }
   const saved = await templatesStore.create(projectId, req)
   await templatesStore.fetchByProject(projectId)
-  // preselect + otevři create měření
+
+  // preselect + rovnou „nové měření“
   metaSelectedDevice.value = payload.deviceCode
   metaSelectedTemplateId.value = String(saved.id)
-  templateFromClipboardOpen.value = false
+
+  templateWizardOpen.value = false
   measurementCreateOpen.value = true
 }
+
 
 /* Vytvoření měření */
 const measurementCreateOpen = ref(false)
@@ -371,18 +386,11 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onHotkeys))
         @createFromFile="openImportTemplate"
       />
 
-      <TemplateFormDialog
-        v-model="formOpen"
-        :mode="formMode"
+      <TemplateWizardDialog
+        v-model="templateWizardOpen"
         :devices="devices"
-        :init-name="formName"
-        :init-device-id="formDeviceId"
-        :init-fields="formFields"
-        :deleting="deleteTemplateLoading"
-        :allow-delete="formMode === 'edit'"
-        @save="saveTemplate"
-        @delete="askDeleteTemplate"
-        @pasteFromClipboard="() => { templateFromClipboardOpen = true }"
+        :initial-mode="wizardMode"
+        :on-confirm="createTemplateFromClipboard"
       />
 
       <teleport to="body">
@@ -424,11 +432,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onHotkeys))
         </template>
       </MeasurementCreateDialog>
 
-      <TemplateFromClipboardDialog
-        v-model="templateFromClipboardOpen"
-        :devices="devices"
-        :on-confirm="createTemplateFromClipboard"
-      />
+
       <MeasurementDetailDialog
         v-model="detailOpen"
         :item="detailItem"

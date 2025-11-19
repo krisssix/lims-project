@@ -41,6 +41,7 @@ const TYPE_LABEL: Record<ValueType, string> = {
 }
 
 const rows = ref<ValueRow[]>([])
+const expandedRows = ref<Set<string>>(new Set())
 const dateYmd = ref<string>('')
 const timeHM = ref<string>('')
 
@@ -102,6 +103,8 @@ function buildFrom(item: MeasurementResponse | null) {
       value: item?.value ?? null
     }]
   }
+  // default expand all
+  expandedRows.value = new Set(rows.value.map(r => r.id))
 
   // timestamp
   const ts = (typeof item?.timestamp === 'number')
@@ -213,6 +216,121 @@ const canSaveMeta = computed(() =>
   !!selectedDeviceId.value
 )
 
+// Visualization & statistics (per current measurement)
+const numericFieldNames = computed<string[]>(() =>
+  rows.value
+    .filter(r => r.type === 'float' || r.type === 'int')
+    .map(r => r.name)
+)
+const selectedField = ref<string | null>(null)
+
+// Collapsible sections (meta / values / stats)
+const metaCollapsed = ref<boolean>(false)
+const valuesCollapsed = ref<boolean>(false)
+const statsCollapsed = ref<boolean>(false)
+
+function toggleMeta() { metaCollapsed.value = !metaCollapsed.value }
+function toggleValues() { valuesCollapsed.value = !valuesCollapsed.value }
+function toggleStats() { statsCollapsed.value = !statsCollapsed.value }
+
+function toNumber(val: unknown, integer = false): number | null {
+  if (val === '' || val == null) return null
+  const s = String(val).replace(',', '.').trim()
+  if (!s.length) return null
+  const n = integer ? parseInt(s, 10) : parseFloat(s)
+  return Number.isFinite(n) ? n : null
+}
+
+const chartPoints = computed<number[]>(() => {
+  const nums: number[] = []
+  for (const r of rows.value) {
+    if (r.type !== 'float' && r.type !== 'int') continue
+    if (selectedField.value && r.name !== selectedField.value) continue
+    const n = toNumber(r.value, r.type === 'int')
+    if (n != null) nums.push(n)
+  }
+  return nums
+})
+
+function mean(xs: number[]): number { return xs.length ? xs.reduce((a,b) => a+b, 0) / xs.length : NaN }
+function median(xs: number[]): number {
+  if (!xs.length) return NaN
+  const s = [...xs].sort((a,b)=>a-b)
+  const n = s.length
+  return n % 2 === 1 ? s[(n-1)/2] : (s[n/2-1] + s[n/2]) / 2
+}
+function stdDev(xs: number[]): number {
+  if (xs.length <= 1) return 0
+  const m = mean(xs)
+  const v = xs.reduce((acc, x) => acc + (x - m) * (x - m), 0) / (xs.length - 1)
+  return Math.sqrt(v)
+}
+const statsObj = computed(() => {
+  const xs = chartPoints.value
+  if (!xs.length) return null as null | { mean:number; median:number; stdDev:number; min:number; max:number; count:number }
+  return {
+    mean: mean(xs),
+    median: median(xs),
+    stdDev: stdDev(xs),
+    min: Math.min(...xs),
+    max: Math.max(...xs),
+    count: xs.length,
+  }
+})
+
+function onSelectField(field: string) {
+  selectedField.value = field
+}
+
+function exportSelectedCsv() {
+  const rowsOut: string[] = ['name;value']
+  for (const r of rows.value) {
+    if (r.type !== 'float' && r.type !== 'int') continue
+    if (selectedField.value && r.name !== selectedField.value) continue
+    const n = toNumber(r.value, r.type === 'int')
+    if (n != null) {
+      const safeName = String(r.name).replace(/;/g, ',')
+      rowsOut.push(`${safeName};${n}`)
+    }
+  }
+  const blob = new Blob([rowsOut.join('\n')], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = selectedField.value ? `measurement-field-${selectedField.value}.csv` : 'measurement-numeric.csv'
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+function isExpanded(row: ValueRow): boolean { return expandedRows.value.has(row.id) }
+function toggleRow(row: ValueRow) {
+  const set = new Set(expandedRows.value)
+  if (set.has(row.id)) set.delete(row.id)
+  else set.add(row.id)
+  expandedRows.value = set
+}
+function previewValue(row: ValueRow): string {
+  const v = row.value as unknown
+  switch (row.type) {
+    case 'float':
+    case 'int': {
+      const n = typeof v === 'number' ? v : (v == null ? null : parseFloat(String(v).replace(',', '.')))
+      return n == null || Number.isNaN(n) ? '—' : String(n)
+    }
+    case 'bool': return v === true ? 'Ano' : (v === false ? 'Ne' : '—')
+    case 'date': {
+      const ms = typeof v === 'number' ? v : (typeof v === 'string' ? Date.parse(v) : NaN)
+      return Number.isFinite(ms) ? new Date(ms).toISOString().slice(0,10) : '—'
+    }
+    case 'file': return (v && (v as { name?: string }).name) ? String((v as { name?: string }).name) : '—'
+    case 'text':
+    default: {
+      const s = v == null ? '' : String(v)
+      return s.trim().length ? s : '—'
+    }
+  }
+}
+
 async function onSave() {
   if (!props.item) return
   if (!canSaveMeta.value) return
@@ -273,212 +391,373 @@ async function onSave() {
       />
     </template>
 
+    <div class="section-toggle-bar mb-3 d-flex align-center ga-2">
+      <v-btn
+        size="x-small"
+        variant="tonal"
+        :color="metaCollapsed ? '' : 'primary'"
+        @click="toggleMeta"
+      >
+        Meta
+      </v-btn>
+      <v-btn
+        size="x-small"
+        variant="tonal"
+        :color="valuesCollapsed ? '' : 'primary'"
+        @click="toggleValues"
+      >
+        Hodnoty
+      </v-btn>
+      <v-btn
+        size="x-small"
+        variant="tonal"
+        :color="statsCollapsed ? '' : 'primary'"
+        @click="toggleStats"
+      >
+        Statistika
+      </v-btn>
+    </div>
+
     <div
-      v-if="item"
-      class="mb-3"
-    >
-      <v-row class="g-4">
-        <v-col
-          cols="12"
-          md="4"
-        >
-          <v-select
-            v-model="selectedUsername"
-            :items="members"
-            label="Člen"
-            variant="outlined"
-            density="comfortable"
-            hide-details="auto"
-            clearable
-            :hint="!selectedUsername ? 'Vyplňte autora měření' : undefined"
-            persistent-hint
-          />
-        </v-col>
-
-        <v-col
-          cols="12"
-          md="4"
-        >
-          <v-select
-            v-model="selectedDeviceId"
-            :items="devices"
-            item-title="name"
-            item-value="id"
-            label="Přístroj"
-            variant="outlined"
-            density="comfortable"
-            hide-details="auto"
-          >
-            <template #selection="{ item }">
-              <v-chip
-                size="small"
-                :color="item.raw?.color"
-                text-color="white"
-              >
-                {{ item.raw?.id }}
-              </v-chip>
-            </template>
-          </v-select>
-        </v-col>
-
-        <v-col
-          cols="12"
-          md="4"
-        >
-          <v-select
-            v-model="selectedTemplateName"
-            :items="templates"
-            item-title="name"
-            item-value="name"
-            label="Šablona"
-            variant="outlined"
-            density="comfortable"
-            hide-details="auto"
-            clearable
-          />
-        </v-col>
-
-        <v-col cols="12">
-          <v-textarea
-            v-model="noteText"
-            label="Poznámka"
-            variant="outlined"
-            density="comfortable"
-            auto-grow
-            rows="2"
-            hide-details="auto"
-          />
-        </v-col>
-      </v-row>
-    </div>
-
-    <div class="text-subtitle-2 mb-2">
-      Upravit hodnoty
-    </div>
-    <div class="grid header-row">
-      <div class="cell muted">
-        Poř.č.
-      </div>
-      <div class="cell muted">
-        Název pole
-      </div>
-      <div class="cell muted">
-        Vstupní prvek
-      </div>
-    </div>
-
-    <transition-group
-      name="fade-y"
-      tag="div"
+      class="detail-scroll"
+      style="height:720px; overflow:auto; padding-right:4px;"
     >
       <div
-        v-for="(row, idx) in rows"
-        :key="row.id"
-        class="grid data-row"
+        v-if="item"
+        class="mb-3"
       >
-        <div class="cell index">
-          {{ idx + 1 }}
-        </div>
-
-        <div class="cell name name-with-chip">
-          <span class="name-text">{{ row.name }}</span>
-          <v-chip
-            size="x-small"
-            color="primary"
-            variant="tonal"
-            class="type-chip"
-          >
-            {{ TYPE_LABEL[row.type] }}
-          </v-chip>
-        </div>
-
-        <div class="cell value">
-          <v-switch
-            v-if="row.type === 'bool'"
-            :model-value="row.value === true"
-            color="deep-purple"
-            hide-details
-            inset
-            density="comfortable"
-            @update:model-value="val => updateRowValue(row, val)"
-          />
-          <v-text-field
-            v-else-if="row.type === 'int'"
-            :model-value="row.value as string | number | null | undefined"
-            type="text"
-            inputmode="numeric"
-            variant="outlined"
-            density="comfortable"
-            hide-details="auto"
-            placeholder="123"
-            @update:model-value="val => updateRowValue(row, val)"
-          />
-          <v-text-field
-            v-else-if="row.type === 'float'"
-            :model-value="row.value as string | number | null | undefined"
-            type="text"
-            inputmode="decimal"
-            variant="outlined"
-            density="comfortable"
-            hide-details="auto"
-            placeholder="123,45"
-            @update:model-value="val => updateRowValue(row, val)"
-          />
-          <v-text-field
-            v-else-if="row.type === 'date'"
-            :model-value="false ? new Date(row.value as number).toISOString().slice(0,10) : (row.value as string | null | undefined)"
-            type="date"
-            variant="outlined"
-            density="comfortable"
-            hide-details="auto"
-            @update:model-value="val => updateRowValue(row, val)"
-          />
-          <v-file-input
-            v-else-if="row.type === 'file'"
-            :model-value="row.value as File | null | undefined"
-            density="comfortable"
-            hide-details="auto"
-            variant="outlined"
-            accept="image/*,.csv,.txt,.pdf"
-            show-size
-            @update:model-value="val => updateRowValue(row, (Array.isArray(val) ? val[0] : val))"
-          />
-          <v-text-field
-            v-else
-            :model-value="row.value as string | number | null | undefined"
-            type="text"
-            variant="outlined"
-            density="comfortable"
-            hide-details="auto"
-            placeholder="Text…"
-            @update:model-value="val => updateRowValue(row, val)"
-          />
-        </div>
-
-        <div class="cell right">
-          <v-tooltip
-            v-if="valueError(row)"
-            location="top"
-          >
-            <template #activator="{ props }">
-              <v-icon
-                v-bind="props"
-                size="18"
-                color="error"
-                icon="mdi-alert-circle-outline"
-              />
-            </template>
-            <span>{{ valueError(row) }}</span>
-          </v-tooltip>
+        <div
+          class="d-flex align-center mb-2"
+          style="gap:4px"
+        >
           <v-icon
-            v-else
-            size="18"
-            color="green-darken-2"
-            icon="mdi-check-circle-outline"
+            size="16"
+            color="grey-darken-2"
+          >
+            mdi-information-outline
+          </v-icon>
+          <span class="text-caption text-medium-emphasis">Metadata měření</span>
+          <v-spacer />
+          <v-btn
+            size="x-small"
+            variant="text"
+            :icon="metaCollapsed ? 'mdi-chevron-down' : 'mdi-chevron-up'"
+            @click="toggleMeta"
           />
+        </div>
+        <div v-show="!metaCollapsed">
+          <v-row class="g-4">
+            <v-col
+              cols="12"
+              md="4"
+            >
+              <v-select
+                v-model="selectedUsername"
+                :items="members"
+                label="Člen"
+                variant="outlined"
+                density="comfortable"
+                hide-details="auto"
+                clearable
+                :hint="!selectedUsername ? 'Vyplňte autora měření' : undefined"
+                persistent-hint
+              />
+            </v-col>
+            <v-col
+              cols="12"
+              md="4"
+            >
+              <v-select
+                v-model="selectedDeviceId"
+                :items="devices"
+                item-title="name"
+                item-value="id"
+                label="Přístroj"
+                variant="outlined"
+                density="comfortable"
+                hide-details="auto"
+              >
+                <template #selection="{ item }">
+                  <v-chip
+                    size="small"
+                    :color="item.raw?.color"
+                    text-color="white"
+                  >
+                    {{ item.raw?.id }}
+                  </v-chip>
+                </template>
+              </v-select>
+            </v-col>
+            <v-col
+              cols="12"
+              md="4"
+            >
+              <v-select
+                v-model="selectedTemplateName"
+                :items="templates"
+                item-title="name"
+                item-value="name"
+                label="Šablona"
+                variant="outlined"
+                density="comfortable"
+                hide-details="auto"
+                clearable
+              />
+            </v-col>
+            <v-col cols="12">
+              <v-textarea
+                v-model="noteText"
+                label="Poznámka"
+                variant="outlined"
+                density="comfortable"
+                auto-grow
+                rows="2"
+                hide-details="auto"
+              />
+            </v-col>
+          </v-row>
         </div>
       </div>
-    </transition-group>
+
+      <div
+        class="text-subtitle-2 mb-2 d-flex align-center"
+        style="gap:6px;"
+      >
+        <span>Upravit hodnoty</span>
+        <v-spacer />
+        <v-btn
+          size="x-small"
+          variant="text"
+          :icon="valuesCollapsed ? 'mdi-chevron-down' : 'mdi-chevron-up'"
+          @click="toggleValues"
+        />
+      </div>
+      <div v-show="!valuesCollapsed">
+        <div class="grid header-row">
+          <div class="cell muted">
+            Poř.č.
+          </div>
+          <div class="cell muted">
+            Název pole
+          </div>
+          <div class="cell muted">
+            Vstupní prvek
+          </div>
+        </div>
+
+        <transition-group
+          name="fade-y"
+          tag="div"
+        >
+          <div
+            v-for="(row, idx) in rows"
+            :key="row.id"
+            class="grid data-row"
+          >
+            <div
+              class="cell index d-flex align-center justify-center"
+              style="gap:6px"
+            >
+              <v-btn
+                icon
+                size="x-small"
+                variant="text"
+                :title="isExpanded(row) ? 'Sbalit' : 'Rozbalit'"
+                @click.stop="toggleRow(row)"
+              >
+                <v-icon
+                  :icon="isExpanded(row) ? 'mdi-chevron-up' : 'mdi-chevron-down'"
+                  size="18"
+                />
+              </v-btn>
+              <span>{{ idx + 1 }}</span>
+            </div>
+
+            <div class="cell name name-with-chip">
+              <span class="name-text">{{ row.name }}</span>
+              <div class="cell value">
+                <div
+                  v-if="!isExpanded(row)"
+                  class="text-medium-emphasis"
+                  style="padding: 6px 0;"
+                >
+                  {{ previewValue(row) }}
+                </div>
+                <v-chip
+                  v-show="isExpanded(row)"
+                  color="primary"
+                  variant="tonal"
+                  class="type-chip"
+                >
+                  {{ TYPE_LABEL[row.type] }}
+                </v-chip>
+              </div>
+            </div>
+
+            <div class="cell value">
+              <template v-if="isExpanded(row)">
+                <v-switch
+                  v-if="row.type === 'bool'"
+                  :model-value="row.value === true"
+                  color="deep-purple"
+                  hide-details
+                  inset
+                  density="comfortable"
+                  @update:model-value="val => updateRowValue(row, val)"
+                />
+                <v-text-field
+                  v-else-if="row.type === 'int'"
+                  v-show="isExpanded(row)"
+                  :model-value="row.value as string | number | null | undefined"
+                  type="text"
+                  inputmode="numeric"
+                  variant="outlined"
+                  density="comfortable"
+                  hide-details="auto"
+                  placeholder="123"
+                  @update:model-value="val => updateRowValue(row, val)"
+                />
+                <v-text-field
+                  v-else-if="row.type === 'float'"
+                  v-show="isExpanded(row)"
+                  :model-value="row.value as string | number | null | undefined"
+                  type="text"
+                  inputmode="decimal"
+                  variant="outlined"
+                  density="comfortable"
+                  hide-details="auto"
+                  placeholder="123,45"
+                  @update:model-value="val => updateRowValue(row, val)"
+                />
+                <v-text-field
+                  v-else-if="row.type === 'date'"
+                  v-show="isExpanded(row)"
+                  :model-value="false ? new Date(row.value as number).toISOString().slice(0,10) : (row.value as string | null | undefined)"
+                  type="date"
+                  variant="outlined"
+                  density="comfortable"
+                  hide-details="auto"
+                  @update:model-value="val => updateRowValue(row, val)"
+                />
+                <v-file-input
+                  v-else-if="row.type === 'file'"
+                  v-show="isExpanded(row)"
+                  :model-value="row.value as File | null | undefined"
+                  density="comfortable"
+                  hide-details="auto"
+                  variant="outlined"
+                  accept="image/*,.csv,.txt,.pdf"
+                  show-size
+                  @update:model-value="val => updateRowValue(row, (Array.isArray(val) ? val[0] : val))"
+                />
+                <v-text-field
+                  v-else
+                  :model-value="row.value as string | number | null | undefined"
+                  type="text"
+                  variant="outlined"
+                  density="comfortable"
+                  hide-details="auto"
+                  placeholder="Text…"
+                  @update:model-value="val => updateRowValue(row, val)"
+                />
+              </template>
+            </div>
+
+            <div class="cell right">
+              <v-tooltip
+                v-if="valueError(row)"
+                location="top"
+              >
+                <template #activator="{ props }">
+                  <v-icon
+                    v-bind="props"
+                    size="18"
+                    color="error"
+                    icon="mdi-alert-circle-outline"
+                  />
+                </template>
+                <span>{{ valueError(row) }}</span>
+              </v-tooltip>
+              <v-icon
+                v-else
+                size="18"
+                color="green-darken-2"
+                icon="mdi-check-circle-outline"
+              />
+            </div>
+          </div>
+        </transition-group>
+      </div>
+
+      <div
+        class="text-subtitle-2 mt-6 mb-2 d-flex align-center"
+        style="gap:6px;"
+      >
+        <span>Vizualizace / Statistika</span>
+        <v-spacer />
+        <v-btn
+          size="x-small"
+          variant="text"
+          :icon="statsCollapsed ? 'mdi-chevron-down' : 'mdi-chevron-up'"
+          @click="toggleStats"
+        />
+      </div>
+      <v-sheet
+        v-show="!statsCollapsed"
+        elevation="1"
+        class="pa-4 rounded-lg"
+      >
+        <div
+          class="d-flex align-center mb-3"
+          style="gap: 8px; flex-wrap: wrap;"
+        >
+          <div class="text-caption mr-2">
+            Numerická pole:
+          </div>
+          <div
+            class="d-flex align-center"
+            style="gap: 6px; flex-wrap: wrap;"
+          >
+            <v-chip
+              v-for="(f, i) in numericFieldNames"
+              :key="`${f}-${i}`"
+              :color="selectedField === f ? 'primary' : undefined"
+              variant="tonal"
+              size="small"
+              @click="onSelectField(f)"
+            >
+              {{ f }}
+            </v-chip>
+            <v-chip
+              v-if="numericFieldNames.length > 1"
+              :color="!selectedField ? 'primary' : undefined"
+              variant="tonal"
+              size="small"
+              @click="selectedField = null"
+            >
+              Vše
+            </v-chip>
+          </div>
+
+          <v-spacer />
+          <v-btn
+            size="small"
+            variant="text"
+            @click="exportSelectedCsv"
+          >
+            Export CSV
+          </v-btn>
+        </div>
+
+        <ChartPanel
+          :chart-points="chartPoints"
+          :stats="statsObj"
+          :fields="numericFieldNames"
+          :selected-field="selectedField"
+          @select-field="onSelectField"
+        />
+      </v-sheet>
+    </div>
   </EntityEditorDialog>
 </template>
 
@@ -497,4 +776,5 @@ async function onSave() {
 .name-with-chip { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
 .name-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .type-chip { font-weight: 600; letter-spacing: .02em; text-transform: none; }
+.detail-scroll { box-sizing: border-box; }
 </style>

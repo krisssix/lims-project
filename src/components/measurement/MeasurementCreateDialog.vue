@@ -4,6 +4,13 @@ import Dialog from '@/components/Dialog.vue'
 import { type DeviceItem, type TemplateItem, type ValueRow, type ValueType } from '@/types/measurement-ui'
 import { type MeasurementRequest, type MeasuredValue } from '@/stores/measurement'
 
+function onKeydownInt(e: KeyboardEvent) {
+  allowNumberKeypress(e, true)
+}
+function onKeydownFloat(e: KeyboardEvent) {
+  allowNumberKeypress(e, false)
+}
+
 const props = defineProps<{
   modelValue: boolean
   devices: DeviceItem[]
@@ -22,13 +29,22 @@ const emits = defineEmits<{
 const step = ref<1|2>(1)
 const saving = ref(false)
 
+function fileModel(row: ValueRow): File | null {
+  const v = row.value
+  if (!v) return null
+  return Array.isArray(v) ? (v[0] ?? null) : (v as File)
+}
+
+
 const selectedDevice = ref<string>('')
 const selectedTemplateId = ref<string | null>(null)
 const TYPE_LABEL: Record<ValueType, string> = { float:'Float', int:'Integer', text:'Text', file:'Image', bool:'Boolean', date:'Date' }
 
+
 const valuesRows = ref<ValueRow[]>([])
 const focusedIndex = ref<number | null>(null)
 const inputEls = ref<(HTMLInputElement | HTMLTextAreaElement | null)[]>([])
+const expandedRows = ref<Set<string>>(new Set())
 function setInputRef(idx: number, el: Element | { $el?: Element } | null) {
   const root: Element | null =
     el && typeof el === 'object' && '$el' in el && el.$el instanceof HTMLElement
@@ -41,7 +57,7 @@ function focusInput(idx: number) {
   const el = inputEls.value[idx]
   if (el) {
     el.focus()
-    if ('selectionStart' in el && typeof (el as HTMLInputElement | HTMLTextAreaElement).value === 'string') {
+    if ('selectionStart' in el) {
       const inp = el as HTMLInputElement | HTMLTextAreaElement
       const len = inp.value.length
       inp.setSelectionRange(len, len)
@@ -61,6 +77,7 @@ function initDialog() {
   valuesRows.value = []
   focusedIndex.value = null
   inputEls.value = []
+  expandedRows.value = new Set()
 }
 
 function close() { emits('update:modelValue', false) }
@@ -78,6 +95,8 @@ function goToStep2() {
     required: f.required,
     value: f.type === 'file' ? null : (f.type === 'bool' ? null : '')
   }))
+  // expand all by default to keep current UX
+  expandedRows.value = new Set(valuesRows.value.map(r => r.id))
   step.value = 2
   nextTick(() => focusInput(0))
 }
@@ -162,6 +181,39 @@ function valueError(row: ValueRow): string | null {
   }
 }
 const canSave = computed(() => valuesRows.value.every(v => !valueError(v)))
+
+function isExpanded(row: ValueRow): boolean { return expandedRows.value.has(row.id) }
+function toggleRow(row: ValueRow) {
+  const set = new Set(expandedRows.value)
+  if (set.has(row.id)) set.delete(row.id)
+  else set.add(row.id)
+  expandedRows.value = set
+}
+
+function previewValue(row: ValueRow): string {
+  const v = row.value as unknown
+  switch (row.type) {
+    case 'float':
+    case 'int': {
+      const n = parseNumber(v, row.type === 'int')
+      return n == null ? '—' : String(n)
+    }
+    case 'bool': {
+      const b = normalizeBool(v)
+      return b == null ? '—' : (b ? 'Ano' : 'Ne')
+    }
+    case 'date': {
+      const ms = typeof v === 'number' ? v : (typeof v === 'string' ? Date.parse(v) : NaN)
+      return Number.isFinite(ms) ? new Date(ms).toISOString().slice(0,10) : '—'
+    }
+    case 'file': return (v && (v as { name?: string }).name) ? String((v as { name?: string }).name) : '—'
+    case 'text':
+    default: {
+      const s = v == null ? '' : String(v)
+      return s.trim().length ? s : '—'
+    }
+  }
+}
 
 async function pasteFromClipboard() {
   try {
@@ -324,15 +376,6 @@ watch(() => props.modelValue, (v) => {
           >
             Vytvořte si ji.
           </v-btn>
-          <v-btn
-            variant="text"
-            color="primary"
-            class="ml-1 px-1"
-            title="Šablona ze schránky"
-            @click="() => emits('createTemplateFromClipboard')"
-          >
-            Šablona ze schránky
-          </v-btn>
         </v-alert>
       </div>
     </template>
@@ -379,8 +422,23 @@ watch(() => props.modelValue, (v) => {
           :key="row.id"
           class="grid data-row"
         >
-          <div class="cell index">
-            {{ idx + 1 }}
+          <div
+            class="cell index d-flex align-center justify-center"
+            style="gap:6px"
+          >
+            <v-btn
+              icon
+              size="x-small"
+              variant="text"
+              :title="isExpanded(row) ? 'Sbalit' : 'Rozbalit'"
+              @click.stop="toggleRow(row)"
+            >
+              <v-icon
+                :icon="isExpanded(row) ? 'mdi-chevron-up' : 'mdi-chevron-down'"
+                size="18"
+              />
+            </v-btn>
+            <span>{{ idx + 1 }}</span>
           </div>
 
           <div class="cell name name-with-chip">
@@ -396,8 +454,16 @@ watch(() => props.modelValue, (v) => {
           </div>
 
           <div class="cell value">
+            <div
+              v-if="!isExpanded(row)"
+              class="text-medium-emphasis"
+              style="padding: 6px 0;"
+            >
+              {{ previewValue(row) }}
+            </div>
             <v-switch
               v-if="row.type === 'bool'"
+              v-show="isExpanded(row)"
               :model-value="row.value === true"
               color="deep-purple"
               hide-details
@@ -410,6 +476,7 @@ watch(() => props.modelValue, (v) => {
 
             <v-text-field
               v-else-if="row.type === 'int'"
+              v-show="isExpanded(row)"
               :ref="(el) => setInputRef(idx, el)"
               :model-value="row.value"
               :color="focusedIndex === idx ? 'deep-purple' : undefined"
@@ -421,12 +488,13 @@ watch(() => props.modelValue, (v) => {
               placeholder="123"
               :autofocus="idx === 0"
               @focus="focusedIndex = idx"
-              @keydown="(e) => { allowNumberKeypress(e, true) }"
+              @keydown="onKeydownInt"
               @update:model-value="val => updateRowValue(row, val)"
             />
 
             <v-text-field
               v-else-if="row.type === 'float'"
+              v-show="isExpanded(row)"
               :ref="(el) => setInputRef(idx, el)"
               :model-value="row.value"
               :color="focusedIndex === idx ? 'deep-purple' : undefined"
@@ -438,16 +506,17 @@ watch(() => props.modelValue, (v) => {
               placeholder="123,45"
               :autofocus="idx === 0"
               @focus="focusedIndex = idx"
-              @keydown="(e) => { allowNumberKeypress(e, false) }"
+              @keydown="onKeydownFloat"
               @update:model-value="val => updateRowValue(row, val)"
             />
 
             <v-text-field
               v-else-if="row.type === 'date'"
+              v-show="isExpanded(row)"
               :ref="(el) => setInputRef(idx, el)"
               :model-value="typeof row.value === 'number'
-            ? new Date(row.value).toISOString().slice(0, 10)
-            : row.value"
+                ? new Date(row.value).toISOString().slice(0, 10)
+                : row.value"
               :color="focusedIndex === idx ? 'deep-purple' : undefined"
               type="date"
               variant="outlined"
@@ -459,8 +528,9 @@ watch(() => props.modelValue, (v) => {
 
             <v-file-input
               v-else-if="row.type === 'file'"
+              v-show="isExpanded(row)"
               :ref="(el) => setInputRef(idx, el)"
-              :model-value="row.value"
+              :model-value="fileModel(row)"
               :color="focusedIndex === idx ? 'deep-purple' : undefined"
               density="comfortable"
               hide-details="auto"
@@ -473,6 +543,7 @@ watch(() => props.modelValue, (v) => {
 
             <v-text-field
               v-else
+              v-show="isExpanded(row)"
               :ref="(el) => setInputRef(idx, el)"
               :model-value="row.value"
               :color="focusedIndex === idx ? 'deep-purple' : undefined"
