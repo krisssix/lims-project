@@ -371,21 +371,27 @@ const hoverYValueLabel = computed<string | null>(() => {
         variant="tonal"
         title="Přepnout mřížku"
         @click="showGrid = !showGrid"
-      >Mřížka</v-btn>
+      >
+        Mřížka
+      </v-btn>
       <v-btn
         size="x-small"
         :color="showMean ? 'primary' : ''"
         variant="tonal"
         title="Přepnout mean linku"
         @click="showMean = !showMean"
-      >Mean</v-btn>
+      >
+        Mean
+      </v-btn>
       <v-btn
         size="x-small"
         :color="showHover ? 'primary' : ''"
         variant="tonal"
         title="Přepnout hover overlay"
         @click="showHover = !showHover"
-      >Hover</v-btn>
+      >
+        Hover
+      </v-btn>
     </div>
 
     <v-sheet
@@ -398,7 +404,7 @@ const hoverYValueLabel = computed<string | null>(() => {
         preserveAspectRatio="none"
         :aria-label="ariaLabelFor('LINE')"
         role="img"
-        style="width: 100%; height: 100%"
+        style="width: 50%; height: 100%"
         @mousemove="onMouseMoveLine"
         @mouseleave="onMouseLeaveLine"
       >
@@ -512,7 +518,7 @@ const hoverYValueLabel = computed<string | null>(() => {
           :points="sparkPoints"
           fill="none"
           stroke="#3f51b5"
-          stroke-width="2"
+          stroke-width="1"
           stroke-linecap="round"
           stroke-linejoin="round"
         />
@@ -597,7 +603,7 @@ const hoverYValueLabel = computed<string | null>(() => {
         preserveAspectRatio="none"
         :aria-label="ariaLabelFor('SCATTER')"
         role="img"
-        style="width: 100%; height: 100%"
+        style="width: 50%;; height: 100%"
         @mousemove="onMouseMoveLine"
         @mouseleave="onMouseLeaveLine"
       >
@@ -779,7 +785,7 @@ const hoverYValueLabel = computed<string | null>(() => {
         preserveAspectRatio="none"
         :aria-label="ariaLabelFor('HISTOGRAM')"
         role="img"
-        style="width: 100%; height: 100%"
+        style="width: 50%;; height: 100%"
         @mousemove="onMouseMoveHist"
         @mouseleave="onMouseLeaveHist"
       >
@@ -923,7 +929,7 @@ const hoverYValueLabel = computed<string | null>(() => {
         preserveAspectRatio="none"
         :aria-label="ariaLabelFor('BOXPLOT')"
         role="img"
-        style="width: 100%; height: 100%; cursor: crosshair"
+        style="width: 50%;; height: 100%; cursor: crosshair"
         @mousemove="onMouseMoveBox"
         @mouseleave="onMouseLeaveBox"
       >
@@ -1113,6 +1119,6 @@ const hoverYValueLabel = computed<string | null>(() => {
   height: 260px;
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: left;
 }
 </style>
