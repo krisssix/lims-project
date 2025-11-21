@@ -1,25 +1,25 @@
 <script setup lang="ts">
-import { ref, watch, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
+
+
+import { ref, watch, computed, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import EntityEditorDialog from '@/components/EntityEditorDialog.vue'
 import ChartPanel from '@/components/measurement/ChartPanel.vue'
-import { type DeviceItem, type ValueRow, type ValueType, type TemplateItem } from '@/types/measurement-ui'
+import { type DeviceItem, type ValueType, type TemplateItem } from '@/types/measurement-ui'
 import { type MeasurementResponse, type MeasuredValue } from '@/stores/measurement'
+import {
+  groupValuesToRecords,
+  flattenRecords,
+  newRecordFromTemplateFields,
+  duplicateRecord,
+  extractSeries,
+  computeBasicStats,
+  detectOutliersIqr,
+  validateField,
+  type MeasurementRecord,
+  type RecordField
+} from '@/utils/measurement-record-helpers'
 
-/**
- * Measurement detail dialog – profesionální LIMS UX.
- * - Klávesové zkratky:
- *   Esc                Zavřít dialog
- *   Ctrl+S             Uložit
- *   Ctrl+ArrowLeft     Předchozí měření
- *   Ctrl+ArrowRight    Další měření
- *   Alt+M / Alt+V / Alt+S  Přepnout sekci Meta / Values / Stats
- *   Alt+E              Expand all hodnoty
- *   Alt+C              Collapse all hodnoty
- *   Alt+ArrowUp/Down   Navigace mezi řádky hodnot
- *   Ctrl+E             Export aktuální numerické hodnoty do CSV
- *   Enter              (v poli) potvrzuje editaci – zůstává fokus
- */
-
+/* ---------- Props / Emits ---------- */
 const props = defineProps<{
   modelValue: boolean
   item: MeasurementResponse | null
@@ -56,23 +56,18 @@ const TYPE_LABEL: Record<ValueType, string> = {
   date: 'Datum'
 }
 
-/* ---------- Stav ---------- */
-const rows = ref<ValueRow[]>([])
-const expandedRows = ref<Set<string>>(new Set())
-
+/* ---------- Meta stav ---------- */
 const selectedTemplateName = ref<string>('')
 const selectedDeviceId = ref<string>('')
 const selectedUsername = ref<string | null>(null)
 const noteText = ref<string>('')
 
-const dateYmd = ref<string>('')    // YYYY-MM-DD
-const timeHM = ref<string>('')     // HH:MM
+/* ---------- Timestamp ---------- */
+const dateYmd = ref<string>('')
+const timeHM = ref<string>('')
 
-/* ---------- Pomocné funkce pro datum ---------- */
 function pad2(n: number): string { return String(n).padStart(2, '0') }
-function toYmdLocal(d: Date): string {
-  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`
-}
+function toYmdLocal(d: Date): string { return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}` }
 function hmFromMs(ms: number): string {
   const d = new Date(ms)
   return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`
@@ -88,55 +83,34 @@ function setHM(base: Date, hm: string): Date {
   return d
 }
 
-// Helpers to avoid TS unions in <template>
-const textModel = (row: ValueRow): string | number | null | undefined =>
-  (row.value ?? null) as string | number | null | undefined
+/* ---------- Records ---------- */
+const records = ref<MeasurementRecord[]>([])
+const currentRecordIndex = ref<number>(1)
+const selectedRecordIndexes = ref<Set<number>>(new Set())
 
-const dateModel = (row: ValueRow): string | null =>
-  typeof row.value === 'number'
-    ? new Date(row.value).toISOString().slice(0, 10)
-    : (row.value as string | null | undefined) ?? null
+function ensureCurrentRecordExists(): void {
+  if (!records.value.length) return
+  const idx = records.value.findIndex(r => r.recordIndex === currentRecordIndex.value)
+  if (idx === -1) currentRecordIndex.value = records.value[0]!.recordIndex
+}
 
-const fileModel = (row: ValueRow): File | null | undefined =>
-  (row.value as File | null | undefined)
+function templateFieldsForCurrent(): Array<{ name: string; type: ValueType; required: boolean }> {
+  if (records.value.length) {
+    return records.value[0]!.fields.map(f => ({ name: f.name, type: f.type, required: f.required }))
+  }
+  const tpl = props.templates.find(t => t.name === selectedTemplateName.value)
+  return (tpl?.fields ?? []).map(f => ({ name: f.name, type: f.type as ValueType, required: f.required }))
+}
 
-
-/* ---------- Inicializace z MeasurementResponse ---------- */
+/* ---------- Build z MeasurementResponse ---------- */
 function buildFrom(item: MeasurementResponse | null): void {
-  rows.value = []
+  records.value = []
   if (!item) return
 
   selectedTemplateName.value = item.type || ''
   selectedDeviceId.value = item.unit || ''
   selectedUsername.value = item.measuredByUsername ?? props.currentUsername ?? null
   noteText.value = item.note ?? ''
-
-  const now = Date.now()
-  if (Array.isArray(item.values) && item.values.length > 0) {
-    rows.value = item.values.map((v, i) => ({
-      id: `val-${v.orderIndex}-${now}-${i}`,
-      order: v.orderIndex ?? (i + 1),
-      name: v.name,
-      type: v.type as ValueType,
-      required: true,
-      value:
-        v.type === 'float' || v.type === 'int' ? v.numberValue ?? null :
-          v.type === 'text' ? v.textValue ?? '' :
-            v.type === 'bool' ? (typeof v.boolValue === 'boolean' ? v.boolValue : null) :
-              v.type === 'date' ? v.dateValue ?? null :
-                v.fileUrl ?? null
-    }))
-  } else {
-    rows.value = [{
-      id: `val-single-${now}`,
-      order: 1,
-      name: 'Hodnota',
-      type: 'float',
-      required: true,
-      value: item?.value ?? null
-    }]
-  }
-  expandedRows.value = new Set(rows.value.map(r => r.id))
 
   const tsRaw = typeof item.timestamp === 'number'
     ? item.timestamp
@@ -145,12 +119,134 @@ function buildFrom(item: MeasurementResponse | null): void {
   const dt = new Date(ts)
   dateYmd.value = toYmdLocal(dt)
   timeHM.value = hmFromMs(ts)
+
+  const vals = item.values ?? []
+  if (vals.length) {
+    records.value = groupValuesToRecords(vals)
+  } else {
+    const tplFields = templateFieldsForCurrent()
+    if (tplFields.length) {
+      records.value = [newRecordFromTemplateFields(1, tplFields)]
+    } else {
+      records.value = [{
+        recordIndex: 1,
+        fields: [{
+          name: 'Hodnota',
+          type: 'float',
+          required: true,
+          value: item.value ?? null
+        }]
+      }]
+    }
+  }
+
+  currentRecordIndex.value = records.value[0]?.recordIndex ?? 1
+  selectedRecordIndexes.value = new Set(records.value.map(r => r.recordIndex))
+  rebuildDerived()
 }
 watch(() => props.item, v => buildFrom(v), { immediate: true })
 
-/* ---------- Parsování hodnot ---------- */
+/* ---------- Derived ---------- */
+const currentRecord = computed<MeasurementRecord | null>(() =>
+  records.value.find(r => r.recordIndex === currentRecordIndex.value) ?? null
+)
+
+const numericFieldNames = computed<string[]>(() =>
+  Array.from(new Set(
+    records.value.flatMap(r =>
+      r.fields.filter(f => f.type === 'float' || f.type === 'int').map(f => f.name)
+    )
+  ))
+)
+
+const selectedField = ref<string | null>(null)
+
+/* ---------- Validace ---------- */
+function validateAll(): number {
+  let invalid = 0
+  records.value.forEach(r =>
+    r.fields.forEach(f => { if (validateField(f)) invalid++ })
+  )
+  return invalid
+}
+const invalidCount = ref<number>(0)
+
+function rebuildDerived(): void {
+  invalidCount.value = validateAll()
+  if (!selectedField.value && numericFieldNames.value.length) {
+    selectedField.value = numericFieldNames.value[0]!
+  }
+}
+
+/* ---------- Record operations ---------- */
+function addNewRecord(): void {
+  const nextIndex = (records.value.length
+    ? Math.max(...records.value.map(r => r.recordIndex)) + 1
+    : 1)
+  const tplFields = templateFieldsForCurrent()
+  const rec = newRecordFromTemplateFields(nextIndex, tplFields)
+  records.value.push(rec)
+  currentRecordIndex.value = rec.recordIndex
+  selectedRecordIndexes.value.add(rec.recordIndex)
+  rebuildDerived()
+  focusFirstFieldSoon()
+}
+
+function duplicateCurrentRecord(): void {
+  if (!currentRecord.value) return
+  const nextIndex = Math.max(...records.value.map(r => r.recordIndex)) + 1
+  const dup = duplicateRecord(currentRecord.value, nextIndex)
+  records.value.push(dup)
+  currentRecordIndex.value = dup.recordIndex
+  selectedRecordIndexes.value.add(dup.recordIndex)
+  rebuildDerived()
+  focusFirstFieldSoon()
+}
+
+function deleteCurrentRecord(): void {
+  if (records.value.length <= 1) return
+  const idx = records.value.findIndex(r => r.recordIndex === currentRecordIndex.value)
+  if (idx === -1) return
+  records.value.splice(idx, 1)
+  ensureCurrentRecordExists()
+  selectedRecordIndexes.value.delete(currentRecordIndex.value)
+  if (!selectedRecordIndexes.value.size) {
+    records.value.forEach(r => selectedRecordIndexes.value.add(r.recordIndex))
+  }
+  rebuildDerived()
+}
+
+function toPrevRecord(): void {
+  const sorted = records.value.map(r => r.recordIndex).sort((a,b)=>a-b)
+  const pos = sorted.indexOf(currentRecordIndex.value)
+  if (pos > 0) {
+    currentRecordIndex.value = sorted[pos - 1]!
+    focusFirstFieldSoon()
+  }
+}
+function toNextRecord(): void {
+  const sorted = records.value.map(r => r.recordIndex).sort((a,b)=>a-b)
+  const pos = sorted.indexOf(currentRecordIndex.value)
+  if (pos < sorted.length - 1) {
+    currentRecordIndex.value = sorted[pos + 1]!
+    focusFirstFieldSoon()
+  }
+}
+
+function toggleRecordSelection(rIndex: number, multi: boolean): void {
+  if (multi) {
+    if (selectedRecordIndexes.value.has(rIndex)) selectedRecordIndexes.value.delete(rIndex)
+    else selectedRecordIndexes.value.add(rIndex)
+    if (!selectedRecordIndexes.value.size) selectedRecordIndexes.value.add(rIndex)
+  } else {
+    currentRecordIndex.value = rIndex
+  }
+  rebuildDerived()
+}
+
+/* ---------- Field value editing ---------- */
 function parseNumber(raw: unknown, integer = false): number | null {
-  if (raw === '' || raw == null) return null
+  if (raw == null || raw === '') return null
   const s = String(raw).replace(',', '.').trim()
   if (!s.length) return null
   const n = integer ? parseInt(s, 10) : parseFloat(s)
@@ -164,195 +260,62 @@ function normalizeBool(raw: unknown): boolean | null {
   if (['0','false','ne','n','no','f'].includes(s)) return false
   return null
 }
-function updateRowValue(row: ValueRow, raw: unknown): void {
-  switch (row.type) {
-    case 'float': row.value = parseNumber(raw, false); break
-    case 'int': row.value = parseNumber(raw, true); break
-    case 'bool': row.value = normalizeBool(raw); break
+function updateField(field: RecordField, raw: unknown): void {
+  switch (field.type) {
+    case 'float': field.value = parseNumber(raw, false); break
+    case 'int': field.value = parseNumber(raw, true); break
+    case 'bool': field.value = normalizeBool(raw); break
     case 'date': {
-      if (raw === null || raw === '') { row.value = null; break }
-      if (typeof raw === 'number') { row.value = raw; break }
+      if (raw === null || raw === '') { field.value = null; break }
+      if (typeof raw === 'number') { field.value = raw; break }
       if (typeof raw === 'string') {
         const m = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/)
         if (m) {
           const y = +m[1]; const mo = +m[2]; const d = +m[3]
-          row.value = new Date(y, mo - 1, d, 0, 0, 0, 0).getTime()
+          field.value = new Date(y, mo - 1, d, 0, 0, 0, 0).getTime()
         } else {
           const ms = Date.parse(raw)
-          row.value = Number.isNaN(ms) ? null : ms
+          field.value = Number.isNaN(ms) ? null : ms
         }
         break
       }
       if (raw instanceof Date) {
-        row.value = new Date(raw.getFullYear(), raw.getMonth(), raw.getDate(), 0, 0, 0, 0).getTime()
+        field.value = new Date(raw.getFullYear(), raw.getMonth(), raw.getDate(), 0, 0, 0, 0).getTime()
         break
       }
-      row.value = null
+      field.value = null
       break
     }
-    case 'file': row.value = raw; break
-    default: row.value = raw ?? ''
+    case 'file': field.value = raw; break
+    case 'text':
+    default: field.value = raw ?? ''
   }
+  invalidCount.value = validateAll()
 }
 
-/* ---------- Validace ---------- */
-function valueError(row: ValueRow): string | null {
-  if (!row.required) return null
-  switch (row.type) {
-    case 'bool': return (row.value === true || row.value === false) ? null : 'Vyžadováno'
-    case 'float': return parseNumber(row.value, false) !== null ? null : 'Neplatné číslo'
-    case 'int': return parseNumber(row.value, true) !== null ? null : 'Neplatné celé číslo'
-    case 'date': {
-      const v = row.value
-      const ms = typeof v === 'number' ? v : (typeof v === 'string' ? Date.parse(v) : NaN)
-      return Number.isFinite(ms) ? null : 'Neplatné datum'
-    }
-    case 'file': return row.value != null ? null : 'Vyžadován soubor'
-    default: return row.value != null && String(row.value).trim().length > 0 ? null : 'Vyžadováno'
-  }
+/* ---------- Helpers pro template (bez unionů) ---------- */
+function textModel(field: RecordField): string | number | null | undefined {
+  return (field.value ?? null) as string | number | null | undefined
 }
-const invalidByRow = computed<number>(() =>
-  rows.value.reduce((acc, r) => acc + (valueError(r) ? 1 : 0), 0)
-)
-const canSaveMeta = computed<boolean>(() =>
-  !!selectedTemplateName.value.trim() &&
-  !!selectedDeviceId.value &&
-  invalidByRow.value === 0
-)
-
-/* ---------- Výstavba payloadu ---------- */
-function buildMeasuredValues(list: ValueRow[]): MeasuredValue[] {
-  return list.map((r, idx) => {
-    const base: MeasuredValue = { orderIndex: r.order ?? (idx + 1), name: r.name, type: r.type }
-    switch (r.type) {
-      case 'float':
-      case 'int': return { ...base, numberValue: parseNumber(r.value, r.type === 'int') }
-      case 'text': return { ...base, textValue: r.value != null ? String(r.value) : '' }
-      case 'bool': return { ...base, boolValue: normalizeBool(r.value) }
-      case 'date': {
-        const raw = r.value
-        const ts = typeof raw === 'number' ? raw : (typeof raw === 'string' ? Date.parse(raw) : NaN)
-        return { ...base, dateValue: Number.isFinite(ts) ? ts : null }
-      }
-      case 'file': {
-        const name = (r as unknown as { value?: { name?: string } })?.value?.name ?? null
-        return { ...base, fileUrl: name }
-      }
-      default: return base
-    }
-  })
+function dateModel(field: RecordField): string | null {
+  return typeof field.value === 'number'
+    ? new Date(field.value).toISOString().slice(0, 10)
+    : (field.value as string | null | undefined) ?? null
 }
-
-/* ---------- Sekce + souhrny ---------- */
-const valuesCount = computed<number>(() => rows.value.length)
-const numericCount = computed<number>(() =>
-  rows.value.filter(r => r.type === 'float' || r.type === 'int').length
-)
-
-const metaSummary = computed<string[]>(() => {
-  const dev = props.devices.find(d => d.id === selectedDeviceId.value)
-  const devTxt = dev ? (dev.name ?? dev.id) : (selectedDeviceId.value || '—')
-  const userTxt = selectedUsername.value ?? '—'
-  const tplTxt = selectedTemplateName.value || '—'
-  return [`Uživatel: ${userTxt}`, `Přístroj: ${devTxt}`, `Šablona: ${tplTxt}`]
-})
-const valuesSummary = computed<string[]>(() => {
-  const invalid = invalidByRow.value
-  const total = valuesCount.value
-  return [
-    `Položky: ${total}`,
-    `Neplatných: ${invalid}`
-  ]
-})
-
-/* ---------- Statistiky ---------- */
-const numericFieldNames = computed<string[]>(() =>
-  rows.value.filter(r => r.type === 'float' || r.type === 'int').map(r => r.name)
-)
-const selectedField = ref<string | null>(null)
-
-function toNumber(raw: unknown, integer = false): number | null {
-  return parseNumber(raw, integer)
+function fileModel(field: RecordField): File | null | undefined {
+  return field.value as File | null | undefined
 }
-const chartPoints = computed<number[]>(() => {
-  const out: number[] = []
-  for (const r of rows.value) {
-    if (r.type !== 'float' && r.type !== 'int') continue
-    if (selectedField.value && r.name !== selectedField.value) continue
-    const n = toNumber(r.value, r.type === 'int')
-    if (n != null) out.push(n)
-  }
-  return out
-})
-
-function mean(arr: number[]): number { return arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : NaN }
-function median(arr: number[]): number {
-  if (!arr.length) return NaN
-  const s = [...arr].sort((a,b)=>a-b)
-  const n = s.length
-  return n % 2 ? s[(n-1)/2] : (s[n/2-1] + s[n/2]) / 2
+function fieldError(field: RecordField): string | null {
+  return validateField(field)
 }
-function std(arr: number[]): number {
-  if (arr.length <= 1) return 0
-  const m = mean(arr)
-  const v = arr.reduce((a,b)=>a+(b-m)*(b-m),0)/(arr.length-1)
-  return Math.sqrt(v)
-}
-
-const statsObj = computed<{
-  mean: number; median: number; stdDev: number; min: number; max: number; count: number
-} | null>(() => {
-  const xs = chartPoints.value
-  if (!xs.length) return null
-  return {
-    mean: mean(xs),
-    median: median(xs),
-    stdDev: std(xs),
-    min: Math.min(...xs),
-    max: Math.max(...xs),
-    count: xs.length
-  }
-})
-
-const statsSummary = computed<string[]>(() => {
-  if (!numericCount.value) return ['Bez numerických dat']
-  const s = statsObj.value
-  return s
-    ? [`N=${s.count}`, `μ=${s.mean.toFixed(2)}`, `σ=${s.stdDev.toFixed(2)}`]
-    : [`Numerických polí: ${numericCount.value}`]
-})
-
-/* ---------- Collapsible sekce ---------- */
-const metaCollapsed = ref<boolean>(false)
-const valuesCollapsed = ref<boolean>(false)
-const statsCollapsed = ref<boolean>(false)
-function toggleMeta(): void { metaCollapsed.value = !metaCollapsed.value }
-function toggleValues(): void { valuesCollapsed.value = !valuesCollapsed.value }
-function toggleStats(): void { statsCollapsed.value = !statsCollapsed.value }
-function expandAllValues(): void {
-  expandedRows.value = new Set(rows.value.map(r => r.id))
-  valuesCollapsed.value = false
-}
-function collapseAllValues(): void {
-  expandedRows.value = new Set()
-}
-
-/* ---------- Řádkové rozbalení ---------- */
-function isExpanded(row: ValueRow): boolean { return expandedRows.value.has(row.id) }
-function toggleRow(row: ValueRow): void {
-  const s = new Set(expandedRows.value)
-  if (s.has(row.id)) s.delete(row.id)
-  else s.add(row.id)
-  expandedRows.value = s
-}
-
-/* ---------- Preview hodnoty pro sbalený řádek ---------- */
-function previewValue(row: ValueRow): string {
-  const v = row.value
-  switch (row.type) {
+function previewValue(field: RecordField): string {
+  const v = field.value
+  switch (field.type) {
     case 'float':
     case 'int': {
-      const num = typeof v === 'number' ? v : (v == null ? null : parseFloat(String(v).replace(',', '.')))
+      const num = typeof v === 'number'
+        ? v
+        : (v == null ? null : parseNumber(v, field.type === 'int'))
       return num == null || Number.isNaN(num) ? '—' : String(num)
     }
     case 'bool': return v === true ? 'Ano' : (v === false ? 'Ne' : '—')
@@ -363,51 +326,88 @@ function previewValue(row: ValueRow): string {
     case 'file':
       return (v && (v as { name?: string }).name) ? String((v as { name?: string }).name) : '—'
     case 'text':
-    default:
-      return (v == null || String(v).trim() === '') ? '—' : String(v).trim()
+    default: {
+      const s = v == null ? '' : String(v).trim()
+      return s.length ? s : '—'
+    }
   }
 }
 
-/* ---------- Export ---------- */
-function exportSelectedCsv(): void {
-  const lines: string[] = ['name;value']
-  for (const r of rows.value) {
-    if (r.type !== 'float' && r.type !== 'int') continue
-    if (selectedField.value && r.name !== selectedField.value) continue
-    const n = toNumber(r.value, r.type === 'int')
-    if (n != null) {
-      lines.push(`${String(r.name).replace(/;/g, ',')};${n}`)
-    }
-  }
-  const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = selectedField.value ? `measurement-${selectedField.value}.csv` : 'measurement-numeric.csv'
-  a.click()
-  URL.revokeObjectURL(url)
+/* ---------- Sekce collapsible ---------- */
+const metaCollapsed = ref(false)
+const valuesCollapsed = ref(false)
+const statsCollapsed = ref(false)
+function toggleMeta(): void { metaCollapsed.value = !metaCollapsed.value }
+function toggleValues(): void { valuesCollapsed.value = !valuesCollapsed.value }
+function toggleStats(): void { statsCollapsed.value = !statsCollapsed.value }
+
+/* ---------- Expand/Collapse všech fieldů ---------- */
+const expandedFields = ref<Set<string>>(new Set())
+function expandAllValues(): void {
+  if (!currentRecord.value) return
+  expandedFields.value = new Set(currentRecord.value.fields.map(f => f.name))
+  valuesCollapsed.value = false
 }
+function collapseAllValues(): void {
+  expandedFields.value = new Set()
+}
+function isExpanded(field: RecordField): boolean {
+  return expandedFields.value.has(field.name)
+}
+function toggleField(field: RecordField): void {
+  const next = new Set(expandedFields.value)
+  if (next.has(field.name)) next.delete(field.name)
+  else next.add(field.name)
+  expandedFields.value = next
+}
+
+/* ---------- Statistiky & graf ---------- */
+const chartPoints = computed<number[]>(() => {
+  if (!selectedField.value) return []
+  const subset = selectedRecordIndexes.value.size
+    ? Array.from(selectedRecordIndexes.value)
+    : records.value.map(r => r.recordIndex)
+  const subsetRecords = records.value.filter(r => subset.includes(r.recordIndex))
+  return extractSeries(subsetRecords, selectedField.value)
+})
+const statsObj = computed(() => computeBasicStats(chartPoints.value))
+const outliers = computed(() => detectOutliersIqr(chartPoints.value))
+const statsSummary = computed<string[]>(() => {
+  if (!numericFieldNames.value.length) return ['Bez numerických dat']
+  if (!statsObj.value) return ['Numerická pole: ' + numericFieldNames.value.length]
+  const s = statsObj.value
+  return [`N=${s.count}`, `μ=${s.mean.toFixed(2)}`, `σ=${s.stdDev.toFixed(2)}`]
+})
 
 /* ---------- Uložení ---------- */
 const isSaving = ref(false)
+const canSaveMeta = computed(() =>
+  !!selectedTemplateName.value.trim() &&
+  !!selectedDeviceId.value &&
+  invalidCount.value === 0
+)
+
 async function onSave(): Promise<void> {
   if (!props.item || !canSaveMeta.value) return
   isSaving.value = true
   try {
-    const firstNumeric = rows.value
-      .filter(v => v.type === 'float' || v.type === 'int')
-      .map(v => parseNumber(v.value, v.type === 'int'))
+    const firstNumeric = records.value
+      .flatMap(r => r.fields)
+      .filter(f => f.type === 'float' || f.type === 'int')
+      .map(f => parseNumber(f.value, f.type === 'int'))
       .find(n => Number.isFinite(n as number))
 
     const baseDay = dateYmd.value ? normalizeToDate(dateYmd.value) : new Date()
     const tsMs = setHM(baseDay, timeHM.value || '00:00').getTime()
 
     emits('save', {
-      value: Number.isFinite(firstNumeric as number) ? (firstNumeric as number) : (props.item.value ?? 0),
+      value: Number.isFinite(firstNumeric as number)
+        ? (firstNumeric as number)
+        : (props.item.value ?? 0),
       type: selectedTemplateName.value,
       unit: selectedDeviceId.value,
       timestamp: tsMs,
-      values: buildMeasuredValues(rows.value),
+      values: flattenRecords(records.value),
       boardCardId: props.item.boardCardId ?? null,
       note: noteText.value.trim() ? noteText.value.trim() : null,
       measuredByUsername: selectedUsername.value?.trim() || null
@@ -417,63 +417,121 @@ async function onSave(): Promise<void> {
   }
 }
 
-/* ---------- Klávesové zkratky ---------- */
-let lastFocusedIndex = -1
-function focusRowInput(idx: number): void {
+/* ---------- Export CSV ---------- */
+function exportSelectedCsv(): void {
+  if (!selectedField.value) return
+  const subset = selectedRecordIndexes.value.size
+    ? Array.from(selectedRecordIndexes.value).sort((a,b)=>a-b)
+    : records.value.map(r => r.recordIndex).sort((a,b)=>a-b)
+  const rows: string[] = ['recordIndex;value']
+  subset.forEach(ri => {
+    const rec = records.value.find(r => r.recordIndex === ri)
+    if (!rec) return
+    const f = rec.fields.find(ff => ff.name === selectedField.value)
+    if (!f) return
+    if (f.type === 'float' || f.type === 'int') {
+      const num = parseNumber(f.value, f.type === 'int')
+      if (num != null) rows.push(`${ri};${num}`)
+    } else if (f.type === 'text') {
+      const num = parseNumber(f.value, false)
+      if (num != null) rows.push(`${ri};${num}`)
+    }
+  })
+  const blob = new Blob([rows.join('\n')], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `measurement-${selectedField.value}-records.csv`
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+/* ---------- Keyboard shortcuts ---------- */
+let lastFocusedFieldIndex = -1
+function focusFirstFieldSoon(): void {
   nextTick(() => {
-    const el = document.querySelectorAll<HTMLElement>('[data-value-input]')[idx]
+    const el = document.querySelector<HTMLElement>('[data-field-input]')
+    el?.focus()
+    lastFocusedFieldIndex = 0
+  })
+}
+function focusFieldByIndex(idx: number): void {
+  nextTick(() => {
+    const els = document.querySelectorAll<HTMLElement>('[data-field-input]')
+    const el = els[idx]
     if (el) {
       el.focus()
-      lastFocusedIndex = idx
+      lastFocusedFieldIndex = idx
     }
   })
 }
+
 function handleKey(e: KeyboardEvent): void {
   if (!props.modelValue) return
   const key = e.key.toLowerCase()
   const ctrl = e.ctrlKey || e.metaKey
   const alt = e.altKey
+  const shift = e.shiftKey
 
-  // Dialog level
-  if (key === 'escape') {
-    e.preventDefault()
-    emits('update:modelValue', false)
-    return
-  }
-  if (ctrl && key === 's') {
-    e.preventDefault()
-    void onSave()
-    return
-  }
-  if (ctrl && key === 'arrowleft') {
-    e.preventDefault(); emits('prev'); return
-  }
-  if (ctrl && key === 'arrowright') {
-    e.preventDefault(); emits('next'); return
-  }
+  if (key === 'escape') { e.preventDefault(); emits('update:modelValue', false); return }
+  if (ctrl && key === 's') { e.preventDefault(); void onSave(); return }
+  if (ctrl && key === 'arrowleft') { e.preventDefault(); emits('prev'); return }
+  if (ctrl && key === 'arrowright') { e.preventDefault(); emits('next'); return }
 
-  // Section toggles
   if (alt && key === 'm') { e.preventDefault(); toggleMeta(); return }
   if (alt && key === 'v') { e.preventDefault(); toggleValues(); return }
   if (alt && key === 's') { e.preventDefault(); toggleStats(); return }
   if (alt && key === 'e') { e.preventDefault(); expandAllValues(); return }
   if (alt && key === 'c') { e.preventDefault(); collapseAllValues(); return }
 
-  // Export
-  if (ctrl && key === 'e') {
+  if (ctrl && key === 'e') { e.preventDefault(); exportSelectedCsv(); return }
+
+  if (alt && key === 'arrowleft') { e.preventDefault(); toPrevRecord(); return }
+  if (alt && key === 'arrowright') { e.preventDefault(); toNextRecord(); return }
+
+  if (alt && /^[1-9]$/.test(key)) {
     e.preventDefault()
-    exportSelectedCsv()
+    const num = parseInt(key, 10)
+    const has = records.value.some(r => r.recordIndex === num)
+    if (has) {
+      if (shift) {
+        toggleRecordSelection(num, true)
+      } else {
+        currentRecordIndex.value = num
+        focusFirstFieldSoon()
+      }
+    }
     return
   }
 
-  // Row navigation (Alt+ArrowUp/Down nebo prosté Arrow když ve vstupu)
+  if (ctrl && shift && key === 'n') { e.preventDefault(); addNewRecord(); return }
+  if (ctrl && key === 'd') { e.preventDefault(); duplicateCurrentRecord(); return }
+  if (ctrl && shift && key === 'delete') { e.preventDefault(); deleteCurrentRecord(); return }
+
   if (alt && (key === 'arrowdown' || key === 'arrowup')) {
+    if (valuesCollapsed.value) return
     e.preventDefault()
-    const max = rows.value.length - 1
-    if (lastFocusedIndex < 0) lastFocusedIndex = 0
-    if (key === 'arrowdown') lastFocusedIndex = Math.min(max, lastFocusedIndex + 1)
-    else lastFocusedIndex = Math.max(0, lastFocusedIndex - 1)
-    focusRowInput(lastFocusedIndex)
+    if (!currentRecord.value) return
+    const max = currentRecord.value.fields.length - 1
+    if (lastFocusedFieldIndex < 0) lastFocusedFieldIndex = 0
+    if (key === 'arrowdown') lastFocusedFieldIndex = Math.min(max, lastFocusedFieldIndex + 1)
+    else lastFocusedFieldIndex = Math.max(0, lastFocusedFieldIndex - 1)
+    focusFieldByIndex(lastFocusedFieldIndex)
+    return
+  }
+
+  if (alt && key === 'f') {
+    e.preventDefault()
+    if (!numericFieldNames.value.length) return
+    const list = numericFieldNames.value
+    if (!selectedField.value) { selectedField.value = list[0]!; return }
+    const pos = list.indexOf(selectedField.value)
+    selectedField.value = list[(pos + 1) % list.length]!
+    return
+  }
+  if (alt && shift && key === 'f') {
+    e.preventDefault()
+    selectedField.value = null
     return
   }
 }
@@ -482,9 +540,8 @@ watch(() => props.modelValue, v => {
   if (v) {
     window.addEventListener('keydown', handleKey)
     nextTick(() => {
-      // první fokusovatelný prvek
-      const first = document.querySelector<HTMLElement>('[data-meta-first]')
-      first?.focus()
+      const firstMeta = document.querySelector<HTMLElement>('[data-meta-first]')
+      firstMeta?.focus()
     })
   } else {
     window.removeEventListener('keydown', handleKey)
@@ -493,16 +550,10 @@ watch(() => props.modelValue, v => {
 onMounted(() => { if (props.modelValue) window.addEventListener('keydown', handleKey) })
 onBeforeUnmount(() => window.removeEventListener('keydown', handleKey))
 
-/* ---------- Výběr pole pro statistiku ---------- */
-function onSelectField(field: string): void {
-  selectedField.value = field
-}
-
-
-/* ---------- Stavové hlášení pro screenreadery ---------- */
+/* ---------- Live status ---------- */
 const liveStatus = computed<string>(() => {
-  const errs = invalidByRow.value
-  if (errs > 0) return `Formulář obsahuje ${errs} neplatných polí. Nelze uložit.`
+  const errs = invalidCount.value
+  if (errs > 0) return `Formulář obsahuje ${errs} neplatných hodnot. Nelze uložit.`
   return 'Formulář je validní. Můžete uložit.'
 })
 </script>
@@ -514,7 +565,7 @@ const liveStatus = computed<string>(() => {
     mode="edit"
     :saving="isSaving"
     :deletable="true"
-    :width="'960px'"
+    :width="'980px'"
     :title-extra="dateYmd ? `${dateYmd}${timeHM ? ' ' + timeHM : ''}` : ''"
     @update:is-open="v => emits('update:modelValue', v)"
     @save="onSave"
@@ -525,18 +576,17 @@ const liveStatus = computed<string>(() => {
       <v-btn
         icon="mdi-chevron-up"
         variant="text"
-        title="Předchozí (Ctrl+←)"
+        title="Předchozí měření (Ctrl+←)"
         @click="() => emits('prev')"
       />
       <v-btn
         icon="mdi-chevron-down"
         variant="text"
-        title="Další (Ctrl+→)"
+        title="Další měření (Ctrl+→)"
         @click="() => emits('next')"
       />
     </template>
 
-    <!-- STICKY sekční lišta -->
     <v-toolbar
       density="compact"
       class="sticky-toolbar mb-3 elevation-1"
@@ -545,10 +595,9 @@ const liveStatus = computed<string>(() => {
       aria-label="Sekce detailu měření"
     >
       <v-toolbar-title class="text-body-2 font-weight-medium">
-        Detail měření
+        Detail měření (multi-record)
       </v-toolbar-title>
       <v-spacer />
-
       <v-btn
         size="small"
         :variant="metaCollapsed ? 'tonal' : 'flat'"
@@ -558,10 +607,7 @@ const liveStatus = computed<string>(() => {
         aria-controls="section-meta"
         title="Meta (Alt+M)"
         @click="toggleMeta"
-      >
-        Meta
-      </v-btn>
-
+      >Meta</v-btn>
       <v-btn
         size="small"
         :variant="valuesCollapsed ? 'tonal' : 'flat'"
@@ -574,15 +620,14 @@ const liveStatus = computed<string>(() => {
       >
         Hodnoty
         <v-badge
-          v-if="invalidByRow > 0"
-          :content="invalidByRow"
+          v-if="invalidCount > 0"
+          :content="invalidCount"
           color="error"
           inline
           class="ml-2"
-          :title="`${invalidByRow} neplatných`"
+          :title="`${invalidCount} neplatných`"
         />
       </v-btn>
-
       <v-btn
         size="small"
         :variant="statsCollapsed ? 'tonal' : 'flat'"
@@ -591,9 +636,7 @@ const liveStatus = computed<string>(() => {
         aria-controls="section-stats"
         title="Statistika (Alt+S)"
         @click="toggleStats"
-      >
-        Statistika
-      </v-btn>
+      >Statistika</v-btn>
     </v-toolbar>
 
     <div
@@ -602,39 +645,16 @@ const liveStatus = computed<string>(() => {
       aria-live="polite"
       :aria-label="liveStatus"
     >
-      <!-- Meta sekce -->
-      <section
-        id="section-meta"
-        class="mb-4"
-        :aria-hidden="metaCollapsed"
-      >
-        <div
-          class="d-flex align-center mb-2 section-heading"
-          style="gap:6px"
-        >
-          <v-icon
-            size="18"
-            color="grey-darken-2"
-          >
-            mdi-information-outline
-          </v-icon>
+      <!-- Meta -->
+      <section id="section-meta" class="mb-4" :aria-hidden="metaCollapsed">
+        <div class="d-flex align-center mb-2 section-heading" style="gap:6px">
+          <v-icon size="18" color="grey-darken-2">mdi-information-outline</v-icon>
           <span class="text-caption text-medium-emphasis">Metadata měření</span>
-
-          <div
-            v-if="metaCollapsed"
-            class="d-flex align-center flex-wrap"
-            style="gap:4px; margin-left:8px;"
-          >
-            <v-chip
-              v-for="(t,i) in metaSummary"
-              :key="i"
-              size="x-small"
-              variant="tonal"
-            >
-              {{ t }}
-            </v-chip>
+          <div v-if="metaCollapsed" class="d-flex align-center flex-wrap" style="gap:4px; margin-left:8px;">
+            <v-chip size="x-small" variant="tonal">{{ selectedUsername || '—' }}</v-chip>
+            <v-chip size="x-small" variant="tonal">{{ selectedDeviceId || '—' }}</v-chip>
+            <v-chip size="x-small" variant="tonal">{{ selectedTemplateName || '—' }}</v-chip>
           </div>
-
           <v-spacer />
           <v-btn
             icon
@@ -643,20 +663,13 @@ const liveStatus = computed<string>(() => {
             :title="metaCollapsed ? 'Rozbalit (Alt+M)' : 'Sbalit (Alt+M)'"
             @click="toggleMeta"
           >
-            <v-icon :class="{'rot-180': !metaCollapsed}">
-              mdi-chevron-down
-            </v-icon>
+            <v-icon :class="{'rot-180': !metaCollapsed}">mdi-chevron-down</v-icon>
           </v-btn>
         </div>
-
         <v-divider class="mb-2" />
-
         <div v-show="!metaCollapsed">
           <v-row class="g-4">
-            <v-col
-              cols="12"
-              md="4"
-            >
+            <v-col cols="12" md="4">
               <v-select
                 v-model="selectedUsername"
                 :items="members"
@@ -670,11 +683,7 @@ const liveStatus = computed<string>(() => {
                 persistent-hint
               />
             </v-col>
-
-            <v-col
-              cols="12"
-              md="4"
-            >
+            <v-col cols="12" md="4">
               <v-select
                 v-model="selectedDeviceId"
                 :items="devices"
@@ -686,21 +695,13 @@ const liveStatus = computed<string>(() => {
                 hide-details="auto"
               >
                 <template #selection="{ item }">
-                  <v-chip
-                    size="small"
-                    :color="item.raw?.color"
-                    text-color="white"
-                  >
+                  <v-chip size="small" :color="item.raw?.color" text-color="white">
                     {{ item.raw?.id }}
                   </v-chip>
                 </template>
               </v-select>
             </v-col>
-
-            <v-col
-              cols="12"
-              md="4"
-            >
+            <v-col cols="12" md="4">
               <v-select
                 v-model="selectedTemplateName"
                 :items="templates"
@@ -713,11 +714,7 @@ const liveStatus = computed<string>(() => {
                 clearable
               />
             </v-col>
-
-            <v-col
-              cols="12"
-              md="6"
-            >
+            <v-col cols="12" md="6">
               <v-text-field
                 v-model="dateYmd"
                 type="date"
@@ -727,11 +724,7 @@ const liveStatus = computed<string>(() => {
                 hide-details="auto"
               />
             </v-col>
-
-            <v-col
-              cols="12"
-              md="6"
-            >
+            <v-col cols="12" md="6">
               <v-text-field
                 v-model="timeHM"
                 type="time"
@@ -741,7 +734,6 @@ const liveStatus = computed<string>(() => {
                 hide-details="auto"
               />
             </v-col>
-
             <v-col cols="12">
               <v-textarea
                 v-model="noteText"
@@ -757,31 +749,44 @@ const liveStatus = computed<string>(() => {
         </div>
       </section>
 
-      <!-- Hodnoty sekce -->
-      <section
-        id="section-values"
-        class="mb-4"
-        :aria-hidden="valuesCollapsed"
-      >
-        <div
-          class="d-flex align-center mb-2"
-          style="gap:6px;"
-        >
-          <span class="text-subtitle-2">Hodnoty</span>
-
-          <div
-            v-if="valuesCollapsed"
-            class="d-flex align-center flex-wrap"
-            style="gap:4px; margin-left:8px;"
-          >
+      <!-- Hodnoty -->
+      <section id="section-values" class="mb-4" :aria-hidden="valuesCollapsed">
+        <div class="d-flex align-center mb-2" style="gap:8px;">
+          <span class="text-subtitle-2">Hodnoty (Recordy)</span>
+          <div class="d-flex flex-wrap" style="gap:6px; margin-left:12px;">
             <v-chip
-              v-for="(t,i) in valuesSummary"
-              :key="i"
-              size="x-small"
+              v-for="r in records"
+              :key="r.recordIndex"
+              size="small"
+              :color="r.recordIndex === currentRecordIndex ? 'primary' : (selectedRecordIndexes.has(r.recordIndex) ? 'deep-purple' : undefined)"
               variant="tonal"
-            >
-              {{ t }}
-            </v-chip>
+              :title="`Record ${r.recordIndex} (Alt+${r.recordIndex <=9 ? r.recordIndex : ''} | Shift+klik pro subset)`"
+              @click="toggleRecordSelection(r.recordIndex, false)"
+              @mousedown.shift.prevent="toggleRecordSelection(r.recordIndex, true)"
+            >{{ r.recordIndex }}</v-chip>
+            <v-btn
+              size="x-small"
+              variant="text"
+              icon="mdi-plus"
+              title="Nový record (Ctrl+Shift+N)"
+              @click="addNewRecord"
+            />
+            <v-btn
+              size="x-small"
+              variant="text"
+              icon="mdi-content-copy"
+              title="Duplikovat record (Ctrl+D)"
+              @click="duplicateCurrentRecord"
+              :disabled="!currentRecord"
+            />
+            <v-btn
+              size="x-small"
+              variant="text"
+              icon="mdi-delete-outline"
+              title="Smazat record (Ctrl+Shift+Del)"
+              :disabled="records.length <= 1"
+              @click="deleteCurrentRecord"
+            />
           </div>
 
           <v-spacer />
@@ -810,172 +815,135 @@ const liveStatus = computed<string>(() => {
 
         <div v-show="!valuesCollapsed">
           <div class="grid header-row">
-            <div class="cell muted">
-              Poř.
-            </div>
-            <div class="cell muted">
-              Název + Typ
-            </div>
-            <div class="cell muted">
-              Hodnota
-            </div>
-            <div class="cell muted">
-              Stav
-            </div>
+            <div class="cell muted">Poř.</div>
+            <div class="cell muted">Název + Typ</div>
+            <div class="cell muted">Hodnota</div>
+            <div class="cell muted">Stav</div>
           </div>
 
-          <transition-group
-            name="fade-y"
-            tag="div"
-          >
+          <transition-group name="fade-y" tag="div">
             <div
-              v-for="(row, idx) in rows"
-              :key="row.id"
+              v-for="(field, idx) in currentRecord?.fields || []"
+              :key="field.name"
               class="grid data-row"
-              :class="{'has-error': !!valueError(row)}"
-              :aria-expanded="isExpanded(row)"
-              :aria-label="`Řádek ${idx+1}: ${row.name} (${TYPE_LABEL[row.type]})`"
+              :class="{'has-error': !!fieldError(field)}"
+              :aria-expanded="isExpanded(field)"
+              :aria-label="`Field ${idx+1}: ${field.name} (${TYPE_LABEL[field.type]})`"
             >
-              <!-- Index + expand toggle -->
-              <div
-                class="cell index d-flex align-center justify-center"
-                style="gap:6px"
-              >
+              <div class="cell index d-flex align-center justify-center" style="gap:6px">
                 <v-btn
                   icon
                   size="x-small"
                   variant="text"
-                  :title="isExpanded(row) ? 'Sbalit' : 'Rozbalit'"
-                  @click.stop="toggleRow(row)"
+                  :title="isExpanded(field) ? 'Sbalit' : 'Rozbalit'"
+                  @click.stop="toggleField(field)"
                 >
                   <v-icon
-                    :icon="isExpanded(row) ? 'mdi-chevron-up' : 'mdi-chevron-down'"
+                    :icon="isExpanded(field) ? 'mdi-chevron-up' : 'mdi-chevron-down'"
                     size="18"
                   />
                 </v-btn>
                 <span>{{ idx + 1 }}</span>
               </div>
 
-              <!-- Název + typ + preview -->
               <div class="cell name name-with-chip">
-                <div
-                  class="d-flex align-center"
-                  style="gap:8px; min-width:0;"
-                >
-                  <span class="name-text">{{ row.name }}</span>
+                <div class="d-flex align-center" style="gap:8px; min-width:0;">
+                  <span class="name-text">{{ field.name }}</span>
                   <v-chip
-                    v-if="isExpanded(row)"
+                    v-if="isExpanded(field)"
                     size="x-small"
                     color="primary"
                     variant="tonal"
                     class="type-chip"
-                  >
-                    {{ TYPE_LABEL[row.type] }}
-                  </v-chip>
-                  <span
-                    v-else
-                    class="text-medium-emphasis text-mono preview-cell"
-                  >
-                    {{ previewValue(row) }}
+                  >{{ TYPE_LABEL[field.type] }}</v-chip>
+                  <span v-else class="text-medium-emphasis text-mono preview-cell">
+                    {{ previewValue(field) }}
                   </span>
                 </div>
               </div>
 
-              <!-- Hodnota (input nebo preview) -->
               <div class="cell value">
-                <template v-if="isExpanded(row)">
+                <template v-if="isExpanded(field)">
                   <v-switch
-                    v-if="row.type === 'bool'"
-                    :model-value="textModel(row)"
+                    v-if="field.type === 'bool'"
+                    :model-value="textModel(field)"
                     color="deep-purple"
                     hide-details
                     inset
                     density="comfortable"
-                    data-value-input
-                    @update:model-value="val => updateRowValue(row, val)"
+                    data-field-input
+                    @update:model-value="val => updateField(field, val)"
                   />
-
                   <v-text-field
-                    v-else-if="row.type === 'int'"
-                    :model-value="textModel(row)"
+                    v-else-if="field.type === 'int'"
+                    :model-value="textModel(field)"
                     type="text"
                     inputmode="numeric"
                     variant="outlined"
                     density="comfortable"
                     hide-details="auto"
                     placeholder="123"
-                    data-value-input
-                    @update:model-value="val => updateRowValue(row, val)"
+                    data-field-input
+                    @update:model-value="val => updateField(field, val)"
                   />
-
                   <v-text-field
-                    v-else-if="row.type === 'float'"
-                    :model-value="textModel(row)"
+                    v-else-if="field.type === 'float'"
+                    :model-value="textModel(field)"
                     type="text"
                     inputmode="decimal"
                     variant="outlined"
                     density="comfortable"
                     hide-details="auto"
                     placeholder="123,45"
-                    data-value-input
-                    @update:model-value="val => updateRowValue(row, val)"
+                    data-field-input
+                    @update:model-value="val => updateField(field, val)"
                   />
-
                   <v-text-field
-                    v-else-if="row.type === 'date'"
-                    :model-value="dateModel(row)"
+                    v-else-if="field.type === 'date'"
+                    :model-value="dateModel(field)"
                     type="date"
                     variant="outlined"
                     density="comfortable"
                     hide-details="auto"
-                    data-value-input
-                    @update:model-value="val => updateRowValue(row, val)"
+                    data-field-input
+                    @update:model-value="val => updateField(field, val)"
                   />
-
                   <v-file-input
-                    v-else-if="row.type === 'file'"
-                    :model-value="fileModel(row)"
+                    v-else-if="field.type === 'file'"
+                    :model-value="fileModel(field)"
                     density="comfortable"
                     hide-details="auto"
                     variant="outlined"
                     accept="image/*,.csv,.txt,.pdf"
                     show-size
-                    data-value-input
-                    @update:model-value="val => updateRowValue(row, (Array.isArray(val) ? val[0] : val))"
+                    data-field-input
+                    @update:model-value="val => updateField(field, (Array.isArray(val) ? val[0] : val))"
                   />
-
                   <v-text-field
                     v-else
-                    :model-value="textModel(row)"
+                    :model-value="textModel(field)"
                     type="text"
                     variant="outlined"
                     density="comfortable"
                     hide-details="auto"
                     placeholder="Text…"
-                    data-value-input
-                    @update:model-value="val => updateRowValue(row, val)"
+                    data-field-input
+                    @update:model-value="val => updateField(field, val)"
                   />
-                </template>
-                <template v-else>
-                  <!-- Už zobrazeno v název+preview -->
                 </template>
               </div>
 
-              <!-- Stav -->
               <div class="cell right">
-                <v-tooltip
-                  v-if="valueError(row)"
-                  location="top"
-                >
-                  <template #activator="{ props }">
+                <v-tooltip v-if="fieldError(field)" location="top">
+                  <template #activator="{ props: tp }">
                     <v-icon
-                      v-bind="props"
+                      v-bind="tp"
                       size="18"
                       color="error"
                       icon="mdi-alert-circle-outline"
                     />
                   </template>
-                  <span>{{ valueError(row) }}</span>
+                  <span>{{ fieldError(field) }}</span>
                 </v-tooltip>
                 <v-icon
                   v-else
@@ -989,15 +957,9 @@ const liveStatus = computed<string>(() => {
         </div>
       </section>
 
-      <!-- Statistika sekce -->
-      <section
-        id="section-stats"
-        :aria-hidden="statsCollapsed"
-      >
-        <div
-          class="d-flex align-center mb-2"
-          style="gap:6px;"
-        >
+      <!-- Statistika -->
+      <section id="section-stats" :aria-hidden="statsCollapsed">
+        <div class="d-flex align-center mb-2" style="gap:6px;">
           <span class="text-subtitle-2">Vizualizace / Statistika</span>
           <div
             v-if="statsCollapsed"
@@ -1009,9 +971,7 @@ const liveStatus = computed<string>(() => {
               :key="i"
               size="x-small"
               variant="tonal"
-            >
-              {{ t }}
-            </v-chip>
+            >{{ t }}</v-chip>
           </div>
           <v-spacer />
           <v-btn
@@ -1029,38 +989,28 @@ const liveStatus = computed<string>(() => {
           class="pa-4 rounded-lg"
           aria-label="Panel statistik"
         >
-          <div
-            class="d-flex align-center mb-3 flex-wrap"
-            style="gap:8px;"
-          >
+          <div class="d-flex align-center mb-3 flex-wrap" style="gap:8px;">
             <div class="text-caption font-weight-medium">
               Numerická pole:
             </div>
-            <div
-              class="d-flex align-center flex-wrap"
-              style="gap:6px;"
-            >
+            <div class="d-flex align-center flex-wrap" style="gap:6px;">
               <v-chip
                 v-for="(f, i) in numericFieldNames"
                 :key="`${f}-${i}`"
                 :color="selectedField === f ? 'primary' : undefined"
                 variant="tonal"
                 size="small"
-                :title="`Filtrovat na ${f}`"
-                @click="onSelectField(f)"
-              >
-                {{ f }}
-              </v-chip>
+                :title="`Vybrat ${f} (Alt+F cyklus)`"
+                @click="selectedField = f"
+              >{{ f }}</v-chip>
               <v-chip
                 v-if="numericFieldNames.length > 1"
                 :color="!selectedField ? 'primary' : undefined"
                 variant="tonal"
                 size="small"
-                title="Zobrazit všechna numerická pole"
+                title="Vše"
                 @click="selectedField = null"
-              >
-                Vše
-              </v-chip>
+              >Vše</v-chip>
             </div>
 
             <v-spacer />
@@ -1069,9 +1019,7 @@ const liveStatus = computed<string>(() => {
               variant="text"
               title="Export numerických hodnot (Ctrl+E)"
               @click="exportSelectedCsv"
-            >
-              Export CSV
-            </v-btn>
+            >Export CSV</v-btn>
           </div>
 
           <ChartPanel
@@ -1079,8 +1027,15 @@ const liveStatus = computed<string>(() => {
             :stats="statsObj"
             :fields="numericFieldNames"
             :selected-field="selectedField"
-            @select-field="onSelectField"
+            @select-field="f => (selectedField = f)"
           />
+          <div
+            v-if="outliers.outlierIndexes.length"
+            class="text-caption mt-2"
+          >
+            Outliers: {{ outliers.outlierIndexes.join(', ') }}
+            (fence {{ outliers.lowerFence.toFixed(2) }} – {{ outliers.upperFence.toFixed(2) }})
+          </div>
         </v-sheet>
       </section>
     </div>
@@ -1088,33 +1043,26 @@ const liveStatus = computed<string>(() => {
     <template #footer>
       <div class="d-flex align-center justify-space-between w-100">
         <div class="text-caption text-medium-emphasis">
-          <span v-if="invalidByRow > 0">
-            {{ invalidByRow }} neplatných hodnot – opravte před uložením.
+          <span v-if="invalidCount > 0">
+            {{ invalidCount }} neplatných hodnot – opravte před uložením.
           </span>
           <span v-else>
             Formulář je validní. Ctrl+S pro uložení.
           </span>
         </div>
-        <div
-          class="d-flex"
-          style="gap:12px;"
-        >
+        <div class="d-flex" style="gap:12px;">
           <v-btn
             variant="text"
             title="Zavřít (Esc)"
             @click="emits('update:modelValue', false)"
-          >
-            Zavřít
-          </v-btn>
+          >Zavřít</v-btn>
           <v-btn
             color="primary"
             :disabled="!canSaveMeta || isSaving"
             :loading="isSaving"
             title="Uložit (Ctrl+S)"
             @click="onSave"
-          >
-            Uložit
-          </v-btn>
+          >Uložit</v-btn>
         </div>
       </div>
     </template>
@@ -1122,7 +1070,6 @@ const liveStatus = computed<string>(() => {
 </template>
 
 <style scoped>
-/* Layout grid pro řádky */
 .grid {
   display: grid;
   grid-template-columns: 72px 1fr minmax(240px, 1.5fr) 72px;
@@ -1141,12 +1088,8 @@ const liveStatus = computed<string>(() => {
   border-radius: 8px;
   transition: background-color .15s, box-shadow .15s;
 }
-.data-row:hover {
-  background: #f9fafc;
-}
-.data-row.has-error {
-  background: #fff6f6;
-}
+.data-row:hover { background: #f9fafc; }
+.data-row.has-error { background: #fff6f6; }
 .cell.muted { font-size: .75rem; }
 .cell.index { text-align: center; color: rgba(0,0,0,0.54); }
 .cell.right { text-align: right; }
@@ -1167,25 +1110,18 @@ const liveStatus = computed<string>(() => {
   background-color: rgba(255,255,255,0.78);
 }
 
-/* Focus states pro a11y */
-[data-value-input]:focus-visible {
+[data-field-input]:focus-visible {
   outline: 2px solid var(--v-theme-primary);
   outline-offset: 2px;
   border-radius: 6px;
 }
 
-/* Sekční heading */
-.section-heading {
-  font-weight: 600;
-  letter-spacing: .02em;
-}
+.section-heading { font-weight: 600; letter-spacing: .02em; }
 
-/* Small utility */
 .text-mono {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
-/* Responsive – při velmi úzké šířce zmenšit 3. sloupec */
 @media (max-width: 1040px) {
   .grid {
     grid-template-columns: 56px 1fr minmax(180px, 1.2fr) 56px;

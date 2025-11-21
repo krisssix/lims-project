@@ -1,30 +1,4 @@
 <script setup lang="ts">
-/**
- * MeasurementCreateDialog – multi-record session (lint cleaned).
- *
- * Vytvoření jednoho měření s více recordy (opakované sady polí šablony).
- *
- * Kroky:
- *  STEP 1: Meta (výběr přístroje a šablony)
- *  STEP 2: Editace recordů (přidání / duplikace / mazání / hromadné vložení ze schránky)
- *
- * Klávesové zkratky:
- *  Esc                  Zavřít dialog
- *  Ctrl+S               Uložit
- *  Ctrl+V               Vložit ze schránky do aktuálního recordu (tokeny)
- *  Ctrl+Alt+V           Vložit jako více recordů (řádky → každý nový record)
- *  Ctrl+Shift+N         Nový prázdný record
- *  Ctrl+D               Duplikovat aktuální record
- *  Ctrl+Shift+Del       Smazat aktuální record (pokud >1)
- *  Alt+← / Alt+→        Předchozí / další record
- *  Alt+1..9             Skok na record
- *  Alt+Shift+1..9       Přepnout record do subsetu (výběrová množina)
- *  Alt+ArrowUp/Down     Navigace mezi poli v aktuálním recordu
- *  Alt+E / Alt+C        Expand / Collapse všech polí
- *  Alt+F                Cyklus numerických polí pro statistiku
- *
- * Bez deprecated filters, žádné 'any', striktní typy.
- */
 
 import { ref, computed, nextTick, watch, onMounted, onBeforeUnmount } from 'vue'
 import Dialog from '@/components/Dialog.vue'
