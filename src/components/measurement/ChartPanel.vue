@@ -56,6 +56,15 @@ const emit = defineEmits<{
 const tabs = ['LINE', 'SCATTER', 'HISTOGRAM', 'BOXPLOT'] as const
 type TabKind = typeof tabs[number]
 const activeTab = ref<TabKind>('LINE')
+/* ---------- Barvy + legenda ---------- */
+const palette = ['#1e88e5','#8e24aa','#43a047','#fb8c00','#5d4037','#3949ab','#f4511e','#00897b','#6d4c41','#7cb342']
+const seriesEnhanced = computed(() =>
+  seriesList.value.map((s, i) => ({
+    ...s,
+    colorAssigned: s.color || palette[i % palette.length]
+  }))
+)
+
 
 const showGrid = ref(true)
 const showMean = ref(true)
@@ -91,7 +100,11 @@ const seriesList = computed<MultiSeriesItem[]>(() =>
       : []
 )
 
-const allValuesFlat = computed<number[]>(() => seriesList.value.flatMap(s => s.points))
+const allValuesFlat = computed<number[]>(() => {
+  const out: number[] = []
+  for (const s of seriesList.value) out.push(...s.points)
+  return out
+})
 const yMin = computed(() => allValuesFlat.value.length ? Math.min(...allValuesFlat.value) : 0)
 const yMax = computed(() => allValuesFlat.value.length ? Math.max(...allValuesFlat.value) : 1)
 const yRange = computed(() => yMax.value - yMin.value)
@@ -122,12 +135,12 @@ function buildPolyline(points: number[]): string {
 /* ---------- Scatter ---------- */
 const scatterSeries = computed<Array<{ cx: number; cy: number; color: string; label: string; idx: number }>>(() => {
   const out: Array<{ cx: number; cy: number; color: string; label: string; idx: number }> = []
-  for (const s of seriesList.value) {
+  for (const s of seriesEnhanced.value) {
     s.points.forEach((v, i) => {
       out.push({
         cx: mapXValue(i, s.points.length),
         cy: mapYValue(v),
-        color: s.color || '#3f51b5',
+        color: s.colorAssigned,
         label: s.label,
         idx: i
       })
@@ -304,12 +317,12 @@ function setTab(kind: TabKind): void { activeTab.value = kind }
 /* ---------- Exporty ---------- */
 function exportCsv(): void {
   const lines: string[] = []
-  const header = ['index', ...seriesList.value.map(s => s.label)]
+  const header = ['index', ...seriesEnhanced.value.map(s => s.label)]
   lines.push(header.join(','))
-  const maxLen = Math.max(...seriesList.value.map(s => s.points.length), 0)
+  const maxLen = Math.max(...seriesEnhanced.value.map(s => s.points.length), 0)
   for (let i = 0; i < maxLen; i++) {
     const row: string[] = [String(xLabelsSafe.value[i] ?? i)]
-    for (const s of seriesList.value) {
+    for (const s of seriesEnhanced.value) {
       row.push(s.points[i] != null ? String(s.points[i]) : '')
     }
     lines.push(row.join(','))
@@ -399,7 +412,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKey))
 
 /* ---------- ARIA ---------- */
 function ariaLabelFor(type: TabKind): string {
-  const c = seriesList.value[0]?.points.length ?? 0
+  const c = seriesEnhanced.value[0]?.points.length ?? 0
   if (type === 'LINE') return `Line chart with ${c} point(s).`
   if (type === 'SCATTER') return `Scatter chart with ${c} point(s).`
   if (type === 'HISTOGRAM') return `Histogram of ${c} value(s).`
@@ -413,7 +426,7 @@ watch(() => props.fields, (fList) => {
 
 /* ---------- A11Y live status ---------- */
 const liveStatus = computed<string>(() => {
-  if (!seriesList.value.length) return 'Graf nemá žádná data.'
+  if (!seriesEnhanced.value.length) return 'Graf nemá žádná data.'
   const parts: string[] = []
   if (props.stats) {
     parts.push(`Mean ${fmt2(props.stats.mean)}`)
@@ -427,7 +440,11 @@ const liveStatus = computed<string>(() => {
 </script>
 
 <template>
-  <div class="chart-panel" :aria-label="liveStatus" aria-live="polite">
+  <div
+    class="chart-panel"
+    :aria-label="liveStatus"
+    aria-live="polite"
+  >
     <!-- Field selector -->
     <div class="field-selector">
       <v-chip
@@ -438,39 +455,67 @@ const liveStatus = computed<string>(() => {
         clickable
         :title="`Alt+${i + 1}`"
         @click="onSelectField(f)"
-      >{{ f }}</v-chip>
+      >
+        {{ f }}
+      </v-chip>
     </div>
 
     <!-- Stats -->
     <v-sheet class="pa-3 mb-4">
       <div v-if="stats">
-        <div class="d-flex justify-space-between"><div>Mean</div><div>{{ fmt2(stats.mean) }}</div></div>
-        <div class="d-flex justify-space-between"><div>Median</div><div>{{ fmt2(stats.median) }}</div></div>
-        <div class="d-flex justify-space-between"><div>Std. deviation</div><div>{{ fmt2(stats.stdDev) }}</div></div>
-        <div class="d-flex justify-space-between"><div>Min</div><div>{{ fmt2(stats.min) }}</div></div>
-        <div class="d-flex justify-space-between"><div>Max</div><div>{{ fmt2(stats.max) }}</div></div>
-        <div class="d-flex justify-space-between"><div>Count</div><div>{{ stats.count }}</div></div>
-        <div v-if="outliers && outliers.outlierIndexes.length" class="text-caption mt-2">
+        <div class="d-flex justify-space-between">
+          <div>Mean</div><div>{{ fmt2(stats.mean) }}</div>
+        </div>
+        <div class="d-flex justify-space-between">
+          <div>Median</div><div>{{ fmt2(stats.median) }}</div>
+        </div>
+        <div class="d-flex justify-space-between">
+          <div>Std. deviation</div><div>{{ fmt2(stats.stdDev) }}</div>
+        </div>
+        <div class="d-flex justify-space-between">
+          <div>Min</div><div>{{ fmt2(stats.min) }}</div>
+        </div>
+        <div class="d-flex justify-space-between">
+          <div>Max</div><div>{{ fmt2(stats.max) }}</div>
+        </div>
+        <div class="d-flex justify-space-between">
+          <div>Count</div><div>{{ stats.count }}</div>
+        </div>
+        <div
+          v-if="outliers && outliers.outlierIndexes.length"
+          class="text-caption mt-2"
+        >
           Outliers: {{ outliers.outlierIndexes.join(', ') }}
           (fence {{ fmt2(outliers.lowerFence) }} – {{ fmt2(outliers.upperFence) }})
         </div>
       </div>
-      <div v-else class="text-medium-emphasis">
+      <div
+        v-else
+        class="text-medium-emphasis"
+      >
         Vyberte numerické pole pro výpočet statistik
       </div>
     </v-sheet>
 
-    <!-- Tabs -->
-    <div class="tab-buttons mb-2">
+    <!-- Typ grafu (segmentovaný přepínač) -->
+    <v-btn-toggle
+      v-model="activeTab"
+      class="mb-3 type-toggle"
+      divided
+      mandatory
+      density="comfortable"
+    >
       <v-btn
         v-for="tab in tabs"
         :key="tab"
-        :color="activeTab === tab ? 'primary' : undefined"
+        :value="tab"
+        :aria-label="ariaLabelFor(tab)"
         size="small"
-        class="me-2"
-        @click="activeTab = tab"
-      >{{ tab }}</v-btn>
-    </div>
+        class="text-caption"
+      >
+        {{ tab }}
+      </v-btn>
+    </v-btn-toggle>
 
     <!-- Options -->
     <div class="chart-options mb-2 d-flex align-center ga-2 flex-wrap">
@@ -482,7 +527,9 @@ const liveStatus = computed<string>(() => {
         :aria-checked="showGrid"
         title="Přepnout mřížku (Alt+G)"
         @click="showGrid = !showGrid"
-      >Mřížka</v-btn>
+      >
+        Mřížka
+      </v-btn>
       <v-btn
         size="x-small"
         :color="showMean ? 'primary' : undefined"
@@ -491,7 +538,9 @@ const liveStatus = computed<string>(() => {
         :aria-checked="showMean"
         title="Přepnout mean linku (Alt+M)"
         @click="showMean = !showMean"
-      >Mean</v-btn>
+      >
+        Mean
+      </v-btn>
       <v-btn
         size="x-small"
         :color="showHover ? 'primary' : undefined"
@@ -500,7 +549,9 @@ const liveStatus = computed<string>(() => {
         :aria-checked="showHover"
         title="Přepnout hover overlay (Alt+H)"
         @click="showHover = !showHover"
-      >Hover</v-btn>
+      >
+        Hover
+      </v-btn>
       <v-btn
         size="x-small"
         :color="focusMode ? 'primary' : undefined"
@@ -509,18 +560,81 @@ const liveStatus = computed<string>(() => {
         :aria-checked="focusMode"
         title="A11Y fokus mód (Alt+X)"
         @click="focusMode = !focusMode"
-      >Focus</v-btn>
+      >
+        Focus
+      </v-btn>
       <v-spacer />
-      <v-btn size="x-small" variant="text" title="Export CSV (Ctrl+E)" @click="exportCsv">CSV</v-btn>
-      <v-btn size="x-small" variant="text" title="Export SVG (Ctrl+Shift+E)" @click="exportSvg">SVG</v-btn>
-      <v-btn size="x-small" variant="text" title="Export PNG (Ctrl+Alt+E)" @click="exportPng">PNG</v-btn>
+      <!-- Exporty s tooltipy -->
+      <v-tooltip text="Export CSV (Ctrl+E): Uloží tabulku hodnot všech sérií.">
+        <template #activator="{ props: tp }">
+          <v-btn
+            v-bind="tp"
+            size="x-small"
+            variant="text"
+            aria-label="Export CSV"
+            @click="exportCsv"
+          >
+            CSV
+          </v-btn>
+        </template>
+      </v-tooltip>
+      <v-tooltip text="Export SVG (Ctrl+Shift+E): Vektorový obrázek současného grafu.">
+        <template #activator="{ props: tp }">
+          <v-btn
+            v-bind="tp"
+            size="x-small"
+            variant="text"
+            aria-label="Export SVG"
+            @click="exportSvg"
+          >
+            SVG
+          </v-btn>
+        </template>
+      </v-tooltip>
+      <v-tooltip text="Export PNG (Ctrl+Alt+E): Rastrový obrázek grafu (800x400).">
+        <template #activator="{ props: tp }">
+          <v-btn
+            v-bind="tp"
+            size="x-small"
+            variant="text"
+            aria-label="Export PNG"
+            @click="exportPng"
+          >
+            PNG
+          </v-btn>
+        </template>
+      </v-tooltip>
+    </div>
+
+    <!-- Legenda sérií -->
+    <div
+      v-if="seriesEnhanced.length > 1"
+      class="series-legend mb-3"
+      aria-label="Legenda sérií"
+    >
+      <div
+        v-for="(s, si) in seriesEnhanced"
+        :key="s.label + si"
+        class="legend-item"
+      >
+        <span
+          class="color-dot"
+          :style="{ backgroundColor: s.colorAssigned }"
+          aria-hidden="true"
+        />
+        <span class="legend-text">{{ s.label }}</span>
+        <span class="legend-count">({{ s.points.length }})</span>
+      </div>
     </div>
 
     <!-- Chart area -->
-    <v-sheet class="pa-4 chart-area" elevation="1">
+    <v-sheet
+      class="pa-4 chart-area"
+      elevation="1"
+    >
       <!-- LINE -->
       <svg
-        v-if="activeTab === 'LINE' && seriesList.length && seriesList[0].points.length"
+        v-if="activeTab === 'LINE' && seriesEnhanced.length && seriesEnhanced[0].points.length"
         id="chartpanel-svg-current"
         viewBox="0 0 100 100"
         preserveAspectRatio="none"
@@ -533,15 +647,30 @@ const liveStatus = computed<string>(() => {
         <desc>Mean {{ fmt2(stats?.mean) }}, min {{ fmt2(stats?.min) }}, max {{ fmt2(stats?.max) }}</desc>
 
         <g class="axes">
-          <line x1="0" x2="100" y1="90" y2="90" stroke="#9e9e9e" stroke-width="0.6"/>
-          <line x1="0" x2="0" y1="10" y2="90" stroke="#9e9e9e" stroke-width="0.6"/>
+          <line
+            x1="0"
+            x2="100"
+            y1="90"
+            y2="90"
+            stroke="#9e9e9e"
+            stroke-width="0.6"
+          />
+          <line
+            x1="0"
+            x2="0"
+            y1="10"
+            y2="90"
+            stroke="#9e9e9e"
+            stroke-width="0.6"
+          />
 
           <!-- Y grid lines -->
           <template v-if="showGrid">
             <line
               v-for="i in 4"
               :key="'line-y-'+i"
-              x1="0" x2="100"
+              x1="0"
+              x2="100"
               :y1="10 + (i/4)*80"
               :y2="10 + (i/4)*80"
               stroke="#eeeeee"
@@ -556,7 +685,8 @@ const liveStatus = computed<string>(() => {
               :key="'line-x-'+i"
               :x1="mapXValue(i, xLabelsSafe.length)"
               :x2="mapXValue(i, xLabelsSafe.length)"
-              y1="90" y2="92"
+              y1="90"
+              y2="92"
               stroke="#9e9e9e"
               stroke-width="0.6"
             />
@@ -571,18 +701,30 @@ const liveStatus = computed<string>(() => {
             >{{ lbl }}</text>
           </template>
 
-          <text x="95" y="98" text-anchor="end" fill="#666" font-size="5">Index</text>
-          <text x="2" y="8" text-anchor="start" fill="#666" font-size="5">Hodnota</text>
+          <text
+            x="95"
+            y="98"
+            text-anchor="end"
+            fill="#666"
+            font-size="5"
+          >Index</text>
+          <text
+            x="2"
+            y="8"
+            text-anchor="start"
+            fill="#666"
+            font-size="5"
+          >Hodnota</text>
         </g>
 
         <!-- Polylines -->
         <g>
           <polyline
-            v-for="(s, si) in seriesList"
+            v-for="(s, si) in seriesEnhanced"
             :key="'pline-'+si"
             :points="buildPolyline(s.points)"
             fill="none"
-            :stroke="s.color || (si === 0 ? '#3f51b5' : '#9c27b0')"
+            :stroke="s.colorAssigned"
             stroke-width="1"
             stroke-linecap="round"
             stroke-linejoin="round"
@@ -592,8 +734,10 @@ const liveStatus = computed<string>(() => {
         <!-- Mean line -->
         <line
           v-if="meanY !== null && showMean"
-          x1="0" x2="100"
-          :y1="meanY" :y2="meanY"
+          x1="0"
+          x2="100"
+          :y1="meanY"
+          :y2="meanY"
           stroke="#ff9800"
           stroke-dasharray="2,2"
           stroke-width="0.8"
@@ -602,9 +746,9 @@ const liveStatus = computed<string>(() => {
         <!-- Points + outlier highlight -->
         <g>
           <circle
-            v-for="(v, i) in seriesList[0].points"
+            v-for="(v, i) in seriesEnhanced[0].points"
             :key="'lp-'+i"
-            :cx="mapXValue(i, seriesList[0].points.length)"
+            :cx="mapXValue(i, seriesEnhanced[0].points.length)"
             :cy="mapYValue(v)"
             :r="(focusMode && hoverIdx === i) ? 3.2 : 1.6"
             :fill="outlierLookup.has(i) ? '#e64a19' : '#3f51b5'"
@@ -634,28 +778,33 @@ const liveStatus = computed<string>(() => {
         <!-- Hover crosshair -->
         <g v-if="showHover && hoverXPercent !== null && hoverIdx !== null && hoverValue !== null">
           <line
-            :x1="hoverXPercent" :x2="hoverXPercent"
-            y1="10" y2="90"
+            :x1="hoverXPercent"
+            :x2="hoverXPercent"
+            y1="10"
+            y2="90"
             stroke="#bdbdbd"
             stroke-width="0.6"
             stroke-dasharray="2,2"
           />
           <circle
-            :cx="mapXValue(hoverIdx, seriesList[0].points.length)"
+            :cx="mapXValue(hoverIdx, seriesEnhanced[0].points.length)"
             :cy="mapYValue(hoverValue)"
             :r="focusMode ? 4 : 3"
             fill="#1e88e5"
             fill-opacity="0.85"
           />
           <text
-            :x="Math.min(95, mapXValue(hoverIdx, seriesList[0].points.length) + 2)"
+            :x="Math.min(95, mapXValue(hoverIdx, seriesEnhanced[0].points.length) + 2)"
             :y="Math.max(12, mapYValue(hoverValue) - 2)"
             font-size="5"
             fill="#424242"
           >{{ hoverIdx }}: {{ fmt2(hoverValue) }}</text>
         </g>
       </svg>
-      <div v-else-if="activeTab === 'LINE'" class="text-medium-emphasis">
+      <div
+        v-else-if="activeTab === 'LINE'"
+        class="text-medium-emphasis"
+      >
         Žádná data pro graf
       </div>
 
@@ -674,14 +823,29 @@ const liveStatus = computed<string>(() => {
         <desc>Scatter chart; mean {{ fmt2(stats?.mean) }}</desc>
 
         <g class="axes">
-          <line x1="0" x2="100" y1="90" y2="90" stroke="#9e9e9e" stroke-width="0.6"/>
-          <line x1="0" x2="0" y1="10" y2="90" stroke="#9e9e9e" stroke-width="0.6"/>
+          <line
+            x1="0"
+            x2="100"
+            y1="90"
+            y2="90"
+            stroke="#9e9e9e"
+            stroke-width="0.6"
+          />
+          <line
+            x1="0"
+            x2="0"
+            y1="10"
+            y2="90"
+            stroke="#9e9e9e"
+            stroke-width="0.6"
+          />
 
           <template v-if="showGrid">
             <line
               v-for="i in 4"
               :key="'sc-yg-'+i"
-              x1="0" x2="100"
+              x1="0"
+              x2="100"
               :y1="10 + (i/4)*80"
               :y2="10 + (i/4)*80"
               stroke="#eeeeee"
@@ -692,7 +856,8 @@ const liveStatus = computed<string>(() => {
               :key="'sc-xt-'+i"
               :x1="mapXValue(i, xLabelsSafe.length)"
               :x2="mapXValue(i, xLabelsSafe.length)"
-              y1="90" y2="92"
+              y1="90"
+              y2="92"
               stroke="#9e9e9e"
               stroke-width="0.6"
             />
@@ -707,8 +872,20 @@ const liveStatus = computed<string>(() => {
             >{{ lbl }}</text>
           </template>
 
-          <text x="95" y="98" text-anchor="end" fill="#666" font-size="5">Index</text>
-          <text x="2" y="8" text-anchor="start" fill="#666" font-size="5">Hodnota</text>
+          <text
+            x="95"
+            y="98"
+            text-anchor="end"
+            fill="#666"
+            font-size="5"
+          >Index</text>
+          <text
+            x="2"
+            y="8"
+            text-anchor="start"
+            fill="#666"
+            font-size="5"
+          >Hodnota</text>
         </g>
 
         <g>
@@ -729,8 +906,10 @@ const liveStatus = computed<string>(() => {
 
         <line
           v-if="meanY !== null && showMean"
-          x1="0" x2="100"
-          :y1="meanY" :y2="meanY"
+          x1="0"
+          x2="100"
+          :y1="meanY"
+          :y2="meanY"
           stroke="#ff9800"
           stroke-dasharray="2,2"
           stroke-width="0.8"
@@ -738,28 +917,33 @@ const liveStatus = computed<string>(() => {
 
         <g v-if="showHover && hoverXPercent !== null && hoverIdx !== null && hoverValue !== null">
           <line
-            :x1="hoverXPercent" :x2="hoverXPercent"
-            y1="10" y2="90"
+            :x1="hoverXPercent"
+            :x2="hoverXPercent"
+            y1="10"
+            y2="90"
             stroke="#bdbdbd"
             stroke-width="0.6"
             stroke-dasharray="2,2"
           />
           <circle
-            :cx="mapXValue(hoverIdx, seriesList[0].points.length)"
+            :cx="mapXValue(hoverIdx, seriesEnhanced[0].points.length)"
             :cy="mapYValue(hoverValue)"
             :r="focusMode ? 4 : 3"
             fill="#1e88e5"
             fill-opacity="0.9"
           />
           <text
-            :x="Math.min(95, mapXValue(hoverIdx, seriesList[0].points.length) + 2)"
+            :x="Math.min(95, mapXValue(hoverIdx, seriesEnhanced[0].points.length) + 2)"
             :y="Math.max(12, mapYValue(hoverValue) - 2)"
             font-size="5"
             fill="#424242"
           >{{ hoverIdx }}: {{ fmt2(hoverValue) }}</text>
         </g>
       </svg>
-      <div v-else-if="activeTab === 'SCATTER'" class="text-medium-emphasis">
+      <div
+        v-else-if="activeTab === 'SCATTER'"
+        class="text-medium-emphasis"
+      >
         Žádná data pro graf
       </div>
 
@@ -778,14 +962,29 @@ const liveStatus = computed<string>(() => {
         <desc>Histogram; mean {{ fmt2(stats?.mean) }}</desc>
 
         <g class="axes">
-          <line x1="0" x2="100" y1="90" y2="90" stroke="#9e9e9e" stroke-width="0.6"/>
-          <line x1="0" x2="0" y1="10" y2="90" stroke="#9e9e9e" stroke-width="0.6"/>
+          <line
+            x1="0"
+            x2="100"
+            y1="90"
+            y2="90"
+            stroke="#9e9e9e"
+            stroke-width="0.6"
+          />
+          <line
+            x1="0"
+            x2="0"
+            y1="10"
+            y2="90"
+            stroke="#9e9e9e"
+            stroke-width="0.6"
+          />
 
           <template v-if="showGrid">
             <line
               v-for="i in 4"
               :key="'hist-yg-'+i"
-              x1="0" x2="100"
+              x1="0"
+              x2="100"
               :y1="10 + (i/4)*80"
               :y2="10 + (i/4)*80"
               stroke="#eeeeee"
@@ -793,16 +992,30 @@ const liveStatus = computed<string>(() => {
             />
           </template>
 
-          <text x="95" y="98" text-anchor="end" fill="#666" font-size="5">Bin</text>
-          <text x="2" y="8" text-anchor="start" fill="#666" font-size="5">Count</text>
+          <text
+            x="95"
+            y="98"
+            text-anchor="end"
+            fill="#666"
+            font-size="5"
+          >Bin</text>
+          <text
+            x="2"
+            y="8"
+            text-anchor="start"
+            fill="#666"
+            font-size="5"
+          >Count</text>
         </g>
 
         <g>
           <rect
             v-for="(b, i) in histogram.bins"
             :key="'bin-'+i"
-            :x="b.x" :y="b.y"
-            :width="b.w" :height="b.h"
+            :x="b.x"
+            :y="b.y"
+            :width="b.w"
+            :height="b.h"
             fill="#90caf9"
             stroke="#42a5f5"
             stroke-width="0.5"
@@ -836,14 +1049,18 @@ const liveStatus = computed<string>(() => {
             v-if="showMean && meanXForHistogram !== null"
             :x1="meanXForHistogram"
             :x2="meanXForHistogram"
-            y1="10" y2="90"
+            y1="10"
+            y2="90"
             stroke="#ff9800"
             stroke-dasharray="2,2"
             stroke-width="0.8"
           />
         </g>
       </svg>
-      <div v-else-if="activeTab === 'HISTOGRAM'" class="text-medium-emphasis">
+      <div
+        v-else-if="activeTab === 'HISTOGRAM'"
+        class="text-medium-emphasis"
+      >
         Žádná data pro graf
       </div>
 
@@ -862,27 +1079,50 @@ const liveStatus = computed<string>(() => {
         <desc>Boxplot; median {{ fmt2(stats?.median) }}</desc>
 
         <g class="axes">
-          <line x1="0" x2="100" y1="90" y2="90" stroke="#9e9e9e" stroke-width="0.6"/>
-          <line x1="0" x2="0" y1="10" y2="90" stroke="#9e9e9e" stroke-width="0.6"/>
+          <line
+            x1="0"
+            x2="100"
+            y1="90"
+            y2="90"
+            stroke="#9e9e9e"
+            stroke-width="0.6"
+          />
+          <line
+            x1="0"
+            x2="0"
+            y1="10"
+            y2="90"
+            stroke="#9e9e9e"
+            stroke-width="0.6"
+          />
           <template v-if="showGrid">
             <line
               v-for="i in 4"
               :key="'box-yg-'+i"
-              x1="0" x2="100"
+              x1="0"
+              x2="100"
               :y1="10 + (i/4)*80"
               :y2="10 + (i/4)*80"
               stroke="#eeeeee"
               stroke-width="0.4"
             />
           </template>
-          <text x="2" y="8" text-anchor="start" fill="#666" font-size="5">Hodnota</text>
+          <text
+            x="2"
+            y="8"
+            text-anchor="start"
+            fill="#666"
+            font-size="5"
+          >Hodnota</text>
         </g>
 
         <g>
           <line
             v-if="meanY !== null && showMean"
-            x1="0" x2="100"
-            :y1="meanY" :y2="meanY"
+            x1="0"
+            x2="100"
+            :y1="meanY"
+            :y2="meanY"
             :stroke="hoverMeanActive ? '#fb8c00' : '#ff9800'"
             stroke-dasharray="2,2"
             :stroke-width="hoverMeanActive ? 1.2 : 0.8"
@@ -896,10 +1136,38 @@ const liveStatus = computed<string>(() => {
             fill="#424242"
           >Mean: {{ fmt2(stats?.mean) }}</text>
 
-          <line x1="50" x2="50" :y1="box.yMin" :y2="box.yQ1" stroke="#455a64" stroke-width="1"/>
-          <line x1="50" x2="50" :y1="box.yQ3" :y2="box.yMax" stroke="#455a64" stroke-width="1"/>
-          <line x1="40" x2="60" :y1="box.yMin" :y2="box.yMin" stroke="#455a64" stroke-width="1"/>
-          <line x1="40" x2="60" :y1="box.yMax" :y2="box.yMax" stroke="#455a64" stroke-width="1"/>
+          <line
+            x1="50"
+            x2="50"
+            :y1="box.yMin"
+            :y2="box.yQ1"
+            stroke="#455a64"
+            stroke-width="1"
+          />
+          <line
+            x1="50"
+            x2="50"
+            :y1="box.yQ3"
+            :y2="box.yMax"
+            stroke="#455a64"
+            stroke-width="1"
+          />
+          <line
+            x1="40"
+            x2="60"
+            :y1="box.yMin"
+            :y2="box.yMin"
+            stroke="#455a64"
+            stroke-width="1"
+          />
+          <line
+            x1="40"
+            x2="60"
+            :y1="box.yMax"
+            :y2="box.yMax"
+            stroke="#455a64"
+            stroke-width="1"
+          />
 
           <rect
             :x="35"
@@ -913,8 +1181,10 @@ const liveStatus = computed<string>(() => {
             <title>Q1–Q3 (median {{ fmt2(stats?.median) }})</title>
           </rect>
           <line
-            x1="35" x2="65"
-            :y1="box.yMed" :y2="box.yMed"
+            x1="35"
+            x2="65"
+            :y1="box.yMed"
+            :y2="box.yMed"
             stroke="#e53935"
             stroke-width="1.4"
           >
@@ -923,8 +1193,10 @@ const liveStatus = computed<string>(() => {
 
           <template v-if="showHover && hoverYPercent !== null">
             <line
-              x1="0" x2="100"
-              :y1="hoverYPercent" :y2="hoverYPercent"
+              x1="0"
+              x2="100"
+              :y1="hoverYPercent"
+              :y2="hoverYPercent"
               stroke="#bdbdbd"
               stroke-width="0.6"
               stroke-dasharray="2,2"
@@ -941,7 +1213,10 @@ const liveStatus = computed<string>(() => {
           </template>
         </g>
       </svg>
-      <div v-else-if="activeTab === 'BOXPLOT'" class="text-medium-emphasis">
+      <div
+        v-else-if="activeTab === 'BOXPLOT'"
+        class="text-medium-emphasis"
+      >
         Žádná data pro graf
       </div>
     </v-sheet>
