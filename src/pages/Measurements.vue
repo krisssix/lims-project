@@ -3,11 +3,12 @@ import { computed, ref, onMounted, nextTick, watch, onBeforeUnmount } from 'vue'
 import { useRoute } from 'vue-router'
 import LeftFiltersPanel from '@/components/LeftFiltersPanel.vue'
 import Dialog from '@/components/Dialog.vue'
+import TemplateFromClipboardDialog from '@/components/import/TemplateFromClipboardDialog.vue'
 import RepeatSetsControls from '@/components/import/RepeatSetControls.vue'
+
 import MeasurementTable from '@/components/measurement/MeasurementTable.vue'
 import TemplatesOverviewDialog from '@/components/measurement/TemplatesOverviewDialog.vue'
-/*  import TemplateFormDialog from '@/components/measurement/TemplateFormDialog.vue'*/
-/*  import TemplateFromClipboardDialog from '@/components/import/TemplateFromClipboardDialog.vue'*/
+import TemplateWizardDialog from '@/components/import/TemplateWizardDialog.vue'
 import MeasurementCreateDialog from '@/components/measurement/MeasurementCreateDialog.vue'
 import MeasurementDetailDialog from '@/components/measurement/MeasurementDetailDialog.vue'
 
@@ -154,12 +155,17 @@ function openImportTemplate() {
 
 
 function startEditTemplate(t: TemplateItem) {
-  formMode.value = 'edit'
+  // Otevřít nový wizard v režimu editace
   selectedTemplateId.value = t.id
-  formName.value = t.name
-  formDeviceId.value = t.deviceId
-  formFields.value = t.fields.map(f => ({ ...f }))
-  formOpen.value = true
+  wizardMode.value = 'empty'
+  initialWizardTemplate.value = {
+    templateId: t.id,
+    name: t.name,
+    deviceCode: t.deviceId,
+    fields: t.fields.map((f,i) => ({ orderIndex: i+1, type: f.type, required: f.required, name: f.name }))
+  }
+  templateWizardOpen.value = true
+  formOpen.value = false
 }
 
 
@@ -197,6 +203,7 @@ async function confirmDeleteTemplate() {
 
 const templateWizardOpen = ref(false)
 const wizardMode = ref<'empty' | 'import'>('empty')
+const initialWizardTemplate = ref<{ templateId: string; name: string; deviceCode: string; fields: Array<{ orderIndex:number; type: FieldRow['type']; required:boolean; name:string }> } | null>(null)
 
 function startCreateTemplate() {
   wizardMode.value = 'empty'
@@ -213,21 +220,36 @@ async function createTemplateFromClipboard(payload: {
   deviceCode: string
   templateName: string
   fields: Array<{ orderIndex: number; type: FieldRow['type']; required: boolean; name: string }>
+  templateId?: string
 }) {
   const req: MeasurementTemplateRequest = {
     name: payload.templateName.trim() || 'Šablona',
     deviceCode: payload.deviceCode,
     fields: payload.fields
   }
-  const saved = await templatesStore.create(projectId, req)
+  let savedId: number
+  if (payload.templateId) {
+    // update existující šablony
+    const idNum = Number(payload.templateId)
+    if (Number.isFinite(idNum)) await templatesStore.update(idNum, req)
+    savedId = idNum
+  } else {
+    const saved = await templatesStore.create(projectId, req)
+    savedId = saved.id
+  }
   await templatesStore.fetchByProject(projectId)
 
-  // preselect + rovnou „nové měření“
+  // preselect pro následné měření
   metaSelectedDevice.value = payload.deviceCode
-  metaSelectedTemplateId.value = String(saved.id)
+  metaSelectedTemplateId.value = String(savedId)
 
   templateWizardOpen.value = false
-  measurementCreateOpen.value = true
+  // zůstat v overview režimu po editaci, automatické otevření měření jen při create
+  if (!payload.templateId) {
+    measurementCreateOpen.value = true
+  } else {
+    overviewOpen.value = true
+  }
 }
 
 
@@ -386,15 +408,17 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onHotkeys))
         @createFromFile="openImportTemplate"
       />
 
+
       <TemplateWizardDialog
         v-model="templateWizardOpen"
         :devices="devices"
-        :initial-mode="wizardMode"
         :on-confirm="createTemplateFromClipboard"
+        :operation="initialWizardTemplate ? 'edit' : 'create'"
+        :initial-template="initialWizardTemplate"
       />
 
       <teleport to="body">
-        <Dialog v-model:is-open="deleteTemplateConfirmOpen" width="520px" :hide-footer="true">
+        <Dialog :is-open="deleteTemplateConfirmOpen" @update:is-open="v => deleteTemplateConfirmOpen = v" width="520px" :hide-footer="true">
           <template #content>
             <form class="pa-4" @submit.prevent="confirmDeleteTemplate" @keydown.enter.prevent="confirmDeleteTemplate">
               <div class="text-h6 mb-2">Smazat šablonu?</div>
@@ -446,7 +470,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onHotkeys))
         @next="nextDetail"
       />
 
-      <Dialog v-model:is-open="confirmDeleteOpen" width="520px" :hide-footer="true">
+      <Dialog :is-open="confirmDeleteOpen" @update:is-open="v => confirmDeleteOpen = v" width="520px" :hide-footer="true">
         <template #content>
           <form class="pa-4" @submit.prevent="confirmDelete" @keydown.enter.prevent="confirmDelete">
             <div class="text-h6 mb-2">Smazat měření?</div>

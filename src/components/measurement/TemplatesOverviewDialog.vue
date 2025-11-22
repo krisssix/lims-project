@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, ref } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import Dialog from '@/components/Dialog.vue'
 import { type TemplateItem } from '@/types/measurement-ui'
 
@@ -15,6 +15,7 @@ const emits = defineEmits<{
   (e: 'edit', item: TemplateItem): void
   (e: 'createBlank'): void
   (e: 'createFromFile'): void
+  (e: 'requestEditTemplate', id: string): void
 }>()
 
 const search = ref<string>('')
@@ -46,6 +47,18 @@ async function focusSelected(): Promise<void> {
   el?.focus()
 }
 function close(): void { emits('update:modelValue', false) }
+
+function triggerEdit(tpl: TemplateItem): void {
+  emits('edit', tpl) // legacy event (kept for backward compatibility)
+  emits('requestEditTemplate', tpl.id) // new explicit event for parent routing / dialog
+}
+
+function onRowKey(e: KeyboardEvent, tpl: TemplateItem): void {
+  if (e.key === 'Enter' || e.key === ' ') {
+    e.preventDefault()
+    triggerEdit(tpl)
+  }
+}
 watch(() => props.modelValue, (v) => { if (v) void focusSelected() })
 </script>
 
@@ -120,16 +133,16 @@ watch(() => props.modelValue, (v) => { if (v) void focusSelected() })
 
     <template #content>
       <div class="table-body">
-        <template
-          v-for="tpl in filtered"
-          :key="tpl.id"
-        >
+        <div v-for="tpl in filtered" :key="tpl.id" class="template-row-wrapper">
           <div
             :ref="el => setItemRef(tpl.id, el)"
             class="row template-row"
             :tabindex="0"
             :class="{ 'is-selected': tpl.id === props.selectedTemplateId }"
-            @click="emits('edit', tpl)"
+            @click="triggerEdit(tpl)"
+            @keydown="onRowKey($event, tpl)"
+            role="button"
+            :aria-label="'Upravit šablonu ' + tpl.name"
           >
             <div class="col-device d-flex align-center">
               <v-chip
@@ -146,7 +159,7 @@ watch(() => props.modelValue, (v) => { if (v) void focusSelected() })
             </div>
           </div>
           <v-divider />
-        </template>
+        </div>
       </div>
     </template>
 
@@ -170,6 +183,6 @@ watch(() => props.modelValue, (v) => { if (v) void focusSelected() })
 .table-body { max-height: 420px; overflow-y: auto; }
 .row.template-row { display: grid; grid-template-columns: 120px 1fr; align-items: center; padding: 8px 10px; border-radius: 10px; border: 2px solid transparent; transition: border-color .15s, background-color .15s; }
 .row.template-row:hover { background: #f7f7fb; }
-.row.template-row.is-selected, .row.template-row:focus-visible { border-color: var(--v-theme-deep-purple); outline: none; }
+.row.template-row.is-selected, .row.template-row:focus-visible { border-color: var(--v-theme-deep-purple); outline: none; box-shadow: 0 0 0 2px rgba(103,58,183,0.25); }
 .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 </style>
