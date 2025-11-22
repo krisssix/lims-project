@@ -607,7 +607,9 @@ const liveStatus = computed<string>(() => {
         aria-controls="section-meta"
         title="Meta (Alt+M)"
         @click="toggleMeta"
-      >Meta</v-btn>
+      >
+        Meta
+      </v-btn>
       <v-btn
         size="small"
         :variant="valuesCollapsed ? 'tonal' : 'flat'"
@@ -636,7 +638,9 @@ const liveStatus = computed<string>(() => {
         aria-controls="section-stats"
         title="Statistika (Alt+S)"
         @click="toggleStats"
-      >Statistika</v-btn>
+      >
+        Statistika
+      </v-btn>
     </v-toolbar>
 
     <div
@@ -646,14 +650,45 @@ const liveStatus = computed<string>(() => {
       :aria-label="liveStatus"
     >
       <!-- Meta -->
-      <section id="section-meta" class="mb-4" :aria-hidden="metaCollapsed">
-        <div class="d-flex align-center mb-2 section-heading" style="gap:6px">
-          <v-icon size="18" color="grey-darken-2">mdi-information-outline</v-icon>
+      <section
+        id="section-meta"
+        class="mb-4"
+        :aria-hidden="metaCollapsed"
+      >
+        <div
+          class="d-flex align-center mb-2 section-heading"
+          style="gap:6px"
+        >
+          <v-icon
+            size="18"
+            color="grey-darken-2"
+          >
+            mdi-information-outline
+          </v-icon>
           <span class="text-caption text-medium-emphasis">Metadata měření</span>
-          <div v-if="metaCollapsed" class="d-flex align-center flex-wrap" style="gap:4px; margin-left:8px;">
-            <v-chip size="x-small" variant="tonal">{{ selectedUsername || '—' }}</v-chip>
-            <v-chip size="x-small" variant="tonal">{{ selectedDeviceId || '—' }}</v-chip>
-            <v-chip size="x-small" variant="tonal">{{ selectedTemplateName || '—' }}</v-chip>
+          <div
+            v-if="metaCollapsed"
+            class="d-flex align-center flex-wrap"
+            style="gap:4px; margin-left:8px;"
+          >
+            <v-chip
+              size="x-small"
+              variant="tonal"
+            >
+              {{ selectedUsername || '—' }}
+            </v-chip>
+            <v-chip
+              size="x-small"
+              variant="tonal"
+            >
+              {{ selectedDeviceId || '—' }}
+            </v-chip>
+            <v-chip
+              size="x-small"
+              variant="tonal"
+            >
+              {{ selectedTemplateName || '—' }}
+            </v-chip>
           </div>
           <v-spacer />
           <v-btn
@@ -663,13 +698,18 @@ const liveStatus = computed<string>(() => {
             :title="metaCollapsed ? 'Rozbalit (Alt+M)' : 'Sbalit (Alt+M)'"
             @click="toggleMeta"
           >
-            <v-icon :class="{'rot-180': !metaCollapsed}">mdi-chevron-down</v-icon>
+            <v-icon :class="{'rot-180': !metaCollapsed}">
+              mdi-chevron-down
+            </v-icon>
           </v-btn>
         </div>
         <v-divider class="mb-2" />
         <div v-show="!metaCollapsed">
           <v-row class="g-4">
-            <v-col cols="12" md="4">
+            <v-col
+              cols="12"
+              md="4"
+            >
               <v-select
                 v-model="selectedUsername"
                 :items="members"
@@ -683,7 +723,10 @@ const liveStatus = computed<string>(() => {
                 persistent-hint
               />
             </v-col>
-            <v-col cols="12" md="4">
+            <v-col
+              cols="12"
+              md="4"
+            >
               <v-select
                 v-model="selectedDeviceId"
                 :items="devices"
@@ -695,13 +738,20 @@ const liveStatus = computed<string>(() => {
                 hide-details="auto"
               >
                 <template #selection="{ item }">
-                  <v-chip size="small" :color="item.raw?.color" text-color="white">
+                  <v-chip
+                    size="small"
+                    :color="item.raw?.color"
+                    text-color="white"
+                  >
                     {{ item.raw?.id }}
                   </v-chip>
                 </template>
               </v-select>
             </v-col>
-            <v-col cols="12" md="4">
+            <v-col
+              cols="12"
+              md="4"
+            >
               <v-select
                 v-model="selectedTemplateName"
                 :items="templates"
@@ -714,7 +764,10 @@ const liveStatus = computed<string>(() => {
                 clearable
               />
             </v-col>
-            <v-col cols="12" md="6">
+            <v-col
+              cols="12"
+              md="6"
+            >
               <v-text-field
                 v-model="dateYmd"
                 type="date"
@@ -724,7 +777,10 @@ const liveStatus = computed<string>(() => {
                 hide-details="auto"
               />
             </v-col>
-            <v-col cols="12" md="6">
+            <v-col
+              cols="12"
+              md="6"
+            >
               <v-text-field
                 v-model="timeHM"
                 type="time"
@@ -750,10 +806,20 @@ const liveStatus = computed<string>(() => {
       </section>
 
       <!-- Hodnoty -->
-      <section id="section-values" class="mb-4" :aria-hidden="valuesCollapsed">
-        <div class="d-flex align-center mb-2" style="gap:8px;">
+      <section
+        id="section-values"
+        class="mb-4"
+        :aria-hidden="valuesCollapsed"
+      >
+        <div
+          class="d-flex align-center mb-2"
+          style="gap:8px;"
+        >
           <span class="text-subtitle-2">Hodnoty (Recordy)</span>
-          <div class="d-flex flex-wrap" style="gap:6px; margin-left:12px;">
+          <div
+            class="d-flex flex-wrap"
+            style="gap:6px; margin-left:12px;"
+          >
             <v-chip
               v-for="r in records"
               :key="r.recordIndex"
@@ -763,7 +829,9 @@ const liveStatus = computed<string>(() => {
               :title="`Record ${r.recordIndex} (Alt+${r.recordIndex <=9 ? r.recordIndex : ''} | Shift+klik pro subset)`"
               @click="toggleRecordSelection(r.recordIndex, false)"
               @mousedown.shift.prevent="toggleRecordSelection(r.recordIndex, true)"
-            >{{ r.recordIndex }}</v-chip>
+            >
+              {{ r.recordIndex }}
+            </v-chip>
             <v-btn
               size="x-small"
               variant="text"
@@ -776,8 +844,8 @@ const liveStatus = computed<string>(() => {
               variant="text"
               icon="mdi-content-copy"
               title="Duplikovat record (Ctrl+D)"
-              @click="duplicateCurrentRecord"
               :disabled="!currentRecord"
+              @click="duplicateCurrentRecord"
             />
             <v-btn
               size="x-small"
@@ -815,13 +883,24 @@ const liveStatus = computed<string>(() => {
 
         <div v-show="!valuesCollapsed">
           <div class="grid header-row">
-            <div class="cell muted">Poř.</div>
-            <div class="cell muted">Název + Typ</div>
-            <div class="cell muted">Hodnota</div>
-            <div class="cell muted">Stav</div>
+            <div class="cell muted">
+              Poř.
+            </div>
+            <div class="cell muted">
+              Název + Typ
+            </div>
+            <div class="cell muted">
+              Hodnota
+            </div>
+            <div class="cell muted">
+              Stav
+            </div>
           </div>
 
-          <transition-group name="fade-y" tag="div">
+          <transition-group
+            name="fade-y"
+            tag="div"
+          >
             <div
               v-for="(field, idx) in currentRecord?.fields || []"
               :key="field.name"
@@ -830,7 +909,10 @@ const liveStatus = computed<string>(() => {
               :aria-expanded="isExpanded(field)"
               :aria-label="`Field ${idx+1}: ${field.name} (${TYPE_LABEL[field.type]})`"
             >
-              <div class="cell index d-flex align-center justify-center" style="gap:6px">
+              <div
+                class="cell index d-flex align-center justify-center"
+                style="gap:6px"
+              >
                 <v-btn
                   icon
                   size="x-small"
@@ -847,7 +929,10 @@ const liveStatus = computed<string>(() => {
               </div>
 
               <div class="cell name name-with-chip">
-                <div class="d-flex align-center" style="gap:8px; min-width:0;">
+                <div
+                  class="d-flex align-center"
+                  style="gap:8px; min-width:0;"
+                >
                   <span class="name-text">{{ field.name }}</span>
                   <v-chip
                     v-if="isExpanded(field)"
@@ -855,8 +940,13 @@ const liveStatus = computed<string>(() => {
                     color="primary"
                     variant="tonal"
                     class="type-chip"
-                  >{{ TYPE_LABEL[field.type] }}</v-chip>
-                  <span v-else class="text-medium-emphasis text-mono preview-cell">
+                  >
+                    {{ TYPE_LABEL[field.type] }}
+                  </v-chip>
+                  <span
+                    v-else
+                    class="text-medium-emphasis text-mono preview-cell"
+                  >
                     {{ previewValue(field) }}
                   </span>
                 </div>
@@ -934,7 +1024,10 @@ const liveStatus = computed<string>(() => {
               </div>
 
               <div class="cell right">
-                <v-tooltip v-if="fieldError(field)" location="top">
+                <v-tooltip
+                  v-if="fieldError(field)"
+                  location="top"
+                >
                   <template #activator="{ props: tp }">
                     <v-icon
                       v-bind="tp"
@@ -958,8 +1051,14 @@ const liveStatus = computed<string>(() => {
       </section>
 
       <!-- Statistika -->
-      <section id="section-stats" :aria-hidden="statsCollapsed">
-        <div class="d-flex align-center mb-2" style="gap:6px;">
+      <section
+        id="section-stats"
+        :aria-hidden="statsCollapsed"
+      >
+        <div
+          class="d-flex align-center mb-2"
+          style="gap:6px;"
+        >
           <span class="text-subtitle-2">Vizualizace / Statistika</span>
           <div
             v-if="statsCollapsed"
@@ -971,7 +1070,9 @@ const liveStatus = computed<string>(() => {
               :key="i"
               size="x-small"
               variant="tonal"
-            >{{ t }}</v-chip>
+            >
+              {{ t }}
+            </v-chip>
           </div>
           <v-spacer />
           <v-btn
@@ -989,11 +1090,17 @@ const liveStatus = computed<string>(() => {
           class="pa-4 rounded-lg"
           aria-label="Panel statistik"
         >
-          <div class="d-flex align-center mb-3 flex-wrap" style="gap:8px;">
+          <div
+            class="d-flex align-center mb-3 flex-wrap"
+            style="gap:8px;"
+          >
             <div class="text-caption font-weight-medium">
               Numerická pole:
             </div>
-            <div class="d-flex align-center flex-wrap" style="gap:6px;">
+            <div
+              class="d-flex align-center flex-wrap"
+              style="gap:6px;"
+            >
               <v-chip
                 v-for="(f, i) in numericFieldNames"
                 :key="`${f}-${i}`"
@@ -1002,7 +1109,9 @@ const liveStatus = computed<string>(() => {
                 size="small"
                 :title="`Vybrat ${f} (Alt+F cyklus)`"
                 @click="selectedField = f"
-              >{{ f }}</v-chip>
+              >
+                {{ f }}
+              </v-chip>
               <v-chip
                 v-if="numericFieldNames.length > 1"
                 :color="!selectedField ? 'primary' : undefined"
@@ -1010,7 +1119,9 @@ const liveStatus = computed<string>(() => {
                 size="small"
                 title="Vše"
                 @click="selectedField = null"
-              >Vše</v-chip>
+              >
+                Vše
+              </v-chip>
             </div>
 
             <v-spacer />
@@ -1019,7 +1130,9 @@ const liveStatus = computed<string>(() => {
               variant="text"
               title="Export numerických hodnot (Ctrl+E)"
               @click="exportSelectedCsv"
-            >Export CSV</v-btn>
+            >
+              Export CSV
+            </v-btn>
           </div>
 
           <ChartPanel
@@ -1050,19 +1163,26 @@ const liveStatus = computed<string>(() => {
             Formulář je validní. Ctrl+S pro uložení.
           </span>
         </div>
-        <div class="d-flex" style="gap:12px;">
+        <div
+          class="d-flex"
+          style="gap:12px;"
+        >
           <v-btn
             variant="text"
             title="Zavřít (Esc)"
             @click="emits('update:modelValue', false)"
-          >Zavřít</v-btn>
+          >
+            Zavřít
+          </v-btn>
           <v-btn
             color="primary"
             :disabled="!canSaveMeta || isSaving"
             :loading="isSaving"
             title="Uložit (Ctrl+S)"
             @click="onSave"
-          >Uložit</v-btn>
+          >
+            Uložit
+          </v-btn>
         </div>
       </div>
     </template>
