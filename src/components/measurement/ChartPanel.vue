@@ -38,6 +38,16 @@ type MultiSeriesItem = {
   color?: string
 }
 
+type ScatterPoint = {
+  cx: number
+  cy: number
+  color: string
+  label: string
+  idx: number
+  seriesIndex: number
+}
+
+
 const props = defineProps<{
   chartPoints: number[]
   stats: StatsObj | null
@@ -133,21 +143,23 @@ function buildPolyline(points: number[]): string {
 }
 
 /* ---------- Scatter ---------- */
-const scatterSeries = computed<Array<{ cx: number; cy: number; color: string; label: string; idx: number }>>(() => {
-  const out: Array<{ cx: number; cy: number; color: string; label: string; idx: number }> = []
-  for (const s of seriesEnhanced.value) {
+const scatterSeries = computed<ScatterPoint[]>(() => {
+  const out: ScatterPoint[] = []
+  seriesEnhanced.value.forEach((s, si) => {
     s.points.forEach((v, i) => {
       out.push({
         cx: mapXValue(i, s.points.length),
         cy: mapYValue(v),
         color: s.colorAssigned,
         label: s.label,
-        idx: i
+        idx: i,
+        seriesIndex: si
       })
     })
-  }
+  })
   return out
 })
+
 
 /* ---------- Histogram (první série) ---------- */
 function buildHistogram(vals: number[]) {
@@ -745,18 +757,23 @@ const liveStatus = computed<string>(() => {
 
         <!-- Points + outlier highlight -->
         <g>
-          <circle
-            v-for="(v, i) in seriesEnhanced[0].points"
-            :key="'lp-'+i"
-            :cx="mapXValue(i, seriesEnhanced[0].points.length)"
-            :cy="mapYValue(v)"
-            :r="(focusMode && hoverIdx === i) ? 3.2 : 1.6"
-            :fill="outlierLookup.has(i) ? '#e64a19' : '#3f51b5'"
-            :stroke="(focusMode && hoverIdx === i) ? '#1e88e5' : 'none'"
-            stroke-width="1"
+          <template
+            v-for="(s, si) in seriesEnhanced"
+            :key="'series-points-' + si"
           >
-            <title>{{ i }}: {{ fmt2(v) }}</title>
-          </circle>
+            <circle
+              v-for="(v, i) in s.points"
+              :key="'lp-' + si + '-' + i"
+              :cx="mapXValue(i, s.points.length)"
+              :cy="mapYValue(v)"
+              :r="focusMode && hoverIdx === i ? 3.2 : 1.6"
+              :fill="si === 0 && outlierLookup.has(i) ? '#e64a19' : s.colorAssigned"
+              :stroke="focusMode && hoverIdx === i ? '#1e88e5' : 'none'"
+              stroke-width="1"
+            >
+              <title>{{ s.label }} [{{ i }}]: {{ fmt2(v) }}</title>
+            </circle>
+          </template>
         </g>
 
         <!-- Outliers ring -->
@@ -891,18 +908,25 @@ const liveStatus = computed<string>(() => {
         <g>
           <circle
             v-for="p in scatterSeries"
-            :key="p.label + '-' + p.idx"
+            :key="'sc-' + p.seriesIndex + '-' + p.idx"
             :cx="p.cx"
             :cy="p.cy"
             :r="focusMode && hoverIdx === p.idx ? 4 : 2.2"
             :fill="p.color"
             fill-opacity="0.85"
-            :stroke="outlierLookup.has(p.idx) ? '#e64a19' : (focusMode && hoverIdx === p.idx ? '#1e88e5' : 'none')"
+            :stroke="outlierLookup.has(p.idx) && p.seriesIndex === 0
+      ? '#e64a19'
+      : (focusMode && hoverIdx === p.idx ? '#1e88e5' : 'none')"
             stroke-width="1"
           >
-            <title>{{ p.label }} [{{ p.idx }}]: {{ fmt2(seriesList.find(s => s.label === p.label)?.points[p.idx]) }}</title>
+            <title>
+              {{ p.label }} [{{ p.idx }}]: {{
+              fmt2(seriesList[p.seriesIndex]?.points[p.idx])
+              }}
+            </title>
           </circle>
         </g>
+
 
         <line
           v-if="meanY !== null && showMean"
