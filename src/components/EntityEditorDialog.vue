@@ -115,7 +115,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
         <v-btn
           v-if="mode === 'edit' && deletable"
           color="red-darken-2"
-          variant="text"
+          variant="flat"
           prepend-icon="mdi-delete-outline"
           @click="del"
         >

@@ -8,6 +8,7 @@ export {}
 declare module 'vue' {
   export interface GlobalComponents {
     AppFooter: typeof import('./components/AppFooter.vue')['default']
+    AppPrimaryButton: typeof import('./components/ui/AppPrimaryButton.vue')['default']
     AppToolbar: typeof import('./components/AppToolbar.vue')['default']
     BarChart: typeof import('./components/sumarry/BarChart.vue')['default']
     BoardListContent: typeof import('./components/board/BoardListContent.vue')['default']
@@ -20,8 +21,8 @@ declare module 'vue' {
     EntityEditorDialog: typeof import('./components/EntityEditorDialog.vue')['default']
     EventDetailCard: typeof import('./components/reservations/EventDetailCard.vue')['default']
     ChartPanel: typeof import('./components/measurement/ChartPanel.vue')['default']
-    ImportMappingDialog: typeof import('./components/import/ImportMappingDialog.vue')['default']
-    ImportTemplateWizard: typeof import('./components/import/ImportTemplateWizard.vue')['default']
+    ChartStats: typeof import('./components/chart/ChartStats.vue')['default']
+    ChartVisualizer: typeof import('./components/chart/ChartVisualizer.vue')['default']
     LeftFiltersPanel: typeof import('./components/LeftFiltersPanel.vue')['default']
     LeftNavigation: typeof import('./components/LeftNavigation.vue')['default']
     MeasurementCreateDialog: typeof import('./components/measurement/MeasurementCreateDialog.vue')['default']
@@ -36,8 +37,8 @@ declare module 'vue' {
     RouterView: typeof import('vue-router')['RouterView']
     SideFilter: typeof import('./components/board/sideFilter/SideFilter.vue')['default']
     SideFilterRow: typeof import('./components/board/sideFilter/SideFilterRow.vue')['default']
-    TemplateFormDialog: typeof import('./components/measurement/TemplateFormDialog.vue')['default']
     TemplateFromClipboardDialog: typeof import('./components/import/TemplateFromClipboardDialog.vue')['default']
+    TemplateFromClipboardDialog3: typeof import('./components/import/TemplateFromClipboardDialog3.vue')['default']
     TemplatesOverviewDialog: typeof import('./components/measurement/TemplatesOverviewDialog.vue')['default']
     TemplateWizardDialog: typeof import('./components/import/TemplateWizardDialog.vue')['default']
     TimePicker: typeof import('./components/TimePicker.vue')['default']

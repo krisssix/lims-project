@@ -469,6 +469,7 @@
           </v-btn>
           <v-btn
             color="primary"
+            class="ml-3"
             :disabled="!deviceCode || !pickedBlocks.length || !hasAnyFields"
             :loading="loading"
             @click="confirm"
@@ -541,6 +542,7 @@
           </v-btn>
           <v-btn
             color="primary"
+            class="ml-3"
             @click="confirmDelimiterChoice"
           >
             Pokračovat

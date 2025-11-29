@@ -838,11 +838,11 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onHotkeys))
   <v-container fluid class="pa-0">
     <!-- Sjednocená horní lišta jako v Board.vue -->
     <v-toolbar color="white" class="border-b-sm pl-3 pr-3" density="comfortable">
-      <v-btn color="primary" variant="tonal" @click="isSideFilterOpen = !isSideFilterOpen">
+      <v-btn color="primary"variant="tonal" @click="isSideFilterOpen = !isSideFilterOpen">
         Procházet
       </v-btn>
 
-      <v-btn color="primary" class="ml-2" @click="openCreateFromToolbar">
+      <v-btn color="primary" variant="flat" class="ml-2" @click="openCreateFromToolbar">
         VYTVOŘIT REZERVACI
       </v-btn>
 
@@ -990,7 +990,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onHotkeys))
             <div class="text-h6 mb-6">Opravdu chcete rezervaci zrušit?</div>
             <div class="d-flex align-center" style="gap:14px">
               <v-btn
-                color="primary"
+                color="primary" variant="flat"
                 size="large"
                 :loading="deleteLoading"
                 :disabled="deleteLoading || !deleteTarget"

@@ -29,7 +29,7 @@ function toNext() { emit('next') }
   <div class="d-flex align-center ga-3 mb-2">
     <v-switch
       :model-value="enabled"
-      color="primary"
+      color="primary" variant="flat"
       inset
       hide-details
       density="comfortable"

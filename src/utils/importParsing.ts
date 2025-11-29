@@ -1,683 +1,671 @@
-/*
- Universal Clipboard/Table Parser – v2
- -----------------------------------------------------
- Goals:
- - Robust block segmentation for mixed clipboard dumps
- - Header detection with optional unit-row alignment
- - Delimiter auto-detection with CSV quotes + Markdown/TSV/space tables
- - Trailing summary statistics separation (Mean/Std/RSD/Median...)
- - Metadata (key: value) detection before/after tables
- - Series-only blocks (one value per line)
- - Locale-friendly numeric parsing (comma/point; thin spaces)
- - Strong TypeScript types (no `any`), no external deps
- - Diagnostics to see what heuristics fired
+/**
+ * Universal Import Parsing Utility for LIMS System
+ * - Smart block detection (table, kv, stats, series)
+ * - Auto-skip stats rows that are already computed by ChartPanel
+ * - Device/template recognition for "memory" feature
+ * - Keyboard-friendly design for lab workers
+ */
 
- This file exports a single `analyzeClipboard` function and richly typed
- support structures. Drop-in replacement for the user's original API.
-*/
+// ============ TYPES ============
 
-/* ===================== Types ===================== */
-export type ColumnType = 'float' | 'int' | 'bool' | 'date' | 'text' | 'file'
+export type ColumnType = 'float' | 'int' | 'text' | 'file' | 'bool' | 'date'
 
-export type ColumnSuggestion = {
-  index: number
-  headerRaw: string
-  headerNormalized: string
-  detectedType: ColumnType
-}
-
-export type RepeatMeta = {
-  repeatDetected: boolean
-  replicateCount: number | null
-  repeatMap: Record<string, number[]>
-}
-
-export type TableBlock = {
+export interface TableBlock {
   kind: 'table'
-  startLine: number
-  endLine: number
   headersRaw: string[]
   headersNormalized: string[]
   rows: string[][]
-  delimiter: DetectedDelimiter
-}
-
-export type StatsBlock = {
-  kind: 'stats'
+  unitRow?: string[]
   startLine: number
-  endLine: number
-  lines: string[]
+  delimiter: string
 }
 
-export type SeriesBlock = {
-  kind: 'series'
-  startLine: number
-  endLine: number
-  header?: string
-  values: number[]
-}
-
-export type KvPair = { key: string; value: string }
-export type KvBlock = {
+export interface KvBlock {
   kind: 'kv'
+  pairs: Array<{ key: string; value: string }>
   startLine: number
-  endLine: number
-  pairs: KvPair[]
-  lines: string[] // original lines for preview
 }
 
-export type AnalyzeDiagnostics = {
-  blocksDetected: number
-  kvBlocks: number
-  tableBlocks: number
-  statsBlocks: number
-  seriesBlocks: number
-  headersChosenFromBlockIndex: number | null
-  unitRowMerged: boolean
-  delimiterGuesses: Array<{ blockIndex: number; chosen: DetectedDelimiter; competitors: Array<{ delim: Delimiter; score: number }> }>
+export interface StatsBlock {
+  kind: 'stats'
+  lines: string[]
+  /** Statistiky které systém už počítá – budou skipnuty */
+  skippedStats: string[]
+  /** Statistiky navíc které systém nepočítá */
+  extraStats: Array<{ name: string; values: string[] }>
+  startLine: number
 }
 
-export type AnalyzeResult = {
-  rawLines: string[]
-  mainTable?: TableBlock | null
-  stats?: StatsBlock | null
-  series?: SeriesBlock | null
-  columns: ColumnSuggestion[]
-  headersRaw: string[]
-  headersNormalized: string[]
-  repeat: RepeatMeta
-  blocks: Array<TableBlock | StatsBlock | SeriesBlock | KvBlock>
-  diagnostics: AnalyzeDiagnostics
+export interface SeriesBlock {
+  kind: 'series'
+  header: string
+  values: string[]
+  startLine: number
 }
 
-/* ===================== Options ===================== */
-export type ParserOptions = {
-  /** Prefer decimal comma if ambiguous */
+export type ParsedBlock = TableBlock | KvBlock | StatsBlock | SeriesBlock
+
+export interface RepeatMeta {
+  repeatDetected: boolean
+  baseHeaders: string[]
+  repeatCount: number
+}
+
+export interface AnalyzeResult {
+  blocks: ParsedBlock[]
+  headersRaw?: string[]
+  detectedDevice?: string
+  detectedDelimiter: string
+  warnings: string[]
+}
+
+export interface ParserOptions {
   preferDecimalComma?: boolean
-  /** Accept markdown tables with header divider (|---|) */
   acceptMarkdownTables?: boolean
-  /** Merge single leading unit row with headers when likely */
   mergeUnitsWithHeaders?: boolean
-  /** Minimum score to treat a row as header */
-  headerScoreThreshold?: number
-  /** Treat solitary numbers-per-line as a numeric series block */
-  enableSeriesDetection?: boolean
-  /** Force a delimiter instead of auto-detection ('auto' = keep autodetect) */
-  delimiterOverride?: Delimiter | 'auto'
+  delimiterOverride?: 'tab' | 'semicolon' | 'comma' | 'pipe' | 'spaces'
 }
 
-const DEFAULT_OPTS: Required<ParserOptions> = {
-  preferDecimalComma: false,
-  acceptMarkdownTables: true,
-  mergeUnitsWithHeaders: true,
-  headerScoreThreshold: 0.5,
-  enableSeriesDetection: true,
-  delimiterOverride: 'auto',
+export interface ImportProfile {
+  deviceCode: string
+  typicalHeaders: string[]
+  typicalTypes: Record<string, ColumnType>
+  lastUsed: number
 }
 
-/* ===================== Helpers ===================== */
-export function normalizeHeader(raw?: string): string {
-  const s = (raw ?? '').trim()
+// ============ CONSTANTS ============
+
+/** Statistiky které ChartPanel už počítá - budou automaticky skipnuty */
+const COMPUTED_STATS = new Set([
+  'mean', 'avg', 'average', 'průměr',
+  'std', 'stddev', 'std dev', 'standard deviation', 'směrodatná odchylka',
+  'median', 'medián',
+  'min', 'minimum',
+  'max', 'maximum',
+  'rsd', 'cv', 'coefficient of variation', 'variační koeficient',
+  'sum', 'součet',
+  'count', 'n', 'počet',
+  'variance', 'var', 'rozptyl'
+])
+
+const UNIT_INDICATORS: ReadonlyArray<string> = [
+  '°', '%', 'mv', 'ms/cm', 's/cm', 'mS', 'mS/cm',
+  'cm', 'nm', 'um', 'µm', 'µ', 'μ', 'ohm', 'kda', 'v', 'a', 'hz', 'ppm', '/cm', '/vs', 'vs',
+  'mg', 'kg', 'g', 'ml', 'l', 'mol', 'mmol', 'µmol', 'mm', 'm', 'µl'
+]
+
+interface DevicePattern {
+  pattern: RegExp
+  device: string
+}
+
+const DEVICE_PATTERNS: ReadonlyArray<DevicePattern> = [
+  { pattern: /zetasizer/i, device: 'ZETASIZER' },
+  { pattern: /spectrophotometer|spektrofotometr/i, device: 'SPECTROPHOTOMETER' },
+  { pattern: /hplc/i, device: 'HPLC' },
+  { pattern: /gc[\s-]?ms/i, device: 'GC-MS' },
+  { pattern: /microscop|mikroskop/i, device: 'MICROSCOPE' },
+  { pattern: /ph[\s-]?meter/i, device: 'PH_METER' },
+  { pattern: /centrifug/i, device: 'CENTRIFUGE' },
+  { pattern: /incubator|inkubátor/i, device: 'INCUBATOR' },
+  { pattern: /\bM\d{1,3}\b/i, device: 'GENERIC_M' },
+]
+
+const PROFILE_STORAGE_KEY = 'cenagrivet_import_profiles'
+
+// ============ MAIN ANALYSIS FUNCTION ============
+
+export function analyzeClipboard(text: string, options: ParserOptions = {}): AnalyzeResult {
+  const warnings: string[] = []
+  const normalized = normalizeText(text)
+  const lines = normalized.split('\n')
+
+  const delimiter = options.delimiterOverride
+    ? mapDelimiterOverride(options.delimiterOverride)
+    : detectDelimiter(normalized)
+
+  const detectedDevice = detectDevice(normalized)
+
+  const blocks: ParsedBlock[] = []
+  const segments = splitIntoSegments(lines)
+
+  for (const seg of segments) {
+    const block = classifyAndParseSegment(seg.lines, seg.startLine, delimiter, options)
+    if (block) {
+      blocks.push(block)
+    }
+  }
+
+  // Post-process: merge unit rows into headers if enabled
+  if (options.mergeUnitsWithHeaders) {
+    for (const block of blocks) {
+      if (block.kind === 'table' && block.unitRow) {
+        block.headersRaw = mergeHeadersWithUnits(block.headersRaw, block.unitRow)
+      }
+    }
+  }
+
+  return {
+    blocks,
+    headersRaw: blocks.find(b => b.kind === 'table')?.headersRaw,
+    detectedDevice,
+    detectedDelimiter: delimiter,
+    warnings
+  }
+}
+
+// ============ TEXT NORMALIZATION ============
+
+function normalizeText(s: string): string {
   return s
-    .replace(/\s+/g, '_')
-    .replace(/[^A-Za-z0-9_]/g, '_')
-    .replace(/_+/g, '_')
-    .replace(/^_+|_+$/g, '')
-    .toLowerCase()
+    .replace(/\uFEFF/g, '') // BOM
+    .replace(/\r\n? /g, '\n') // CRLF -> LF
+    .replace(/\u00A0/g, ' ') // NBSP -> space
+    .trim()
 }
 
-function stripNBSP(s: string): string { return s.replace(/\u00A0/g, ' ') }
+function mapDelimiterOverride(override: NonNullable<ParserOptions['delimiterOverride']>): string {
+  const mapping: Record<typeof override, string> = {
+    tab: '\t',
+    semicolon: ';',
+    comma: ',',
+    pipe: '|',
+    spaces: '  '
+  }
+  return mapping[override]
+}
 
-function safeTrim(s?: string): string { return (s ?? '').trim() }
+// ============ DELIMITER DETECTION ============
 
-function containsAny(lower: string, needles: readonly string[]): boolean {
-  for (const n of needles) if (lower.includes(n)) return true
+function detectDelimiter(text: string): string {
+  const counts = {
+    tab: countChar(text, '\t'),
+    semi: countChar(text, ';'),
+    comma: countChar(text, ','),
+    pipe: countChar(text, '|'),
+  }
+
+  const max = Math.max(counts.tab, counts.semi, counts.comma, counts.pipe)
+
+  if (max === counts.tab && counts.tab > 0) return '\t'
+  if (max === counts.semi && counts.semi > 0) return ';'
+  if (max === counts.pipe && counts.pipe > 0) return '|'
+  if (/\s{2,}/.test(text)) return '  '
+  return ','
+}
+
+function countChar(text: string, char: string): number {
+  let count = 0
+  for (const c of text) {
+    if (c === char) count++
+  }
+  return count
+}
+
+// ============ DEVICE DETECTION ============
+
+function detectDevice(text: string): string | undefined {
+  for (const { pattern, device } of DEVICE_PATTERNS) {
+    if (pattern.test(text)) return device
+  }
+  return undefined
+}
+
+// ============ SEGMENT SPLITTING ============
+
+interface Segment {
+  lines: string[]
+  startLine: number
+}
+
+function splitIntoSegments(lines: string[]): Segment[] {
+  const segments: Segment[] = []
+  let current: string[] = []
+  let start = 0
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+    if (line.trim() === '') {
+      if (current.length > 0) {
+        segments.push({ lines: current, startLine: start })
+        current = []
+      }
+      start = i + 1
+    } else {
+      current.push(line)
+    }
+  }
+
+  if (current.length > 0) {
+    segments.push({ lines: current, startLine: start })
+  }
+
+  return segments
+}
+
+// ============ BLOCK CLASSIFICATION ============
+
+type BlockKind = 'table' | 'stats' | 'kv' | 'series'
+
+function classifyBlockKind(lines: string[], delimiter: string): BlockKind {
+  if (lines.length === 0) return 'table'
+
+  // Check for KV block (key: value or key = value pairs)
+  const kvCount = lines.filter(line => /^[^:=]+[:=][^:=]+$/.test(line.trim())).length
+  if (kvCount >= lines.length * 0.6) return 'kv'
+
+  // Check for stats block
+  let statsCount = 0
+  for (const line of lines) {
+    const parts = smartSplit(line, delimiter)
+    if (parts.length > 0 && isComputedStat(parts[0].trim())) {
+      statsCount++
+    }
+  }
+  if (statsCount >= lines.length * 0.5 && statsCount >= 2) return 'stats'
+
+  // Check for series (single column of values)
+  if (isSeriesBlock(lines, delimiter)) return 'series'
+
+  return 'table'
+}
+
+function isComputedStat(value: string): boolean {
+  const lower = value.toLowerCase().trim()
+
+  // Exact match
+  if (COMPUTED_STATS.has(lower)) return true
+
+  // Prefix match
+  for (const stat of COMPUTED_STATS) {
+    if (lower.startsWith(stat)) return true
+  }
+
   return false
 }
 
-function unquote(s: string): string {
-  const t = s.trim()
-  if ((t.startsWith('"') && t.endsWith('"')) || (t.startsWith("'") && t.endsWith("'"))) return t.slice(1, -1)
-  return t
-}
+function isSeriesBlock(lines: string[], delimiter: string): boolean {
+  if (lines.length < 3) return false
 
-/* ===================== Number & Date Detection ===================== */
-const NUM_GROUP = /[\u00A0\u2009\u202F\s]/g // nbsp + thin spaces
-
-function normalizeDecimal(token: string, preferComma: boolean): string {
-  let t = token.replace(NUM_GROUP, '')
-  // If both comma and dot present, assume comma is thousands sep when dot appears later
-  const hasComma = t.includes(',')
-  const hasDot = t.includes('.')
-  if (hasComma && hasDot) {
-    // If last separator is comma, likely decimal comma
-    const lastComma = t.lastIndexOf(',')
-    const lastDot = t.lastIndexOf('.')
-    if (lastComma > lastDot) t = t.replace(/\./g, '').replace(',', '.')
-    else t = t.replace(/,/g, '')
-    return t
-  }
-  if (hasComma && !hasDot) return preferComma ? t.replace(',', '.') : t.replace(/,/g, '')
-  return t
-}
-
-function isNumberLike(raw?: string, preferComma = false): boolean {
-  if (!raw) return false
-  const t = safeTrim(raw)
-  if (!t) return false
-  const n = Number(normalizeDecimal(t, preferComma))
-  return !Number.isNaN(n)
-}
-
-function toNumber(raw: string, preferComma = false): number | null {
-  const t = safeTrim(raw)
-  if (!t) return null
-  const n = Number(normalizeDecimal(t, preferComma))
-  return Number.isNaN(n) ? null : n
-}
-
-// quick date heuristics: 2025-11-16, 16.11.2025, 11/16/2025 14:05, etc.
-function isDateLike(s?: string): boolean {
-  if (!s) return false
-  const t = safeTrim(s)
-  if (!t) return false
-  // ISO or EU
-  if (/^\d{4}-\d{1,2}-\d{1,2}(?:[ T]\d{1,2}:\d{2}(?::\d{2})?)?$/.test(t)) return true
-  if (/^\d{1,2}[./-]\d{1,2}[./-]\d{2,4}(?:\s+\d{1,2}:\d{2}(?::\d{2})?)?$/.test(t)) return true
-  return false
-}
-
-/* ===================== Delimiters & Tokenization ===================== */
-export type Delimiter = 'tab' | 'semicolon' | 'comma' | 'pipe' | 'spaces' | 'markdown'
-export type DetectedDelimiter = { delim: Delimiter; reason: string }
-
-function detectDelimiter(blockText: string, opts: Required<ParserOptions>): DetectedDelimiter {
-  const hasTab = /\t/.test(blockText)
-  if (hasTab) return { delim: 'tab', reason: 'Tab characters present' }
-
-  // markdown table detection
-  if (opts.acceptMarkdownTables) {
-    const lines = blockText.split(/\r?\n/).map(l => l.trim())
-    const dividerIdx = lines.findIndex(l => /^\|?\s*:?[-]{2,}.*\|.*$/.test(l))
-    if (dividerIdx > 0) return { delim: 'markdown', reason: 'Markdown header divider found' }
+  let singleColCount = 0
+  for (const line of lines) {
+    const parts = smartSplit(line, delimiter)
+    const nonEmpty = parts.filter(p => p.trim() !== '').length
+    if (nonEmpty === 1) singleColCount++
   }
 
-  const counts: ReadonlyArray<{ delim: Delimiter; count: number }> = [
-    { delim: 'semicolon', count: (blockText.match(/;/g) || []).length },
-    { delim: 'comma', count: (blockText.match(/,/g) || []).length },
-    { delim: 'pipe', count: (blockText.match(/\|/g) || []).length },
-  ]
-  const best = counts.reduce((a, b) => (a.count >= b.count ? a : b))
-  if (best.count > 0) return { delim: best.delim, reason: 'Most frequent separator' }
-  if (/\s{2,}/.test(blockText)) return { delim: 'spaces', reason: 'Aligned by multiple spaces' }
-  return { delim: 'comma', reason: 'Fallback to comma' }
+  return singleColCount >= lines.length * 0.8
 }
 
-function splitCSVWithQuotes(line: string, sep: string): string[] {
+// ============ BLOCK PARSING ============
+
+function classifyAndParseSegment(
+  lines: string[],
+  startLine: number,
+  delimiter: string,
+  options: ParserOptions
+): ParsedBlock | null {
+  if (lines.length === 0) return null
+
+  const kind = classifyBlockKind(lines, delimiter)
+
+  switch (kind) {
+    case 'kv':
+      return parseKvBlock(lines, startLine)
+    case 'stats':
+      return parseStatsBlock(lines, startLine, delimiter)
+    case 'series':
+      return parseSeriesBlock(lines, startLine)
+    case 'table':
+      return parseTableBlock(lines, startLine, delimiter, options)
+  }
+}
+
+function parseKvBlock(lines: string[], startLine: number): KvBlock {
+  const pairs: Array<{ key: string; value: string }> = []
+
+  for (const line of lines) {
+    const match = line.match(/^([^:=]+)[:=](.+)$/)
+    if (match) {
+      pairs.push({
+        key: match[1].trim(),
+        value: match[2].trim()
+      })
+    }
+  }
+
+  return { kind: 'kv', pairs, startLine }
+}
+
+function parseStatsBlock(lines: string[], startLine: number, delimiter: string): StatsBlock {
+  const skippedStats: string[] = []
+  const extraStats: Array<{ name: string; values: string[] }> = []
+
+  for (const line of lines) {
+    const parts = smartSplit(line, delimiter).map(s => s.trim())
+    const firstCell = parts[0]?.toLowerCase() || ''
+
+    if (isComputedStat(firstCell)) {
+      skippedStats.push(firstCell)
+    } else if (/^(mean|std|avg|median|min|max|rsd|cv|sum|count|var)/i.test(firstCell)) {
+      extraStats.push({ name: firstCell, values: parts.slice(1) })
+    }
+  }
+
+  return {
+    kind: 'stats',
+    lines,
+    skippedStats,
+    extraStats,
+    startLine
+  }
+}
+
+function parseSeriesBlock(lines: string[], startLine: number): SeriesBlock {
+  const header = lines[0]?.trim() || 'Value'
+  const values = lines.slice(1).map(l => l.trim()).filter(Boolean)
+  return { kind: 'series', header, values, startLine }
+}
+
+function parseTableBlock(
+  lines: string[],
+  startLine: number,
+  delimiter: string,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _options: ParserOptions // Reserved for future use (decimal comma handling, markdown tables)
+): TableBlock {
+  const rows: string[][] = []
+
+  for (const line of lines) {
+    const parts = smartSplit(line, delimiter).map(s => s.trim())
+    rows.push(parts)
+  }
+
+  if (rows.length === 0) {
+    return {
+      kind: 'table',
+      headersRaw: [],
+      headersNormalized: [],
+      rows: [],
+      startLine,
+      delimiter
+    }
+  }
+
+  // First row is headers
+  const headersRaw = rows[0]
+  let dataRows = rows.slice(1)
+  let unitRow: string[] | undefined
+
+  // Check if second row is units
+  if (dataRows.length > 0 && looksLikeUnitRow(dataRows[0])) {
+    unitRow = dataRows[0]
+    dataRows = dataRows.slice(1)
+  }
+
+  // Filter out stats rows from data
+  dataRows = dataRows.filter(row => {
+    const firstCell = row[0]?.toLowerCase().trim() || ''
+    return ! isComputedStat(firstCell)
+  })
+
+  const headersNormalized = headersRaw.map(normalizeHeader)
+
+  return {
+    kind: 'table',
+    headersRaw,
+    headersNormalized,
+    rows: dataRows,
+    unitRow,
+    startLine,
+    delimiter
+  }
+}
+
+// ============ SMART SPLIT (CSV-aware) ============
+
+function smartSplit(line: string, delimiter: string): string[] {
+  if (! line) return []
+
+  // Handle quoted CSV
+  if (delimiter === ',' || delimiter === ';') {
+    return splitCsvLine(line, delimiter)
+  }
+
+  if (delimiter === '\t') return line.split('\t')
+  if (delimiter === '|') return line.split('|').map(s => s.trim())
+  if (delimiter === '  ') return line.split(/\s{2,}/)
+
+  return line.split(delimiter)
+}
+
+function splitCsvLine(line: string, sep: string): string[] {
   const out: string[] = []
   let cur = ''
-  let inQuotes = false
+  let inQuote = false
+
   for (let i = 0; i < line.length; i++) {
     const ch = line[i]
     if (ch === '"') {
-      if (inQuotes && line[i + 1] === '"') { cur += '"'; i++ } // escaped quote
-      else inQuotes = !inQuotes
-      continue
+      if (inQuote && line[i + 1] === '"') {
+        cur += '"'
+        i++
+      } else {
+        inQuote = !inQuote
+      }
+    } else if (! inQuote && ch === sep) {
+      out.push(cur)
+      cur = ''
+    } else {
+      cur += ch
     }
-    if (!inQuotes && ch === sep) { out.push(cur); cur = ''; continue }
-    cur += ch
   }
   out.push(cur)
   return out
 }
 
-function smartSplit(line: string, dd: DetectedDelimiter): string[] {
-  if (dd.delim === 'tab') return line.split('\t')
-  if (dd.delim === 'semicolon') return splitCSVWithQuotes(line, ';')
-  if (dd.delim === 'comma') return splitCSVWithQuotes(line, ',')
-  if (dd.delim === 'pipe') return splitCSVWithQuotes(line, '|')
-  if (dd.delim === 'spaces') return /\s{2,}/.test(line) ? line.split(/\s{2,}/) : [line]
-  if (dd.delim === 'markdown') {
-    const raw = line.replace(/^\|?\s*|\s*\|$/g, '')
-    return raw.split('|').map(s => s.trim())
-  }
-  return [line]
-}
+// ============ UNIT ROW DETECTION ============
 
-function countNonEmpty(tokens: readonly string[]): number {
-  let n = 0
-  for (const s of tokens) if (safeTrim(s).length > 0) n++
-  return n
-}
+function looksLikeUnitRow(parts: string[]): boolean {
+  if (! parts || parts.length === 0) return false
 
-/* ===================== Stats & KV ===================== */
-function isStatsStart(s: string): boolean {
-  const l = s.trim().toLowerCase()
-  return /^(mean|std|std dev|stddev|rsd|rsd %|median|min|max|sum|count)\b/.test(l)
-}
-
-function isLikelyKvLine(rawLine: string, tokens: readonly string[]): boolean {
-  const first = safeTrim(tokens[0])
-  if (!first) return false
-  if (/^[^:]{1,120}:\s*\S/.test(first)) return true
-  if (/:\s*$/.test(first)) return true
-  return /^[^:]{1,120}:\s*\S/.test(rawLine.trim())
-}
-
-function parseKvPair(rawLine: string): KvPair | null {
-  const m = rawLine.match(/^([^:]{1,200}):\s*(.*)$/)
-  if (!m) return null
-  const key = safeTrim(m[1])
-  const value = safeTrim(m[2] ?? '')
-  if (!key) return null
-  return { key, value }
-}
-
-/* ===================== Units Alignment ===================== */
-const UNIT_HINTS = ['°c', '°f', '°', 'percent', '%', 'd.nm', 'dnm', 'nm', 'µm', 'um', 'μm', 'm', 'kg', 'g', 'mm'] as const
-function looksLikeUnitToken(raw: string): boolean {
-  const v = safeTrim(raw).toLowerCase()
-  if (!v) return false
-  if (/^[+-]?\d+(?:[.,]\d+)?$/.test(v)) return false
-  if (UNIT_HINTS.some(h => v.includes(h))) return true
-  if (/^[a-zµμ°/%\-\\/]+$/i.test(v) && v.length <= 8) return true
-  if (v.includes('%') || v.includes('°')) return true
-  return false
-}
-
-function looksLikeUnitRow(tokens: readonly string[]): boolean {
+  let unitCount = 0
   let nonEmpty = 0
-  let units = 0
-  for (const t of tokens) {
-    const s = safeTrim(t)
-    if (!s) continue
+
+  for (const p of parts) {
+    const s = p.trim()
+    if (! s) continue
     nonEmpty++
-    if (looksLikeUnitToken(s)) units++
+
+    const low = s.toLowerCase()
+
+    // Pure numbers are not units
+    if (/^[+-]?\d+([.,]\d+)? $/.test(s)) continue
+
+    // Check for unit indicators
+    const hasUnit = UNIT_INDICATORS.some(u => low.includes(u)) ||
+      (low.length <= 6 && /^[a-zµμ°/%\-/]+$/.test(low))
+
+    if (hasUnit) unitCount++
   }
-  return nonEmpty > 0 && units >= Math.max(1, Math.round(nonEmpty * 0.5))
+
+  return nonEmpty > 0 && unitCount >= Math.max(1, Math.round(nonEmpty * 0.5))
 }
 
-type UnitFamily = 'degc' | 'degf' | 'dnm' | 'percent' | 'unknown'
-function unitFamilyFromToken(token: string): UnitFamily {
-  const t = token.trim().toLowerCase()
-  if (!t) return 'unknown'
-  if (t.includes('°c') || t === '°' || t.includes('celsius')) return 'degc'
-  if (t.includes('°f') || t.includes('fahrenheit')) return 'degf'
-  if (t.includes('d.nm') || t === 'nm' || /\bnm\b/.test(t)) return 'dnm'
-  if (t.includes('percent') || t.includes('%')) return 'percent'
-  return 'unknown'
-}
+function mergeHeadersWithUnits(headers: string[], units: string[]): string[] {
+  const result: string[] = []
+  const offset = Math.max(0, headers.length - units.length)
 
-function expectedUnitFamilyFromHeader(header: string): UnitFamily | 'unitless' {
-  const h = header.trim().toLowerCase()
-  if (!h) return 'unknown'
-  if (h.includes('temperature')) return 'degc'
-  if (h.includes('z-average') || h.includes('size') || h.includes('mean') || h.includes('peak') || h.includes('sizes')) return 'dnm'
-  if (h.includes('intensities') || h.includes('volumes') || h.includes('numbers') || h.includes('percent')) return 'percent'
-  if (h.includes('record number') || h.includes('sample name') || h.includes('measurement date') || h.includes('date and time')) return 'unitless'
-  if (h.includes('attenuator') || h.includes('pdi')) return 'unitless'
-  return 'unknown'
-}
-
-function scoreUnitMatch(header: string, unitTok: string): number {
-  if (!unitTok.trim()) return 0
-  const fam = unitFamilyFromToken(unitTok)
-  const exp = expectedUnitFamilyFromHeader(header)
-  let sc = 0.5
-  if (header.toLowerCase().includes('temperature') && fam === 'degc') sc += 10
-  if (exp === 'degc' && fam === 'degc') sc += 6
-  if (exp === 'dnm' && fam === 'dnm') sc += 3
-  if (exp === 'percent' && fam === 'percent') sc += 3
-  if (exp === 'unitless' && fam !== 'unknown') sc -= 3
-  if (fam === 'degc' && !header.toLowerCase().includes('temperature')) sc -= 6
-  return sc
-}
-
-function mergeHeaderWithUnitsSmart(headers: readonly string[], units: readonly string[]): string[] {
-  const H = headers.length
-  const U = units.length
-  if (!H || !U) return headers.slice()
-  const minS = -Math.min(5, U)
-  const maxS = Math.max(H - U, 0) + 5
-  let bestS = 0
-  let bestScore = -Infinity
-  for (let s = minS; s <= maxS; s++) {
-    let total = 0
-    for (let i = 0; i < H; i++) {
-      const j = i - s
-      if (j < 0 || j >= U) continue
-      total += scoreUnitMatch(headers[i] ?? '', units[j] ?? '')
-    }
-    const ti = headers.findIndex(h => h.toLowerCase().includes('temperature'))
-    if (ti >= 0) {
-      const j = ti - s
-      const tok = safeTrim(units[j] ?? '').toLowerCase()
-      if (tok.includes('°c') || tok === '°' || tok.includes('celsius')) total += 10
-    }
-    if (total > bestScore) { bestScore = total; bestS = s }
-  }
-  return headers.map((h, i) => {
-    const j = i - bestS
-    const unit = (j >= 0 && j < U) ? safeTrim(units[j] ?? '') : ''
-    const base = safeTrim(h)
-    if (unit) return base ? `${base} (${unit})` : unit
-    return base
-  })
-}
-
-/* ===================== Header Detection ===================== */
-const HEADER_KEYWORDS = [
-  'record', 'sample', 'measurement', 'date', 'time', 'temperature', 'z-average',
-  'intensity', 'volume', 'number', 'pdi', 'size', 'peak', 'attenuator',
-  'sizes', 'intensities', 'volumes', 'numbers', 'wavel', 'wavelength', 'mean'
-] as const
-
-export type RowFeatures = {
-  idx: number
-  tokens: string[]
-  nonEmpty: number
-  numNumeric: number
-  numText: number
-  keywordHits: number
-  startsWithStats: boolean
-  looksUnits: boolean
-  looksKv: boolean
-}
-
-function featuresFor(tokens: string[], idx: number, rawLine: string, preferComma: boolean): RowFeatures {
-  let numNumeric = 0
-  let numText = 0
-  let keywordHits = 0
-  for (const raw of tokens) {
-    const t = safeTrim(raw)
-    if (!t) continue
-    if (isNumberLike(t, preferComma)) numNumeric++
-    else {
-      numText++
-      const low = t.toLowerCase()
-      if (HEADER_KEYWORDS.some(k => low.includes(k))) keywordHits++
-    }
-  }
-  return {
-    idx,
-    tokens,
-    nonEmpty: countNonEmpty(tokens),
-    numNumeric,
-    numText,
-    keywordHits,
-    startsWithStats: isStatsStart(safeTrim(tokens[0] ?? '')),
-    looksUnits: looksLikeUnitRow(tokens),
-    looksKv: isLikelyKvLine(rawLine, tokens)
-  }
-}
-
-function headerScore(f: RowFeatures, next: RowFeatures | undefined): number {
-  if (f.nonEmpty < 2) return -Infinity
-  if (f.startsWithStats) return -Infinity
-  if (f.looksKv) return -Infinity
-  let s = 0
-  const total = f.numNumeric + f.numText
-  const textRatio = total ? f.numText / total : 0
-  const numRatio = total ? f.numNumeric / total : 0
-  s += textRatio * 5
-  s -= numRatio * 2
-  s += f.keywordHits * 1.5
-  if (f.numNumeric > f.numText && f.keywordHits === 0) s -= 3
-  if (next && next.looksUnits) s += 4
-  if (textRatio < 0.25 && f.keywordHits === 0) s -= 4
-  return s
-}
-
-/* ===================== Repeat Detection ===================== */
-export function buildRepeatMetaFromHeaders(headers: readonly string[]): RepeatMeta {
-  const tmp: Record<string, number[]> = {}
   for (let i = 0; i < headers.length; i++) {
-    const raw = headers[i] ?? ''
-    const base = raw.trim().replace(/\s+\d+$/u, '')
-    const key = base || raw || `#${i + 1}`
-    if (!tmp[key]) tmp[key] = []
-    tmp[key].push(i)
-  }
-  const filtered: Record<string, number[]> = {}
-  for (const k of Object.keys(tmp)) if (tmp[k].length > 1) filtered[k] = tmp[k]
-  const detected = Object.keys(filtered).length > 0
-  const replicateCount = detected ? Math.max(...Object.values(filtered).map(v => v.length)) : null
-  return { repeatDetected: detected, replicateCount, repeatMap: filtered }
-}
+    const base = headers[i]?.trim() || ''
+    const unitIdx = i - offset
+    const unit = (unitIdx >= 0 && unitIdx < units.length) ?  units[unitIdx].trim() : ''
 
-/* ===================== Series Detection ===================== */
-function tryParseSeries(lines: readonly string[], preferComma: boolean): SeriesBlock | null {
-  const vals: number[] = []
-  for (const ln of lines) {
-    const t = ln.trim()
-    if (!t) continue
-    // support: "value" or "label value" (first numeric wins)
-    const parts = t.split(/[\t,; ]+/).filter(Boolean)
-    let found = false
-    for (const p of parts) {
-      const num = toNumber(p, preferComma)
-      if (num !== null) { vals.push(num); found = true; break }
+    if (unit && ! base.includes(unit)) {
+      result.push(base ?  `${base} (${unit})` : unit)
+    } else {
+      result.push(base)
     }
-    if (!found) return null
   }
-  if (vals.length >= 2) return { kind: 'series', startLine: -1, endLine: -1, header: lines[0]?.trim(), values: vals }
-  return null
+
+  return result
 }
 
-/* ===================== Block Split ===================== */
-function splitIntoBlocks(lines: readonly string[]): Array<{ start: number; end: number; lines: string[] }> {
-  const blocks: Array<{ start: number; end: number; lines: string[] }> = []
-  let i = 0
-  while (i < lines.length) {
-    while (i < lines.length && safeTrim(lines[i]) === '') i++
-    if (i >= lines.length) break
-    const s = i
-    while (i < lines.length && safeTrim(lines[i]) !== '') i++
-    const e = i - 1
-    blocks.push({ start: s, end: e, lines: lines.slice(s, e + 1) })
-  }
-  return blocks
+// ============ HEADER NORMALIZATION ============
+
+function normalizeHeader(h: string): string {
+  if (!h) return ''
+  return h
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '_')
+    .replace(/[^a-z0-9_]/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_|_$/g, '')
 }
 
-/* ===================== Field Type Inference ===================== */
-export function inferFieldType(headerRaw?: string, name?: string): ColumnType {
-  const h = safeTrim(headerRaw ?? name ?? '').toLowerCase()
-  if (!h) return 'text'
-  if (containsAny(h, ['date', 'datum', 'time', 'čas'])) return 'date'
-  if (containsAny(h, ['yes/no', 'true/false', 'boolean'])) return 'bool'
-  if (containsAny(h, ['file', 'image', 'screenshot'])) return 'file'
-  if (containsAny(h, ['count', 'number ']) || /^number\b/.test(h)) return 'int'
-  if (containsAny(h, ['mean', 'avg', 'average', 'size', 'pdi', 'intensity', 'volume', 'peak', 'z-average', 'z average', 'number'])) return 'float'
+// ============ FIELD TYPE INFERENCE ============
+
+export function inferFieldType(header: string): ColumnType {
+  const h = header.toLowerCase()
+
+  if (/datum|date|time|čas|timestamp/.test(h)) return 'date'
+  if (/bool|ano|ne|yes|no|true|false/.test(h)) return 'bool'
+  if (/soubor|file|image|foto|picture|img/.test(h)) return 'file'
+  if (/počet|count|id|index|pořadí/.test(h)) return 'int'
+  if (/hodnota|value|měření|num|float|%|°|size|diameter|intensity/.test(h)) return 'float'
+
   return 'text'
 }
 
-/* ===================== Analyzer ===================== */
-export function analyzeClipboard(rawText: string, options?: ParserOptions): AnalyzeResult {
-  const opts = { ...DEFAULT_OPTS, ...(options ?? {}) }
-  const rawLines = (rawText ?? '').split(/\r?\n/).map(stripNBSP)
-  const blocksRaw = splitIntoBlocks(rawLines)
+export function inferFieldTypeFromSamples(samples: string[]): ColumnType {
+  if (! samples || samples.length === 0) return 'text'
 
-  const blocksOut: Array<TableBlock | StatsBlock | SeriesBlock | KvBlock> = []
-  let mainTable: TableBlock | undefined
-  let statsBlock: StatsBlock | null = null
-  let seriesBlock: SeriesBlock | null = null
-  const delimiterGuesses: AnalyzeDiagnostics['delimiterGuesses'] = []
-  let headersChosenFromBlockIndex: number | null = null
-  let unitRowMerged = false
+  let ints = 0
+  let floats = 0
+  let bools = 0
+  let dates = 0
+  let files = 0
+  let n = 0
 
-  for (let bi = 0; bi < blocksRaw.length; bi++) {
-    const b = blocksRaw[bi]
-    const nonEmpty = b.lines.filter(l => safeTrim(l).length > 0)
-    if (!nonEmpty.length) continue
+  for (const s of samples) {
+    if (! s || s.trim() === '') continue
+    n++
+    const t = s.trim()
 
-    const dd =
-             opts.delimiterOverride !== 'auto'
-               ? ({ delim: opts.delimiterOverride as Delimiter, reason: 'User override' } as DetectedDelimiter)
-                 : detectDelimiter(nonEmpty.join('\n'), opts)
-    const tokenRows = nonEmpty.map(l => smartSplit(l, dd).map(s => unquote(s)))
-    delimiterGuesses.push({ blockIndex: bi, chosen: dd, competitors: [
-        { delim: 'tab', score: /\t/.test(nonEmpty.join('\n')) ? 1 : 0 },
-        { delim: 'semicolon', score: (nonEmpty.join('\n').match(/;/g) || []).length },
-        { delim: 'comma', score: (nonEmpty.join('\n').match(/,/g) || []).length },
-        { delim: 'pipe', score: (nonEmpty.join('\n').match(/\|/g) || []).length },
-      ] })
-
-    const feats = tokenRows.map((r, i) => featuresFor(r, i, nonEmpty[i] ?? '', opts.preferDecimalComma))
-
-    // 0) Leading metadata (kv) lines
-    let kvCount = 0
-    while (kvCount < feats.length && feats[kvCount].looksKv) kvCount++
-    if (kvCount >= 1) {
-      const pairs: KvPair[] = []
-      for (let i = 0; i < kvCount; i++) {
-        const p = parseKvPair(nonEmpty[i] ?? '')
-        if (p) pairs.push(p)
-      }
-      const kv: KvBlock = { kind: 'kv', startLine: b.start, endLine: b.start + kvCount - 1, pairs, lines: nonEmpty.slice(0, kvCount) }
-      blocksOut.push(kv)
-    }
-
-    // Work on remainder
-    const remLines = nonEmpty.slice(kvCount)
-    if (!remLines.length) continue
-    const remTokens = tokenRows.slice(kvCount)
-    const remFeats = feats.slice(kvCount)
-
-    // 1) Try TABLE
-    let bestIdx = -1
-    let bestScore = -Infinity
-    for (let i = 0; i < remFeats.length; i++) {
-      const sc = headerScore(remFeats[i], remFeats[i + 1])
-      if (sc > bestScore) { bestScore = sc; bestIdx = i }
-    }
-
-    // Trailing STATS peel-off for cleanliness
-    const trailing: string[][] = []
-    for (let i = remTokens.length - 1; i >= 0; i--) {
-      const firstCell = safeTrim(remTokens[i][0])
-      if (isStatsStart(firstCell)) trailing.unshift(remTokens[i].slice())
-      else break
-    }
-    const effectiveTokens = trailing.length ? remTokens.slice(0, remTokens.length - trailing.length) : remTokens
-
-    if (bestIdx >= 0 && bestScore >= opts.headerScoreThreshold && effectiveTokens.length > 0) {
-      const header0 = effectiveTokens[bestIdx]?.slice() ?? []
-      let dataStart = bestIdx + 1
-      if (opts.mergeUnitsWithHeaders && effectiveTokens[dataStart] && looksLikeUnitRow(effectiveTokens[dataStart])) {
-        const merged = mergeHeaderWithUnitsSmart(header0, effectiveTokens[dataStart] ?? [])
-        for (let i = 0; i < merged.length; i++) header0[i] = merged[i]
-        dataStart++
-        unitRowMerged = true
-      }
-      const cols = header0.length
-      const dataRows: string[][] = []
-      for (let r = dataStart; r < effectiveTokens.length; r++) {
-        const row = effectiveTokens[r]?.slice() ?? []
-        if (row.length < cols) while (row.length < cols) row.push('')
-        else if (row.length > cols) row.length = cols
-        dataRows.push(row)
-      }
-      const headersRaw = header0.map(c => safeTrim(c))
-      const headersNormalized = headersRaw.map(normalizeHeader)
-      const table: TableBlock = { kind: 'table', startLine: b.start + kvCount, endLine: b.end, headersRaw, headersNormalized, rows: dataRows, delimiter: dd }
-      blocksOut.push(table)
-      if (!mainTable || table.headersRaw.length > (mainTable.headersRaw.length || 0)) {
-        mainTable = table
-        headersChosenFromBlockIndex = bi
-      }
-
-      if (trailing.length) {
-        const statsLines = trailing.map(r => r.join('\t'))
-        const sb: StatsBlock = { kind: 'stats', startLine: b.start, endLine: b.end, lines: statsLines }
-        blocksOut.push(sb)
-        if (!statsBlock) statsBlock = sb
-      }
-      continue
-    }
-
-    // 2) SERIES
-    if (opts.enableSeriesDetection) {
-      const seriesTry = tryParseSeries(remLines, opts.preferDecimalComma)
-      if (seriesTry) {
-        seriesTry.startLine = b.start + kvCount
-        seriesTry.endLine = b.end
-        blocksOut.push(seriesTry)
-        if (!seriesBlock) seriesBlock = seriesTry
-        continue
-      }
-    }
-
-    // 3) STATS (strict)
-    if (remLines.every(l => isStatsStart(l.split(/\t|;/)[0] ?? ''))) {
-      const sb: StatsBlock = { kind: 'stats', startLine: b.start + kvCount, endLine: b.end, lines: remLines.slice() }
-      blocksOut.push(sb)
-      if (!statsBlock) statsBlock = sb
-      continue
+    if (/^\d{4}-\d{2}-\d{2}/.test(t) || /^\d{1,2}\.\d{1,2}\.\d{4}/.test(t)) {
+      dates++
+    } else if (/^(true|false|1|0|yes|no|ano|ne)$/i.test(t)) {
+      bools++
+    } else if (/\.(png|jpg|jpeg|gif|pdf|csv|xlsx?)$/i.test(t) || /^https?:\/\//.test(t)) {
+      files++
+    } else if (/^[+-]?\d+$/.test(t)) {
+      ints++
+    } else if (/^[+-]? (\d+[.,]\d*|\d*[.,]\d+)$/.test(t)) {
+      floats++
     }
   }
 
-  // Column suggestions
-  let columns: ColumnSuggestion[] = []
-  let headersRawOut: string[] = []
-  let headersNormalizedOut: string[] = []
-  if (mainTable) {
-    headersRawOut = mainTable.headersRaw
-    headersNormalizedOut = mainTable.headersNormalized
-    columns = headersRawOut.map((h, idx) => ({
-      index: idx,
-      headerRaw: h,
-      headerNormalized: headersNormalizedOut[idx] ?? normalizeHeader(h),
-      detectedType: inferFieldType(h)
-    }))
+  if (n === 0) return 'text'
+  const threshold = n * 0.6
+
+  if (dates >= threshold) return 'date'
+  if (bools >= threshold) return 'bool'
+  if (files >= threshold) return 'file'
+  if (ints + floats >= threshold) return floats > 0 ? 'float' : 'int'
+
+  return 'text'
+}
+
+// ============ REPEAT SET DETECTION ============
+
+export function buildRepeatMetaFromHeaders(headers: string[]): RepeatMeta {
+  if (! headers || headers.length < 2) {
+    return { repeatDetected: false, baseHeaders: headers || [], repeatCount: 1 }
   }
 
-  const repeat = buildRepeatMetaFromHeaders(headersRawOut)
+  const extractBase = (h: string): string => h.trim().replace(/\s+\d+$/u, '')
+  const bases = headers.map(extractBase)
+  const counts: Record<string, number> = {}
 
-  const diagnostics: AnalyzeDiagnostics = {
-    blocksDetected: blocksRaw.length,
-    kvBlocks: blocksOut.filter(b => b.kind === 'kv').length,
-    tableBlocks: blocksOut.filter(b => b.kind === 'table').length,
-    statsBlocks: blocksOut.filter(b => b.kind === 'stats').length,
-    seriesBlocks: blocksOut.filter(b => b.kind === 'series').length,
-    headersChosenFromBlockIndex,
-    unitRowMerged,
-    delimiterGuesses,
+  for (const b of bases) {
+    counts[b] = (counts[b] || 0) + 1
   }
+
+  const repeatedEntries = Object.entries(counts).filter(([, count]) => count > 1)
+
+  if (repeatedEntries.length === 0) {
+    return { repeatDetected: false, baseHeaders: headers, repeatCount: 1 }
+  }
+
+  const maxRepeat = Math.max(...repeatedEntries.map(([, count]) => count))
+  const uniqueBases = [...new Set(bases)]
 
   return {
-    rawLines,
-    mainTable: mainTable || null,
-    stats: statsBlock || null,
-    series: seriesBlock || null,
-    columns,
-    headersRaw: headersRawOut,
-    headersNormalized: headersNormalizedOut,
-    repeat,
-    blocks: blocksOut,
-    diagnostics,
+    repeatDetected: true,
+    baseHeaders: uniqueBases,
+    repeatCount: maxRepeat
   }
 }
 
-/* ===================== Extras: Coercion Helpers ===================== */
-export type CoerceOptions = {
-  preferDecimalComma?: boolean
-}
+// ============ IMPORT PROFILE MANAGEMENT (MEMORY) ============
 
-export function coerceRowToTypes(row: readonly string[], columns: readonly ColumnSuggestion[], opts: CoerceOptions = {}): Array<string | number | boolean | Date | null> {
-  const prefer = opts.preferDecimalComma ?? false
-  const out: Array<string | number | boolean | Date | null> = []
-  for (let i = 0; i < columns.length; i++) {
-    const v = row[i] ?? ''
-    const type = columns[i]?.detectedType ?? 'text'
-    if (type === 'int') { const n = toNumber(v, prefer); out.push(n !== null ? Math.trunc(n) : null); continue }
-    if (type === 'float') { const n = toNumber(v, prefer); out.push(n !== null ? n : null); continue }
-    if (type === 'bool') { const t = safeTrim(v).toLowerCase(); out.push(t === 'true' || t === 'yes' || t === '1'); continue }
-    if (type === 'date') { const t = safeTrim(v); out.push(isDateLike(t) ? new Date(t) : (t ? new Date(t) : null)); continue }
-    out.push(v || null)
+export function loadImportProfiles(): ImportProfile[] {
+  try {
+    const raw = localStorage.getItem(PROFILE_STORAGE_KEY)
+    return raw ? JSON.parse(raw) as ImportProfile[] : []
+  } catch {
+    return []
   }
-  return out
 }
 
-export function coerceTable(block: TableBlock, cols: readonly ColumnSuggestion[], opts?: CoerceOptions): Array<Array<string | number | boolean | Date | null>> {
-  return block.rows.map(r => coerceRowToTypes(r, cols, opts))
+export function saveImportProfile(profile: ImportProfile): void {
+  const profiles = loadImportProfiles()
+  const existingIndex = profiles.findIndex(p => p.deviceCode === profile.deviceCode)
+
+  const updatedProfile = { ...profile, lastUsed: Date.now() }
+
+  if (existingIndex >= 0) {
+    profiles[existingIndex] = updatedProfile
+  } else {
+    profiles.push(updatedProfile)
+  }
+
+  // Keep only last 20 profiles, sorted by lastUsed desc
+  profiles.sort((a, b) => b.lastUsed - a.lastUsed)
+  const toSave = profiles.slice(0, 20)
+
+  localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(toSave))
 }
+
+export function findMatchingProfile(headers: string[]): ImportProfile | null {
+  const profiles = loadImportProfiles()
+  if (profiles.length === 0 || ! headers.length) return null
+
+  const normalizedInput = new Set(headers.map(normalizeHeader))
+
+  let bestMatch: ImportProfile | null = null
+  let bestScore = 0
+
+  for (const profile of profiles) {
+    const profileNorm = new Set(profile.typicalHeaders.map(normalizeHeader))
+    let matches = 0
+
+    for (const h of normalizedInput) {
+      if (profileNorm.has(h)) matches++
+    }
+
+    const score = matches / Math.max(normalizedInput.size, profileNorm.size)
+
+    if (score > bestScore && score >= 0.5) {
+      bestScore = score
+      bestMatch = profile
+    }
+  }
+
+  return bestMatch
+}
+
+// ============ UTILITY EXPORTS ============
+
+export { isComputedStat, normalizeHeader }

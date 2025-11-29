@@ -246,7 +246,8 @@
         Zpět
       </v-btn>
       <v-btn
-        color="primary"
+        color="primary" variant="flat"
+        class="ml-3"
         :disabled="!hasAnyFields"
         @click="$emit('next')"
       >

@@ -1,8 +1,9 @@
 /**
  * Helper struktury a funkce pro práci s vícero záznamy (records) v jednom měření.
  * Record = opakování stejné sady polí (definované šablonou).
+ * Block = logické seskupení polí v rámci šablony (např."Základní měření", "Pokročilé parametry").
  *
- * Backend reprezentace: MeasurementValue s recordIndex.
+ * Backend reprezentace: MeasurementValue s recordIndex a blockIndex.
  * Frontend: MeasurementRecord = { recordIndex; fields[] } kde fields odpovídají template fieldům.
  */
 
@@ -13,6 +14,8 @@ export interface RecordField {
   type: ValueType
   required: boolean
   value: unknown
+  blockIndex?: number | null
+  blockTitle?: string | null
 }
 
 export interface MeasurementRecord {
@@ -23,6 +26,7 @@ export interface MeasurementRecord {
 export interface MeasuredValue {
   orderIndex: number
   recordIndex?: number | null
+  blockIndex?: number | null
   name: string
   type: ValueType
   numberValue?: number | null
@@ -32,21 +36,55 @@ export interface MeasuredValue {
   fileUrl?: string | null
 }
 
+/* ---------- Block Types ---------- */
+
+export interface TemplateBlockField {
+  orderIndex: number
+  type: ValueType
+  required: boolean
+  name: string
+}
+
+export interface TemplateBlock {
+  id?: number
+  blockIndex: number
+  title: string
+  kind?: 'table' | 'stats' | 'series' | 'kv'
+  fields: TemplateBlockField[]
+}
+
+export interface BlockedRecord {
+  recordIndex: number
+  blocks: Array<{
+    blockIndex: number
+    blockTitle: string
+    fields: RecordField[]
+  }>
+}
+
 /* ---------- Converters ---------- */
 
 /**
  * Převod matrix records -> plochý seznam MeasuredValue pro API.
+ * Nyní zahrnuje blockIndex pro každou hodnotu.
+ */
+/**
+ * Převod matrix records -> plochý seznam MeasuredValue pro API.
+ * DŮLEŽITÉ: Nyní správně zahrnuje blockIndex pro každou hodnotu.
  */
 export function flattenRecords(records: MeasurementRecord[]): MeasuredValue[] {
   const out: MeasuredValue[] = []
+
   for (const rec of records) {
     rec.fields.forEach((f, i) => {
       const mv: MeasuredValue = {
         orderIndex: i + 1,
         recordIndex: rec.recordIndex,
+        blockIndex: f.blockIndex ?? 1,
         name: f.name,
         type: f.type
       }
+
       switch (f.type) {
         case 'float':
         case 'int': {
@@ -63,36 +101,46 @@ export function flattenRecords(records: MeasurementRecord[]): MeasuredValue[] {
         case 'file':
           mv.fileUrl =
             f.value && typeof f.value === 'object' && 'name' in (f.value as Record<string, unknown>)
-              ? String((f.value as { name?: unknown }).name)
+              ?  String((f.value as { name?: unknown }).name)
               : (typeof f.value === 'string' ? f.value : null)
           break
         case 'text':
         default:
           mv.textValue = f.value != null ? String(f.value) : null
       }
+
       out.push(mv)
     })
   }
+
   return out
 }
-
 /**
  * Převod plochého seznamu hodnot z API -> map records.
+ * Zachovává blockIndex pro pozdější seskupení.
+ */
+/**
+ * Převod plochého seznamu hodnot z API -> map records.
+ * Zachovává blockIndex pro pozdější seskupení.
  */
 export function groupValuesToRecords(values: MeasuredValue[]): MeasurementRecord[] {
   const map = new Map<number, MeasurementRecord>()
+
   for (const v of values) {
-    const ri = v.recordIndex ?? 1
+    const ri = v.recordIndex ??  1
     if (!map.has(ri)) {
       map.set(ri, { recordIndex: ri, fields: [] })
     }
+
     map.get(ri)!.fields.push({
       name: v.name,
       type: v.type,
       required: true,
+      blockIndex: v.blockIndex ?? 1,
+      blockTitle: null, // Backend neposílá blockTitle, ale blockIndex stačí
       value:
         v.type === 'float' || v.type === 'int'
-          ? v.numberValue
+          ? v. numberValue
           : v.type === 'bool'
             ? v.boolValue
             : v.type === 'date'
@@ -102,22 +150,77 @@ export function groupValuesToRecords(values: MeasuredValue[]): MeasurementRecord
                 : v.textValue
     })
   }
-  // Seřadit pole uvnitř recordu podle jména (nebo lze dle původního orderIndex pokud ho přidáš do DTO)
-  const records = [...map.values()]
+
+  // Seřadit pole uvnitř recordu podle blockIndex a pak orderIndex
+  const records = [... map.values()]
   records.forEach(r => {
-    r.fields.sort((a, b) => a.name.localeCompare(b.name, 'cs'))
+    r.fields.sort((a, b) => {
+      const blockDiff = (a.blockIndex ?? 1) - (b.blockIndex ?? 1)
+      if (blockDiff !== 0) return blockDiff
+      // Fallback: podle jména pokud nemáme orderIndex
+      return a.name.localeCompare(b. name, 'cs')
+    })
   })
-  return records.sort((a, b) => a.recordIndex - b.recordIndex)
+
+  return records. sort((a, b) => a.recordIndex - b.recordIndex)
+}
+
+/**
+ * Seskupí record fields podle bloků pro zobrazení v UI.
+ */
+export function groupRecordByBlocks(
+  record: MeasurementRecord,
+  templateBlocks: TemplateBlock[]
+): BlockedRecord {
+  const blocksMap = new Map<number, { blockIndex: number; blockTitle: string; fields: RecordField[] }>()
+
+  // Inicializovat bloky ze šablony
+  for (const block of templateBlocks) {
+    blocksMap.set(block.blockIndex, {
+      blockIndex: block.blockIndex,
+      blockTitle: block.title || `Blok ${block.blockIndex}`,
+      fields: []
+    })
+  }
+
+  // Přiřadit pole do bloků
+  for (const field of record.fields) {
+    const blockIdx = field.blockIndex ?? 1
+
+    if (!blocksMap.has(blockIdx)) {
+      // Fallback blok pokud neexistuje v šabloně
+      blocksMap.set(blockIdx, {
+        blockIndex: blockIdx,
+        blockTitle: `Blok ${blockIdx}`,
+        fields: []
+      })
+    }
+
+    blocksMap.get(blockIdx)!.fields.push(field)
+  }
+
+  return {
+    recordIndex: record.recordIndex,
+    blocks: [...blocksMap.values()].sort((a, b) => a.blockIndex - b.blockIndex)
+  }
+}
+
+/**
+ * Vrátí pole pouze pro konkrétní blok.
+ */
+export function getFieldsForBlock(record: MeasurementRecord, blockIndex: number): RecordField[] {
+  return record.fields.filter(f => (f.blockIndex ??  1) === blockIndex)
 }
 
 /* ---------- Field factory ---------- */
 
 /**
  * Vytvoří nový prázdný record podle template field definic.
+ * Nyní podporuje bloky - přiřadí blockIndex každému poli.
  */
 export function newRecordFromTemplateFields(
   recordIndex: number,
-  templateFields: Array<{ name: string; type: ValueType; required: boolean }>
+  templateFields: Array<{ name: string; type: ValueType; required: boolean; blockIndex?: number; blockTitle?: string }>
 ): MeasurementRecord {
   return {
     recordIndex,
@@ -125,9 +228,59 @@ export function newRecordFromTemplateFields(
       name: f.name,
       type: f.type,
       required: f.required,
+      blockIndex: f.blockIndex ?? 1,
+      blockTitle: f.blockTitle ??  null,
       value: initialValueForType(f.type)
     }))
   }
+}
+
+/**
+ * Vytvoří nový record z bloků šablony.
+ */
+export function newRecordFromBlocks(
+  recordIndex: number,
+  blocks: TemplateBlock[]
+): MeasurementRecord {
+  const fields: RecordField[] = []
+
+  for (const block of blocks) {
+    for (const field of block.fields) {
+      fields.push({
+        name: field.name,
+        type: field.type,
+        required: field.required,
+        blockIndex: block.blockIndex,
+        blockTitle: block.title,
+        value: initialValueForType(field.type)
+      })
+    }
+  }
+
+  return { recordIndex, fields }
+}
+
+/**
+ * Flatten bloků do pole template fields (pro kompatibilitu se starším kódem).
+ */
+export function flattenBlocksToFields(
+  blocks: TemplateBlock[]
+): Array<{ name: string; type: ValueType; required: boolean; blockIndex: number; blockTitle: string }> {
+  const fields: Array<{ name: string; type: ValueType; required: boolean; blockIndex: number; blockTitle: string }> = []
+
+  for (const block of blocks) {
+    for (const field of block.fields) {
+      fields.push({
+        name: field.name,
+        type: field.type,
+        required: field.required,
+        blockIndex: block.blockIndex,
+        blockTitle: block.title
+      })
+    }
+  }
+
+  return fields
 }
 
 /* ---------- Value utilities ---------- */
@@ -151,9 +304,9 @@ function initialValueForType(t: ValueType): unknown {
 
 export function toNumber(raw: unknown, integer: boolean): number | null {
   if (raw === '' || raw == null) return null
-  if (typeof raw === 'number') return Number.isFinite(raw) ? raw : null
+  if (typeof raw === 'number') return Number.isFinite(raw) ?  raw : null
   const s = String(raw).replace(',', '.').trim()
-  if (!s.length) return null
+  if (! s.length) return null
   const n = integer ? parseInt(s, 10) : parseFloat(s)
   return Number.isFinite(n) ? n : null
 }
@@ -190,7 +343,7 @@ export interface BasicStats {
 }
 
 export function computeBasicStats(values: number[]): BasicStats | null {
-  if (!values.length) return null
+  if (! values.length) return null
   const count = values.length
   const mean = values.reduce((a, b) => a + b, 0) / count
   const sorted = [...values].sort((a, b) => a - b)
@@ -207,7 +360,7 @@ export function computeBasicStats(values: number[]): BasicStats | null {
     mean,
     median,
     stdDev,
-    min: sorted[0]!,
+    min: sorted[0]! ,
     max: sorted[sorted.length - 1]!,
     count
   }
@@ -261,7 +414,7 @@ export function extractSeries(records: MeasurementRecord[], fieldName: string): 
   const out: number[] = []
   for (const rec of records) {
     const f = rec.fields.find(ff => ff.name === fieldName)
-    if (!f) continue
+    if (! f) continue
     if (f.type === 'float' || f.type === 'int') {
       const num = typeof f.value === 'number'
         ? f.value
@@ -272,6 +425,31 @@ export function extractSeries(records: MeasurementRecord[], fieldName: string): 
       if (maybe != null) out.push(maybe)
     }
     // ostatní typy ignorujeme (bool/date/file)
+  }
+  return out
+}
+
+/**
+ * Vrátí hodnoty pole z konkrétního bloku napříč všemi recordy.
+ */
+export function extractSeriesFromBlock(
+  records: MeasurementRecord[],
+  fieldName: string,
+  blockIndex: number
+): number[] {
+  const out: number[] = []
+  for (const rec of records) {
+    const f = rec.fields.find(ff => ff.name === fieldName && (ff.blockIndex ??  1) === blockIndex)
+    if (!f) continue
+    if (f.type === 'float' || f.type === 'int') {
+      const num = typeof f.value === 'number'
+        ? f.value
+        : toNumber(f.value, f.type === 'int')
+      if (num != null) out.push(num)
+    } else if (f.type === 'text') {
+      const maybe = toNumber(f.value, false)
+      if (maybe != null) out.push(maybe)
+    }
   }
   return out
 }
@@ -302,6 +480,8 @@ export function duplicateRecord(source: MeasurementRecord, newIndex: number): Me
       name: f.name,
       type: f.type,
       required: f.required,
+      blockIndex: f.blockIndex,
+      blockTitle: f.blockTitle,
       value: cloneValue(f.value)
     }))
   }
@@ -336,6 +516,25 @@ export function setFieldValue(
 }
 
 /**
+ * Aktualizace hodnoty fieldu v konkrétním bloku.
+ */
+export function setFieldValueInBlock(
+  record: MeasurementRecord,
+  fieldName: string,
+  blockIndex: number,
+  newValue: unknown
+): MeasurementRecord {
+  return {
+    recordIndex: record.recordIndex,
+    fields: record.fields.map(f =>
+      f.name === fieldName && (f.blockIndex ??  1) === blockIndex
+        ? { ...f, value: newValue }
+        : f
+    )
+  }
+}
+
+/**
  * Validace jednoho fieldu podle jeho typu + required.
  */
 export function validateField(field: RecordField): string | null {
@@ -354,11 +553,11 @@ export function validateField(field: RecordField): string | null {
       return ms != null ? null : 'Neplatné datum'
     }
     case 'file':
-      return field.value != null ? null : 'Vyžadován soubor'
+      return field.value != null ?  null : 'Vyžadován soubor'
     case 'text':
     default: {
       const s = (field.value == null ? '' : String(field.value)).trim()
-      return s.length ? null : 'Vyžadováno'
+      return s.length ?  null : 'Vyžadováno'
     }
   }
 }
@@ -376,6 +575,21 @@ export function validateRecord(record: MeasurementRecord): { errors: Record<stri
 }
 
 /**
+ * Validace polí v konkrétním bloku.
+ */
+export function validateBlock(record: MeasurementRecord, blockIndex: number): { errors: Record<string, string>; valid: boolean } {
+  const errors: Record<string, string> = {}
+  const blockFields = record.fields.filter(f => (f.blockIndex ??  1) === blockIndex)
+
+  blockFields.forEach(f => {
+    const err = validateField(f)
+    if (err) errors[f.name] = err
+  })
+
+  return { errors, valid: Object.keys(errors).length === 0 }
+}
+
+/**
  * Bulk validace všech recordů.
  */
 export function validateAllRecords(records: MeasurementRecord[]): {
@@ -387,4 +601,36 @@ export function validateAllRecords(records: MeasurementRecord[]): {
     return { recordIndex: r.recordIndex, errors: vr.errors, valid: vr.valid }
   })
   return { perRecord, overallValid: perRecord.every(r => r.valid) }
+}
+
+/**
+ * Počet vyplněných polí v bloku.
+ */
+export function countFilledFieldsInBlock(record: MeasurementRecord, blockIndex: number): { filled: number; total: number } {
+  const blockFields = record.fields.filter(f => (f.blockIndex ?? 1) === blockIndex)
+  const filled = blockFields.filter(f => {
+    if (f.value == null) return false
+    if (typeof f.value === 'string' && f.value.trim() === '') return false
+    return true
+  }).length
+
+  return { filled, total: blockFields.length }
+}
+
+/**
+ * Získá unikátní bloky z recordu.
+ */
+export function getUniqueBlocks(record: MeasurementRecord): Array<{ blockIndex: number; blockTitle: string | null }> {
+  const seen = new Map<number, string | null>()
+
+  for (const field of record.fields) {
+    const idx = field.blockIndex ?? 1
+    if (!seen.has(idx)) {
+      seen.set(idx, field.blockTitle ??  null)
+    }
+  }
+
+  return [...seen.entries()]
+    .map(([blockIndex, blockTitle]) => ({ blockIndex, blockTitle }))
+    .sort((a, b) => a.blockIndex - b.blockIndex)
 }

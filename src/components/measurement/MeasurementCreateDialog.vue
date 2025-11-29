@@ -1,8 +1,7 @@
 <script setup lang="ts">
-
 import { ref, computed, nextTick, watch, onMounted, onBeforeUnmount } from 'vue'
 import Dialog from '@/components/Dialog.vue'
-import { type DeviceItem, type TemplateItem, type ValueType } from '@/types/measurement-ui'
+import { type DeviceItem, type TemplateItem, type ValueType, type TemplateBlockRow } from '@/types/measurement-ui'
 import { type MeasurementRequest, type MeasuredValue } from '@/stores/measurement'
 import {
   newRecordFromTemplateFields,
@@ -57,21 +56,80 @@ const currentRecordIndex = ref<number>(1)
 const selectedRecordIndexes = ref<Set<number>>(new Set())
 const expandedFields = ref<Set<string>>(new Set())
 
+/* ---------- Current block navigation ---------- */
+const currentBlockIndex = ref<number>(0)
+
 /* ---------- Derived ---------- */
 const currentRecord = computed<MeasurementRecord | null>(() =>
-  records.value.find(r => r.recordIndex === currentRecordIndex.value) ?? null
+  records.value.find(r => r.recordIndex === currentRecordIndex.value) ??  null
 )
 
-const templateFields = computed<Array<{ name: string; type: ValueType; required: boolean }>>(() => {
-  if (!selectedTemplateId.value) return []
-  const tpl = props.templateById.get(selectedTemplateId.value)
-  return (tpl?.fields ?? []).map(f => ({
+const selectedTemplate = computed<TemplateItem | null>(() => {
+  if (! selectedTemplateId.value) return null
+  return props.templateById.get(selectedTemplateId.value) ??  null
+})
+
+const templateBlocks = computed<TemplateBlockRow[]>(() => {
+  const tpl = selectedTemplate.value
+  if (!tpl) return []
+
+  // Pokud má šablona bloky, použijeme je
+  if (tpl.blocks && tpl.blocks.length > 0) {
+    return tpl.blocks
+  }
+
+  // Fallback: vytvořit jeden blok ze všech polí
+  return [{
+    id: 0,
+    blockIndex: 1,
+    title: 'Hodnoty',
+    fields: tpl.fields || []
+  }]
+})
+
+const currentBlock = computed<TemplateBlockRow | null>(() => {
+  return templateBlocks.value[currentBlockIndex.value] ??  null
+})
+
+const templateFields = computed<Array<{ name: string; type: ValueType; required: boolean; blockIndex?: number; blockTitle?: string }>>(() => {
+  if (!selectedTemplateId. value) return []
+  const tpl = props.templateById. get(selectedTemplateId.value)
+  if (!tpl) return []
+
+  // Pokud má šablona bloky, použij je
+  if (tpl.blocks && tpl.blocks.length > 0) {
+    const fields: Array<{ name: string; type: ValueType; required: boolean; blockIndex: number; blockTitle: string }> = []
+    for (const block of tpl.blocks) {
+      for (const field of block.fields) {
+        fields.push({
+          name: field.name,
+          type: field.type,
+          required: field.required,
+          blockIndex: block.blockIndex,
+          blockTitle: block.title
+        })
+      }
+    }
+    return fields
+  }
+
+  // Fallback: flat fields s blockIndex = 1
+  return (tpl.fields ??  []).map(f => ({
     name: f.name,
     type: f.type,
-    required: f.required
+    required: f.required,
+    blockIndex: 1,
+    blockTitle: 'Hodnoty'
   }))
 })
 
+/* ---------- Fields for current block ---------- */
+const currentBlockFields = computed<RecordField[]>(() => {
+  if (!currentRecord.value || !currentBlock.value) return []
+  // Filtrovat pole podle blockIndex
+  const blockIdx = currentBlock.value.blockIndex
+  return currentRecord. value.fields.filter(f => (f.blockIndex ??  1) === blockIdx)
+})
 const numericFieldNames = computed<string[]>(() => {
   const set = new Set<string>()
   records.value.forEach(r =>
@@ -84,32 +142,48 @@ const numericFieldNames = computed<string[]>(() => {
 
 const selectedNumericField = ref<string | null>(null)
 watch(numericFieldNames, list => {
-  if (!list.length) selectedNumericField.value = null
-  else if (!selectedNumericField.value) selectedNumericField.value = list[0]!
+  if (! list.length) selectedNumericField.value = null
+  else if (! selectedNumericField.value) selectedNumericField.value = list[0]!
 })
 
 /* ---------- Validation ---------- */
 function fieldError(field: RecordField): string | null {
   return validateField(field)
 }
+
 const invalidTotal = computed<number>(() => {
   let count = 0
   records.value.forEach(r => r.fields.forEach(f => { if (fieldError(f)) count++ }))
   return count
 })
+
 const canSave = computed<boolean>(() =>
   !!selectedTemplateId.value &&
   !!selectedDeviceId.value &&
   invalidTotal.value === 0
 )
 
+/* ---------- Block navigation ---------- */
+function prevBlock(): void {
+  if (currentBlockIndex.value > 0) {
+    currentBlockIndex.value--
+  }
+}
+
+function nextBlock(): void {
+  if (currentBlockIndex.value < templateBlocks.value.length - 1) {
+    currentBlockIndex.value++
+  }
+}
+
 /* ---------- Initialization ---------- */
 function initDialog(): void {
   step.value = 1
-  selectedDeviceId.value = props.devices.length ? props.devices[0]!.id : ''
+  selectedDeviceId.value = props.devices.length ?  props.devices[0]! .id : ''
   selectedTemplateId.value = null
   records.value = []
   currentRecordIndex.value = 1
+  currentBlockIndex.value = 0
   selectedRecordIndexes.value = new Set()
   expandedFields.value = new Set()
   selectedNumericField.value = null
@@ -119,11 +193,12 @@ function close(): void { emits('update:modelValue', false) }
 
 /* ---------- Step transition ---------- */
 function goToStep2(): void {
-  if (!selectedTemplateId.value) return
+  if (! selectedTemplateId.value) return
   records.value = [newRecordFromTemplateFields(1, templateFields.value)]
   currentRecordIndex.value = 1
+  currentBlockIndex.value = 0
   selectedRecordIndexes.value = new Set(records.value.map(r => r.recordIndex))
-  expandedFields.value = new Set(records.value[0]!.fields.map(f => f.name))
+  expandedFields.value = new Set(records.value[0]! .fields.map(f => f.name))
   step.value = 2
   nextTick(() => focusFieldByIndex(0))
 }
@@ -136,10 +211,12 @@ function addRecord(): void {
   const rec = newRecordFromTemplateFields(nextIdx, templateFields.value)
   records.value.push(rec)
   currentRecordIndex.value = rec.recordIndex
+  currentBlockIndex.value = 0
   selectedRecordIndexes.value.add(rec.recordIndex)
   expandedFields.value = new Set(rec.fields.map(f => f.name))
   nextTick(() => focusFieldByIndex(0))
 }
+
 function duplicateCurrentRecord(): void {
   const curr = currentRecord.value
   if (!curr) return
@@ -147,10 +224,12 @@ function duplicateCurrentRecord(): void {
   const dup = duplicateRecord(curr, nextIdx)
   records.value.push(dup)
   currentRecordIndex.value = dup.recordIndex
+  currentBlockIndex.value = 0
   selectedRecordIndexes.value.add(dup.recordIndex)
   expandedFields.value = new Set(dup.fields.map(f => f.name))
   nextTick(() => focusFieldByIndex(0))
 }
+
 function deleteCurrentRecord(): void {
   if (records.value.length <= 1) return
   const idx = records.value.findIndex(r => r.recordIndex === currentRecordIndex.value)
@@ -158,52 +237,62 @@ function deleteCurrentRecord(): void {
   records.value.splice(idx, 1)
   const sorted = records.value.map(r => r.recordIndex).sort((a, b) => a - b)
   currentRecordIndex.value = sorted[0]!
-  if (!selectedRecordIndexes.value.size) {
+  currentBlockIndex.value = 0
+  if (! selectedRecordIndexes.value.size) {
     selectedRecordIndexes.value = new Set(records.value.map(r => r.recordIndex))
   }
   expandedFields.value = new Set(currentRecord.value?.fields.map(f => f.name) ?? [])
   nextTick(() => focusFieldByIndex(0))
 }
+
 function toPrevRecord(): void {
   const sorted = records.value.map(r => r.recordIndex).sort((a, b) => a - b)
   const pos = sorted.indexOf(currentRecordIndex.value)
   if (pos > 0) {
     currentRecordIndex.value = sorted[pos - 1]!
+    currentBlockIndex.value = 0
     expandedFields.value = new Set(currentRecord.value?.fields.map(f => f.name) ?? [])
     nextTick(() => focusFieldByIndex(0))
   }
 }
+
 function toNextRecord(): void {
   const sorted = records.value.map(r => r.recordIndex).sort((a, b) => a - b)
   const pos = sorted.indexOf(currentRecordIndex.value)
   if (pos < sorted.length - 1) {
     currentRecordIndex.value = sorted[pos + 1]!
+    currentBlockIndex.value = 0
     expandedFields.value = new Set(currentRecord.value?.fields.map(f => f.name) ?? [])
     nextTick(() => focusFieldByIndex(0))
   }
 }
+
 function toggleRecordSelection(idx: number, multi: boolean): void {
   if (multi) {
     if (selectedRecordIndexes.value.has(idx)) selectedRecordIndexes.value.delete(idx)
     else selectedRecordIndexes.value.add(idx)
-    if (!selectedRecordIndexes.value.size) selectedRecordIndexes.value.add(idx)
+    if (! selectedRecordIndexes.value.size) selectedRecordIndexes.value.add(idx)
   } else {
     currentRecordIndex.value = idx
+    currentBlockIndex.value = 0
     expandedFields.value = new Set(currentRecord.value?.fields.map(f => f.name) ?? [])
   }
 }
 
 /* ---------- Field expand / collapse ---------- */
 function expandAllFields(): void {
-  if (!currentRecord.value) return
+  if (! currentRecord.value) return
   expandedFields.value = new Set(currentRecord.value.fields.map(f => f.name))
 }
+
 function collapseAllFields(): void {
   expandedFields.value = new Set()
 }
+
 function isExpanded(field: RecordField): boolean {
   return expandedFields.value.has(field.name)
 }
+
 function toggleField(field: RecordField): void {
   const next = new Set(expandedFields.value)
   if (next.has(field.name)) next.delete(field.name)
@@ -220,21 +309,24 @@ function updateField(field: RecordField, raw: unknown): void {
     case 'date': field.value = toDateMs(raw); break
     case 'file': field.value = raw; break
     case 'text':
-    default: field.value = raw ?? ''
+    default: field.value = raw ??  ''
   }
 }
 
 function textModel(field: RecordField): string | number | null | undefined {
-  return (field.value ?? null) as string | number | null | undefined
+  return (field.value ??  null) as string | number | null | undefined
 }
+
 function dateModel(field: RecordField): string | null {
   return typeof field.value === 'number'
     ? new Date(field.value).toISOString().slice(0, 10)
     : (field.value as string | null | undefined) ?? null
 }
+
 function fileModel(field: RecordField): File | null | undefined {
   return field.value as File | null | undefined
 }
+
 function previewValue(field: RecordField): string {
   const v = field.value
   switch (field.type) {
@@ -261,10 +353,10 @@ function previewValue(field: RecordField): string {
 
 /* ---------- Clipboard paste ---------- */
 async function pasteIntoCurrentRecord(): Promise<void> {
-  if (!currentRecord.value) return
+  if (! currentRecord.value) return
   try {
     const text = await navigator.clipboard.readText()
-    if (!text) return
+    if (! text) return
     const tokens = text.split(/[\s,;]+/u).filter(Boolean)
     let idx = 0
     for (const f of currentRecord.value.fields) {
@@ -282,7 +374,7 @@ async function pasteAsMultipleRecords(): Promise<void> {
     const text = await navigator.clipboard.readText()
     if (!text) return
     const lines = text.split(/\r?\n/).map(l => l.trim()).filter(l => l.length)
-    if (!lines.length) return
+    if (! lines.length) return
     const parsed: string[][] = lines.map(l => l.split(/[\t,; ]+/u).filter(Boolean))
     const curr = currentRecord.value
     if (curr) {
@@ -297,6 +389,7 @@ async function pasteAsMultipleRecords(): Promise<void> {
       selectedRecordIndexes.value.add(rec.recordIndex)
     }
     currentRecordIndex.value = Math.max(...records.value.map(r => r.recordIndex))
+    currentBlockIndex.value = 0
     expandedFields.value = new Set(currentRecord.value?.fields.map(f => f.name) ?? [])
     nextTick(() => focusFieldByIndex(0))
   } catch {
@@ -306,24 +399,30 @@ async function pasteAsMultipleRecords(): Promise<void> {
 
 /* ---------- Stats ---------- */
 const chartPoints = computed<number[]>(() => {
-  if (!selectedNumericField.value) return []
+  if (! selectedNumericField.value) return []
   const subset = selectedRecordIndexes.value.size
     ? Array.from(selectedRecordIndexes.value)
     : records.value.map(r => r.recordIndex)
   const subsetRecords = records.value.filter(r => subset.includes(r.recordIndex))
   return extractSeries(subsetRecords, selectedNumericField.value)
 })
+
 const statsObj = computed(() => computeBasicStats(chartPoints.value))
 
 /* ---------- Build payload ---------- */
 function buildMeasuredValues(): MeasuredValue[] {
   const flat = flattenRecords(records.value)
-  return flat.map(v => ({
+  console.log('=== FLATTENED VALUES ===')
+  flat.forEach(v => {
+    console.log(`  name=${v.name}, blockIndex=${v.blockIndex}, recordIndex=${v.recordIndex}`)
+  })
+  return flat. map(v => ({
     orderIndex: v.orderIndex,
-    recordIndex: v.recordIndex ?? 1,
+    recordIndex: v.recordIndex ??  1,
+    blockIndex: v.blockIndex ?? 1,
     name: v.name,
     type: v.type,
-    numberValue: v.numberValue ?? null,
+    numberValue: v.numberValue ??  null,
     textValue: v.textValue ?? null,
     boolValue: v.boolValue ?? null,
     dateValue: v.dateValue ?? null,
@@ -341,8 +440,8 @@ async function onSave(): Promise<void> {
       .filter(f => f.type === 'float' || f.type === 'int')
       .map(f => toNumber(f.value, f.type === 'int'))
       .find(n => n != null && Number.isFinite(n))
-    const tpl = selectedTemplateId.value ? props.templateById.get(selectedTemplateId.value) : null
-    if (!tpl) return
+    const tpl = selectedTemplateId.value ?  props.templateById.get(selectedTemplateId.value) : null
+    if (! tpl) return
 
     const payload: MeasurementRequest = {
       value: Number.isFinite(firstNumeric as number) ? (firstNumeric as number) : 0,
@@ -371,7 +470,7 @@ function focusFieldByIndex(idx: number): void {
 }
 
 function handleKey(e: KeyboardEvent): void {
-  if (!props.modelValue) return
+  if (! props.modelValue) return
   const key = e.key.toLowerCase()
   const ctrl = e.ctrlKey || e.metaKey
   const alt = e.altKey
@@ -393,6 +492,10 @@ function handleKey(e: KeyboardEvent): void {
     if (ctrl && key === 'v') { e.preventDefault(); void pasteIntoCurrentRecord(); return }
     if (ctrl && alt && key === 'v') { e.preventDefault(); void pasteAsMultipleRecords(); return }
 
+    // Block navigation (Page Up/Down)
+    if (key === 'pageup') { e.preventDefault(); prevBlock(); return }
+    if (key === 'pagedown') { e.preventDefault(); nextBlock(); return }
+
     // record nav
     if (alt && key === 'arrowleft') { e.preventDefault(); toPrevRecord(); return }
     if (alt && key === 'arrowright') { e.preventDefault(); toNextRecord(); return }
@@ -406,6 +509,7 @@ function handleKey(e: KeyboardEvent): void {
         if (shift) toggleRecordSelection(num, true)
         else {
           currentRecordIndex.value = num
+          currentBlockIndex.value = 0
           expandedFields.value = new Set(currentRecord.value?.fields.map(f => f.name) ?? [])
           focusFieldByIndex(0)
         }
@@ -421,7 +525,7 @@ function handleKey(e: KeyboardEvent): void {
     // field navigation
     if (alt && (key === 'arrowdown' || key === 'arrowup')) {
       e.preventDefault()
-      const total = currentRecord.value?.fields.length ?? 0
+      const total = currentBlockFields.value.length
       if (total === 0) return
       if (lastFocusedFieldIdx < 0) lastFocusedFieldIdx = 0
       if (key === 'arrowdown') lastFocusedFieldIdx = Math.min(total - 1, lastFocusedFieldIdx + 1)
@@ -437,8 +541,8 @@ function handleKey(e: KeyboardEvent): void {
     // cycle numeric field (Alt+F)
     if (alt && key === 'f') {
       e.preventDefault()
-      if (!numericFieldNames.value.length) return
-      if (!selectedNumericField.value) { selectedNumericField.value = numericFieldNames.value[0]!; return }
+      if (! numericFieldNames.value.length) return
+      if (! selectedNumericField.value) { selectedNumericField.value = numericFieldNames.value[0]! ; return }
       const pos = numericFieldNames.value.indexOf(selectedNumericField.value)
       selectedNumericField.value = numericFieldNames.value[(pos + 1) % numericFieldNames.value.length]!
       return
@@ -472,7 +576,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKey))
   >
     <template #header>
       <div class="text-h6">
-        Nové měření (multi-record session)
+        Nové měření
       </div>
     </template>
 
@@ -545,11 +649,12 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKey))
       </v-alert>
     </template>
 
-    <!-- STEP 2: Records -->
+    <!-- STEP 2: Records with Blocks -->
     <template
       v-else
       #content
     >
+      <!-- Records toolbar -->
       <div
         class="d-flex align-center justify-space-between mb-2 flex-wrap"
         style="gap:12px;"
@@ -563,11 +668,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKey))
             v-for="r in records"
             :key="r.recordIndex"
             size="small"
-            :color="r.recordIndex === currentRecordIndex
-              ? 'primary'
-              : (selectedRecordIndexes.has(r.recordIndex) ? 'deep-purple' : undefined)"
+            :color="r.recordIndex === currentRecordIndex ? 'primary' : (selectedRecordIndexes.has(r.recordIndex) ? 'deep-purple' : undefined)"
             variant="tonal"
-            :title="`Record ${r.recordIndex} (Alt+${r.recordIndex <= 9 ? r.recordIndex : ''} | Shift+klik = subset)`"
+            :title="`Record ${r.recordIndex}`"
             @click="toggleRecordSelection(r.recordIndex, false)"
             @mousedown.shift.prevent="toggleRecordSelection(r.recordIndex, true)"
           >
@@ -586,7 +689,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKey))
             variant="text"
             icon="mdi-content-copy"
             title="Duplikovat (Ctrl+D)"
-            :disabled="!currentRecord"
+            :disabled="! currentRecord"
             @click="duplicateCurrentRecord"
           />
           <v-btn
@@ -633,28 +736,83 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKey))
             title="Vložit jako více recordů (Ctrl+Alt+V)"
             @click="pasteAsMultipleRecords"
           >
-            VÍCE RECORDŮ (Ctrl+Alt+V)
-          </v-btn>
-          <v-btn
-            size="small"
-            variant="text"
-            title="Expand all (Alt+E)"
-            @click="expandAllFields"
-          >
-            EXPAND
-          </v-btn>
-          <v-btn
-            size="small"
-            variant="text"
-            title="Collapse all (Alt+C)"
-            @click="collapseAllFields"
-          >
-            COLLAPSE
+            VÍCE RECORDŮ
           </v-btn>
         </div>
       </div>
 
-      <!-- Fields grid -->
+      <!-- Block navigation -->
+      <div
+        v-if="templateBlocks.length > 1"
+        class="block-navigation mb-3"
+      >
+        <div class="d-flex align-center justify-space-between">
+          <div
+            class="d-flex align-center"
+            style="gap: 8px;"
+          >
+            <v-btn
+              icon="mdi-chevron-left"
+              size="small"
+              variant="text"
+              :disabled="currentBlockIndex === 0"
+              title="Předchozí blok (PageUp)"
+              @click="prevBlock"
+            />
+            <div class="text-subtitle-1 font-weight-medium">
+              {{ currentBlock?.title || `Blok ${currentBlockIndex + 1}` }}
+            </div>
+            <v-btn
+              icon="mdi-chevron-right"
+              size="small"
+              variant="text"
+              :disabled="currentBlockIndex === templateBlocks.length - 1"
+              title="Další blok (PageDown)"
+              @click="nextBlock"
+            />
+          </div>
+          <v-chip
+            size="small"
+            variant="tonal"
+          >
+            {{ currentBlockIndex + 1 }} / {{ templateBlocks.length }}
+          </v-chip>
+        </div>
+
+        <!-- Block tabs -->
+        <div class="block-tabs mt-2">
+          <v-chip
+            v-for="(block, idx) in templateBlocks"
+            :key="block.id"
+            size="small"
+            :color="idx === currentBlockIndex ? 'primary' : undefined"
+            :variant="idx === currentBlockIndex ? 'flat' : 'tonal'"
+            class="mr-1"
+            @click="currentBlockIndex = idx"
+          >
+            {{ block.title }}
+            <v-badge
+              v-if="block.fields.length"
+              :content="block.fields.length"
+              color="grey"
+              inline
+              class="ml-1"
+            />
+          </v-chip>
+        </div>
+      </div>
+
+      <!-- Single block header (when only 1 block) -->
+      <div
+        v-else-if="currentBlock"
+        class="block-header mb-3"
+      >
+        <div class="text-subtitle-1 font-weight-medium">
+          {{ currentBlock.title }}
+        </div>
+      </div>
+
+      <!-- Fields grid for current block -->
       <div class="grid header-row">
         <div class="cell muted">
           Poř.
@@ -675,7 +833,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKey))
         tag="div"
       >
         <div
-          v-for="(field, idx) in currentRecord?.fields || []"
+          v-for="(field, idx) in currentBlockFields"
           :key="field.name"
           class="grid data-row"
           :class="{'has-error': !!fieldError(field)}"
@@ -844,15 +1002,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKey))
           >
             {{ n }}
           </v-chip>
-          <v-chip
-            v-if="numericFieldNames.length > 1"
-            size="small"
-            :color="!selectedNumericField ? 'primary' : undefined"
-            variant="tonal"
-            @click="selectedNumericField = null"
-          >
-            Vše
-          </v-chip>
         </div>
         <v-sheet
           elevation="1"
@@ -893,25 +1042,29 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKey))
         variant="text"
         @click="close"
       >
-        Zrušit (Esc)
+        Zrušit
       </v-btn>
       <v-spacer />
       <v-btn
         v-if="step === 1"
         color="primary"
+        variant="flat"
+        class="ml-3"
         :disabled="!selectedTemplateId"
         @click="goToStep2"
       >
-        Pokračovat (Enter)
+        Pokračovat
       </v-btn>
       <v-btn
         v-else
         color="primary"
+        variant="flat"
+        class="ml-3"
         :loading="saving"
         :disabled="!canSave"
         @click="onSave"
       >
-        Uložit (Ctrl+S)
+        Uložit
       </v-btn>
     </template>
   </Dialog>
@@ -945,6 +1098,24 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKey))
 .name-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
 .type-chip { font-weight: 600; letter-spacing: .02em; text-transform: none; }
 .preview-cell { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .75rem; opacity: .85; }
+
+.block-navigation {
+  background: #f8f9fb;
+  border-radius: 8px;
+  padding: 12px 16px;
+}
+
+.block-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.block-header {
+  background: #f8f9fb;
+  border-radius: 8px;
+  padding: 12px 16px;
+}
 
 [data-field-input]:focus-visible {
   outline: 2px solid var(--v-theme-primary);
