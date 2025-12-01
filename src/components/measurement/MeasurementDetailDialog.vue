@@ -618,6 +618,7 @@ function exportSelectedCsv(): void {
 }
 
 /* ---------- Keyboard shortcuts ---------- */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 let lastFocusedFieldIndex = -1
 function focusFirstFieldSoon(): void {
   nextTick(() => {
@@ -626,6 +627,7 @@ function focusFirstFieldSoon(): void {
     lastFocusedFieldIndex = 0
   })
 }
+
 function focusFieldByIndex(idx: number): void {
   nextTick(() => {
     const els = document.querySelectorAll<HTMLElement>('[data-field-input]')

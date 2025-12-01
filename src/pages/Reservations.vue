@@ -1,4 +1,14 @@
 <script setup lang="ts">
+/**
+ * Reservations.vue – úprava: nelze vytvářet ani přesouvat rezervace na deaktivované přístroje.
+ * - Aktivní flag (active:boolean) doplněn do seznamu devices.
+ * - Vytváření (toolbar, klik do tracku) vždy volí pouze aktivní přístroj.
+ * - Klik na track neaktivního přístroje ignorován.
+ * - Drag&drop nepřesune na neaktivní přístroj.
+ * - V editoru lze vidět deaktivovaný přístroj aktuální rezervace (disabled), ale nelze ho zvolit pro novou rezervaci.
+ * - Select filtrů i zobrazení kalendáře stále zobrazí neaktivní zařízení kvůli historickým rezervacím.
+ * - Úpravy bez použití typu any.
+ */
 
 import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
@@ -13,6 +23,7 @@ import DailyListView from '@/components/reservations/DailyListView.vue'
 import WeekView from '@/components/reservations/WeekView.vue'
 import LeftFiltersPanel from '@/components/LeftFiltersPanel.vue'
 
+/* ----- Constants ----- */
 const HOURS_START = 0
 const HOURS_END = 24
 const GRID_MINUTES = 15
@@ -22,13 +33,40 @@ const MIN_EVENT_PX = 24
 const DRAG_CLICK_THRESHOLD = 5
 const DAY_HOURS = 24
 
-const isSideFilterOpen = ref(false)
+/* ----- Simple helpers ----- */
+function pad2(n: number): string { return String(n).padStart(2, '0') }
+function toYmdLocal(d: Date): string { return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}` }
+function fromYmdLocal(s: string): Date {
+  const [y, m, d] = s.split('-').map(Number)
+  return new Date(y, (m || 1) - 1, d || 1, 0, 0, 0, 0)
+}
+function normalizeToDate(v: string | Date): Date {
+  return v instanceof Date
+    ? new Date(v.getFullYear(), v.getMonth(), v.getDate(), 0, 0, 0, 0)
+    : fromYmdLocal(v)
+}
+function hmFromDate(d: Date) { return `${pad2(d.getHours())}:${pad2(d.getMinutes())}` }
+function setHM(base: Date, hm: string) {
+  const [h, m] = hm.split(':').map(v => parseInt(v, 10) || 0)
+  const d = new Date(base); d.setHours(h, m, 0, 0); return d
+}
+function toIsoLocal(d: Date) {
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`
+}
 
+/* ----- Types ----- */
 type ViewMode = 'daily-machines' | 'daily-list' | 'week-work' | 'week-all'
 type StatusType = 'plan' | 'running' | 'done'
 
-function onDailyListRowDblClick(_ev: MouseEvent, payload: { item: any }) {
-  openEdit(dtoToResItem(payload.item._raw))
+interface ReservationDto {
+  id: number
+  title: string
+  deviceCode: string
+  startTime: number
+  endTime: number
+  username: string | null
+  projectId: number
+  note: string | null
 }
 
 interface ResItem {
@@ -58,62 +96,41 @@ interface DragState {
 
 type EventLayout = Record<number, { left: number; width: number }>
 
+interface DeviceRaw {
+  code: string
+  name: string
+  color?: string | null
+  active?: boolean
+}
+
+interface DeviceViewItem {
+  id: string
+  name: string
+  color: string
+  active: boolean
+}
+
+interface MemberItem { username: string }
+
+interface GroupConfig {
+  key: string
+  title: string
+  label?: string
+  items: Array<DeviceViewItem | MemberItem>
+  itemTitle?: string
+  itemValue?: string
+  type?: 'plain' | 'devices'
+  colorKey?: string
+  showField?: string
+}
+
+/* ----- Store & route ----- */
 const route = useRoute()
-const projectId = Number((route.params as any).projectId)
+const projectId = Number((route.params as { projectId?: string }).projectId)
 const reservations = useReservationsStore()
 const projectStore = useProjectStore()
 
-function pad2(n: number): string { return String(n).padStart(2, '0') }
-function toYmdLocal(d: Date): string {
-  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`
-}
-function fromYmdLocal(s: string): Date {
-  const [y, m, d] = s.split('-').map(Number)
-  return new Date(y, (m || 1) - 1, d || 1, 0, 0, 0, 0)
-}
-function normalizeToDate(v: string | Date): Date {
-  return v instanceof Date
-    ? new Date(v.getFullYear(), v.getMonth(), v.getDate(), 0, 0, 0, 0)
-    : fromYmdLocal(v)
-}
-function hmFromDate(d: Date) { return `${pad2(d.getHours())}:${pad2(d.getMinutes())}` }
-function setHM(base: Date, hm: string) {
-  const [h, m] = hm.split(':').map(v => parseInt(v, 10) || 0)
-  const d = new Date(base); d.setHours(h, m, 0, 0); return d
-}
-function toIsoLocal(d: Date) {
-  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`
-}
-
-// DTO from DailyListView
-interface ReservationDto {
-  id: number
-  title: string
-  deviceCode: string
-  startTime: number
-  endTime: number
-  username: string | null
-  projectId: number
-  note: string | null
-}
-function dtoToResItem(r: ReservationDto): ResItem {
-  const s = new Date(r.startTime)
-  const e = new Date(r.endTime)
-  return {
-    id: r.id,
-    title: r.title,
-    deviceId: r.deviceCode,
-    start: toIsoLocal(s),
-    end: toIsoLocal(e),
-    status: 'plan',
-    username: r.username ?? null,
-    note: r.note ?? null
-  }
-}
-function openEditFromDto(raw: ReservationDto) { openEdit(dtoToResItem(raw)) }
-function askDeleteFromDto(raw: ReservationDto) { askDelete(dtoToResItem(raw)) }
-
-/* Date selection  */
+/* ----- Date state ----- */
 const selectedDate = ref<string | Date>(toYmdLocal(new Date()))
 function addDays(n: number) {
   const d = normalizeToDate(selectedDate.value)
@@ -123,7 +140,7 @@ function addDays(n: number) {
 function goToday() { selectedDate.value = toYmdLocal(new Date()) }
 const currentDay = computed<Date>(() => normalizeToDate(selectedDate.value))
 
-/* Intl */
+/* ----- Intl formatting ----- */
 const fmtDateLongFmt   = new Intl.DateTimeFormat('cs-CZ', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
 const fmtTimeFmt       = new Intl.DateTimeFormat('cs-CZ', { hour: '2-digit', minute: '2-digit' })
 const fmtDetailDateFmt = new Intl.DateTimeFormat('cs-CZ', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' })
@@ -133,41 +150,49 @@ const fmtTime        = (d: Date) => fmtTimeFmt.format(d)
 const fmtDetailDate  = (d: Date) => fmtDetailDateFmt.format(d)
 const fmtDetailTime  = (d: Date) => fmtDetailTimeFmt.format(d)
 
-/* Filters */
+/* ----- Filters state ----- */
 const pickedMembers = ref<string[]>([])
 const pickedDevices = ref<string[]>([])
 const membersList = computed<string[]>(() =>
   projectStore.projectMembers.map((m: { username: string }) => m.username)
 )
-const allDevices = computed(() => reservations.devices.map(d => ({
-  id: d.code,
-  name: d.name,
-  color: d.color || 'primary'
-})))
-const devicesToShow = computed(() =>
+
+/* Raw devices z API store */
+const allDevicesRaw = computed<DeviceRaw[]>(() => reservations.devices as DeviceRaw[])
+
+/* Zobrazení zařízení – zahrneme i neaktivní kvůli historii */
+const allDevices = computed<DeviceViewItem[]>(() =>
+  allDevicesRaw.value.map(d => ({
+    id: d.code,
+    name: d.name,
+    color: (d.color || 'primary'),
+    active: d.active === undefined ? true : !!d.active
+  }))
+)
+
+/* Pouze aktivní zařízení (pro volbu nové rezervace) */
+const activeDevices = computed<DeviceViewItem[]>(() => allDevices.value.filter(d => d.active))
+
+/* Seznam zařízení pro kalendář – pokud filtr vybrán, respektujeme jej (včetně neaktivních) */
+const devicesToShow = computed<DeviceViewItem[]>(() =>
   pickedDevices.value.length
     ? allDevices.value.filter(d => pickedDevices.value.includes(d.id))
     : allDevices.value
 )
 
-type GroupConfig = {
-  key: string
-  title: string
-  label?: string
-  items: any[]
-  itemTitle?: string
-  itemValue?: string
-  type?: 'plain' | 'devices'
-  colorKey?: string
-  showField?: string
-}
+/* Vlevo panel skupin (members + devices) */
 const leftSelection = ref<Record<string, string[]>>({ devices: [], members: [] })
+function arraysEqual(a: string[], b: string[]) {
+  if (a.length !== b.length) return false
+  const as = [...a].sort(), bs = [...b].sort()
+  return as.every((v, i) => v === bs[i])
+}
 const leftGroups = computed<GroupConfig[]>(() => [
   {
     key: 'members',
     title: 'Členové',
     label: 'Členové',
-    items: membersList.value.map(u => ({ username: u })),
+    items: membersList.value.map(u => ({ username: u })) as MemberItem[],
     itemTitle: 'username',
     itemValue: 'username',
     type: 'plain',
@@ -184,11 +209,6 @@ const leftGroups = computed<GroupConfig[]>(() => [
     showField: 'id',
   },
 ])
-function arraysEqual(a: string[], b: string[]) {
-  if (a.length !== b.length) return false
-  const as = [...a].sort(), bs = [...b].sort()
-  return as.every((v, i) => v === bs[i])
-}
 watch(leftSelection, (sel) => {
   const devs = Array.isArray(sel.devices) ? sel.devices : []
   const mems = Array.isArray(sel.members) ? sel.members : []
@@ -204,7 +224,7 @@ watch(pickedMembers, (v) => {
   if (!arraysEqual(next, leftSelection.value.members)) leftSelection.value.members = [...next]
 })
 
-/* View Mode */
+/* ----- View mode ----- */
 const viewMode = ref<ViewMode>('daily-machines')
 const viewLabel = computed(() => {
   switch (viewMode.value) {
@@ -215,21 +235,18 @@ const viewLabel = computed(() => {
   }
 })
 
-/* Menu control passed to child (FIX: make it reactive on key changes) */
+/* ----- Menu open map ----- */
 const openMenu = ref<Record<number, boolean>>({})
 function isMenuOpen(id: number) { return !!openMenu.value[id] }
-function setMenuOpen(id: number, v: boolean) {
-  // reassign a new object so Vue tracks the change
-  openMenu.value = { ...openMenu.value, [id]: v }
-}
+function setMenuOpen(id: number, v: boolean) { openMenu.value = { ...openMenu.value, [id]: v } }
 
-/* Viewport refs */
+/* ----- Viewport refs ----- */
 const viewportDaily = ref<HTMLElement | null>(null)
 const viewportWeek = ref<HTMLElement | null>(null)
 function setDailyViewportRef(el: HTMLElement | null) { viewportDaily.value = el }
 function setWeekViewportRef(el: HTMLElement | null) { viewportWeek.value = el }
 
-/* Time grid helpers */
+/* ----- Time grid helpers ----- */
 const tickHeight = computed<number>(() => HOUR_HEIGHT)
 const PX_PER_MIN = computed<number>(() => HOUR_HEIGHT / 60)
 const FULL_TRACK_HEIGHT = computed<number>(() => DAY_HOURS * HOUR_HEIGHT)
@@ -251,7 +268,7 @@ function scrollToHour(hour = 7) {
   el.scrollTop = y
 }
 
-/* Data structures */
+/* ----- Events data ----- */
 const eventsByDay = ref<Record<string, ResItem[]>>({})
 function dateKey(d: Date) { return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}` }
 function ensureDay(d: Date): ResItem[] {
@@ -260,7 +277,7 @@ function ensureDay(d: Date): ResItem[] {
   return eventsByDay.value[k]
 }
 
-/* Week calculations */
+/* ----- Week calculations ----- */
 function weekRange(date: Date) {
   const base = new Date(date)
   const day = (base.getDay() + 6) % 7
@@ -277,7 +294,7 @@ const daysForView = computed<Date[]>(() =>
 const colsDevices = computed<number>(() => devicesToShow.value.length)
 const colsWeek = computed<number>(() => viewMode.value === 'week-work' ? 5 : 7)
 
-/* Load events */
+/* ----- Load events ----- */
 function resetAllDays(days: Date[]) {
   for (const d of days) eventsByDay.value[dateKey(d)] = []
 }
@@ -289,7 +306,7 @@ async function loadWeekFor(date: Date) {
 
   resetAllDays(days)
   const data = await reservations.fetchByProject(projectId, from, to)
-  for (const r of data) {
+  for (const r of data as ReservationDto[]) {
     const s = new Date(r.startTime)
     const e = new Date(r.endTime)
     const item: ResItem = {
@@ -310,7 +327,7 @@ async function loadWeekFor(date: Date) {
   scrollToHour(7)
 }
 
-/* Initial load */
+/* ----- Initial load ----- */
 onMounted(async () => {
   await reservations.fetchDevices()
   await projectStore.fetchProjectMembers(projectId)
@@ -321,13 +338,13 @@ onMounted(async () => {
 watch(selectedDate, async v => { await loadWeekFor(normalizeToDate(v)) })
 watch(viewMode, async () => { await nextTick(); scrollToHour(7) })
 
-/* Daily list auto-load */
+/* ----- Daily list auto-load ----- */
 type DailyListViewExposed = { loadListRange: () => void | Promise<void>; loadAll?: () => void | Promise<void> }
 const dailyListRef = ref<DailyListViewExposed | null>(null)
 const isDailyList = computed(() => viewMode.value === 'daily-list')
 watch(isDailyList, async v => { if (v) { await nextTick(); dailyListRef.value?.loadListRange() } })
 
-/* Filtering helpers */
+/* ----- Filtering helpers ----- */
 function filterItems(arr: ResItem[]): ResItem[] {
   return arr.filter(i => {
     const byDevice = !pickedDevices.value.length || pickedDevices.value.includes(i.deviceId)
@@ -341,7 +358,7 @@ function itemsForDayDevice(deviceId: string) {
   return itemsForDayFiltered.value.filter(i => i.deviceId === deviceId)
 }
 
-/* Device color + event style */
+/* ----- Device color + event style ----- */
 const deviceColorOf = (id: string) => allDevices.value.find(d => d.id === id)?.color || 'primary'
 function eventBgClass(i: ResItem) {
   const color = deviceColorOf(i.deviceId)
@@ -358,16 +375,18 @@ function eventStyle(i: ResItem, left: number, width: number) {
     background: `color-mix(in srgb, var(--v-theme-${color}) 18%, #fff)`
   } as Record<string, string>
 }
-function deviceHeaderStyle(d: { id: string; color: string }) {
+function deviceHeaderStyle(d: DeviceViewItem) {
   const base = `var(--v-theme-${d.color})`
   return {
     background: `color-mix(in srgb, ${base} 18%, #ffffff)`,
     boxShadow: `inset 0 -3px 0 0 ${base}`,
+    opacity: d.active ? '1' : '.45',
+    filter: d.active ? 'none' : 'grayscale(0.25)'
   }
 }
 function initials(u: string | null) { return (u?.[0] ?? '?').toUpperCase() }
 
-/* Layout (collisions) */
+/* ----- Layout (collision resolution) ----- */
 function eventsCollide(a: ResItem, b: ResItem): boolean {
   const aS = +new Date(a.start), aE = +new Date(a.end), bS = +new Date(b.start), bE = +new Date(b.end)
   return aE > bS && aS < bE
@@ -425,7 +444,7 @@ const layoutWeeklyByDay = computed<Record<string, EventLayout>>(() => {
   return out
 })
 
-/* Drag & Drop */
+/* ----- Drag & Drop ----- */
 const drag = ref<DragState | null>(null)
 let movePending = false
 let lastMoveEvent: PointerEvent | null = null
@@ -523,11 +542,23 @@ async function commitMove(d: DragState, x: number, y: number) {
   const hit = findTrackAt(x, y)
   if (!hit) return
   const { type, id, rect } = hit
+
   let newDayKey = d.origDayKey
   let newDeviceId = d.origDeviceId
-  if (d.view === 'daily-machines' && type === 'device') newDeviceId = id
-  else if ((d.view === 'week-work' || d.view === 'week-all') && type === 'day') newDayKey = id
-  else return
+
+  if (d.view === 'daily-machines' && type === 'device') {
+    const targetDevice = allDevices.value.find(dev => dev.id === id)
+    if (!targetDevice?.active) {
+      // Nepovolit přesun na deaktivovaný
+      return
+    }
+    newDeviceId = id
+  } else if ((d.view === 'week-work' || d.view === 'week-all') && type === 'day') {
+    newDayKey = id
+  } else {
+    return
+  }
+
   const [Y, M, D] = newDayKey.split('-').map(Number)
   const baseDay = new Date(Y, (M || 1) - 1, D || 1, 0, 0, 0, 0)
   let startMinutes = minutesFromTrackY(y, rect, d.offsetY)
@@ -543,6 +574,7 @@ async function commitMove(d: DragState, x: number, y: number) {
   if (idx === -1) return
   const ev = sourceArr[idx]
   const prev = { dayKey: d.origDayKey, deviceId: ev.deviceId, start: ev.start, end: ev.end }
+
   if (newDayKey !== d.origDayKey) {
     sourceArr.splice(idx, 1)
     const targetArr = ensureDay(baseDay)
@@ -565,6 +597,7 @@ async function commitMove(d: DragState, x: number, y: number) {
     })
     await loadWeekFor(currentDay.value)
   } catch (err) {
+    // revert
     if (newDayKey !== prev.dayKey) {
       const newArr = eventsByDay.value[newDayKey] || []
       const nIdx = newArr.findIndex(x => x.id === d.id)
@@ -602,11 +635,10 @@ function onPointerUp(e: PointerEvent) {
 onBeforeUnmount(() => { window.removeEventListener('pointermove', onPointerMove) })
 function onEventClick(id: number, _e: MouseEvent) {
   if (suppressClick.value || movedBeyondThreshold.value || drag.value) return
-  // ensure single menu open and make changes reactive
   openMenu.value = { [id]: true }
 }
 
-/* Delete */
+/* ----- Delete ----- */
 async function handleDelete(i: ResItem) {
   try {
     await reservations.deleteReservation(i.id)
@@ -623,13 +655,10 @@ async function handleDelete(i: ResItem) {
 const confirmDeleteOpen = ref(false)
 const deleteTarget = ref<ResItem | null>(null)
 const deleteLoading = ref(false)
-
-
 function askDelete(i: ResItem) {
   deleteTarget.value = i
   confirmDeleteOpen.value = true
 }
-
 async function confirmDelete() {
   if (!deleteTarget.value) { confirmDeleteOpen.value = false; return }
   deleteLoading.value = true
@@ -641,31 +670,68 @@ async function confirmDelete() {
     deleteLoading.value = false
   }
 }
-
 function cancelDelete() {
   confirmDeleteOpen.value = false
   deleteTarget.value = null
 }
 
-/* Track click -> open Create editor with prefilled fields */
+/* ----- DTO conversion (DailyListView) ----- */
+function dtoToResItem(r: ReservationDto): ResItem {
+  const s = new Date(r.startTime)
+  const e = new Date(r.endTime)
+  return {
+    id: r.id,
+    title: r.title,
+    deviceId: r.deviceCode,
+    start: toIsoLocal(s),
+    end: toIsoLocal(e),
+    status: 'plan',
+    username: r.username ?? null,
+    note: r.note ?? null
+  }
+}
+function openEditFromDto(raw: ReservationDto) { openEdit(dtoToResItem(raw)) }
+function askDeleteFromDto(raw: ReservationDto) { askDelete(dtoToResItem(raw)) }
+
+/* ----- Track click (Create) – blokace neaktivních zařízení ----- */
+function safeDefaultDevice(): string | null {
+  return activeDevices.value.length ? activeDevices.value[0]!.id : null
+}
 function onTrackClick(evt: MouseEvent, ctx: { type: 'device' | 'day'; deviceId?: string; day?: Date }) {
   if (drag.value || suppressClick.value) return
   const track = evt.currentTarget as HTMLElement | null
   if (!track) return
-  const rect = track.getBoundingClientRect()
   const baseDay = ctx.type === 'day' ? (ctx.day as Date) : currentDay.value
+
+  // Pokud klik na device track → check active
+  if (ctx.type === 'device') {
+    const dev = allDevices.value.find(d => d.id === ctx.deviceId)
+    if (!dev?.active) {
+      // Zablokovat vytvoření na neaktivním
+      return
+    }
+  }
+
+  const rect = track.getBoundingClientRect()
   const relY = clamp(evt.clientY - rect.top, 0, FULL_TRACK_HEIGHT.value)
   const minutes = (relY / PX_PER_MIN.value) + HOURS_START * 60
   const snapped = clamp(roundToStep(minutes, GRID_MINUTES), HOURS_START * 60, HOURS_END * 60)
   const start = new Date(baseDay); start.setHours(Math.floor(snapped / 60), snapped % 60, 0, 0)
   const end = new Date(start.getTime() + 60 * 60000)
-  const deviceCode = ctx.type === 'device'
-    ? (ctx.deviceId as string)
-    : (devicesToShow.value[0]?.id || allDevices.value[0]?.id || 'M1')
+
+  let deviceCode: string
+  if (ctx.type === 'device') {
+    const dev = allDevices.value.find(d => d.id === ctx.deviceId)
+    deviceCode = (dev && dev.active) ? dev.id : (safeDefaultDevice() || 'M1')
+  } else {
+    deviceCode = safeDefaultDevice() || (activeDevices.value[0]?.id ?? allDevices.value[0]?.id ?? 'M1')
+  }
+
+  if (!deviceCode) return
   openCreateWith({ baseDay, start, end, deviceCode })
 }
 
-/* Unified Reservation Editor (create/edit) */
+/* ----- Reservation editor (create/edit) ----- */
 type ReservationEditorForm = {
   id?: number
   title: string
@@ -681,11 +747,30 @@ const editorMode = ref<'create' | 'edit'>('create')
 const editorSaving = ref(false)
 const resForm = ref<ReservationEditorForm | null>(null)
 
+/* Device options pro editor – pouze aktivní + případně aktuální deaktivovaný (disabled) */
+const editorDeviceOptions = computed(() => {
+  const base = activeDevices.value.slice()
+  if (resForm.value?.deviceCode) {
+    const current = allDevices.value.find(d => d.id === resForm.value!.deviceCode)
+    if (current && !current.active && !base.find(d => d.id === current.id)) {
+      base.push(current)
+    }
+  }
+  return base
+})
+
 function openCreateWith(opts: { baseDay: Date; start: Date; end: Date; deviceCode: string }) {
+  const initialDevice = allDevices.value.find(d => d.id === opts.deviceCode && d.active)
+    ? opts.deviceCode
+    : (safeDefaultDevice() || '')
+  if (!initialDevice) {
+    console.warn('Nelze vytvořit rezervaci: žádný aktivní přístroj.')
+    return
+  }
   const me = auth.getUserInfo().preferredUsername
   resForm.value = {
     title: 'Nová rezervace',
-    deviceCode: opts.deviceCode,
+    deviceCode: initialDevice,
     dateYmd: toYmdLocal(opts.baseDay),
     startHM: hmFromDate(opts.start),
     endHM: hmFromDate(opts.end),
@@ -742,6 +827,17 @@ async function saveReservation() {
   if (start < clampStart) start = clampStart
   if (end > clampEnd) end = clampEnd
 
+  // Guard aktivního zařízení – pokud není aktivní a je create, blokovat
+  const targetDevice = allDevices.value.find(d => d.id === f.deviceCode)
+  if (!targetDevice?.active) {
+    // U editace povolíme zachovat existující (historická) rezervace bez změny device
+    if (editorMode.value === 'create') {
+      console.warn('Přístroj je deaktivovaný – nelze vytvořit novou rezervaci.')
+      editorSaving.value = false
+      return
+    }
+  }
+
   try {
     if (editorMode.value === 'create') {
       const created = await reservations.createReservation({
@@ -753,7 +849,6 @@ async function saveReservation() {
         username: f.username || '',
         note: (f.note ?? '').trim() || null
       })
-      // place optimistically if week is same, else reload
       const baseDay = day
       const currentMonday = weekRange(currentDay.value)[0]
       const newMonday = weekRange(baseDay)[0]
@@ -798,28 +893,29 @@ function openCreateFromToolbar() {
   const day = normalizeToDate(selectedDate.value)
   const start = new Date(day); start.setHours(9, 0, 0, 0)
   const end = new Date(start.getTime() + 60 * 60000)
-  const deviceCode = devicesToShow.value[0]?.id || allDevices.value[0]?.id || 'M1'
+  const deviceCode = safeDefaultDevice()
+  if (!deviceCode) {
+    console.warn('Žádný aktivní přístroj pro vytvoření rezervace.')
+    return
+  }
   openCreateWith({ baseDay: day, start, end, deviceCode })
 }
 
+/* ----- Delete dialog focus ----- */
 const confirmPrimaryBtn = ref<HTMLButtonElement | null>(null)
 watch(confirmDeleteOpen, v => {
   if (v) nextTick(() => confirmPrimaryBtn.value?.focus())
 })
 
-/* Global hotkeys (sjednocení s Measurements/Board: Ctrl+B pro procházet) */
+/* ----- Hotkeys ----- */
 function onHotkeys(e: KeyboardEvent) {
-  // Toggle postranní panel (sjednocení s Board.vue)
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b') { e.preventDefault(); isSideFilterOpen.value = !isSideFilterOpen.value; return }
-  // Quick new
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'n') { e.preventDefault(); openCreateFromToolbar(); return }
-  // Datum navigace mimo editor
   if (!editorOpen.value && e.key === 'ArrowLeft') { e.preventDefault(); addDays(-1); return }
   if (!editorOpen.value && e.key === 'ArrowRight') { e.preventDefault(); addDays(1); return }
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 't') { e.preventDefault(); goToday(); return }
-  // Editor
+
   if (confirmDeleteOpen.value) {
-    // Enter = potvrdit smazání, Esc = zrušit, nic nepropustit dál
     if (e.key === 'Enter') { e.preventDefault(); if (!deleteLoading.value) void confirmDelete(); return }
     if (e.key === 'Escape') { e.preventDefault(); if (!deleteLoading.value) cancelDelete(); return }
     e.preventDefault()
@@ -832,13 +928,20 @@ function onHotkeys(e: KeyboardEvent) {
 }
 onMounted(() => window.addEventListener('keydown', onHotkeys))
 onBeforeUnmount(() => window.removeEventListener('keydown', onHotkeys))
+
+/* ----- UI panel toggle ----- */
+const isSideFilterOpen = ref(false)
+
+/* ----- Daily list dblclick -> edit ----- */
+function onDailyListRowDblClick(_ev: MouseEvent, payload: { item: { _raw: ReservationDto } }) {
+  openEdit(dtoToResItem(payload.item._raw))
+}
 </script>
 
 <template>
   <v-container fluid class="pa-0">
-    <!-- Sjednocená horní lišta jako v Board.vue -->
     <v-toolbar color="white" class="border-b-sm pl-3 pr-3" density="comfortable">
-      <v-btn color="primary"variant="tonal" @click="isSideFilterOpen = !isSideFilterOpen">
+      <v-btn color="primary" variant="tonal" @click="isSideFilterOpen = !isSideFilterOpen">
         Procházet
       </v-btn>
 
@@ -867,12 +970,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onHotkeys))
       <v-btn variant="tonal" @click="goToday" title="Dnes (Ctrl+T)">DNES</v-btn>
       <v-btn icon="mdi-chevron-left" variant="text" @click="addDays(-1)" />
       <v-btn icon="mdi-chevron-right" variant="text" @click="addDays(1)" />
-
     </v-toolbar>
 
     <v-container fluid class="pa-4">
       <v-row>
-        <!-- LEFT PANEL (toggle jako v Board.vue) -->
         <v-col v-if="isSideFilterOpen" cols="12" md="3">
           <LeftFiltersPanel
             v-model:date="selectedDate"
@@ -881,7 +982,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onHotkeys))
           />
         </v-col>
 
-        <!-- RIGHT PANEL -->
         <v-col :cols="12" :md="isSideFilterOpen ? 9 : 12">
           <v-card>
             <v-card-text>
@@ -969,9 +1069,38 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onHotkeys))
       >
         <div v-if="resForm" class="pa-1">
           <v-text-field v-model="resForm.title" label="Název" density="comfortable" variant="outlined" class="mb-2"
-                        :rules="[v => !!(v && v.trim()) || 'Název je povinný']" autofocus />
-          <v-select v-model="resForm.deviceCode" :items="allDevices" item-title="name" item-value="id" label="Přístroj"
-                    density="comfortable" variant="outlined" class="mb-2" />
+                        :rules="[v => !!(v && (String(v)).trim()) || 'Název je povinný']" autofocus />
+          <v-select
+            v-model="resForm.deviceCode"
+            :items="editorDeviceOptions"
+            item-title="name"
+            item-value="id"
+            label="Přístroj"
+            density="comfortable"
+            variant="outlined"
+            class="mb-2"
+            :item-disabled="(item) => !item.active"
+          >
+            <template #item="{ item, props }">
+              <v-list-item
+                v-bind="props"
+                :title="item.raw.name"
+                :subtitle="item.raw.id + (!item.raw.active ? ' (deaktivován)' : '')"
+                :disabled="!item.raw.active && item.raw.id !== resForm.deviceCode"
+              />
+            </template>
+            <template #selection="{ item }">
+              <v-chip
+                size="small"
+                :color="item.raw.color"
+                :variant="item.raw.active ? 'flat' : 'tonal'"
+                :class="{ 'opacity-60': !item.raw.active }"
+                text-color="white"
+              >
+                {{ item.raw.id }}
+              </v-chip>
+            </template>
+          </v-select>
           <v-select v-model="resForm.username" :items="membersList" label="Člen" density="comfortable"
                     variant="outlined" class="mb-2" :clearable="true" />
           <v-text-field v-model="resForm.dateYmd" label="Datum" type="date" density="comfortable" variant="outlined" class="mb-2" />
@@ -983,13 +1112,13 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onHotkeys))
         </div>
       </EntityEditorDialog>
 
-      <!-- CONFIRM DELETE -->
       <Dialog v-model:is-open="confirmDeleteOpen" width="auto" :hide-footer="true">
         <template #content>
           <div class="pa-4">
             <div class="text-h6 mb-6">Opravdu chcete rezervaci zrušit?</div>
             <div class="d-flex align-center" style="gap:14px">
               <v-btn
+                ref="confirmPrimaryBtn"
                 color="primary" variant="flat"
                 size="large"
                 :loading="deleteLoading"
@@ -1037,73 +1166,27 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onHotkeys))
 .drag-ghost { position: fixed; z-index: 9999; pointer-events: none; opacity: .9; box-shadow: 0 8px 20px rgba(0,0,0,.20); border-radius: 10px; background: white; will-change: transform; }
 .drop-highlight { outline: 2px dashed var(--v-theme-primary); outline-offset: -2px; }
 .schedule { border-radius: 12px; overflow: hidden; }
-.tracks.row.header { display: grid; grid-template-columns: 80px repeat(var(--cols, 5), 1fr); gap: 0; border-bottom: 1px solid #e5e5e5; }
-.tracks.row.body { display: grid; grid-template-columns: 80px repeat(var(--cols, 5), 1fr); }
-.time-col { background: #fafafa; border-right: 1px solid #e5e5e5; }
-.time-tick { padding: 4px 8px; font-size: 12px; color: #777; border-bottom: 1px dashed #eee; }
-.track-name { padding: 12px 8px; text-align: center; border-left: 1px solid #f1f1f1; }
-.track-name .weekday { text-transform: uppercase; font-weight: 700; letter-spacing: .02em; }
-.track-name.weekend { background: #fafaff; }
-.track { position: relative; border-left: 1px solid #f1f1f1;
-  background: repeating-linear-gradient(to bottom, rgba(0,0,0,0.02) 0, rgba(0,0,0,0.02) calc(var(--tick-h) / 2), transparent calc(var(--tick-h) / 2), transparent var(--tick-h)); }
-.track.weekend {
-  background: linear-gradient(to bottom, rgba(70,120,255,0.04), rgba(70,120,255,0.04)),
-  repeating-linear-gradient(to bottom, rgba(0,0,0,0.02) 0, rgba(0,0,0,0.02) calc(var(--tick-h) / 2), transparent calc(var(--tick-h) / 2), transparent var(--tick-h)); }
-.text-truncate { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-.schedule { border-radius: 12px; overflow: hidden; }
-
-.tracks.row.header { display: grid; gap: 0; border-bottom: 1px solid #e5e5e5; }
-.tracks.row.body   { display: grid; }
-
-.scroll-viewport { overflow-y: auto; }
-.time-col { background: #fafafa; border-right: 1px solid #e5e5e5; }
-.time-tick { padding: 4px 8px; font-size: 12px; color: #777; border-bottom: 1px dashed #eee; }
-.track-name { padding: 12px 8px; text-align: center; border-left: 1px solid #f1f1f1; }
-.track-name .weekday { text-transform: uppercase; font-weight: 700; letter-spacing: .02em; }
-.track-name.weekend { background: #fafaff; }
-
-.track {
+.track.device-inactive {
+  pointer-events: none;
+  opacity: .45;
+  filter: grayscale(.3);
   position: relative;
-  border-left: 1px solid #f1f1f1;
-  background:
-    repeating-linear-gradient(
-      to bottom,
-      rgba(0,0,0,0.02) 0,
-      rgba(0,0,0,0.02) calc(var(--tick-h) / 2),
-      transparent calc(var(--tick-h) / 2),
-      transparent var(--tick-h)
-    );
 }
-.track.weekend {
-  background:
-    linear-gradient(to bottom, rgba(70,120,255,0.04), rgba(70,120,255,0.04)),
-    repeating-linear-gradient(
-      to bottom,
-      rgba(0,0,0,0.02) 0,
-      rgba(0,0,0,0.02) calc(var(--tick-h) / 2),
-      transparent calc(var(--tick-h) / 2),
-      transparent var(--tick-h)
-    );
-}
-
-.event {
+.track.device-inactive::after {
+  content: 'DEAKTIVOVÁNO';
   position: absolute;
-  border-radius: 10px;
-  box-shadow: 0 2px 10px rgba(0,0,0,.06);
-  padding: 8px 10px 20px 10px;
-  cursor: grab;
-  user-select: none;
+  top: 4px;
+  left: 8px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .05em;
+  color: #c62828;
+  background: #fff;
+  padding: 2px 4px;
+  border-radius: 4px;
+  box-shadow: 0 1px 2px rgba(0,0,0,.15);
 }
-.event:active { cursor: grabbing; }
-.event-title { font-weight: 600; line-height: 1.2; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; text-overflow: ellipsis; white-space: normal; }
-.event-time { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.event-avatar { position: absolute; right: 4px; top: 4px; background: #f2f2f2; font-size: 18px; line-height: 18px; text-transform: uppercase; border: 2px solid var(--v-theme-primary); }
-.event-note-icon { position: absolute; right: 6px; bottom: 6px; color: rgba(0,0,0,.60); pointer-events: none; opacity: .85; }
-.event-note-icon:hover { opacity: 1; }
-
-.detail-card { background: #eceff1; border-radius: 14px; box-shadow: 0 6px 20px rgba(0,0,0,.18); }
-.text-ellipsis { max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .event.event--xs { padding: 0; }
 .event.event--xs .event-title,
