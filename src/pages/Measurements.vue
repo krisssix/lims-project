@@ -52,12 +52,12 @@ const templates = computed<TemplateItem[]>(() =>
   templatesStore.items.map(t => {
     // Pokud má šablona bloky, použij je
     const blocks: TemplateBlockRow[] = (t.blocks && t.blocks.length > 0)
-      ? t. blocks. map(b => ({
+      ? t.blocks.map(b => ({
         id: b.id,
         blockIndex: b.blockIndex,
         kind: b.kind,
         title: b.title || `Blok ${b.blockIndex}`,
-        fields: (b. fields || []).map(f => ({
+        fields: (b.fields || []).map(f => ({
           orderIndex: f.orderIndex,
           type: f.type as ValueType,
           required: !!f.required,
@@ -68,7 +68,7 @@ const templates = computed<TemplateItem[]>(() =>
         id: 0,
         blockIndex: 1,
         title: 'Hodnoty',
-        fields: (t.fields || []). map(f => ({
+        fields: (t.fields || []).map(f => ({
           orderIndex: f.orderIndex,
           type: f.type as ValueType,
           required: !!f.required,
@@ -259,26 +259,32 @@ const deleteTemplateConfirmOpen = ref(false)
 const deleteTemplateLoading = ref(false)
 
 function openOverview(): void { overviewOpen.value = true }
-function openImportTemplate(): void { templateFromClipboardOpen.value = true }
+
+/* CHANGE: open import goes directly to Wizard on 'import' tab */
+function openImportTemplate(): void {
+  wizardMode.value = 'import'
+  initialWizardTemplate.value = null
+  templateWizardOpen.value = true
+}
 
 function startEditTemplate(t: TemplateItem): void {
-  selectedTemplateId. value = t.id
+  selectedTemplateId.value = t.id
   wizardMode.value = 'empty'
   const fullTemplate = templatesStore.items.find(tpl => String(tpl.id) === t.id)
 
   initialWizardTemplate.value = {
     templateId: t.id,
     name: t.name,
-    deviceCode: t. deviceId,
+    deviceCode: t.deviceId,
     fields: t.fields.map((f, i) => ({
       orderIndex: i + 1,
       type: f.type,
-      required: f. required,
+      required: f.required,
       name: f.name,
     })),
-    blocks: fullTemplate?.blocks?. map(b => ({
-      blockIndex: b. blockIndex,
-      title: b.title ??  `Blok ${b.blockIndex}`,
+    blocks: fullTemplate?.blocks?.map(b => ({
+      blockIndex: b.blockIndex,
+      title: b.title ?? `Blok ${b.blockIndex}`,
       fields: (b.fields ?? []).map((f, i) => ({
         orderIndex: i + 1,
         type: f.type as FieldType,
@@ -338,7 +344,7 @@ function startCreateTemplateFromFile(): void {
   templateWizardOpen.value = true
 }
 
-/* Template ze schránky – nechávám, můžeš ho případně refaktorovat na blocks */
+/* Template ze schránky – zachováno (není součástí této změny) */
 const templateFromClipboardOpen = ref(false)
 async function createTemplateFromClipboard(payload: {
   deviceCode: string
@@ -523,6 +529,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onHotkeys))
         :operation="initialWizardTemplate ? 'edit' : 'create'"
         :initial-template="initialWizardTemplate"
         :delete-loading="deleteTemplateLoading"
+        :start-mode="wizardMode"
         @delete="askDeleteTemplate"
       />
 
@@ -553,7 +560,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onHotkeys))
         :templates="templates"
         :template-by-id="templateById"
         @createTemplate="startCreateTemplate"
-        @createTemplateFromClipboard="() => { templateFromClipboardOpen = true }"
+        @createTemplateFromClipboard="startCreateTemplateFromFile"
         @save="onSaveMeasurement"
       >
         <template #above-values>

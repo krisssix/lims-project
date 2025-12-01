@@ -590,7 +590,7 @@ export function validateBlock(record: MeasurementRecord, blockIndex: number): { 
 }
 
 /**
- * Bulk validace všech recordů.
+ * Bulk validace všech záznamů.
  */
 export function validateAllRecords(records: MeasurementRecord[]): {
   perRecord: Array<{ recordIndex: number; errors: Record<string, string>; valid: boolean }>

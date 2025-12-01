@@ -18,7 +18,7 @@ import {auth, isAuthenticated} from "@/stores/auth";
 import LoggedOut from "@/pages/LoggedOut.vue";
 import NotFound from "@/pages/NotFound.vue";
 import Reservations from "@/pages/Reservations.vue";
-
+import Devices from "@/pages/Devices.vue" // NEW
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -104,6 +104,15 @@ const router = createRouter({
           meta: {
             layout: 'SideNavigationLayout'
           }
+        },
+        {
+          path: 'project/devices/:projectId',
+          name: 'Devices',
+          beforeEnter: requireAuth,
+          component: Devices,
+          meta: {
+            layout: 'SideNavigationLayout'
+          }
         }
       ]
     },
@@ -129,13 +138,13 @@ router.isReady().then(() => {
   localStorage.removeItem('vuetify:dynamic-reload')
 })
 
-async function requireAuth(to, from, next) {
-    if (isAuthenticated.value) {
-      next();
-    } else {
-      await auth.login(to.fullPath)
-      next(false)
-    }
+async function requireAuth(to: unknown, from: unknown, next: (v?: boolean) => void) {
+  if (isAuthenticated.value) {
+    next();
+  } else {
+    await auth.login((to as { fullPath?: string })?.fullPath || '/')
+    next(false)
+  }
 }
 
 export default router

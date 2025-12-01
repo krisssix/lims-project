@@ -53,12 +53,8 @@
           mandatory
           class="mb-4"
         >
-          <v-btn value="empty">
-            Prázdná šablona
-          </v-btn>
-          <v-btn value="import">
-            Import ze souboru / schránky
-          </v-btn>
+          <v-btn value="empty" title="Prázdná šablona (Alt+B)">Prázdná šablona</v-btn>
+          <v-btn value="import" title="Import ze souboru / schránky (Alt+I)">Import ze souboru / schránky</v-btn>
         </v-btn-toggle>
 
         <!-- EMPTY MODE -->
@@ -473,6 +469,7 @@
 import { computed, ref, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import Dialog from '@/components/Dialog.vue'
 import type { WizardTemplatePayload } from '@/stores/measurement-templates'
+import { isEditableElement } from '@/components/ui/hotkeyGuard'
 
 /* ===== Types ===== */
 type DeviceItem = { id: string; name: string; color?: string }
@@ -505,6 +502,7 @@ const props = defineProps<{
   deleteLoading?: boolean
   operation?: 'create' | 'edit'
   initialTemplate?: InitialTemplate | null
+  startMode?: 'empty' | 'import'
 }>()
 
 const emit = defineEmits<{
@@ -534,11 +532,13 @@ const delimiter = ref<string>('auto')
 const parsedHeaders = ref<string[]>([])
 const fileInput = ref<HTMLInputElement | null>(null)
 
+
+
 /* ===== Computed ===== */
 const confirmLabel = computed(() => props.operation === 'edit' ? 'Upravit šablonu' : 'Vytvořit šablonu')
 const canDelete = computed(() => props.operation === 'edit' && !!props.initialTemplate)
 const hasAnyFields = computed(() => pickedBlocks.value.some(pb => pb.fieldRows.length > 0))
-const deleteLoading = computed(() => props.deleteLoading ??  false)
+const deleteLoading = computed(() => props.deleteLoading ?? false)
 
 /* ===== Options ===== */
 const typeOptions: Array<{ label: string; value: FieldType }> = [
@@ -567,7 +567,7 @@ const tableHeaders = [
 
 /* ===== Block management ===== */
 function generateId(): string {
-  return `blk-${Date. now()}-${Math.floor(Math.random() * 10000)}`
+  return `blk-${Date.now()}-${Math.floor(Math.random() * 10000)}`
 }
 
 function addEmptyBlock(): void {
@@ -584,33 +584,33 @@ function addEmptyBlock(): void {
 
 function addEmptyBlockAndGo(): void {
   addEmptyBlock()
-  currentBlockIndex.value = pickedBlocks. value.length - 1
+  currentBlockIndex.value = pickedBlocks.value.length - 1
 }
 
 function removePickedBlock(id: string): void {
   pickedBlocks.value = pickedBlocks.value.filter(b => b.id !== id)
   if (currentBlockIndex.value >= pickedBlocks.value.length) {
-    currentBlockIndex. value = Math.max(0, pickedBlocks.value.length - 1)
+    currentBlockIndex.value = Math.max(0, pickedBlocks.value.length - 1)
   }
 }
 
 function movePickedBlock(id: string, delta: number): void {
-  const idx = pickedBlocks.value.findIndex(b => b. id === id)
+  const idx = pickedBlocks.value.findIndex(b => b.id === id)
   const target = idx + delta
   if (idx < 0 || target < 0 || target >= pickedBlocks.value.length) return
   const arr = [...pickedBlocks.value]
-  const [item] = arr. splice(idx, 1)
+  const [item] = arr.splice(idx, 1)
   arr.splice(target, 0, item)
   pickedBlocks.value = arr
   currentBlockIndex.value = target
 }
 
 function prevBlock(): void {
-  currentBlockIndex.value = Math.max(0, currentBlockIndex. value - 1)
+  currentBlockIndex.value = Math.max(0, currentBlockIndex.value - 1)
 }
 
 function nextBlock(): void {
-  currentBlockIndex. value = Math.min(pickedBlocks.value.length - 1, currentBlockIndex.value + 1)
+  currentBlockIndex.value = Math.min(pickedBlocks.value.length - 1, currentBlockIndex.value + 1)
 }
 
 /* ===== Field management ===== */
@@ -624,18 +624,18 @@ function addFieldTo(blockId: string, atIndex?: number): void {
 }
 
 function removeFieldIn(blockId: string, index: number): void {
-  const block = pickedBlocks. value.find(b => b.id === blockId)
+  const block = pickedBlocks.value.find(b => b.id === blockId)
   if (!block) return
   block.fieldRows.splice(index, 1)
   reindexFields(block)
 }
 
 function moveFieldIn(blockId: string, index: number, delta: number): void {
-  const block = pickedBlocks.value. find(b => b.id === blockId)
-  if (! block) return
+  const block = pickedBlocks.value.find(b => b.id === blockId)
+  if (!block) return
   const target = index + delta
   if (target < 0 || target >= block.fieldRows.length) return
-  const [item] = block. fieldRows.splice(index, 1)
+  const [item] = block.fieldRows.splice(index, 1)
   block.fieldRows.splice(target, 0, item)
   reindexFields(block)
 }
@@ -646,20 +646,20 @@ function reindexFields(block: PickedBlock): void {
 
 /* ===== Import mode ===== */
 function triggerFilePick(): void {
-  fileInput. value?.click()
+  fileInput.value?.click()
 }
 
 async function onFilePicked(e: Event): Promise<void> {
   const input = e.target as HTMLInputElement
   const file = input.files?.[0]
-  if (! file) return
+  if (!file) return
   rawText.value = await file.text()
   runAnalysis()
   input.value = ''
 }
 
 function runAnalysis(): void {
-  const text = rawText.value. trim()
+  const text = rawText.value.trim()
   if (!text) {
     parsedHeaders.value = []
     return
@@ -672,11 +672,11 @@ function runAnalysis(): void {
   else if (delimiter.value === 'semicolon') sep = ';'
   else if (delimiter.value === 'auto') {
     if (firstLine.includes('\t')) sep = '\t'
-    else if (firstLine. includes(';')) sep = ';'
+    else if (firstLine.includes(';')) sep = ';'
     else if (firstLine.includes(',')) sep = ','
   }
 
-  parsedHeaders.value = firstLine.split(sep).map(h => h.trim()). filter(Boolean)
+  parsedHeaders.value = firstLine.split(sep).map(h => h.trim()).filter(Boolean)
 }
 
 function inferFieldType(header: string): FieldType {
@@ -685,53 +685,53 @@ function inferFieldType(header: string): FieldType {
   if (/bool|ano|ne|yes|no/.test(h)) return 'bool'
   if (/soubor|file|image|foto/.test(h)) return 'file'
   if (/počet|count|int|id/.test(h)) return 'int'
-  if (/hodnota|value|měření|num|float|%|°/. test(h)) return 'float'
+  if (/hodnota|value|měření|num|float|%|°/.test(h)) return 'float'
   return 'text'
 }
 
 function createBlockFromParsed(): void {
-  if (! parsedHeaders.value.length) return
+  if (!parsedHeaders.value.length) return
   const block: PickedBlock = {
     id: generateId(),
     title: `Blok ${pickedBlocks.value.length + 1}`,
-    fieldRows: parsedHeaders.value. map((h, i) => ({
+    fieldRows: parsedHeaders.value.map((h, i) => ({
       orderIndex: i + 1,
       name: h,
       required: true,
       type: inferFieldType(h),
     })),
   }
-  pickedBlocks. value.push(block)
+  pickedBlocks.value.push(block)
   currentBlockIndex.value = pickedBlocks.value.length - 1
   parsedHeaders.value = []
 }
 
 /* ===== Confirm / Cancel / Delete ===== */
 function normalizeDeviceCode(code: string): string {
-  return code. trim().toUpperCase().replace(/[^A-Z0-9_]/g, '_'). replace(/_+/g, '_')
+  return code.trim().toUpperCase().replace(/[^A-Z0-9_]/g, '_').replace(/_+/g, '_')
 }
 
 async function confirmSave(): Promise<void> {
-  if (!deviceCode.value || ! pickedBlocks. value.length) return
+  if (!deviceCode.value || !pickedBlocks.value.length) return
 
-  const blocks = pickedBlocks.value. map((pb, bi) => {
+  const blocks = pickedBlocks.value.map((pb, bi) => {
     const seen = new Set<string>()
     const fields: FieldRow[] = []
     let ord = 1
     for (const f of pb.fieldRows) {
-      const name = (f.name ??  '').trim()
-      if (! name) continue
+      const name = (f.name ?? '').trim()
+      if (!name) continue
       const key = name.toLowerCase()
       if (seen.has(key)) continue
       seen.add(key)
       fields.push({ orderIndex: ord++, type: f.type, required: !!f.required, name })
     }
-    if (! fields.length) {
+    if (!fields.length) {
       fields.push({ orderIndex: 1, type: 'text', required: false, name: 'Pole 1' })
     }
     return {
       blockIndex: bi + 1,
-      title: pb.title. trim() || `Blok ${bi + 1}`,
+      title: pb.title.trim() || `Blok ${bi + 1}`,
       fields,
     }
   })
@@ -754,7 +754,7 @@ async function confirmSave(): Promise<void> {
     }
     open.value = false
   } finally {
-    loading. value = false
+    loading.value = false
   }
 }
 
@@ -774,19 +774,21 @@ watch(open, async (isOpen) => {
   pickedBlocks.value = []
   rawText.value = ''
   parsedHeaders.value = []
-  currentBlockIndex. value = 0
-  mode.value = 'empty'
+  currentBlockIndex.value = 0
+
+  // If editing, force 'empty' mode; otherwise honor startMode prop
+  mode.value = props.initialTemplate ? 'empty' : (props.startMode ?? 'empty')
 
   if (props.operation === 'edit' && props.initialTemplate) {
     templateName.value = props.initialTemplate.name
-    deviceCode. value = props.initialTemplate.deviceCode
+    deviceCode.value = props.initialTemplate.deviceCode
 
-    const incomingBlocks = props.initialTemplate.blocks ??  []
+    const incomingBlocks = props.initialTemplate.blocks ?? []
 
     if (incomingBlocks.length > 0) {
       pickedBlocks.value = incomingBlocks.map((b) => ({
         id: generateId(),
-        title: b.title ??  `Blok ${b.blockIndex}`,
+        title: b.title ?? `Blok ${b.blockIndex}`,
         fieldRows: (b.fields ?? []).map((f, fi) => ({
           orderIndex: fi + 1,
           name: f.name,
@@ -794,7 +796,7 @@ watch(open, async (isOpen) => {
           type: f.type as FieldType,
         })),
       }))
-    } else if (props.initialTemplate.fields?. length) {
+    } else if (props.initialTemplate.fields?.length) {
       // Fallback: flat fields → jeden blok
       pickedBlocks.value = [{
         id: generateId(),
@@ -809,36 +811,35 @@ watch(open, async (isOpen) => {
     }
   } else {
     templateName.value = 'Nová šablona'
-    deviceCode. value = props.devices[0]?.id ??  ''
+    deviceCode.value = props.devices[0]?.id ?? ''
   }
 
   await nextTick()
 })
 
+// React to external startMode changes while open (when creating)
+watch(() => props.startMode, (m) => {
+  if (!open.value) return
+  if (props.initialTemplate) return
+  mode.value = m ?? 'empty'
+})
+
 /* ===== Keyboard shortcuts ===== */
 function onKeydown(e: KeyboardEvent): void {
-  if (! open.value) return
+  if (!open.value) return
+  const key = e.key.toLowerCase()
+  const ctrl = e.ctrlKey || e.metaKey
 
-  if (e. key === 'Escape') {
-    e.preventDefault()
-    cancel()
-    return
-  }
+  if (key === 'escape') { e.preventDefault(); cancel(); return }
+  if (ctrl && key === 's') { e.preventDefault(); void confirmSave(); return }
 
-  if ((e.ctrlKey || e. metaKey) && e.key. toLowerCase() === 's') {
-    e.preventDefault()
-    void confirmSave()
-    return
-  }
-
-  if (e.altKey && e.key.toLowerCase() === 'b') {
-    e.preventDefault()
-    addEmptyBlockAndGo()
-  }
+  if (isEditableElement(e.target)) return
+  // ostatní globální hotkeys vypnuty
 }
 
 onMounted(() => window.addEventListener('keydown', onKeydown))
 onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
+
 </script>
 
 <style scoped>

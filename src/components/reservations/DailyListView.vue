@@ -260,7 +260,7 @@ function onKey(e: KeyboardEvent) {
   const key = e.key.toLowerCase()
 
   if (ctrl && key === 'enter') { e.preventDefault(); loadListRange(); return }
-  if (ctrl && key === 'r')     { e.preventDefault(); loadListRange(); return }
+ // if (ctrl && key === 'r')     { e.preventDefault(); loadListRange(); return }
   if (key === '/' || (ctrl && key === 'l')) { e.preventDefault(); nextTick(() => searchInput.value?.focus()); return }
   if (key === 'arrowdown') { e.preventDefault(); moveSelection(1); return }
   if (key === 'arrowup') { e.preventDefault(); moveSelection(-1); return }
