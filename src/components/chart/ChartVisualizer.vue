@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { type MultiSeriesItem, type StatsObj, type OutliersMeta, fmt2, niceNumber } from './types'
+
 const props = defineProps<{
   series: MultiSeriesItem[]
   activeTab: 'LINE' | 'SCATTER' | 'HISTOGRAM' | 'BOXPLOT'
@@ -11,9 +12,20 @@ const props = defineProps<{
   showMean: boolean
   showHover: boolean
   focusMode: boolean
+
 }>()
 /* ---------- SVG Ref & Exports ---------- */
+
 const svgRef = ref<SVGSVGElement | null>(null)
+
+
+
+
+
+
+
+
+
 function exportCsv() {
   const lines: string[] = []
   const header = ['index', ...props.series.map(s => s.label)]
@@ -73,6 +85,7 @@ function downloadBlob(content: string, filename: string, type: string) {
 // Expose export methods to parent
 defineExpose({ exportCsv, exportSvg, exportPng })
 /* ---------- Math Helpers ---------- */
+
 const allValuesFlat = computed<number[]>(() => {
   const out: number[] = []
   for (const s of props.series) out.push(...s.points)
@@ -127,6 +140,28 @@ const scatterSeries = computed(() => {
   return out
 })
 // Histogram
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 const histogram = computed(() => {
   const vals = props.series[0]?.points || []
   if (!vals.length) return { bins: [], maxCount: 0 }
@@ -137,6 +172,36 @@ const histogram = computed(() => {
   const binCount = Math.max(1, Math.ceil(Math.sqrt(n)))
   const binWidth = range === 0 ? 1 : range / binCount
   const counts = Array.from({ length: binCount }, () => 0)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   for (const v of vals) {
     let idx = range === 0 ? 0 : Math.floor((v - mn) / binWidth)
     if (idx >= binCount) idx = binCount - 1
@@ -145,6 +210,8 @@ const histogram = computed(() => {
   }
   const maxCount = Math.max(...counts, 0)
   const bins = counts.map((c, i) => {
+
+
     const x = (i / binCount) * 100
     const w = (1 / binCount) * 100 * 0.95
     const h = maxCount === 0 ? 0 : (c / maxCount) * 80
@@ -153,6 +220,7 @@ const histogram = computed(() => {
   })
   return { bins, maxCount }
 })
+
 const meanXForHistogram = computed<number | null>(() => {
   const vals = props.series[0]?.points || []
   const st = props.stats
@@ -165,6 +233,7 @@ const meanXForHistogram = computed<number | null>(() => {
   return Math.max(0, Math.min(100, norm * 100))
 })
 // Boxplot
+
 const box = computed(() => {
   const vals = props.series[0]?.points || []
   if (!vals.length) return null
@@ -205,11 +274,13 @@ const outlierPoints = computed(() => {
   }))
 })
 /* ---------- Interaction (Hover) ---------- */
+
 const hoverXPercent = ref<number | null>(null)
 const hoverYPercent = ref<number | null>(null)
 const hoverIdx = ref<number | null>(null)
 const hoverValue = ref<number | null>(null)
 const hoveredBin = ref<number | null>(null)
+
 function getMouseXPercent(e: MouseEvent): number {
   const el = e.currentTarget as SVGSVGElement | null
   if (!el) return 0
@@ -274,6 +345,7 @@ const hoverYValueLabel = computed<string | null>(() => {
   const val = yMin.value + clamped * yRange.value
   return niceNumber(val)
 })
+
 /* ---------- ARIA ---------- */
 const ariaLabel = computed(() => {
   const c = props.series[0]?.points.length ?? 0
@@ -285,7 +357,38 @@ const ariaLabel = computed(() => {
   }
   return 'Chart'
 })
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 </script>
+
 <template>
   <v-sheet
     class="pa-4 chart-area"
@@ -303,6 +406,7 @@ const ariaLabel = computed(() => {
       ref="svgRef"
       class="chart-svg"
       viewBox="-5 0 110 100"  preserveAspectRatio="none"
+
       :aria-label="ariaLabel"
       role="img"
       @mousemove="activeTab === 'HISTOGRAM' ? onMouseMoveHist($event) : (activeTab === 'BOXPLOT' ? onMouseMoveBox($event) : onMouseMoveLine($event))"
@@ -376,6 +480,7 @@ const ariaLabel = computed(() => {
         >Y</text>
       </g>
 
+
       <g v-if="activeTab === 'LINE'">
         <polyline
           v-for="(s, si) in series"
@@ -442,6 +547,7 @@ const ariaLabel = computed(() => {
         </g>
       </g>
 
+
       <g v-else-if="activeTab === 'SCATTER'">
         <circle
           v-for="p in scatterSeries"
@@ -464,6 +570,7 @@ const ariaLabel = computed(() => {
         </g>
       </g>
 
+
       <g v-else-if="activeTab === 'HISTOGRAM'">
         <rect
           v-for="(b, i) in histogram.bins"
@@ -477,6 +584,27 @@ const ariaLabel = computed(() => {
           stroke-width="0.5"
         />
         <template v-if="showHover && hoveredBin !== null">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           <text
             :x="histogram.bins[hoveredBin].x + histogram.bins[hoveredBin].w/2"
             :y="Math.max(12, histogram.bins[hoveredBin].y - 2)"
@@ -484,6 +612,13 @@ const ariaLabel = computed(() => {
             font-size="5"
             fill="#424242"
           >{{ histogram.bins[hoveredBin].count }}</text>
+
+
+
+
+
+
+
         </template>
         <line
           v-if="showMean && meanXForHistogram !== null"
@@ -496,6 +631,7 @@ const ariaLabel = computed(() => {
           stroke-width="0.8"
         />
       </g>
+
 
       <g v-else-if="activeTab === 'BOXPLOT' && box">
         <line
@@ -567,6 +703,7 @@ const ariaLabel = computed(() => {
           >{{ hoverYValueLabel }}</text>
         </template>
       </g>
+
 
       <template v-if="(activeTab === 'LINE' || activeTab === 'SCATTER' || activeTab === 'BOXPLOT') && showMean && meanY !== null">
         <line

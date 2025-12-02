@@ -5,6 +5,7 @@ import { type StatsObj, type OutliersMeta, type MultiSeriesItem, fmt2 } from './
 // Import sub-components
 import ChartStats from './ChartStats.vue'
 import ChartVisualizer from './ChartVisualizer.vue'
+
 const props = defineProps<{
   chartPoints: number[]
   stats: StatsObj | null
@@ -20,6 +21,23 @@ const emit = defineEmits<{
 /* ---------- State ---------- */
 const tabs = ['LINE', 'SCATTER', 'HISTOGRAM', 'BOXPLOT'] as const
 type TabKind = typeof tabs[number]
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 const activeTab = ref<TabKind>('LINE')
 const tabIcons: Record<TabKind, string> = {
   LINE: 'mdi-chart-line',
@@ -27,10 +45,22 @@ const tabIcons: Record<TabKind, string> = {
   HISTOGRAM: 'mdi-chart-bar',
   BOXPLOT: 'mdi-chart-box-outline'
 }
+
+
+
+
+
+
+
+
+
+
+
 const showGrid = ref(true)
 const showMean = ref(true)
 const showHover = ref(true)
 const focusMode = ref(false)
+
 /* ---------- Data Prep ---------- */
 const palette = ['#1e88e5','#8e24aa','#43a047','#fb8c00','#5d4037','#3949ab','#f4511e','#00897b','#6d4c41','#7cb342']
 const singleSeriesPoints = computed<number[]>(() =>
@@ -47,22 +77,27 @@ const seriesEnhanced = computed<MultiSeriesItem[]>(() => {
     colorAssigned: s.color || palette[i % palette.length]
   }))
 })
+
 /* ---------- Actions ---------- */
 function onSelectField(f: string): void { emit('select-field', f) }
 // Ref to Visualizer to trigger exports
+
 const visualizerRef = ref<InstanceType<typeof ChartVisualizer> | null>(null)
 function triggerCsv() { visualizerRef.value?.exportCsv() }
 function triggerSvg() { visualizerRef.value?.exportSvg() }
 function triggerPng() { visualizerRef.value?.exportPng() }
 /* ---------- Watchers & Hooks ---------- */
+
 watch(() => props.fields, (fList) => {
   if (!props.selectedField && fList.length) nextTick(() => onSelectField(fList[0]!))
 })
+
 /* ---------- Hotkeys ---------- */
 function handleKey(e: KeyboardEvent): void {
   const key = e.key.toLowerCase()
   const ctrl = e.ctrlKey || e.metaKey
   const alt = e.altKey
+
   if (alt && /^[1-9]$/.test(key)) {
     const idx = parseInt(key, 10) - 1
     if (idx >= 0 && idx < props.fields.length) {
@@ -78,21 +113,26 @@ function handleKey(e: KeyboardEvent): void {
   if (alt && key === 's') { e.preventDefault(); activeTab.value = 'SCATTER' }
   if (alt && key === 't') { e.preventDefault(); activeTab.value = 'HISTOGRAM' }
   if (alt && key === 'b') { e.preventDefault(); activeTab.value = 'BOXPLOT' }
+
+
   if (ctrl && key === 'e' && !e.shiftKey && !e.altKey) { e.preventDefault(); triggerCsv() }
   if (ctrl && e.shiftKey && key === 'e') { e.preventDefault(); triggerSvg() }
   if (ctrl && e.altKey && key === 'e') { e.preventDefault(); triggerPng() }
 }
 onMounted(() => window.addEventListener('keydown', handleKey))
 onBeforeUnmount(() => window.removeEventListener('keydown', handleKey))
+
 /* ---------- A11Y ---------- */
 const liveStatus = computed<string>(() => {
   if (!seriesEnhanced.value.length) return 'Graf nemá žádná data.'
   const parts: string[] = []
   if (props.stats) parts.push(`Mean ${fmt2(props.stats.mean)}, Count ${props.stats.count}`)
   if (focusMode.value) parts.push(`Fokus mód aktivní`)
+
   return parts.join('. ')
 })
 </script>
+
 <template>
   <div
     class="chart-panel"
@@ -214,6 +254,7 @@ const liveStatus = computed<string>(() => {
 
 
 
+
     <!-- Stats Component -->
     <ChartStats
       :stats="stats"
@@ -253,6 +294,16 @@ const liveStatus = computed<string>(() => {
             <span class="ml-1 text-caption">{{ tab }}</span>
           </v-btn>
         </v-btn-toggle>
+
+
+
+
+
+
+
+
+
+
       </div>
       <!-- Main Chart Layout -->
       <div class="chart-main-layout">
@@ -269,6 +320,7 @@ const liveStatus = computed<string>(() => {
             :show-mean="showMean"
             :show-hover="showHover"
             :focus-mode="focusMode"
+
           />
         </div>
         <!-- Controls Sidebar -->
@@ -437,6 +489,7 @@ const liveStatus = computed<string>(() => {
     </v-expand-transition>
   </div>
 </template>
+
 <style scoped>
 .chart-panel {
   display: flex;

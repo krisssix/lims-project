@@ -91,52 +91,42 @@ const selectedRecordIndexes = ref<Set<number>>(new Set())
 const currentBlockIndex = ref<number>(0)
 
 function ensureCurrentRecordExists(): void {
-  if (! records.value.length) return
+  if (!records.value.length) return
   const idx = records.value.findIndex(r => r.recordIndex === currentRecordIndex.value)
   if (idx === -1) currentRecordIndex.value = records.value[0]!.recordIndex
 }
 
 /* ---------- Selected template ---------- */
-const selectedTemplate = computed<TemplateItem | null>(() => {
-  return props.templates.find(t => t.name === selectedTemplateName.value) ??  null
-})
+const selectedTemplate = computed<TemplateItem | null>(() =>
+    props.templates.find(t => t.name === selectedTemplateName.value) ?? null
+)
 
-/* ---------- Template blocks ---------- */
 /* ---------- Template blocks ---------- */
 const templateBlocks = computed<TemplateBlockRow[]>(() => {
   const tpl = selectedTemplate.value
 
-  // 1. Pokud máme šablonu s bloky, použijeme je
-  if (tpl && tpl.blocks && tpl.blocks. length > 0) {
+  if (tpl && tpl.blocks && tpl.blocks.length > 0) {
     return tpl.blocks
   }
 
-  // 2.  Pokud máme record s různými blockIndex, vytvoříme bloky z něj
   const rec = currentRecord.value
-  if (rec && rec.fields. length > 0) {
-    // Zjistit unikátní blockIndexy z načtených hodnot
+  if (rec && rec.fields.length > 0) {
     const blockMap = new Map<number, { title: string | null; fields: RecordField[] }>()
-
     for (const field of rec.fields) {
-      const blockIdx = field.blockIndex ??  1
+      const blockIdx = field.blockIndex ?? 1
       if (!blockMap.has(blockIdx)) {
-        blockMap. set(blockIdx, {
-          title: field.blockTitle ??  null,
-          fields: []
-        })
+        blockMap.set(blockIdx, { title: field.blockTitle ?? null, fields: [] })
       }
       blockMap.get(blockIdx)!.fields.push(field)
     }
-
-    // Pokud máme více než 1 blok, vrátíme je
     if (blockMap.size > 1) {
       return Array.from(blockMap.entries())
           .sort(([a], [b]) => a - b)
-          . map(([blockIndex, data]) => ({
+          .map(([blockIndex, data]) => ({
             id: blockIndex,
             blockIndex,
             title: data.title || `Blok ${blockIndex}`,
-            fields: data. fields.map((f, i) => ({
+            fields: data.fields.map((f, i) => ({
               orderIndex: i + 1,
               type: f.type,
               required: f.required,
@@ -146,7 +136,6 @@ const templateBlocks = computed<TemplateBlockRow[]>(() => {
     }
   }
 
-  // 3. Fallback: jeden blok ze všech polí šablony
   if (tpl && tpl.fields && tpl.fields.length > 0) {
     return [{
       id: 0,
@@ -156,48 +145,37 @@ const templateBlocks = computed<TemplateBlockRow[]>(() => {
     }]
   }
 
-  // 4. Fallback: jeden blok z aktuálního recordu
   if (rec) {
     return [{
       id: 0,
       blockIndex: 1,
       title: 'Hodnoty',
-      fields: rec.fields. map((f, i) => ({
+      fields: rec.fields.map((f, i) => ({
         orderIndex: i + 1,
         type: f.type,
         required: f.required,
-        name: f. name
+        name: f.name
       }))
     }]
   }
 
   return []
 })
-const currentBlock = computed<TemplateBlockRow | null>(() => {
-  return templateBlocks.value[currentBlockIndex.value] ??  null
-})
+const currentBlock = computed<TemplateBlockRow | null>(() =>
+    templateBlocks.value[currentBlockIndex.value] ?? null
+)
 
 /* ---------- Fields for current block ---------- */
 const currentBlockFields = computed<RecordField[]>(() => {
   if (!currentRecord.value) return []
-
-  // Pokud nemáme bloky nebo máme jen 1 blok, zobrazit všechna pole
-  if (templateBlocks.value. length <= 1) {
-    return currentRecord. value.fields
-  }
-
-  // Získat aktuální blok
+  if (templateBlocks.value.length <= 1) return currentRecord.value.fields
   const block = currentBlock.value
-  if (!block) {
-    return currentRecord.value.fields
-  }
-
-  // Filtrovat pole podle blockIndex
+  if (!block) return currentRecord.value.fields
   const blockIdx = block.blockIndex
-  return currentRecord.value.fields. filter(f => (f.blockIndex ??  1) === blockIdx)
+  return currentRecord.value.fields.filter(f => (f.blockIndex ?? 1) === blockIdx)
 })
 
-/** Helper type for template fields - matches newRecordFromTemplateFields signature */
+/** Helper type for template fields */
 type TemplateFieldInput = {
   name: string
   type: ValueType
@@ -212,14 +190,13 @@ function templateFieldsForCurrent(): TemplateFieldInput[] {
       name: f.name,
       type: f.type,
       required: f.required,
-      blockIndex: f.blockIndex ??  1,
-      blockTitle: f.blockTitle ??  undefined
+      blockIndex: f.blockIndex ?? 1,
+      blockTitle: f.blockTitle ?? undefined
     }))
   }
   const tpl = props.templates.find(t => t.name === selectedTemplateName.value)
-  if (! tpl) return []
+  if (!tpl) return []
 
-  // Pokud má šablona bloky, flatten je
   if (tpl.blocks && tpl.blocks.length > 0) {
     const fields: TemplateFieldInput[] = []
     for (const block of tpl.blocks) {
@@ -236,7 +213,7 @@ function templateFieldsForCurrent(): TemplateFieldInput[] {
     return fields
   }
 
-  return (tpl.fields ??  []).map(f => ({
+  return (tpl.fields ?? []).map(f => ({
     name: f.name,
     type: f.type as ValueType,
     required: f.required,
@@ -245,17 +222,12 @@ function templateFieldsForCurrent(): TemplateFieldInput[] {
   }))
 }
 
-/* ---------- Block navigation functions ---------- */
+/* ---------- Block navigation ---------- */
 function prevBlock(): void {
-  if (currentBlockIndex.value > 0) {
-    currentBlockIndex.value--
-  }
+  if (currentBlockIndex.value > 0) currentBlockIndex.value--
 }
-
 function nextBlock(): void {
-  if (currentBlockIndex.value < templateBlocks.value.length - 1) {
-    currentBlockIndex.value++
-  }
+  if (currentBlockIndex.value < templateBlocks.value.length - 1) currentBlockIndex.value++
 }
 
 /* ---------- Build z MeasurementResponse ---------- */
@@ -267,7 +239,7 @@ function buildFrom(item: MeasurementResponse | null): void {
 
   selectedTemplateName.value = item.type || ''
   selectedDeviceId.value = item.unit || ''
-  selectedUsername.value = item.measuredByUsername ??  props.currentUsername ??  null
+  selectedUsername.value = item.measuredByUsername ?? props.currentUsername ?? null
   noteText.value = item.note ?? ''
 
   const tsRaw = typeof item.timestamp === 'number'
@@ -278,7 +250,7 @@ function buildFrom(item: MeasurementResponse | null): void {
   dateYmd.value = toYmdLocal(dt)
   timeHM.value = hmFromMs(ts)
 
-  const vals = item.values ??  []
+  const vals = item.values ?? []
   if (vals.length) {
     records.value = groupValuesToRecords(vals)
   } else {
@@ -307,16 +279,29 @@ watch(() => props.item, v => buildFrom(v), { immediate: true })
 
 /* ---------- Derived ---------- */
 const currentRecord = computed<MeasurementRecord | null>(() =>
-    records.value.find(r => r.recordIndex === currentRecordIndex.value) ??  null
+    records.value.find(r => r.recordIndex === currentRecordIndex.value) ?? null
 )
 
-const numericFieldNames = computed<string[]>(() =>
-    Array.from(new Set(
-        records.value.flatMap(r =>
-            r.fields.filter(f => f.type === 'float' || f.type === 'int').map(f => f.name)
-        )
-    ))
-)
+const numericFieldNames = computed<string[]>(() => {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const r of records.value) {
+    for (const f of r.fields) {
+      let isNumeric = f.type === 'float' || f.type === 'int'
+      if (!isNumeric && f.type === 'text') {
+        const raw = f.value
+        const s = raw == null ? '' : String(raw).trim().replace(',', '.')
+        const n = Number(s)
+        isNumeric = Number.isFinite(n)
+      }
+      if (isNumeric && !seen.has(f.name)) {
+        seen.add(f.name)
+        out.push(f.name)
+      }
+    }
+  }
+  return out
+})
 
 const selectedField = ref<string | null>(null)
 
@@ -332,7 +317,7 @@ const invalidCount = ref<number>(0)
 
 function rebuildDerived(): void {
   invalidCount.value = validateAll()
-  if (! selectedField.value && numericFieldNames.value.length) {
+  if (!selectedField.value && numericFieldNames.value.length) {
     selectedField.value = numericFieldNames.value[0]!
   }
 }
@@ -353,7 +338,7 @@ function addNewRecord(): void {
 }
 
 function duplicateCurrentRecord(): void {
-  if (! currentRecord.value) return
+  if (!currentRecord.value) return
   const nextIndex = Math.max(...records.value.map(r => r.recordIndex)) + 1
   const dup = duplicateRecord(currentRecord.value, nextIndex)
   records.value.push(dup)
@@ -372,42 +357,17 @@ function deleteCurrentRecord(): void {
   ensureCurrentRecordExists()
   currentBlockIndex.value = 0
   selectedRecordIndexes.value.delete(currentRecordIndex.value)
-  if (! selectedRecordIndexes.value.size) {
+  if (!selectedRecordIndexes.value.size) {
     records.value.forEach(r => selectedRecordIndexes.value.add(r.recordIndex))
   }
   rebuildDerived()
 }
 
-
-/*
-function toPrevRecord(): void {
-  const sorted = records.value.map(r => r.recordIndex).sort((a, b) => a - b)
-  const pos = sorted.indexOf(currentRecordIndex.value)
-  if (pos > 0) {
-    currentRecordIndex.value = sorted[pos - 1]!
-    currentBlockIndex.value = 0
-    focusFirstFieldSoon()
-  }
-}
-function toNextRecord(): void {
-  const sorted = records.value.map(r => r.recordIndex).sort((a, b) => a - b)
-  const pos = sorted.indexOf(currentRecordIndex.value)
-  if (pos < sorted.length - 1) {
-    currentRecordIndex.value = sorted[pos + 1]!
-    currentBlockIndex.value = 0
-    focusFirstFieldSoon()
-  }
-}
-
-
- */
-
-
 function toggleRecordSelection(rIndex: number, multi: boolean): void {
   if (multi) {
     if (selectedRecordIndexes.value.has(rIndex)) selectedRecordIndexes.value.delete(rIndex)
     else selectedRecordIndexes.value.add(rIndex)
-    if (! selectedRecordIndexes.value.size) selectedRecordIndexes.value.add(rIndex)
+    if (!selectedRecordIndexes.value.size) selectedRecordIndexes.value.add(rIndex)
   } else {
     currentRecordIndex.value = rIndex
     currentBlockIndex.value = 0
@@ -419,7 +379,7 @@ function toggleRecordSelection(rIndex: number, multi: boolean): void {
 function parseNumber(raw: unknown, integer = false): number | null {
   if (raw == null || raw === '') return null
   const s = String(raw).replace(',', '.').trim()
-  if (! s.length) return null
+  if (!s.length) return null
   const n = integer ? parseInt(s, 10) : parseFloat(s)
   return Number.isFinite(n) ? n : null
 }
@@ -446,7 +406,7 @@ function updateField(field: RecordField, raw: unknown): void {
           field.value = new Date(y, mo - 1, d, 0, 0, 0, 0).getTime()
         } else {
           const ms = Date.parse(raw)
-          field.value = Number.isNaN(ms) ?  null : ms
+          field.value = Number.isNaN(ms) ? null : ms
         }
         break
       }
@@ -459,14 +419,14 @@ function updateField(field: RecordField, raw: unknown): void {
     }
     case 'file': field.value = raw; break
     case 'text':
-    default: field.value = raw ??  ''
+    default: field.value = raw ?? ''
   }
   invalidCount.value = validateAll()
 }
 
 /* ---------- Helpers pro template (bez unionů) ---------- */
 function textModel(field: RecordField): string | number | null | undefined {
-  return (field.value ??  null) as string | number | null | undefined
+  return (field.value ?? null) as string | number | null | undefined
 }
 function dateModel(field: RecordField): string | null {
   return typeof field.value === 'number'
@@ -479,62 +439,18 @@ function fileModel(field: RecordField): File | null | undefined {
 function fieldError(field: RecordField): string | null {
   return validateField(field)
 }
-function previewValue(field: RecordField): string {
-  const v = field.value
-  switch (field.type) {
-    case 'float':
-    case 'int': {
-      const num = typeof v === 'number'
-          ? v
-          : (v == null ?  null : parseNumber(v, field.type === 'int'))
-      return num == null || Number.isNaN(num) ? '—' : String(num)
-    }
-    case 'bool': return v === true ? 'Ano' : (v === false ? 'Ne' : '—')
-    case 'date': {
-      const ms = typeof v === 'number' ? v : (typeof v === 'string' ? Date.parse(v) : NaN)
-      return Number.isFinite(ms) ?  new Date(ms).toISOString().slice(0, 10) : '—'
-    }
-    case 'file':
-      return (v && (v as { name?: string }).name) ?  String((v as { name?: string }).name) : '—'
-    case 'text':
-    default: {
-      const s = v == null ? '' : String(v).trim()
-      return s.length ? s : '—'
-    }
-  }
-}
 
 /* ---------- Sekce collapsible ---------- */
 const metaCollapsed = ref(false)
 const valuesCollapsed = ref(false)
 const statsCollapsed = ref(false)
 function toggleMeta(): void { metaCollapsed.value = !metaCollapsed.value }
-function toggleValues(): void { valuesCollapsed.value = ! valuesCollapsed.value }
+function toggleValues(): void { valuesCollapsed.value = !valuesCollapsed.value }
 function toggleStats(): void { statsCollapsed.value = !statsCollapsed.value }
-
-/* ---------- Expand/Collapse všech fieldů ---------- */
-const expandedFields = ref<Set<string>>(new Set())
-function expandAllValues(): void {
-  if (!currentRecord.value) return
-  expandedFields.value = new Set(currentRecord.value.fields.map(f => f.name))
-  valuesCollapsed.value = false
-}
-function collapseAllValues(): void {
-  expandedFields.value = new Set()
-}
-function isExpanded(field: RecordField): boolean {
-  return expandedFields.value.has(field.name)
-}
-function toggleField(field: RecordField): void {
-  const next = new Set(expandedFields.value)
-  if (next.has(field.name)) next.delete(field.name)
-  else next.add(field.name)
-  expandedFields.value = next
-}
 
 /* ---------- Statistiky & graf ---------- */
 const chartPoints = computed<number[]>(() => {
-  if (! selectedField.value) return []
+  if (!selectedField.value) return []
   const subset = selectedRecordIndexes.value.size
       ? Array.from(selectedRecordIndexes.value)
       : records.value.map(r => r.recordIndex)
@@ -559,7 +475,7 @@ const canSaveMeta = computed(() =>
 )
 
 async function onSave(): Promise<void> {
-  if (! props.item || ! canSaveMeta.value) return
+  if (!props.item || !canSaveMeta.value) return
   isSaving.value = true
   try {
     const firstNumeric = records.value
@@ -568,19 +484,19 @@ async function onSave(): Promise<void> {
         .map(f => parseNumber(f.value, f.type === 'int'))
         .find(n => Number.isFinite(n as number))
 
-    const baseDay = dateYmd.value ?  normalizeToDate(dateYmd.value) : new Date()
+    const baseDay = dateYmd.value ? normalizeToDate(dateYmd.value) : new Date()
     const tsMs = setHM(baseDay, timeHM.value || '00:00').getTime()
 
     emits('save', {
       value: Number.isFinite(firstNumeric as number)
           ? (firstNumeric as number)
-          : (props.item.value ??  0),
+          : (props.item.value ?? 0),
       type: selectedTemplateName.value,
       unit: selectedDeviceId.value,
       timestamp: tsMs,
       values: flattenRecords(records.value),
-      boardCardId: props.item.boardCardId ??  null,
-      note: noteText.value.trim() ?  noteText.value.trim() : null,
+      boardCardId: props.item.boardCardId ?? null,
+      note: noteText.value.trim() ? noteText.value.trim() : null,
       measuredByUsername: selectedUsername.value?.trim() || null
     })
   } finally {
@@ -597,9 +513,9 @@ function exportSelectedCsv(): void {
   const rows: string[] = ['recordIndex;value']
   subset.forEach(ri => {
     const rec = records.value.find(r => r.recordIndex === ri)
-    if (! rec) return
+    if (!rec) return
     const f = rec.fields.find(ff => ff.name === selectedField.value)
-    if (! f) return
+    if (!f) return
     if (f.type === 'float' || f.type === 'int') {
       const num = parseNumber(f.value, f.type === 'int')
       if (num != null) rows.push(`${ri};${num}`)
@@ -642,20 +558,15 @@ function handleKey(e: KeyboardEvent): void {
   const key = e.key.toLowerCase()
   const ctrl = e.ctrlKey || e.metaKey
 
-  // Bezpečné: Esc, Ctrl+S, Ctrl+←/→
   if (key === 'escape') { e.preventDefault(); emits('update:modelValue', false); return }
   if (ctrl && key === 's') { e.preventDefault(); void onSave(); return }
   if (ctrl && key === 'arrowleft') { e.preventDefault(); emits('prev'); return }
   if (ctrl && key === 'arrowright') { e.preventDefault(); emits('next'); return }
 
-  // Pokud píšu do pole, nic dalšího neřešit
   if (isEditableElement(e.target)) return
 
-  // PageUp/PageDown pro bloky je bezpečné (nejsou to písmena)
   if (key === 'pageup') { e.preventDefault(); prevBlock(); return }
   if (key === 'pagedown') { e.preventDefault(); nextBlock(); return }
-
-  // Všechny Alt-only zkratky a Alt navigace jsou vypnuté, aby neblokovaly písmena.
 }
 
 watch(() => props.modelValue, v => {
@@ -675,8 +586,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKey))
 /* ---------- Live status ---------- */
 const liveStatus = computed<string>(() => {
   const errs = invalidCount.value
-  if (errs > 0) return `Formulář obsahuje ${errs} neplatných hodnot.  Nelze uložit.`
-  return 'Formulář je validní.  Můžete uložit.'
+  if (errs > 0) return `Formulář obsahuje ${errs} neplatných hodnot. Nelze uložit.`
+  return 'Formulář je validní. Můžete uložit.'
 })
 </script>
 
@@ -688,7 +599,7 @@ const liveStatus = computed<string>(() => {
       :saving="isSaving"
       :deletable="true"
       :width="'980px'"
-      :title-extra="dateYmd ? `${dateYmd}${timeHM ?  ' ' + timeHM : ''}` : ''"
+      :title-extra="dateYmd ? `${dateYmd}${timeHM ? ' ' + timeHM : ''}` : ''"
       @update:is-open="v => emits('update:modelValue', v)"
       @save="onSave"
       @delete="() => emits('delete')"
@@ -725,9 +636,9 @@ const liveStatus = computed<string>(() => {
           :variant="metaCollapsed ? 'tonal' : 'flat'"
           :color="metaCollapsed ? undefined : 'primary'"
           class="mr-1"
-          :aria-expanded="! metaCollapsed"
+          :aria-expanded="!metaCollapsed"
           aria-controls="section-meta"
-          title="Meta (Alt+M)"
+          title="Meta"
           @click="toggleMeta"
       >
         Meta
@@ -737,9 +648,9 @@ const liveStatus = computed<string>(() => {
           :variant="valuesCollapsed ? 'tonal' : 'flat'"
           :color="valuesCollapsed ? undefined : 'primary'"
           class="mr-1"
-          :aria-expanded="! valuesCollapsed"
+          :aria-expanded="!valuesCollapsed"
           aria-controls="section-values"
-          title="Hodnoty (Alt+V)"
+          title="Hodnoty"
           @click="toggleValues"
       >
         Hodnoty
@@ -756,9 +667,9 @@ const liveStatus = computed<string>(() => {
           size="small"
           :variant="statsCollapsed ? 'tonal' : 'flat'"
           :color="statsCollapsed ? undefined : 'primary'"
-          :aria-expanded="! statsCollapsed"
+          :aria-expanded="!statsCollapsed"
           aria-controls="section-stats"
-          title="Statistika (Alt+S)"
+          title="Statistika"
           @click="toggleStats"
       >
         Statistika
@@ -781,34 +692,20 @@ const liveStatus = computed<string>(() => {
             class="d-flex align-center mb-2 section-heading"
             style="gap:6px"
         >
-          <v-icon
-              size="18"
-              color="grey-darken-2"
-          >
-            mdi-information-outline
-          </v-icon>
+          <v-icon size="18" color="grey-darken-2">mdi-information-outline</v-icon>
           <span class="text-caption text-medium-emphasis">Metadata měření</span>
           <div
               v-if="metaCollapsed"
               class="d-flex align-center flex-wrap"
               style="gap:4px; margin-left:8px;"
           >
-            <v-chip
-                size="x-small"
-                variant="tonal"
-            >
+            <v-chip size="x-small" variant="tonal">
               {{ selectedUsername || '—' }}
             </v-chip>
-            <v-chip
-                size="x-small"
-                variant="tonal"
-            >
+            <v-chip size="x-small" variant="tonal">
               {{ selectedDeviceId || '—' }}
             </v-chip>
-            <v-chip
-                size="x-small"
-                variant="tonal"
-            >
+            <v-chip size="x-small" variant="tonal">
               {{ selectedTemplateName || '—' }}
             </v-chip>
           </div>
@@ -817,21 +714,16 @@ const liveStatus = computed<string>(() => {
               icon
               variant="text"
               :aria-label="metaCollapsed ? 'Rozbalit meta' : 'Sbalit meta'"
-              :title="metaCollapsed ? 'Rozbalit (Alt+M)' : 'Sbalit (Alt+M)'"
+              :title="metaCollapsed ? 'Rozbalit' : 'Sbalit'"
               @click="toggleMeta"
           >
-            <v-icon :class="{'rot-180': ! metaCollapsed}">
-              mdi-chevron-down
-            </v-icon>
+            <v-icon :class="{'rot-180': !metaCollapsed}">mdi-chevron-down</v-icon>
           </v-btn>
         </div>
         <v-divider class="mb-2" />
         <div v-show="!metaCollapsed">
           <v-row class="g-4">
-            <v-col
-                cols="12"
-                md="4"
-            >
+            <v-col cols="12" md="4">
               <v-select
                   v-model="selectedUsername"
                   :items="members"
@@ -841,14 +733,11 @@ const liveStatus = computed<string>(() => {
                   hide-details="auto"
                   clearable
                   data-meta-first
-                  :hint="! selectedUsername ? 'Vyplňte autora měření' : undefined"
+                  :hint="!selectedUsername ? 'Vyplňte autora měření' : undefined"
                   persistent-hint
               />
             </v-col>
-            <v-col
-                cols="12"
-                md="4"
-            >
+            <v-col cols="12" md="4">
               <v-select
                   v-model="selectedDeviceId"
                   :items="devices"
@@ -860,20 +749,13 @@ const liveStatus = computed<string>(() => {
                   hide-details="auto"
               >
                 <template #selection="{ item }">
-                  <v-chip
-                      size="small"
-                      :color="item.raw?.color"
-                      text-color="white"
-                  >
+                  <v-chip size="small" :color="item.raw?.color" text-color="white">
                     {{ item.raw?.id }}
                   </v-chip>
                 </template>
               </v-select>
             </v-col>
-            <v-col
-                cols="12"
-                md="4"
-            >
+            <v-col cols="12" md="4">
               <v-select
                   v-model="selectedTemplateName"
                   :items="templates"
@@ -886,10 +768,7 @@ const liveStatus = computed<string>(() => {
                   clearable
               />
             </v-col>
-            <v-col
-                cols="12"
-                md="6"
-            >
+            <v-col cols="12" md="6">
               <v-text-field
                   v-model="dateYmd"
                   type="date"
@@ -899,10 +778,7 @@ const liveStatus = computed<string>(() => {
                   hide-details="auto"
               />
             </v-col>
-            <v-col
-                cols="12"
-                md="6"
-            >
+            <v-col cols="12" md="6">
               <v-text-field
                   v-model="timeHM"
                   type="time"
@@ -937,7 +813,7 @@ const liveStatus = computed<string>(() => {
             class="d-flex align-center mb-2"
             style="gap:8px;"
         >
-          <span class="text-subtitle-2">Hodnoty (Recordy)</span>
+          <span class="text-subtitle-2">Hodnoty (Záznamy)</span>
           <div
               class="d-flex flex-wrap"
               style="gap:6px; margin-left:12px;"
@@ -948,7 +824,7 @@ const liveStatus = computed<string>(() => {
                 size="small"
                 :color="r.recordIndex === currentRecordIndex ? 'primary' : (selectedRecordIndexes.has(r.recordIndex) ? 'deep-purple' : undefined)"
                 variant="tonal"
-                :title="`Record ${r.recordIndex} (Alt+${r.recordIndex <=9 ? r.recordIndex : ''} | Shift+klik pro subset)`"
+                :title="`Record ${r.recordIndex} (Shift+klik subset)`"
                 @click="toggleRecordSelection(r.recordIndex, false)"
                 @mousedown.shift.prevent="toggleRecordSelection(r.recordIndex, true)"
             >
@@ -958,22 +834,22 @@ const liveStatus = computed<string>(() => {
                 size="x-small"
                 variant="text"
                 icon="mdi-plus"
-                title="Nový record (Ctrl+Shift+N)"
+                title="Nový record"
                 @click="addNewRecord"
             />
             <v-btn
                 size="x-small"
                 variant="text"
                 icon="mdi-content-copy"
-                title="Duplikovat record (Ctrl+D)"
-                :disabled="! currentRecord"
+                title="Duplikovat record"
+                :disabled="!currentRecord"
                 @click="duplicateCurrentRecord"
             />
             <v-btn
                 size="x-small"
                 variant="text"
                 icon="mdi-delete-outline"
-                title="Smazat record (Ctrl+Shift+Del)"
+                title="Smazat record"
                 :disabled="records.length <= 1"
                 @click="deleteCurrentRecord"
             />
@@ -984,22 +860,8 @@ const liveStatus = computed<string>(() => {
               size="x-small"
               variant="text"
               :icon="valuesCollapsed ? 'mdi-chevron-down' : 'mdi-chevron-up'"
-              :title="valuesCollapsed ? 'Rozbalit (Alt+V)' : 'Sbalit (Alt+V)'"
+              :title="valuesCollapsed ? 'Rozbalit' : 'Sbalit'"
               @click="toggleValues"
-          />
-          <v-btn
-              size="x-small"
-              variant="text"
-              icon="mdi-unfold-more-horizontal"
-              title="Expand all (Alt+E)"
-              @click="expandAllValues"
-          />
-          <v-btn
-              size="x-small"
-              variant="text"
-              icon="mdi-unfold-less-horizontal"
-              title="Collapse all (Alt+C)"
-              @click="collapseAllValues"
           />
         </div>
 
@@ -1010,16 +872,13 @@ const liveStatus = computed<string>(() => {
               class="block-navigation mb-3"
           >
             <div class="d-flex align-center justify-space-between">
-              <div
-                  class="d-flex align-center"
-                  style="gap: 8px;"
-              >
+              <div class="d-flex align-center" style="gap: 8px;">
                 <v-btn
                     icon="mdi-chevron-left"
                     size="small"
                     variant="text"
                     :disabled="currentBlockIndex === 0"
-                    title="Předchozí blok (PageUp)"
+                    title="Předchozí blok"
                     @click="prevBlock"
                 />
                 <div class="text-subtitle-1 font-weight-medium">
@@ -1030,25 +889,21 @@ const liveStatus = computed<string>(() => {
                     size="small"
                     variant="text"
                     :disabled="currentBlockIndex === templateBlocks.length - 1"
-                    title="Další blok (PageDown)"
+                    title="Další blok"
                     @click="nextBlock"
                 />
               </div>
-              <v-chip
-                  size="small"
-                  variant="tonal"
-              >
+              <v-chip size="small" variant="tonal">
                 {{ currentBlockIndex + 1 }} / {{ templateBlocks.length }}
               </v-chip>
             </div>
 
-            <!-- Block tabs -->
             <div class="block-tabs mt-2">
               <v-chip
                   v-for="(block, idx) in templateBlocks"
                   :key="block.id"
                   size="small"
-                  :color="idx === currentBlockIndex ?  'primary' : undefined"
+                  :color="idx === currentBlockIndex ? 'primary' : undefined"
                   :variant="idx === currentBlockIndex ? 'flat' : 'tonal'"
                   class="mr-1"
                   @click="currentBlockIndex = idx"
@@ -1065,7 +920,6 @@ const liveStatus = computed<string>(() => {
             </div>
           </div>
 
-          <!-- Single block header (when only 1 block) -->
           <div
               v-else-if="currentBlock && templateBlocks.length === 1"
               class="block-header mb-3"
@@ -1075,61 +929,26 @@ const liveStatus = computed<string>(() => {
             </div>
           </div>
 
-          <!-- Fields grid for current block -->
+          <!-- Fields grid (bez Poř. kolony) -->
           <div class="grid header-row">
-            <div class="cell muted">
-              Poř.
-            </div>
-            <div class="cell muted">
-              Název + Typ
-            </div>
-            <div class="cell muted">
-              Hodnota
-            </div>
-            <div class="cell muted">
-              Stav
-            </div>
+            <div class="cell muted">Název + Typ</div>
+            <div class="cell muted">Hodnota</div>
+            <div class="cell muted">Stav</div>
           </div>
 
-          <transition-group
-              name="fade-y"
-              tag="div"
-          >
+          <transition-group name="fade-y" tag="div">
             <div
                 v-for="(field, idx) in currentBlockFields"
                 :key="field.name"
                 class="grid data-row"
                 :class="{'has-error': !!fieldError(field)}"
-                :aria-expanded="isExpanded(field)"
                 :aria-label="`Field ${idx+1}: ${field.name} (${TYPE_LABEL[field.type]})`"
             >
-              <div
-                  class="cell index d-flex align-center justify-center"
-                  style="gap:6px"
-              >
-                <v-btn
-                    icon
-                    size="x-small"
-                    variant="text"
-                    :title="isExpanded(field) ? 'Sbalit' : 'Rozbalit'"
-                    @click.stop="toggleField(field)"
-                >
-                  <v-icon
-                      :icon="isExpanded(field) ? 'mdi-chevron-up' : 'mdi-chevron-down'"
-                      size="18"
-                  />
-                </v-btn>
-                <span>{{ idx + 1 }}</span>
-              </div>
-
+              <!-- Název + typ -->
               <div class="cell name name-with-chip">
-                <div
-                    class="d-flex align-center"
-                    style="gap:8px; min-width:0;"
-                >
+                <div class="d-flex align-center" style="gap:8px; min-width:0;">
                   <span class="name-text">{{ field.name }}</span>
                   <v-chip
-                      v-if="isExpanded(field)"
                       size="x-small"
                       color="primary"
                       variant="tonal"
@@ -1137,86 +956,80 @@ const liveStatus = computed<string>(() => {
                   >
                     {{ TYPE_LABEL[field.type] }}
                   </v-chip>
-                  <span
-                      v-else
-                      class="text-medium-emphasis text-mono preview-cell"
-                  >
-                    {{ previewValue(field) }}
-                  </span>
                 </div>
               </div>
 
+              <!-- Hodnota -->
               <div class="cell value">
-                <template v-if="isExpanded(field)">
-                  <v-switch
-                      v-if="field.type === 'bool'"
-                      :model-value="textModel(field)"
-                      color="deep-purple"
-                      hide-details
-                      inset
-                      density="comfortable"
-                      data-field-input
-                      @update:model-value="val => updateField(field, val)"
-                  />
-                  <v-text-field
-                      v-else-if="field.type === 'int'"
-                      :model-value="textModel(field)"
-                      type="text"
-                      inputmode="numeric"
-                      variant="outlined"
-                      density="comfortable"
-                      hide-details="auto"
-                      placeholder="123"
-                      data-field-input
-                      @update:model-value="val => updateField(field, val)"
-                  />
-                  <v-text-field
-                      v-else-if="field.type === 'float'"
-                      :model-value="textModel(field)"
-                      type="text"
-                      inputmode="decimal"
-                      variant="outlined"
-                      density="comfortable"
-                      hide-details="auto"
-                      placeholder="123,45"
-                      data-field-input
-                      @update:model-value="val => updateField(field, val)"
-                  />
-                  <v-text-field
-                      v-else-if="field.type === 'date'"
-                      :model-value="dateModel(field)"
-                      type="date"
-                      variant="outlined"
-                      density="comfortable"
-                      hide-details="auto"
-                      data-field-input
-                      @update:model-value="val => updateField(field, val)"
-                  />
-                  <v-file-input
-                      v-else-if="field.type === 'file'"
-                      :model-value="fileModel(field)"
-                      density="comfortable"
-                      hide-details="auto"
-                      variant="outlined"
-                      accept="image/*,.csv,.txt,.pdf"
-                      show-size
-                      data-field-input
-                      @update:model-value="val => updateField(field, (Array.isArray(val) ? val[0] : val))"
-                  />
-                  <v-text-field
-                      v-else
-                      :model-value="textModel(field)"
-                      type="text"
-                      variant="outlined"
-                      density="comfortable"
-                      hide-details="auto"
-                      placeholder="Text…"
-                      data-field-input
-                      @update:model-value="val => updateField(field, val)"
-                  />
-                </template>
+                <v-switch
+                    v-if="field.type === 'bool'"
+                    :model-value="textModel(field)"
+                    color="deep-purple"
+                    hide-details
+                    inset
+                    density="comfortable"
+                    data-field-input
+                    @update:model-value="val => updateField(field, val)"
+                />
+                <v-text-field
+                    v-else-if="field.type === 'int'"
+                    :model-value="textModel(field)"
+                    type="text"
+                    inputmode="numeric"
+                    variant="outlined"
+                    density="comfortable"
+                    hide-details="auto"
+                    placeholder="123"
+                    data-field-input
+                    @update:model-value="val => updateField(field, val)"
+                />
+                <v-text-field
+                    v-else-if="field.type === 'float'"
+                    :model-value="textModel(field)"
+                    type="text"
+                    inputmode="decimal"
+                    variant="outlined"
+                    density="comfortable"
+                    hide-details="auto"
+                    placeholder="123,45"
+                    data-field-input
+                    @update:model-value="val => updateField(field, val)"
+                />
+                <v-text-field
+                    v-else-if="field.type === 'date'"
+                    :model-value="dateModel(field)"
+                    type="date"
+                    variant="outlined"
+                    density="comfortable"
+                    hide-details="auto"
+                    data-field-input
+                    @update:model-value="val => updateField(field, val)"
+                />
+                <v-file-input
+                    v-else-if="field.type === 'file'"
+                    :model-value="fileModel(field)"
+                    density="comfortable"
+                    hide-details="auto"
+                    variant="outlined"
+                    accept="image/*,.csv,.txt,.pdf"
+                    show-size
+                    data-field-input
+                    @update:model-value="val => updateField(field, (Array.isArray(val) ? val[0] : val))"
+                />
+                <v-text-field
+                    v-else
+                    :model-value="textModel(field)"
+                    type="text"
+                    variant="outlined"
+                    density="comfortable"
+                    hide-details="auto"
+                    placeholder="Text…"
+                    data-field-input
+                    @update:model-value="val => updateField(field, val)"
+                />
               </div>
 
+              <!-- Stav -->
               <div class="cell right">
                 <v-tooltip
                     v-if="fieldError(field)"
@@ -1273,13 +1086,13 @@ const liveStatus = computed<string>(() => {
               size="x-small"
               variant="text"
               :icon="statsCollapsed ? 'mdi-chevron-down' : 'mdi-chevron-up'"
-              :title="statsCollapsed ? 'Rozbalit (Alt+S)' : 'Sbalit (Alt+S)'"
+              :title="statsCollapsed ? 'Rozbalit' : 'Sbalit'"
               @click="toggleStats"
           />
         </div>
 
         <v-sheet
-            v-show="! statsCollapsed"
+            v-show="!statsCollapsed"
             elevation="1"
             class="pa-4 rounded-lg"
             aria-label="Panel statistik"
@@ -1301,14 +1114,13 @@ const liveStatus = computed<string>(() => {
                   :color="selectedField === f ? 'primary' : undefined"
                   variant="tonal"
                   size="small"
-                  :title="`Vybrat ${f} (Alt+F cyklus)`"
                   @click="selectedField = f"
               >
                 {{ f }}
               </v-chip>
               <v-chip
                   v-if="numericFieldNames.length > 1"
-                  :color="! selectedField ?  'primary' : undefined"
+                  :color="!selectedField ? 'primary' : undefined"
                   variant="tonal"
                   size="small"
                   title="Vše"
@@ -1354,7 +1166,7 @@ const liveStatus = computed<string>(() => {
             {{ invalidCount }} neplatných hodnot – opravte před uložením.
           </span>
           <span v-else>
-            Formulář je validní.Ctrl+S pro uložení.
+            Formulář je validní. Ctrl+S pro uložení.
           </span>
         </div>
         <div
@@ -1387,31 +1199,29 @@ const liveStatus = computed<string>(() => {
 <style scoped>
 .grid {
   display: grid;
-  grid-template-columns: 72px 1fr minmax(240px, 1.5fr) 72px;
+  grid-template-columns: 1fr minmax(240px, 1.5fr) 72px;
   gap: 8px;
   align-items: center;
 }
 .header-row {
   padding: 6px 6px 8px 6px;
   font-size: 0.75rem;
-  letter-spacing:.03em;
+  letter-spacing: .03em;
   text-transform: uppercase;
   color: var(--v-theme-grey-darken-2);
 }
 .data-row {
   padding: 6px;
   border-radius: 8px;
-  transition: background-color.15s, box-shadow.15s;
+  transition: background-color .15s, box-shadow .15s;
 }
 .data-row:hover { background: #f9fafc; }
 .data-row.has-error { background: #fff6f6; }
-.cell.muted { font-size:.75rem; }
-.cell.index { text-align: center; color: rgba(0,0,0,0.54); }
+.cell.muted { font-size: .75rem; }
 .cell.right { text-align: right; }
 .name-with-chip { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .name-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
-.type-chip { font-weight: 600; letter-spacing:.02em; text-transform: none; }
-.preview-cell { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:.75rem; opacity:.85; }
+.type-chip { font-weight: 600; letter-spacing: .02em; text-transform: none; }
 
 .rot-180 { transform: rotate(180deg); }
 
@@ -1431,13 +1241,8 @@ const liveStatus = computed<string>(() => {
   border-radius: 6px;
 }
 
-.section-heading { font-weight: 600; letter-spacing:.02em; }
+.section-heading { font-weight: 600; letter-spacing: .02em; }
 
-.text-mono {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-}
-
-/* Block navigation */
 .block-navigation {
   background: #f8f9fb;
   border-radius: 8px;
@@ -1458,7 +1263,7 @@ const liveStatus = computed<string>(() => {
 
 @media (max-width: 1040px) {
   .grid {
-    grid-template-columns: 56px 1fr minmax(180px, 1.2fr) 56px;
+    grid-template-columns: 1fr minmax(180px, 1.2fr) 56px;
   }
 }
 </style>

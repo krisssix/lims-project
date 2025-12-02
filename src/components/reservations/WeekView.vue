@@ -417,15 +417,6 @@ function sizeClass(i: ResItem): string {
   z-index: 2;
   outline: 2px solid color-mix(in srgb, var(--v-theme-primary) 65%, transparent);
   outline-offset: -1px;
-  background:
-    linear-gradient(to bottom, color-mix(in srgb, var(--v-theme-primary) 10%, #ffffff), transparent),
-    repeating-linear-gradient(
-      to bottom,
-      rgba(0,0,0,0.02) 0,
-      rgba(0,0,0,0.02) calc(var(--tick-h) / 2),
-      transparent calc(var(--tick-h) / 2),
-      transparent var(--tick-h)
-    );
 }
 
 

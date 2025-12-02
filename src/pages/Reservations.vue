@@ -1,5 +1,15 @@
 <script setup lang="ts">
 
+
+
+
+
+
+
+
+
+
+
 import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
 import EntityEditorDialog from '@/components/EntityEditorDialog.vue'
@@ -13,6 +23,7 @@ import DailyListView from '@/components/reservations/DailyListView.vue'
 import WeekView from '@/components/reservations/WeekView.vue'
 import LeftFiltersPanel from '@/components/LeftFiltersPanel.vue'
 
+
 const HOURS_START = 0
 const HOURS_END = 24
 const GRID_MINUTES = 15
@@ -24,11 +35,38 @@ const DAY_HOURS = 24
 
 const isSideFilterOpen = ref(false)
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 type ViewMode = 'daily-machines' | 'daily-list' | 'week-work' | 'week-all'
 type StatusType = 'plan' | 'running' | 'done'
 
 function onDailyListRowDblClick(_ev: MouseEvent, payload: { item: any }) {
   openEdit(dtoToResItem(payload.item._raw))
+
+
+
+
+
+
+
 }
 
 interface ResItem {
@@ -83,11 +121,16 @@ function setHM(base: Date, hm: string) {
 }
 function toIsoLocal(d: Date) {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`
+
+
+
+
 }
 
 // DTO from DailyListView
 interface ReservationDto {
   id: number
+
   title: string
   deviceCode: string
   startTime: number
@@ -114,6 +157,12 @@ function openEditFromDto(raw: ReservationDto) { openEdit(dtoToResItem(raw)) }
 function askDeleteFromDto(raw: ReservationDto) { askDelete(dtoToResItem(raw)) }
 
 /* Date selection  */
+
+
+
+
+
+
 const selectedDate = ref<string | Date>(toYmdLocal(new Date()))
 function addDays(n: number) {
   const d = normalizeToDate(selectedDate.value)
@@ -145,6 +194,19 @@ const allDevices = computed(() => reservations.devices.map(d => ({
   color: d.color || 'primary'
 })))
 const devicesToShow = computed(() =>
+
+
+
+
+
+
+
+
+
+
+
+
+
   pickedDevices.value.length
     ? allDevices.value.filter(d => pickedDevices.value.includes(d.id))
     : allDevices.value
@@ -162,6 +224,11 @@ type GroupConfig = {
   showField?: string
 }
 const leftSelection = ref<Record<string, string[]>>({ devices: [], members: [] })
+
+
+
+
+
 const leftGroups = computed<GroupConfig[]>(() => [
   {
     key: 'members',
@@ -363,6 +430,8 @@ function deviceHeaderStyle(d: { id: string; color: string }) {
   return {
     background: `color-mix(in srgb, ${base} 18%, #ffffff)`,
     boxShadow: `inset 0 -3px 0 0 ${base}`,
+
+
   }
 }
 function initials(u: string | null) { return (u?.[0] ?? '?').toUpperCase() }
@@ -523,11 +592,23 @@ async function commitMove(d: DragState, x: number, y: number) {
   const hit = findTrackAt(x, y)
   if (!hit) return
   const { type, id, rect } = hit
+
   let newDayKey = d.origDayKey
   let newDeviceId = d.origDeviceId
   if (d.view === 'daily-machines' && type === 'device') newDeviceId = id
   else if ((d.view === 'week-work' || d.view === 'week-all') && type === 'day') newDayKey = id
   else return
+
+
+
+
+
+
+
+
+
+
+
   const [Y, M, D] = newDayKey.split('-').map(Number)
   const baseDay = new Date(Y, (M || 1) - 1, D || 1, 0, 0, 0, 0)
   let startMinutes = minutesFromTrackY(y, rect, d.offsetY)
@@ -543,6 +624,7 @@ async function commitMove(d: DragState, x: number, y: number) {
   if (idx === -1) return
   const ev = sourceArr[idx]
   const prev = { dayKey: d.origDayKey, deviceId: ev.deviceId, start: ev.start, end: ev.end }
+
   if (newDayKey !== d.origDayKey) {
     sourceArr.splice(idx, 1)
     const targetArr = ensureDay(baseDay)
@@ -565,6 +647,7 @@ async function commitMove(d: DragState, x: number, y: number) {
     })
     await loadWeekFor(currentDay.value)
   } catch (err) {
+
     if (newDayKey !== prev.dayKey) {
       const newArr = eventsByDay.value[newDayKey] || []
       const nIdx = newArr.findIndex(x => x.id === d.id)
@@ -648,12 +731,44 @@ function cancelDelete() {
 }
 
 /* Track click -> open Create editor with prefilled fields */
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 function onTrackClick(evt: MouseEvent, ctx: { type: 'device' | 'day'; deviceId?: string; day?: Date }) {
   if (drag.value || suppressClick.value) return
   const track = evt.currentTarget as HTMLElement | null
   if (!track) return
   const rect = track.getBoundingClientRect()
   const baseDay = ctx.type === 'day' ? (ctx.day as Date) : currentDay.value
+
+
+
+
+
+
+
+
+
+
+
   const relY = clamp(evt.clientY - rect.top, 0, FULL_TRACK_HEIGHT.value)
   const minutes = (relY / PX_PER_MIN.value) + HOURS_START * 60
   const snapped = clamp(roundToStep(minutes, GRID_MINUTES), HOURS_START * 60, HOURS_END * 60)
@@ -662,6 +777,13 @@ function onTrackClick(evt: MouseEvent, ctx: { type: 'device' | 'day'; deviceId?:
   const deviceCode = ctx.type === 'device'
     ? (ctx.deviceId as string)
     : (devicesToShow.value[0]?.id || allDevices.value[0]?.id || 'M1')
+
+
+
+
+
+
+
   openCreateWith({ baseDay, start, end, deviceCode })
 }
 
@@ -681,7 +803,26 @@ const editorMode = ref<'create' | 'edit'>('create')
 const editorSaving = ref(false)
 const resForm = ref<ReservationEditorForm | null>(null)
 
+
+
+
+
+
+
+
+
+
+
+
+
 function openCreateWith(opts: { baseDay: Date; start: Date; end: Date; deviceCode: string }) {
+
+
+
+
+
+
+
   const me = auth.getUserInfo().preferredUsername
   resForm.value = {
     title: 'Nová rezervace',
@@ -742,6 +883,17 @@ async function saveReservation() {
   if (start < clampStart) start = clampStart
   if (end > clampEnd) end = clampEnd
 
+
+
+
+
+
+
+
+
+
+
+
   try {
     if (editorMode.value === 'create') {
       const created = await reservations.createReservation({
@@ -799,8 +951,13 @@ function openCreateFromToolbar() {
   const start = new Date(day); start.setHours(9, 0, 0, 0)
   const end = new Date(start.getTime() + 60 * 60000)
   const deviceCode = devicesToShow.value[0]?.id || allDevices.value[0]?.id || 'M1'
+
+
+
+
   openCreateWith({ baseDay: day, start, end, deviceCode })
 }
+
 
 const confirmPrimaryBtn = ref<HTMLButtonElement | null>(null)
 watch(confirmDeleteOpen, v => {
@@ -832,6 +989,14 @@ function onHotkeys(e: KeyboardEvent) {
 }
 onMounted(() => window.addEventListener('keydown', onHotkeys))
 onBeforeUnmount(() => window.removeEventListener('keydown', onHotkeys))
+
+
+
+
+
+
+
+
 </script>
 
 <template>
@@ -972,6 +1137,35 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onHotkeys))
                         :rules="[v => !!(v && v.trim()) || 'Název je povinný']" autofocus />
           <v-select v-model="resForm.deviceCode" :items="allDevices" item-title="name" item-value="id" label="Přístroj"
                     density="comfortable" variant="outlined" class="mb-2" />
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
           <v-select v-model="resForm.username" :items="membersList" label="Člen" density="comfortable"
                     variant="outlined" class="mb-2" :clearable="true" />
           <v-text-field v-model="resForm.dateYmd" label="Datum" type="date" density="comfortable" variant="outlined" class="mb-2" />
@@ -990,6 +1184,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onHotkeys))
             <div class="text-h6 mb-6">Opravdu chcete rezervaci zrušit?</div>
             <div class="d-flex align-center" style="gap:14px">
               <v-btn
+
                 color="primary" variant="flat"
                 size="large"
                 :loading="deleteLoading"
@@ -1094,6 +1289,11 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onHotkeys))
   padding: 8px 10px 20px 10px;
   cursor: grab;
   user-select: none;
+
+
+
+
+
 }
 .event:active { cursor: grabbing; }
 .event-title { font-weight: 600; line-height: 1.2; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; text-overflow: ellipsis; white-space: normal; }
