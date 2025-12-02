@@ -229,6 +229,13 @@
         <!-- IMPORT MODE -->
         <div v-else>
           <div class="d-flex align-center ga-3 mb-3">
+            <v-btn
+              variant="tonal"
+              color="primary"
+              @click="triggerFilePick"
+            >
+              VYBRAT SOUBOR
+            </v-btn>
             <input
               ref="fileInput"
               type="file"
@@ -247,19 +254,8 @@
               hide-details
               style="max-width: 220px"
             />
-            <v-btn
-              variant="tonal"
-              color="primary"
-              @click="triggerFilePick"
-            >
-              VYBRAT SOUBOR
-            </v-btn>
-            <v-btn
-              variant="text"
-              @click="runAnalysis"
-            >
-              ANALYZOVAT
-            </v-btn>
+
+
           </div>
 
           <v-textarea
@@ -680,27 +676,139 @@ function runAnalysis(): void {
 }
 
 function inferFieldType(header: string): FieldType {
-  const h = header.toLowerCase()
-  if (/datum|date|time|čas/.test(h)) return 'date'
-  if (/bool|ano|ne|yes|no/.test(h)) return 'bool'
-  if (/soubor|file|image|foto/.test(h)) return 'file'
-  if (/počet|count|int|id/.test(h)) return 'int'
-  if (/hodnota|value|měření|num|float|%|°/.test(h)) return 'float'
+  const h = (header || '').trim().toLowerCase()
+
+  // Date / time heuristics
+  if (
+    /(^|\s)(date|datum)(\s|$)/.test(h) ||
+    /(^|\s)(time|čas)(\s|$)/.test(h) ||
+    /date\s*and\s*time/.test(h) ||
+    /datetime|date\/time|timestamp/.test(h)
+  ) {
+    return 'date'
+  }
+
+  // Integer heuristics (ids, counts, index, record number)
+  if (
+    /(record\s*number|index|idx|order|poř\.)/.test(h) ||
+    /(count|počet|quantity|samples?\s*count|n\s*=)/.test(h) ||
+    /(id|identifier|číslo\s*záznamu)/.test(h)
+  ) {
+    return 'int'
+  }
+
+  // Boolean heuristics
+  if (
+    /(bool(ean)?|ano|ne|yes|no|true|false)/.test(h)
+  ) {
+    return 'bool'
+  }
+  // File heuristics
+  if (
+    /(file|soubor|image|foto|picture|attachment)/.test(h)
+  ) {
+    return 'file'
+  }
+  // Float heuristics: means, averages, sizes, temperature, percent, pdi, z-average, volume mean, number mean, size peak
+  if (
+    /(mean|average|avg|z-average|volume\s*mean|number\s*mean)/.test(h) ||
+    /(size\s*peak|size\s*.*peak)/.test(h) ||
+    /(size|diameter|radius|d\[.*\]|nm|µm|um|mm)/.test(h) ||
+    /(temperature|temp|°|celsius|kelvin|°c|°k)/.test(h) ||
+    /(pdi|polydispersity)/.test(h) ||
+    /(percent|%|ratio)/.test(h)
+  ) {
+    return 'float'
+  }
+  // Fallback numeric keywords: if it smells like a numeric column but not covered above
+  if (
+    /(value|measurement|měření|numeric|num)/.test(h)
+  ) {
+    return 'float'
+  }
+  return 'text'
+}
+
+/* Stronger header normalization and type inference */
+function normalizeHeader(raw: string): string {
+  return (raw || '').trim().replace(/\s+/g, ' ')
+}
+function baseNameForRepeat(h: string): string {
+  // Collapse trailing counter (e.g., "Size Peak 3" -> "Size Peak")
+  return h.replace(/\s+\d+$/u, '').trim()
+}
+
+
+function smartInferFieldType(header: string): FieldType {
+  const h = header.trim().toLowerCase()
+
+  // Date / time
+  if (
+    /(^|\s)(date|datum)(\s|$)/.test(h) ||
+    /(^|\s)(time|čas)(\s|$)/.test(h) ||
+    /date\s*and\s*time/.test(h) ||
+    /datetime|date\/time|timestamp/.test(h)
+  ) return 'date'
+
+  // Integers (record number, id, count)
+  if (
+    /(record\s*number|index|order|poř\.|id|identifier|číslo\s*záznamu)/.test(h) ||
+    /(count|počet|quantity)/.test(h)
+  ) return 'int'
+
+  // Boolean
+  if (/(bool(ean)?|ano|ne|yes|no|true|false)/.test(h)) return 'bool'
+
+  // File
+  if (/(file|soubor|image|foto|picture|attachment)/.test(h)) return 'file'
+
+  // Floats – lab measurement terms
+  if (
+    /(mean|average|avg|z-average|volume\s*mean|number\s*mean)/.test(h) ||
+    /(temperature|temp|°c|°k|celsius|kelvin)/.test(h) ||
+    /(pdi|polydispersity)/.test(h) ||
+    /(size\s*peak)/.test(h) ||
+    /(sizes|intensities|volumes|numbers)/.test(h) ||
+    /(diameter|radius|nm|µm|um|mm)/.test(h)
+  ) return 'float'
+
+  // Generic numeric-ish
+  if (/(value|measurement|měření|numeric|num|ratio|%|ppm|mg|ml|hz)/.test(h)) return 'float'
+
   return 'text'
 }
 
 function createBlockFromParsed(): void {
   if (!parsedHeaders.value.length) return
+
+  // 1) Normalize headers
+  const normalized = parsedHeaders.value.map(normalizeHeader).filter(h => h.length)
+
+  // 2) Auto-number repeats (Size Peak, etc.) if multiple with the same base name occur
+  const counters = new Map<string, number>()
+  const finalNames = normalized.map(h => {
+    const base = baseNameForRepeat(h) || h
+    const count = (counters.get(base) ?? 0) + 1
+    counters.set(base, count)
+    // Only append index when there was a duplicate encountered
+    const isDuplicate = count > 1
+    return isDuplicate ? `${base} ${count}` : base
+  })
+
+  // 3) Build rows with stronger inference
+  const rows: FieldRow[] = finalNames.map((name, i) => ({
+    orderIndex: i + 1,
+    name,
+    required: true,
+    type: smartInferFieldType(name)
+  }))
+
   const block: PickedBlock = {
     id: generateId(),
     title: `Blok ${pickedBlocks.value.length + 1}`,
-    fieldRows: parsedHeaders.value.map((h, i) => ({
-      orderIndex: i + 1,
-      name: h,
-      required: true,
-      type: inferFieldType(h),
-    })),
+    fieldRows: rows
   }
+
   pickedBlocks.value.push(block)
   currentBlockIndex.value = pickedBlocks.value.length - 1
   parsedHeaders.value = []

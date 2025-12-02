@@ -1,10 +1,15 @@
 <script setup lang="ts">
 /**
- * MeasurementCreateDialog – úprava: odstranění levé kolony (Poř.), odstranění expand/collapse fieldů.
- * Zachována logika záznamů, bloků, statistik, importu, mappingu.
- * Přidáno rozpoznání numerických textových polí (pseudo-numeric).
- * Nové stavy validace: visited vs. touched (pristine = nic z toho). Chyby se zobrazují jen po "touched".
- * Required prázdné pole v pristine stavu zvýrazněno jemně (class is-required-empty).
+ * MeasurementCreateDialog – úprava podle požadavku:
+ *  - NIC se neodstraňuje z logiky ani funkcionalit (records, bloky, import, mapping, statistika, hotkeys).
+ *  - V UI se odstraní sloupec „Stav“ (žádné valid ikony, žádné tooltippy).
+ *  - Při Uložit (Ctrl+S) se:
+ *      - označí všechna pole jako touched,
+ *      - zobrazí chybové pozadí (has-error) na nevalidních polích,
+ *      - automaticky se navede fokus na první nevalidní pole v aktuálním bloku.
+ *  - Mimo akci Uložit se stavové indikátory neukazují (žádný „Stav“ sloupec).
+ *  - Nadále jemné zvýraznění required-empty v pristine stavu (is-required-empty) zůstává.
+ *  - Bez použití 'any'. Žádné deprecated filters. Pomocné helpery v <script setup>.
  */
 
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
@@ -238,8 +243,8 @@ function fieldError(field: RecordField): string | null {
   return validateField(field)
 }
 
+/* Celková invalidita (bez ohledu na interakci) */
 const invalidTotal = computed<number>(() => {
-  // Celková invalidita = všechny chyby bez ohledu na interakci
   let count = 0
   records.value.forEach(r =>
       r.fields.forEach(f => {
@@ -254,6 +259,21 @@ const canSave = computed<boolean>(() =>
     !!selectedDeviceId.value &&
     invalidTotal.value === 0
 )
+
+/* ---------- Focus helpers ---------- */
+function focusFieldByIndex(idx: number): void {
+  nextTick(() => {
+    const els = document.querySelectorAll<HTMLElement>('[data-field-input]')
+    els[idx]?.focus()
+  })
+}
+function focusFirstInvalidInCurrentBlock(): void {
+  nextTick(() => {
+    const fields = currentBlockFields.value
+    const firstBad = fields.findIndex(f => validateField(f))
+    if (firstBad >= 0) focusFieldByIndex(firstBad)
+  })
+}
 
 /* ---------- Block navigation ---------- */
 function prevBlock(): void { if (currentBlockIndex.value > 0) currentBlockIndex.value-- }
@@ -472,11 +492,14 @@ function buildMeasuredValues(): MeasuredValue[] {
 
 /* ---------- Save ---------- */
 async function onSave(): Promise<void> {
-  // Označit všechna pole jako touched aby se zobrazily chyby
+  // 1) Označit všechna pole jako touched, aby se zobrazily chyby
   records.value.forEach(r => r.fields.forEach(f => markFieldTouched(f)))
   await nextTick()
-  if (!canSave.value) return
 
+  // 2) Pokud existují nevyplněné/invalidní hodnoty, navést na první nevalidní v aktuálním bloku a NEukládat
+  if (!canSave.value) { focusFirstInvalidInCurrentBlock(); return }
+
+  // 3) Uložit
   saving.value = true
   try {
     const firstNumeric = records.value
@@ -690,6 +713,33 @@ watch(() => props.modelValue, v => {
 })
 onMounted(() => { if (props.modelValue) window.addEventListener('keydown', handleKey) })
 onBeforeUnmount(() => window.removeEventListener('keydown', handleKey))
+
+/* ---------- Helper: normalizeImportedRecords (bez 'any') ---------- */
+function normalizeImportedRecords(ui: Array<{
+  recordIndex: number
+  fields: Array<{
+    name: string
+    type: ValueType
+    required: boolean
+    value: unknown
+    blockIndex?: number
+    blockTitle?: string
+    orderIndex: number
+  }>
+}>): MeasurementRecord[] {
+  return ui.map(r => ({
+    recordIndex: r.recordIndex,
+    fields: r.fields.map(f => ({
+      name: f.name,
+      type: f.type,
+      required: f.required,
+      value: f.value ?? null,
+      blockIndex: f.blockIndex ?? 1,
+      blockTitle: f.blockTitle,
+      orderIndex: f.orderIndex
+    }))
+  }))
+}
 </script>
 
 <template>
@@ -1181,18 +1231,17 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKey))
           style="gap:12px;"
         >
           <v-btn
-              size="small"
-              color="primary"
-              variant="flat"
-              prepend-icon="mdi-plus"
-              block
-              title="Přidat další záznam"
-              class="control-btn"
-              @click="addRecord"
+            size="small"
+            color="primary"
+            variant="flat"
+            prepend-icon="mdi-plus"
+            block
+            title="Přidat další záznam"
+            class="control-btn"
+            @click="addRecord"
           >
             Přidat záznam
           </v-btn>
-
 
           <div
             class="d-flex align-center flex-wrap"
@@ -1269,8 +1318,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKey))
           </div>
         </div>
 
-
-
         <!-- Block navigation -->
         <div
           v-if="templateBlocks.length > 1"
@@ -1340,16 +1387,13 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKey))
           </div>
         </div>
 
-        <!-- Fields grid simplified -->
+        <!-- Fields grid simplified (BEZ sloupce Stav) -->
         <div class="grid header-row">
           <div class="cell muted">
             Název + Typ
           </div>
           <div class="cell muted">
             Hodnota
-          </div>
-          <div class="cell muted">
-            Stav
           </div>
         </div>
 
@@ -1471,33 +1515,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKey))
                 @blur="markFieldTouched(field)"
               />
             </div>
-
-            <!-- state -->
-            <div class="cell right">
-              <v-tooltip
-                v-if="fieldError(field)"
-                location="top"
-              >
-                <template #activator="{ props: tp }">
-                  <v-icon
-                    v-bind="tp"
-                    size="18"
-                    color="error"
-                    icon="mdi-alert-circle-outline"
-                  />
-                </template>
-                <span>{{ fieldError(field) }}</span>
-              </v-tooltip>
-              <v-icon
-                v-else
-                size="18"
-                color="green-darken-2"
-                icon="mdi-check-circle-outline"
-              />
-            </div>
           </div>
         </transition-group>
-
 
         <!-- Simple stats preview -->
         <div class="mt-5">
@@ -1614,9 +1633,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKey))
 .v-chip { transition: transform 0.2s ease; }
 .v-chip:hover { transform: scale(1.05); }
 
+/* Grid: BEZ sloupce Stav → 2 sloupce */
 .grid {
   display: grid;
-  grid-template-columns: 1fr minmax(240px, 1.5fr) 72px;
+  grid-template-columns: 1fr minmax(240px, 1.5fr);
   gap: 8px;
   align-items: center;
 }
@@ -1633,11 +1653,19 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKey))
   transition: background-color .15s;
 }
 
-/* Nový styling pro required empty (pristine) */
+/* Jemné zvýraznění required empty v pristine stavu (první interakce až po Save se zvýší touched a has-error) */
+.data-row.is-required-empty {
+  background: #fffdf8;
+  box-shadow: inset 0 0 0 0.8px rgba(255, 193, 7, 0.35);
+}
 
+/* Chybové pozadí (zobrazuje se po Save, kdy jsou pole touched) */
+.data-row.has-error {
+  background: #fff6f6;
+  box-shadow: inset 0 0 0 0.8px rgba(244, 67, 54, 0.25);
+}
 
 .cell.muted { font-size: .75rem; }
-.cell.right { text-align: right; }
 .name-with-chip { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .name-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
 .type-chip { font-weight: 600; letter-spacing: .02em; text-transform: none; }
@@ -1700,21 +1728,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKey))
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 
-.import-error-item span {
-  flex: 1;
-}
-
-.import-error-actions {
-  padding-top: 8px;
-}
-
-.import-error-actions .text-caption {
-  display: flex;
-  align-items: center;
-  font-weight: 600;
-  color: rgba(0, 0, 0, 0.7);
-}
-
 .import-panel {
   background: #f7f9fc;
   border: 1px solid #e1e5eb;
@@ -1730,7 +1743,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKey))
 
 @media (max-width: 1040px) {
   .grid {
-    grid-template-columns: 1fr minmax(180px, 1.2fr) 56px;
+    grid-template-columns: 1fr minmax(240px, 1.5fr);
+    gap: 8px;
+    align-items: center;
   }
 }
 </style>
