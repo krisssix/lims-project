@@ -92,6 +92,8 @@ interface DragState {
   origDeviceId: string
   view: ViewMode
   ghostEl: HTMLElement
+  copyMode?: boolean
+
 }
 
 type EventLayout = Record<number, { left: number; width: number }>
@@ -599,16 +601,6 @@ async function commitMove(d: DragState, x: number, y: number) {
   else if ((d.view === 'week-work' || d.view === 'week-all') && type === 'day') newDayKey = id
   else return
 
-
-
-
-
-
-
-
-
-
-
   const [Y, M, D] = newDayKey.split('-').map(Number)
   const baseDay = new Date(Y, (M || 1) - 1, D || 1, 0, 0, 0, 0)
   let startMinutes = minutesFromTrackY(y, rect, d.offsetY)
@@ -624,6 +616,40 @@ async function commitMove(d: DragState, x: number, y: number) {
   if (idx === -1) return
   const ev = sourceArr[idx]
   const prev = { dayKey: d.origDayKey, deviceId: ev.deviceId, start: ev.start, end: ev.end }
+
+  if (d.copyMode === true) {
+    try {
+      const created = await reservations.createReservation({
+        title: ev.title,
+        deviceCode: newDeviceId,
+        startTime: startDate.getTime(),
+        endTime: endDate.getTime(),
+        projectId,
+        username: ev.username ?? null,
+        note: ev.note ?? null
+      })
+      // Optimistically place the new event into the target day list
+      const targetArr = ensureDay(baseDay)
+      targetArr.push({
+        id: created.id,
+        title: created.title,
+        deviceId: created.deviceCode,
+        start: toIsoLocal(startDate),
+        end: toIsoLocal(endDate),
+        status: 'plan',
+        username: created.username ?? null,
+        note: created.note ?? null
+      })
+      targetArr.sort((a, b) => +new Date(a.start) - +new Date(b.start))
+
+      // Keep original where it is; then refresh week for consistency
+      await loadWeekFor(currentDay.value)
+    } catch (err) {
+      console.error('Reservation copy failed.', err)
+    }
+    return
+  }
+
 
   if (newDayKey !== d.origDayKey) {
     sourceArr.splice(idx, 1)
@@ -668,6 +694,9 @@ async function commitMove(d: DragState, x: number, y: number) {
     console.error('Reservation update failed, reverted.', err)
   }
 }
+
+
+
 function onPointerUp(e: PointerEvent) {
   window.removeEventListener('pointermove', onPointerMove)
   if (!drag.value) return
@@ -676,6 +705,7 @@ function onPointerUp(e: PointerEvent) {
     if (suppressTimer) window.clearTimeout(suppressTimer)
     suppressTimer = window.setTimeout(() => { suppressClick.value = false }, 200)
   }
+  drag.value.copyMode = e.ctrlKey === true
   commitMove(drag.value, e.clientX, e.clientY)
   clearHighlight()
   try { (e.target as HTMLElement)?.releasePointerCapture?.(drag.value.pointerId) } catch {}
@@ -882,17 +912,6 @@ async function saveReservation() {
   const clampEnd = new Date(day); clampEnd.setHours(HOURS_END, 0, 0, 0)
   if (start < clampStart) start = clampStart
   if (end > clampEnd) end = clampEnd
-
-
-
-
-
-
-
-
-
-
-
 
   try {
     if (editorMode.value === 'create') {
