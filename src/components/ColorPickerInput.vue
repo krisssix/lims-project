@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 
 const props = defineProps<{
   modelValue: string
@@ -14,17 +14,68 @@ const emit = defineEmits<{
 // Stav pro otevření/zavření menu
 const menuOpen = ref(false)
 
+// Dočasná barva během výběru (před potvrzením)
+const tempColor = ref(props.modelValue)
+
+// Původní barva před otevřením pickeru (pro možnost zrušení)
+const originalColor = ref(props.modelValue)
+
 // Computed property pro obousměrný binding (v-model wrapper)
 const internalColor = computed({
   get: () => props.modelValue,
   set: (val) => emit('update:modelValue', val)
 })
+
+// Když se otevře menu, uložíme původní barvu
+watch(menuOpen, (isOpen) => {
+  if (isOpen) {
+    originalColor.value = props.modelValue
+    tempColor.value = props.modelValue
+  }
+})
+
+// Potvrdit výběr barvy
+function confirmColor(): void {
+  internalColor.value = tempColor.value
+  menuOpen.value = false
+}
+
+// Zrušit výběr a vrátit původní barvu
+function cancelColor(): void {
+  tempColor.value = originalColor.value
+  menuOpen.value = false
+}
+
+// Hotkey handler
+function onKeydown(e: KeyboardEvent): void {
+  if (! menuOpen.value) return
+
+  if (e.key === 'Enter') {
+    e.preventDefault()
+    e.stopPropagation()
+    confirmColor()
+  }
+  if (e.key === 'Escape') {
+    e.preventDefault()
+    e.stopPropagation()
+    cancelColor()
+  }
+}
 </script>
 
 <template>
-  <div class="color-picker-input">
-    <label v-if="label" class="field-label">
-      <v-icon size="16" class="mr-1">mdi-palette</v-icon>
+  <div
+    class="color-picker-input"
+    @keydown="onKeydown"
+  >
+    <label
+      v-if="label"
+      class="field-label"
+    >
+      <v-icon
+        size="16"
+        class="mr-1"
+      >mdi-palette</v-icon>
       {{ label }}
     </label>
 
@@ -33,7 +84,7 @@ const internalColor = computed({
       :close-on-content-click="false"
       location="bottom start"
     >
-      <template v-slot:activator="{ props: menuProps }">
+      <template #activator="{ props: menuProps }">
         <v-text-field
           v-model="internalColor"
           :placeholder="placeholder || '#000000'"
@@ -53,13 +104,61 @@ const internalColor = computed({
         </v-text-field>
       </template>
 
-      <v-card min-width="300" class="pa-2">
+      <v-card
+        min-width="300"
+        class="pa-2"
+      >
+        <!-- Porovnání barev: původní vs.nová (vedle sebe) -->
+        <div class="color-comparison">
+          <div class="comparison-item">
+            <span class="comparison-label">Původní</span>
+            <div
+              class="comparison-swatch"
+              :style="{ backgroundColor: originalColor }"
+            />
+          </div>
+          <v-icon
+            size="20"
+            color="grey"
+          >
+            mdi-arrow-right
+          </v-icon>
+          <div class="comparison-item">
+            <span class="comparison-label">Nová</span>
+            <div
+              class="comparison-swatch comparison-swatch-new"
+              :style="{ backgroundColor: tempColor }"
+            />
+          </div>
+        </div>
+
         <v-color-picker
-          v-model="internalColor"
+          v-model="tempColor"
           mode="hex"
           show-swatches
           elevation="0"
-        ></v-color-picker>
+        />
+
+        <!-- Potvrzovací tlačítka -->
+        <v-divider class="my-2" />
+        <div class="d-flex justify-end pa-2 pt-0">
+          <v-btn
+            variant="text"
+            size="small"
+            @click="cancelColor"
+          >
+            Zrušit
+          </v-btn>
+          <v-btn
+            color="primary"
+            variant="flat"
+            size="small"
+            class="ml-2"
+            @click="confirmColor"
+          >
+            Potvrdit
+          </v-btn>
+        </div>
       </v-card>
     </v-menu>
   </div>
@@ -88,5 +187,43 @@ const internalColor = computed({
 .color-preview:hover {
   transform: scale(1.1);
   box-shadow: 0 0 0 2px rgba(var(--v-theme-primary), 0.2);
+}
+
+/* Porovnání barev - horizontální layout */
+.color-comparison {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 12px;
+  margin-bottom: 8px;
+  background: rgba(0, 0, 0, 0.02);
+  border-radius: 8px;
+}
+
+.comparison-item {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.comparison-swatch {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  border: 2px solid rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.comparison-swatch-new {
+  border-color: rgb(var(--v-theme-primary));
+  box-shadow: 0 2px 12px rgba(var(--v-theme-primary), 0.3);
+}
+
+.comparison-label {
+  font-size: 0.75rem;
+  color: rgba(0, 0, 0, 0.6);
+  font-weight: 500;
 }
 </style>
