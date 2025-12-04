@@ -1,15 +1,10 @@
 <script setup lang="ts">
-import { onMounted, ref, computed, nextTick, onBeforeUnmount } from 'vue'
-import { useRoute } from 'vue-router'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useDeviceStore, type Device } from '@/stores/devices'
-import Dialog from '@/components/Dialog.vue'
-import DeviceInlineCreate from '@/components/device/DeviceInlineCreate.vue'
-
-const route = useRoute()
-const projectId = Number((route.params as { projectId?: string }).projectId ?? 0)
+import DeviceCreateDialog from '@/components/device/DeviceCreateDialog.vue'
+import DeviceDetailDialog from '@/components/device/DeviceDetailDialog.vue'
 
 const store = useDeviceStore()
-const loading = computed(() => store.loading)
 const errorText = computed(() => store.errorText)
 
 // Přepínač aktivních
@@ -17,126 +12,226 @@ const showOnlyActive = ref(true)
 const filterText = ref<string>('')
 
 // Využij kompletní seznam a filtruj dle přepínače
-const baseList = computed<Device[]>(() => store.allDevices.length ? store.allDevices : store.devices)
+const baseList = computed<Device[]>(() => store.allDevices.length ?  store.allDevices : store.devices)
 const filtered = computed<Device[]>(() => {
   const base = showOnlyActive.value ? baseList.value.filter(d => d.active) : baseList.value
   const q = filterText.value.trim().toLowerCase()
-  if (!q) return base
+  if (! q) return base
   return base.filter(d => d.name.toLowerCase().includes(q) || d.code.toLowerCase().includes(q))
 })
 
-// Výběr řádku
-const selectionId = ref<number | null>(null)
-function selectRow(id: number): void { selectionId.value = id }
+// Multi-select s Ctrl a Shift
+const selectedIds = ref<Set<number>>(new Set())
+const lastClickedId = ref<number | null>(null)
 
-// Inline create
-const inlineCreateOpen = ref(false)
-function openCreate(): void { inlineCreateOpen.value = true }
-function closeInlineCreate(): void { inlineCreateOpen.value = false }
-function handleCreated(dev: { id: number; code: string; name: string; color?: string | null; active: boolean }): void {
-  selectionId.value = dev.id
-  inlineCreateOpen.value = false
-  nextTick(() => document.querySelector<HTMLInputElement>('[data-device-filter]')?.focus())
-}
+function handleRowClick(device: Device, event: MouseEvent): void {
+  const deviceIndex = filtered.value.findIndex(d => d.id === device.id)
 
-// Edit dialog
-const editOpen = ref(false)
-const eName = ref<string>('')
-const eColor = ref<string | null>(null)
-const eSaving = ref(false)
-function openEdit(): void {
-  const sel = filtered.value.find(d => d.id === selectionId.value)
-  if (!sel) return
-  eName.value = sel.name
-  eColor.value = sel.color ?? null
-  editOpen.value = true
-  nextTick(() => document.querySelector<HTMLInputElement>('[data-device-name]')?.focus())
-}
-async function confirmEdit(): Promise<void> {
-  const sel = filtered.value.find(d => d.id === selectionId.value)
-  if (!sel || eSaving.value) return
-  eSaving.value = true
-  try {
-    await store.updateDevice(sel.id, { name: eName.value.trim() || sel.name, color: (eColor.value ?? undefined) })
-    editOpen.value = false
-  } finally {
-    eSaving.value = false
+  if (event.shiftKey && lastClickedId.value !== null) {
+    // Shift+click: range select
+    const lastIndex = filtered.value.findIndex(d => d.id === lastClickedId.value)
+    if (lastIndex !== -1 && deviceIndex !== -1) {
+      const start = Math.min(lastIndex, deviceIndex)
+      const end = Math.max(lastIndex, deviceIndex)
+      const newSet = new Set(selectedIds.value)
+      for (let i = start; i <= end; i++) {
+        const d = filtered.value[i]
+        if (d) newSet.add(d.id)
+      }
+      selectedIds.value = newSet
+    }
+  } else if (event.ctrlKey || event.metaKey) {
+    // Ctrl+click: toggle selection
+    const newSet = new Set(selectedIds.value)
+    if (newSet.has(device.id)) {
+      newSet.delete(device.id)
+    } else {
+      newSet.add(device.id)
+    }
+    selectedIds.value = newSet
+    lastClickedId.value = device.id
+  } else {
+    // Normal click: open detail dialog
+    openDetail(device)
+    lastClickedId.value = device.id
   }
 }
 
-// Aktivace/Deaktivace
-async function deactivateSelected(): Promise<void> {
-  const sel = filtered.value.find(d => d.id === selectionId.value)
-  if (!sel) return
-  await store.deactivateDevice(sel.id)
+function isSelected(id: number): boolean {
+  return selectedIds.value.has(id)
 }
-async function reactivateSelected(): Promise<void> {
-  const sel = filtered.value.find(d => d.id === selectionId.value)
-  if (!sel) return
-  await store.reactivateDevice(sel.id)
+
+function clearSelection(): void {
+  selectedIds.value = new Set()
+  lastClickedId.value = null
 }
+
+function selectAll(): void {
+  selectedIds.value = new Set(filtered.value.map(d => d.id))
+}
+
+// Create dialog
+const createDialogOpen = ref(false)
+function openCreate(): void {
+  createDialogOpen.value = true
+}
+function handleCreated(): void {
+  createDialogOpen.value = false
+}
+
+// Detail dialog
+const detailOpen = ref(false)
+const detailDevice = ref<Device | null>(null)
+
+function openDetail(device: Device): void {
+  detailDevice.value = device
+  detailOpen.value = true
+}
+
+function handleDetailClosed(): void {
+  detailOpen.value = false
+}
+
+// Hromadné akce
+const bulkLoading = ref(false)
+
+async function bulkDeactivate(): Promise<void> {
+  if (selectedIds.value.size === 0 || bulkLoading.value) return
+  bulkLoading.value = true
+  try {
+    for (const id of selectedIds.value) {
+      await store.deactivateDevice(id)
+    }
+    clearSelection()
+  } finally {
+    bulkLoading.value = false
+  }
+}
+
+async function bulkReactivate(): Promise<void> {
+  if (selectedIds.value.size === 0 || bulkLoading.value) return
+  bulkLoading.value = true
+  try {
+    for (const id of selectedIds.value) {
+      await store.reactivateDevice(id)
+    }
+    clearSelection()
+  } finally {
+    bulkLoading.value = false
+  }
+}
+
+// Computed for bulk actions
+const selectedDevices = computed(() =>
+  filtered.value.filter(d => selectedIds.value.has(d.id))
+)
+const canDeactivate = computed(() =>
+  selectedDevices.value.some(d => d.active)
+)
+const canReactivate = computed(() =>
+  selectedDevices.value.some(d => ! d.active)
+)
 
 // Hotkeys
-function focusFilter(): void {
-  document.querySelector<HTMLInputElement>('[data-device-filter]')?.focus()
-}
 function handleKey(e: KeyboardEvent): void {
+  // Skip if in input
+  const target = e.target as HTMLElement
+  if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return
+
   const key = e.key.toLowerCase()
   const ctrl = e.ctrlKey || e.metaKey
-  const alt = e.altKey
 
-  if (key === 'escape') {
-    if (inlineCreateOpen.value) { inlineCreateOpen.value = false; return }
-    if (editOpen.value) { editOpen.value = false; return }
+  if (key === 'n' && ! ctrl) {
+    e.preventDefault()
+    openCreate()
     return
   }
-  if (ctrl && key === 'f') { e.preventDefault(); focusFilter(); return }
-  if (key === 'n') { e.preventDefault(); openCreate(); return }
- // if (key === 'e') { e.preventDefault(); openEdit(); return }
-  if (key === 'a') { e.preventDefault(); deactivateSelected(); return }
- // if (key === 'r') { e.preventDefault(); reactivateSelected(); return }
-  if (ctrl && key === 's') {
+  if (ctrl && key === 'a') {
     e.preventDefault()
-    if (editOpen.value) { void confirmEdit(); return }
+    selectAll()
+    return
   }
-  if (alt && (key === 'arrowdown' || key === 'arrowup')) {
+  if (key === 'escape') {
     e.preventDefault()
-    const ids = filtered.value.map(d => d.id)
-    if (!ids.length) return
-    const idx = ids.indexOf(selectionId.value ?? ids[0]!)
-    const nextIdx = key === 'arrowdown' ? Math.min(ids.length - 1, idx + 1) : Math.max(0, idx - 1)
-    selectionId.value = ids[nextIdx]!
+    clearSelection()
+    return
+  }
+  if (key === 'a' && ! ctrl && selectedIds.value.size > 0) {
+    e.preventDefault()
+    void bulkDeactivate()
+    return
+  }
+  if (key === 'r' && !ctrl && selectedIds.value.size > 0) {
+    e.preventDefault()
+    void bulkReactivate()
     return
   }
 }
 
-onMounted(async () => {
-  // Na stránce zařízení načítáme kompletní seznam
-  await store.fetchAll()
+onMounted(() => {
+  void store.fetchAll()
   window.addEventListener('keydown', handleKey)
 })
-onBeforeUnmount(() => window.removeEventListener('keydown', handleKey))
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', handleKey)
+})
 </script>
 
 <template>
-  <v-container
-    fluid
-    class="pa-4"
-  >
-    <div
-      class="d-flex align-center mb-3"
-      style="gap:12px;"
-    >
+  <v-container fluid class="pa-4">
+    <!-- Header -->
+    <div class="d-flex align-center mb-3" style="gap: 12px;">
       <v-btn
         color="primary"
         variant="flat"
+        prepend-icon="mdi-plus"
         title="Vytvořit nový přístroj (N)"
         @click="openCreate"
       >
-        Vytvoření přístroje
+        Nový přístroj
       </v-btn>
 
       <v-spacer />
+
+      <!-- Selection info -->
+      <v-fade-transition>
+        <v-chip
+          v-if="selectedIds.size > 0"
+          color="primary"
+          variant="tonal"
+          closable
+          @click:close="clearSelection"
+        >
+          Vybráno: {{ selectedIds.size }}
+        </v-chip>
+      </v-fade-transition>
+
+      <!-- Bulk actions -->
+      <v-btn
+        variant="tonal"
+        color="error"
+        :disabled="selectedIds.size === 0 || ! canDeactivate"
+        :loading="bulkLoading"
+        prepend-icon="mdi-close-circle-outline"
+        title="Deaktivovat vybrané (A)"
+        @click="bulkDeactivate"
+      >
+        Deaktivovat
+      </v-btn>
+      <v-btn
+        variant="tonal"
+        color="success"
+        :disabled="selectedIds.size === 0 || !canReactivate"
+        :loading="bulkLoading"
+        prepend-icon="mdi-check-circle-outline"
+        title="Reaktivovat vybrané (R)"
+        @click="bulkReactivate"
+      >
+        Reaktivovat
+      </v-btn>
+
+      <v-divider vertical class="mx-2" />
+
       <v-switch
         v-model="showOnlyActive"
         inset
@@ -144,7 +239,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKey))
         hide-details
         color="primary"
         label="Pouze aktivní"
-        title="Toggle pouze aktivní"
       />
       <v-text-field
         v-model="filterText"
@@ -152,38 +246,14 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKey))
         variant="outlined"
         density="comfortable"
         hide-details="auto"
-        style="max-width:260px"
-        data-device-filter
-        title="Filtrovat (Ctrl+F)"
+        style="max-width: 260px"
+        prepend-inner-icon="mdi-magnify"
+        clearable
+        title="Filtrovat"
       />
-      <v-btn
-        variant="text"
-        :disabled="selectionId == null"
-        title="Upravit (E)"
-        @click="openEdit"
-      >
-        Upravit (E)
-      </v-btn>
-      <v-btn
-        variant="text"
-        color="error"
-        :disabled="selectionId == null"
-        title="Deaktivovat (A)"
-        @click="deactivateSelected"
-      >
-        Deaktivovat (A)
-      </v-btn>
-      <v-btn
-        variant="text"
-        color="green-darken-2"
-        :disabled="selectionId == null"
-        title="Reaktivovat (R)"
-        @click="reactivateSelected"
-      >
-        Reaktivovat (R)
-      </v-btn>
     </div>
 
+    <!-- Error alert -->
     <v-alert
       v-if="errorText"
       type="error"
@@ -193,118 +263,167 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKey))
       {{ errorText }}
     </v-alert>
 
-    <!-- Inline Create Dialog (reuse) -->
-    <DeviceInlineCreate
-      :open="inlineCreateOpen"
-      autofocus
-      @close="closeInlineCreate"
-      @created="handleCreated"
-    />
+    <!-- Info about selection -->
+    <v-alert
+      type="info"
+      variant="tonal"
+      density="compact"
+      class="mb-3"
+    >
+      <template #prepend>
+        <v-icon>mdi-keyboard</v-icon>
+      </template>
+      <strong>Tip:</strong> Kliknutím otevřete detail.
+      <kbd>Ctrl</kbd>+klik pro výběr více přístrojů,
+      <kbd>Shift</kbd>+klik pro výběr rozsahu.
+    </v-alert>
 
-    <v-table class="elevation-1">
+    <!-- Table -->
+    <v-table class="elevation-1 devices-table">
       <thead>
-        <tr>
-          <th style="width:80px">
-            ID
-          </th>
-          <th style="width:140px">
-            Kód
-          </th>
-          <th>Název</th>
-          <th style="width:120px">
-            Barva
-          </th>
-          <th style="width:120px">
-            Aktivní
-          </th>
-        </tr>
+      <tr>
+        <th style="width: 48px;">
+          <v-checkbox
+            :model-value="selectedIds.size > 0 && selectedIds.size === filtered.length"
+            :indeterminate="selectedIds.size > 0 && selectedIds.size < filtered.length"
+            hide-details
+            density="compact"
+            @update:model-value="v => v ?  selectAll() : clearSelection()"
+          />
+        </th>
+        <th style="width: 140px;">Kód</th>
+        <th>Název</th>
+        <th style="width: 100px;">Barva</th>
+        <th style="width: 100px;">Stav</th>
+      </tr>
       </thead>
       <tbody>
-        <tr
-          v-for="d in filtered"
-          :key="d.id"
-          :class="{ 'row-selected': selectionId === d.id }"
-          @click="selectRow(d.id)"
-        >
-          <td>{{ d.id }}</td>
-          <td>
-            <v-chip
-              size="small"
-              :color="d.color || 'primary'"
-              variant="flat"
-            >
-              {{ d.code }}
-            </v-chip>
-          </td>
-          <td>{{ d.name }}</td>
-          <td>{{ d.color || '—' }}</td>
-          <td>
-            <v-icon :color="d.active ? 'green-darken-2' : 'error'">
-              {{ d.active ? 'mdi-check-circle-outline' : 'mdi-close-circle-outline' }}
+      <tr
+        v-for="d in filtered"
+        :key="d.id"
+        class="device-row"
+        :class="{
+            'row-selected': isSelected(d.id),
+            'row-inactive': !d.active
+          }"
+        @click="handleRowClick(d, $event)"
+      >
+        <td @click.stop>
+          <v-checkbox
+            :model-value="isSelected(d.id)"
+            hide-details
+            density="compact"
+            @update:model-value="v => {
+                const newSet = new Set(selectedIds)
+                v ?  newSet.add(d.id) : newSet.delete(d.id)
+                selectedIds = newSet
+                lastClickedId = d.id
+              }"
+          />
+        </td>
+        <td>
+          <v-chip
+            size="small"
+            :color="d.color || 'primary'"
+            variant="flat"
+          >
+            {{ d.code }}
+          </v-chip>
+        </td>
+        <td class="font-weight-medium">{{ d.name }}</td>
+        <td>
+          <div
+            v-if="d.color"
+            class="color-swatch"
+            :style="{ backgroundColor: d.color }"
+            :title="d.color"
+          />
+          <span v-else class="text-medium-emphasis">—</span>
+        </td>
+        <td>
+          <v-chip
+            size="small"
+            :color="d.active ? 'success' : 'grey'"
+            :variant="d.active ? 'flat' : 'tonal'"
+          >
+            <v-icon size="14" start>
+              {{ d.active ? 'mdi-check-circle' : 'mdi-close-circle' }}
             </v-icon>
-          </td>
-        </tr>
+            {{ d.active ? 'Aktivní' : 'Neaktivní' }}
+          </v-chip>
+        </td>
+      </tr>
       </tbody>
     </v-table>
 
-    <!-- Edit dialog -->
-    <Dialog
-      :is-open="editOpen"
-      width="520px"
-      :hide-footer="true"
-      @update:is-open="v => editOpen = v"
+    <!-- Empty state -->
+    <v-alert
+      v-if="filtered.length === 0"
+      type="info"
+      variant="tonal"
+      class="mt-4"
     >
-      <template #content>
-        <form
-          class="pa-4"
-          @submit.prevent="confirmEdit"
-          @keydown.enter.prevent="confirmEdit"
-        >
-          <div class="text-h6 mb-3">
-            Upravit přístroj
-          </div>
-          <v-text-field
-            v-model="eName"
-            label="Název"
-            variant="outlined"
-            density="comfortable"
-            data-device-name
-            hide-details="auto"
-          />
-          <v-text-field
-            v-model="eColor"
-            :model-value="(eColor ?? '').toString()"
-            label="Barva"
-            variant="outlined"
-            density="comfortable"
-            hide-details="auto"
-          />
-          <div
-            class="d-flex mt-3"
-            style="gap:12px;"
-          >
-            <v-btn
-              color="primary"
-              variant="flat"
-              :loading="eSaving"
-              @click="confirmEdit"
-            >
-              Uložit (Ctrl+S)
-            </v-btn>
-            <v-spacer />
-            <v-btn
-              variant="text"
-              @click="editOpen = false"
-            >
-              Zrušit (Esc)
-            </v-btn>
-          </div>
-        </form>
-      </template>
-    </Dialog>
+      Žádné přístroje nenalezeny.
+    </v-alert>
+
+    <!-- Create Dialog -->
+    <DeviceCreateDialog
+      v-model="createDialogOpen"
+      @created="handleCreated"
+    />
+
+    <!-- Detail Dialog -->
+    <DeviceDetailDialog
+      v-model="detailOpen"
+      :device="detailDevice"
+      @updated="handleDetailClosed"
+      @deactivated="handleDetailClosed"
+      @reactivated="handleDetailClosed"
+    />
   </v-container>
 </template>
 
 <style scoped>
-.row-selected { background: #f4f7fb; }
+.devices-table {
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.device-row {
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.device-row:hover {
+  background-color: #f5f5f5;
+}
+
+.row-selected {
+  background-color: #e3f2fd ! important;
+}
+
+.row-inactive {
+  opacity: 0.7;
+}
+
+.row-inactive td {
+  color: rgba(0, 0, 0, 0.5);
+}
+
+.color-swatch {
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+}
+
+kbd {
+  display: inline-block;
+  padding: 2px 6px;
+  font-size: 0.75rem;
+  font-family: ui-monospace, monospace;
+  background: rgba(0, 0, 0, 0.08);
+  border-radius: 4px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+}
 </style>

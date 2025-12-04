@@ -82,7 +82,7 @@ function onKeydown(e: KeyboardEvent): void {
     <v-menu
       v-model="menuOpen"
       :close-on-content-click="false"
-      location="bottom start"
+      location="top start"
     >
       <template #activator="{ props: menuProps }">
         <v-text-field
@@ -108,7 +108,7 @@ function onKeydown(e: KeyboardEvent): void {
         min-width="300"
         class="pa-2"
       >
-        <!-- Porovnání barev: původní vs.nová (vedle sebe) -->
+        <!-- Porovnání barev: původní vs.  nová (vedle sebe) -->
         <div class="color-comparison">
           <div class="comparison-item">
             <span class="comparison-label">Původní</span>

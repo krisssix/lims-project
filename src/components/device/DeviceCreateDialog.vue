@@ -1,24 +1,24 @@
 <script setup lang="ts">
-import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, watch, nextTick } from 'vue'
 import { useDeviceStore } from '@/stores/devices'
+import Dialog from '@/components/Dialog.vue'
 import ColorPickerInput from '@/components/ColorPickerInput.vue'
 
-
-/**
- * Inline vytvoření nového přístroje (Device) přímo ve formuláři šablony / měření.
- */
-
 const props = defineProps<{
-  open: boolean
-  autofocus?: boolean
+  modelValue: boolean
 }>()
 
 const emit = defineEmits<{
-  (e: 'close'): void
+  (e: 'update:modelValue', v: boolean): void
   (e: 'created', device: { id: number; code: string; name: string; color?: string | null; active: boolean }): void
 }>()
 
 const store = useDeviceStore()
+
+const open = computed({
+  get: () => props.modelValue,
+  set: (v: boolean) => emit('update:modelValue', v)
+})
 
 const formCode = ref('')
 const formName = ref('')
@@ -26,9 +26,6 @@ const formColor = ref('#3f51b5')
 const active = ref(true)
 const saving = ref(false)
 const errorText = ref<string | null>(null)
-
-
-
 const touched = ref(false)
 
 const normalizedCode = computed(() =>
@@ -47,14 +44,13 @@ const codeError = computed(() => {
   return null
 })
 
-
 const nameError = computed(() => {
-  if (!touched.value || !formName.value) return null
+  if (! touched.value || ! formName.value) return null
   if (formName.value.trim().length < 3) return 'Minimálně 3 znaky'
   return null
 })
 
-function reset() {
+function reset(): void {
   formCode.value = ''
   formName.value = ''
   formColor.value = '#3f51b5'
@@ -63,8 +59,8 @@ function reset() {
   touched.value = false
 }
 
-async function save() {
-  if (!isValid.value || saving.value) return
+async function save(): Promise<void> {
+  if (! isValid.value || saving.value) return
   saving.value = true
   errorText.value = null
   try {
@@ -74,9 +70,9 @@ async function save() {
       color: formColor.value.trim(),
       active: active.value
     })
-    if (!dev) throw new Error('Server nevrátil přístroj')
-    emit('created', dev)  // emit celý objekt
-    emit('close')
+    if (! dev) throw new Error('Server nevrátil přístroj')
+    emit('created', dev)
+    open.value = false
   } catch (e: unknown) {
     errorText.value = (e as { message?: string })?.message || 'Vytvoření selhalo'
   } finally {
@@ -84,63 +80,61 @@ async function save() {
   }
 }
 
-function onKey(e: KeyboardEvent) {
-  if (!props.open) return
-  const k = e.key.toLowerCase()
-  const ctrlMeta = e.ctrlKey || e.metaKey
-  if (k === 'escape') { e.preventDefault(); emit('close'); return }
-  if (ctrlMeta && k === 's') { e.preventDefault(); void save(); return }
-  /*
-  if (e.altKey && e.shiftKey && k === 'r') {
-    e.preventDefault()
-    void store.refreshDevices(true)
-    return
-  }
-
-   */
-
+function close(): void {
+  open.value = false
 }
 
-watch(() => props.open, v => {
-  if (v) {
+// Reset form when dialog opens
+watch(open, (isOpen) => {
+  if (isOpen) {
     reset()
-    window.addEventListener('keydown', onKey)
     nextTick(() => {
-      if (props.autofocus) {
-        document.querySelector<HTMLInputElement>('[data-device-code]')?.focus()
-      }
+      document.querySelector<HTMLInputElement>('[data-device-code]')?.focus()
     })
-  } else {
-    window.removeEventListener('keydown', onKey)
   }
 })
 
-onMounted(() => { if (props.open) window.addEventListener('keydown', onKey) })
-onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
+// Hotkeys
+function onKeydown(e: KeyboardEvent): void {
+  if (! open.value) return
+  const key = e.key.toLowerCase()
+  const ctrl = e.ctrlKey || e.metaKey
+
+  if (key === 'escape') {
+    e.preventDefault()
+    close()
+    return
+  }
+  if (ctrl && key === 's') {
+    e.preventDefault()
+    void save()
+    return
+  }
+}
 </script>
 
 <template>
-  <transition name="slide-fade">
-    <div
-      v-if="open"
-      class="device-inline-create"
-    >
-      <div class="create-header">
-        <div
-          class="d-flex align-center"
-          style="gap: 10px;"
-        >
+  <Dialog
+    v-model:is-open="open"
+    width="560px"
+    :hide-footer="true"
+    @keydown="onKeydown"
+  >
+    <template #content>
+      <div class="pa-4">
+        <!-- Header -->
+        <div class="d-flex align-center mb-4">
           <v-avatar
-            size="32"
+            size="48"
             color="primary"
             variant="tonal"
           >
-            <v-icon size="18">
+            <v-icon size="24">
               mdi-plus-circle
             </v-icon>
           </v-avatar>
-          <div>
-            <div class="text-subtitle-2 font-weight-bold">
+          <div class="ml-3">
+            <div class="text-h6">
               Nový přístroj
             </div>
             <div class="text-caption text-medium-emphasis">
@@ -148,35 +142,23 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
             </div>
           </div>
         </div>
-        <v-btn
-          icon="mdi-close"
-          size="small"
-          variant="text"
-          class="close-btn"
-          title="Zavřít (Esc)"
-          @click="emit('close')"
-        />
-      </div>
 
-      <div class="create-content">
-        <v-expand-transition>
-          <v-alert
-            v-if="errorText"
-            type="error"
-            variant="tonal"
-            density="compact"
-            closable
-            class="mb-4"
-            @click:close="errorText = null"
-          >
-            <template #prepend>
-              <v-icon>mdi-alert-circle</v-icon>
-            </template>
-            {{ errorText }}
-          </v-alert>
-        </v-expand-transition>
+        <!-- Error alert -->
+        <v-alert
+          v-if="errorText"
+          type="error"
+          variant="tonal"
+          density="compact"
+          closable
+          class="mb-4"
+          @click:close="errorText = null"
+        >
+          {{ errorText }}
+        </v-alert>
 
+        <!-- Form -->
         <div class="form-grid">
+          <!-- Code -->
           <div class="form-field">
             <label class="field-label">
               <v-icon
@@ -191,7 +173,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
               placeholder="např.DLS_01, SPEKTRO_A"
               variant="outlined"
               density="comfortable"
-              :error="!!codeError"
+              :error="!! codeError"
               :error-messages="codeError || undefined"
               hide-details="auto"
               @blur="touched = true"
@@ -223,10 +205,11 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
               >
                 mdi-information-outline
               </v-icon>
-              Min.3 znaky (A-Z, 0-9, _) – automaticky převedeno na UPPERCASE
+              Min.  3 znaky (A-Z, 0-9, _) – automaticky převedeno na UPPERCASE
             </div>
           </div>
 
+          <!-- Name -->
           <div class="form-field">
             <label class="field-label">
               <v-icon
@@ -237,7 +220,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
             </label>
             <v-text-field
               v-model="formName"
-              placeholder="např.Difrakční spektrometr DLS"
+              placeholder="např.  Difrakční spektrometr DLS"
               variant="outlined"
               density="comfortable"
               :error="!!nameError"
@@ -276,6 +259,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
             </div>
           </div>
 
+          <!-- Color + Active -->
           <div class="form-row">
             <div style="flex: 1;">
               <ColorPickerInput
@@ -284,7 +268,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
                 placeholder="#3f51b5"
               />
             </div>
-
             <div
               class="form-field"
               style="flex: 0 0 auto;"
@@ -304,20 +287,18 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
                 density="comfortable"
               >
                 <template #label>
-                  <span class="switch-label">
-                    {{ active ? 'Aktivní' : 'Neaktivní' }}
-                  </span>
+                  <span class="switch-label">{{ active ? 'Aktivní' : 'Neaktivní' }}</span>
                 </template>
               </v-switch>
             </div>
           </div>
 
+          <!-- Preview -->
           <v-expand-transition>
             <v-card
               v-if="normalizedCode || formName"
-              variant="tonal"
-              color="primary"
-              class="preview-card"
+              variant="outlined"
+              class="mt-2"
             >
               <v-card-title
                 class="text-subtitle-2 d-flex align-center"
@@ -340,82 +321,47 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
                   </v-chip>
                   <span class="preview-name">{{ formName || 'Název přístroje' }}</span>
                   <v-chip
-                    v-if="active"
                     size="x-small"
-                    color="success"
+                    :color="active ? 'success' : 'grey'"
                     variant="flat"
                   >
-                    Aktivní
-                  </v-chip>
-                  <v-chip
-                    v-if="!active"
-                    size="x-small"
-                    color="grey"
-                    variant="flat"
-                  >
-                    Neaktivní
+                    {{ active ? 'Aktivní' : 'Neaktivní' }}
                   </v-chip>
                 </div>
               </v-card-text>
             </v-card>
           </v-expand-transition>
         </div>
-      </div>
 
-      <div class="create-footer">
-        <div class="footer-actions">
+        <!-- Actions -->
+        <v-divider class="my-4" />
+        <div
+          class="d-flex justify-end"
+          style="gap: 12px;"
+        >
           <v-btn
             variant="text"
-            @click="emit('close')"
+            @click="close"
           >
             Zrušit
           </v-btn>
           <v-btn
             color="primary"
-            :disabled="!isValid"
+            variant="flat"
+            :disabled="! isValid"
             :loading="saving"
             prepend-icon="mdi-check"
             @click="save"
           >
-            Uložit přístroj
+            Vytvořit přístroj
           </v-btn>
         </div>
       </div>
-    </div>
-  </transition>
+    </template>
+  </Dialog>
 </template>
 
 <style scoped>
-.device-inline-create {
-  background: linear-gradient(to bottom, #ffffff 0%, #fafbfc 100%);
-  border: 2px solid rgb(var(--v-theme-primary));
-  border-radius: 12px;
-  overflow: hidden;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-}
-
-.create-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px 20px;
-  background: rgb(var(--v-theme-primary), 0.04);
-  border-bottom: 1px solid rgba(var(--v-border-color), 0.12);
-}
-
-.close-btn {
-  opacity: 0.7;
-  transition: opacity 0.2s;
-}
-
-.close-btn:hover {
-  opacity: 1;
-}
-
-.create-content {
-  padding: 20px;
-}
-
 .form-grid {
   display: flex;
   flex-direction: column;
@@ -440,7 +386,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   font-size: 0.875rem;
   font-weight: 600;
   color: rgba(0, 0, 0, 0.87);
-  margin-bottom: 4px;
 }
 
 .field-hint {
@@ -451,31 +396,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   margin-top: -4px;
 }
 
-/* Removed old color-input and wrapper styles */
-
-.color-preview {
-  width: 24px;
-  height: 24px;
-  border-radius: 4px;
-  border: 2px solid rgba(0, 0, 0, 0.12);
-  cursor: pointer;
-  transition: transform 0.2s;
-  /* Added z-index to ensure it sits above input if needed */
-  z-index: 1;
-}
-
-.color-preview:hover {
-  transform: scale(1.1);
-  box-shadow: 0 0 0 2px rgba(var(--v-theme-primary), 0.2);
-}
-
 .switch-label {
   font-size: 0.875rem;
   font-weight: 500;
-}
-
-.preview-card {
-  margin-top: 8px;
 }
 
 .device-preview {
@@ -483,7 +406,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   align-items: center;
   gap: 12px;
   padding: 8px;
-  background: white;
+  background: #fafbfc;
   border-radius: 8px;
 }
 
@@ -498,61 +421,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   color: rgba(0, 0, 0, 0.87);
 }
 
-.create-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 20px;
-  background: rgba(0, 0, 0, 0.02);
-  border-top: 1px solid rgba(var(--v-border-color), 0.12);
-}
-
-.footer-actions {
-  display: flex;
-  gap: 8px;
-}
-
-.text-medium-emphasis {
-  opacity: 0.7;
-}
-
-/* Animations */
-.slide-fade-enter-active {
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.slide-fade-leave-active {
-  transition: all 0.2s cubic-bezier(0.4, 0, 1, 1);
-}
-
-.slide-fade-enter-from {
-  opacity: 0;
-  transform: translateY(-10px);
-}
-
-.slide-fade-leave-to {
-  opacity: 0;
-  transform: translateY(10px);
-}
-
-@media (max-width: 768px) {
+@media (max-width: 600px) {
   .form-row {
     flex-direction: column;
-  }
-
-  .create-footer {
-    flex-direction: column;
-    gap: 12px;
-    align-items: stretch;
-  }
-
-  .footer-actions {
-    width: 100%;
-    justify-content: stretch;
-  }
-
-  .footer-actions .v-btn {
-    flex: 1;
   }
 }
 </style>
