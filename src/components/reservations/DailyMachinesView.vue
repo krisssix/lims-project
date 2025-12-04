@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, watch, type ComponentPublicInstance} from 'vue'
 import EventDetailCard from '@/components/reservations/EventDetailCard.vue'
-
 type ResItem = {
   id: number
   title: string
@@ -14,7 +13,6 @@ type ResItem = {
 }
 type EventLayout = Record<number, { left: number; width: number }>
 type Device = { id: string; name: string; color: string }
-
 const props = defineProps<{
   devices: Device[]
   cols: number
@@ -22,11 +20,9 @@ const props = defineProps<{
   tickHeight: number
   viewportHeight: number
   fullTrackHeight: number
-
   // data providers
   getItemsForDevice: (deviceId: string) => ResItem[]
   layoutForDevice: Record<string, EventLayout>
-
   // helpers from parent
   deviceHeaderStyle: (d: Device) => Record<string, string>
   eventBgClass: (i: ResItem) => string
@@ -36,43 +32,35 @@ const props = defineProps<{
   fmtDetailTime: (d: Date) => string
   initials: (u: string | null) => string
   deviceColorOf: (deviceId: string) => string
-
   // menu open mapping
   isMenuOpen: (id: number) => boolean
   setMenuOpen: (id: number, v: boolean) => void
-
   // interactions (delegated to parent)
   onTrackClick: (evt: MouseEvent, ctx: { type: 'device'; deviceId: string }) => void
   onEventPointerDown: (e: PointerEvent, item: ResItem) => void
   onEventClick: (id: number, e: MouseEvent) => void
   openEdit: (i: ResItem) => void
   askDelete: (i: ResItem) => void
-
   // ref callback – parent si uloží vnitřní scroll element
   setViewportRef: (el: HTMLElement | null) => void
-
   // optional responsive cutoff for calendar visibility in this view
   minCalendarWidth?: number
-
   // Focus/expand behavior (optional – same API as WeekView)
   focusEnabled?: boolean
   focusedFr?: number
   othersFr?: number
   transitionMs?: number
 }>()
-
 /* --------- Focused device column (M1, M2…) --------- */
 const focusEnabled = computed(() => props.focusEnabled ?? true)
 const focusedFr = computed(() => props.focusedFr ?? 2.6)
 const othersFr = computed(() => props.othersFr ?? 1)
 const transitionMs = computed(() => props.transitionMs ?? 220)
-
 const focusedDeviceKey = ref<string | null>(null)
 function keyOf(d: Device) { return d.id }
 function isFocused(d: Device) { return focusEnabled.value && focusedDeviceKey.value === keyOf(d) }
 function focusDevice(d: Device) { if (focusEnabled.value) focusedDeviceKey.value = keyOf(d) }
 function clearFocus() { focusedDeviceKey.value = null }
-
 /* --------- One-time auto-scroll to 07:00 and stable scroll on tick changes --------- */
 const viewportEl = ref<HTMLElement | null>(null)
 const INIT_FLAG_KEY = 'lims:cal:initScroll:DailyMachinesView'
@@ -80,7 +68,6 @@ const LAST_SCROLL_KEY = 'lims:cal:lastScroll:DailyMachinesView'
 const initDone = ref<boolean>(false)
 let rafSetScroll: number | null = null
 let rafPersistScroll: number | null = null
-
 function setScrollTop(px: number) {
   if (rafSetScroll) cancelAnimationFrame(rafSetScroll)
   rafSetScroll = requestAnimationFrame(() => {
@@ -91,14 +78,12 @@ function setScrollTop(px: number) {
     }
   })
 }
-
 function restoreLastScrollOrDefault() {
   const saved = sessionStorage.getItem(LAST_SCROLL_KEY)
   if (saved != null && !Number.isNaN(Number(saved))) {
     setScrollTop(Number(saved))
   }
 }
-
 function scrollToHourOnce(h = 7) {
   if (initDone.value || !viewportEl.value) return
   const target = h * props.tickHeight
@@ -106,7 +91,6 @@ function scrollToHourOnce(h = 7) {
   initDone.value = true
   sessionStorage.setItem(INIT_FLAG_KEY, '1')
 }
-
 function onViewportScroll() {
   if (rafPersistScroll) cancelAnimationFrame(rafPersistScroll)
   rafPersistScroll = requestAnimationFrame(() => {
@@ -114,7 +98,6 @@ function onViewportScroll() {
     sessionStorage.setItem(LAST_SCROLL_KEY, String(Math.max(0, Math.floor(viewportEl.value.scrollTop))))
   })
 }
-
 onMounted(() => {
   initDone.value = sessionStorage.getItem(INIT_FLAG_KEY) === '1'
   // If we already did the initial scroll in this session, restore last position (no jump to 7)
@@ -124,7 +107,6 @@ onMounted(() => {
     requestAnimationFrame(() => scrollToHourOnce(7))
   }
 })
-
 watch(() => props.tickHeight, (nh, oh) => {
   if (!viewportEl.value || !oh || oh <= 0) return
   // preserve relative position (simple ratio)
@@ -132,32 +114,26 @@ watch(() => props.tickHeight, (nh, oh) => {
   const next = current * (nh / oh)
   setScrollTop(next)
 })
-
 onBeforeUnmount(() => {
   if (rafSetScroll) cancelAnimationFrame(rafSetScroll)
   if (rafPersistScroll) cancelAnimationFrame(rafPersistScroll)
   if (viewportEl.value) viewportEl.value.removeEventListener('scroll', onViewportScroll)
 })
-
 /* --------- Viewport ref handling (component/element safe) --------- */
 // Type guard to avoid `any` when checking for $el
 function hasEl(o: unknown): o is { $el: unknown } {
   return typeof o === 'object' && o !== null && '$el' in o
 }
-
 // Robustly resolve DOM element for viewport ref (handles component refs too)
 function viewportRefHandler(el: Element | ComponentPublicInstance | null) {
   const dom: HTMLElement | null =
     el instanceof HTMLElement
       ? el
       : (hasEl(el) && el.$el instanceof HTMLElement ? (el.$el as HTMLElement) : null)
-
   // detach old listener
   if (viewportEl.value) viewportEl.value.removeEventListener('scroll', onViewportScroll)
-
   viewportEl.value = dom
   props.setViewportRef(dom)
-
   if (dom) {
     dom.addEventListener('scroll', onViewportScroll, { passive: true })
     if (initDone.value) {
@@ -169,14 +145,12 @@ function viewportRefHandler(el: Element | ComponentPublicInstance | null) {
     }
   }
 }
-
 /* Keyboard nav between device columns (Left/Right, Esc) */
 function onKeydown(e: KeyboardEvent) {
   if (!focusEnabled.value || !props.devices?.length) return
   const key = e.key.toLowerCase()
   if (key === 'escape') { clearFocus(); return }
   if (key !== 'arrowleft' && key !== 'arrowright') return
-
   e.preventDefault()
   const list = props.devices
   const currentIdx = focusedDeviceKey.value
@@ -187,7 +161,6 @@ function onKeydown(e: KeyboardEvent) {
     : (currentIdx < 0 ? 0 : Math.min(currentIdx + 1, list.length - 1))
   if (list[nextIdx]) focusDevice(list[nextIdx])
 }
-
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 function onDeviceHeaderClick(d: Device, _ev?: MouseEvent) {
   focusDevice(d)
@@ -199,12 +172,10 @@ function onDeviceHeaderClick(d: Device, _ev?: MouseEvent) {
     }
   }
 }
-
 function onTrackClickWithFocus(e: MouseEvent, d: Device) {
   focusDevice(d)
   props.onTrackClick(e, { type: 'device', deviceId: d.id })
 }
-
 /* Grid columns with focused expansion */
 const gridTemplateColumns = computed(() => {
   if (!focusEnabled.value) {
@@ -217,7 +188,6 @@ const gridTemplateColumns = computed(() => {
   ).join(' ')
   return `80px ${devCols}`
 })
-
 /* -------- Event height aware rendering (fallback, for tiny heights) -------- */
 const MIN_EVENT_PX = 24
 const pxPerMin = computed(() => props.tickHeight / 60)
@@ -234,12 +204,10 @@ function sizeClass(i: ResItem): string {
   if (h < 140) return 'event--md'
   return 'event--lg'
 }
-
 /* -------- Responsive: hide calendar and show compact filters under width -------- */
 const root = ref<HTMLElement | null>(null)
 const containerWidth = ref(0)
 let ro: ResizeObserver | null = null
-
 onMounted(() => {
   if (root.value) {
     ro = new ResizeObserver((entries) => {
@@ -249,16 +217,13 @@ onMounted(() => {
   }
 })
 onBeforeUnmount(() => { ro?.disconnect(); ro = null })
-
 const minWidth = computed(() => props.minCalendarWidth ?? 900)
 const showCompactFilters = computed(() => containerWidth.value > 0 && containerWidth.value < minWidth.value)
-
 /* Compact filter state (visual-only) */
 const listFrom = ref<string>('')
 const listTo = ref<string>('')
 const listSearch = ref<string>('')
 const includeNotesInSearch = ref(true)
-
 function startOfDayMs(ymd: string): number { const [y,m,d] = ymd.split('-').map(Number); return new Date(y||1970,(m||1)-1,d||1,0,0,0,0).getTime() }
 function endOfDayMs(ymd: string): number { const [y,m,d] = ymd.split('-').map(Number); return new Date(y||1970,(m||1)-1,d||1,23,59,59,999).getTime() }
 const listRangeDays = computed(() => {
@@ -266,7 +231,6 @@ const listRangeDays = computed(() => {
   const diff = endOfDayMs(listTo.value) - startOfDayMs(listFrom.value)
   return diff >= 0 ? (diff / 86400000) + 1 : 0
 })
-
 watch(showCompactFilters, (v) => {
   if (v && !listFrom.value && !listTo.value) {
     const now = new Date()
@@ -278,12 +242,42 @@ watch(showCompactFilters, (v) => {
     listTo.value = ymd
   }
 })
-
-/* Helpers: reliable programmatic close of the detail menu */
-
-
+/* --------- New: event coloring based on device color, avatar white ---------- */
+// Parse hex/rgb and compute contrast (WCAG-like approximation)
+function parseColorToRGB(color: string): { r: number; g: number; b: number } {
+  const c = color.trim()
+  if (c.startsWith('#')) {
+    const hex = c.slice(1)
+    const full = hex.length === 3 ? hex.split('').map(h => h + h).join('') : hex
+    const r = parseInt(full.slice(0, 2), 16)
+    const g = parseInt(full.slice(2, 4), 16)
+    const b = parseInt(full.slice(4, 6), 16)
+    return { r, g, b }
+  }
+  const m = c.match(/rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)/i)
+  if (m) return { r: Number(m[1]), g: Number(m[2]), b: Number(m[3]) }
+  // fallback primary-ish
+  return { r: 30, g: 136, b: 229 }
+}
+function luminance({ r, g, b }: { r: number; g: number; b: number }): number {
+  const srgb = [r, g, b].map(v => {
+    const c = v / 255
+    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4)
+  })
+  return 0.2126 * srgb[0] + 0.7152 * srgb[1] + 0.0722 * srgb[2]
+}
+function contrastText(color: string): 'black' | 'white' {
+  const lum = luminance(parseColorToRGB(color))
+  // threshold ~ 0.5 tuned for UI readability
+  return lum > 0.5 ? 'black' : 'white'
+}
+// Build style for event background + text color from device color
+function deviceEventStyle(deviceId: string): { backgroundColor: string; color: string } {
+  const bg = props.deviceColorOf(deviceId)
+  const fg = contrastText(bg)
+  return { backgroundColor: bg, color: fg }
+}
 </script>
-
 <template>
   <div ref="root">
     <v-sheet
@@ -337,7 +331,6 @@ watch(showCompactFilters, (v) => {
           </v-btn>
         </div>
       </div>
-
       <div class="dmv-filters-row-bottom">
         <div class="d-flex align-center ga-4">
           <v-switch
@@ -353,7 +346,6 @@ watch(showCompactFilters, (v) => {
           <span v-if="listRangeDays > 0">Rozsah: {{ Math.round(listRangeDays) }} dní</span>
         </div>
       </div>
-
       <v-alert
         type="info"
         density="comfortable"
@@ -363,7 +355,6 @@ watch(showCompactFilters, (v) => {
         Pro detailní práci se seznamem rezervací přepněte zobrazení na "Rezervace (seznam)".
       </v-alert>
     </v-sheet>
-
     <!-- Legend chips -->
     <div
       v-if="!showCompactFilters"
@@ -382,7 +373,6 @@ watch(showCompactFilters, (v) => {
         <span class="text-caption">{{ d.name }}</span>
       </div>
     </div>
-
     <!-- Full calendar schedule -->
     <div
       v-if="!showCompactFilters"
@@ -411,7 +401,6 @@ watch(showCompactFilters, (v) => {
           </div>
         </div>
       </div>
-
       <div
         :ref="viewportRefHandler"
         class="scroll-viewport"
@@ -433,7 +422,6 @@ watch(showCompactFilters, (v) => {
               {{ String(h - 1).padStart(2,'0') }}:00
             </div>
           </div>
-
           <div
             v-for="d in props.devices"
             :key="d.id"
@@ -461,11 +449,14 @@ watch(showCompactFilters, (v) => {
                   class="event"
                   :class="[props.eventBgClass(i), sizeClass(i)]"
                   v-bind="act"
-                  :style="props.eventStyle(
-                    i,
-                    (props.layoutForDevice[d.id]?.[i.id]?.left ?? 0),
-                    (props.layoutForDevice[d.id]?.[i.id]?.width ?? 1)
-                  )"
+                  :style="{
+                    ...props.eventStyle(
+                      i,
+                      (props.layoutForDevice[d.id]?.[i.id]?.left ?? 0),
+                      (props.layoutForDevice[d.id]?.[i.id]?.width ?? 1)
+                    ),
+                    ...deviceEventStyle(d.id)
+                  }"
                   @pointerdown.stop.prevent="(e: PointerEvent) => props.onEventPointerDown(e, i)"
                   @click.stop="(e: MouseEvent) => props.onEventClick(i.id, e)"
                 >
@@ -482,8 +473,9 @@ watch(showCompactFilters, (v) => {
                     <div class="event-time">
                       {{ props.fmtTime(new Date(i.start)) }} – {{ props.fmtTime(new Date(i.end)) }}
                     </div>
+                    <!-- Avatar: always white background, text inherits event contrast via CSS -->
                     <v-avatar
-                      :color="d.color"
+                      color="white"
                       size="28"
                       class="event-avatar"
                     >
@@ -492,7 +484,6 @@ watch(showCompactFilters, (v) => {
                   </div>
                 </div>
               </template>
-
               <!-- Default slot to get isActive for reliable close -->
               <template #default="{ isActive }">
                 <EventDetailCard
@@ -512,18 +503,14 @@ watch(showCompactFilters, (v) => {
     </div>
   </div>
 </template>
-
 <style scoped>
 /* schedule + events (lokální pro tento view) */
 .schedule { border-radius: 12px; overflow: hidden; }
-
 /* grid without unresolved CSS custom properties; columns set inline from template */
 .tracks.row.header { display: grid; gap: 0; border-bottom: 1px solid #e5e5e5; }
 .tracks.row.body   { display: grid; }
-
 /* DŮLEŽITÉ: vypnutí scroll anchoringu, aby se viewport nehýbal při změnách DOM uvnitř */
 .scroll-viewport { overflow-y: auto; outline: none; overflow-anchor: none; }
-
 .time-col { background: #fafafa; border-right: 1px solid #e5e5e5; }
 .time-tick { padding: 4px 8px; font-size: 12px; color: #777; border-bottom: 1px dashed #eee; }
 .track-name { padding: 12px 8px; text-align: center; border-left: 1px solid #f1f1f1; cursor: pointer; user-select: none; }
@@ -534,7 +521,6 @@ watch(showCompactFilters, (v) => {
   box-shadow: inset 0 -3px 0 0 var(--v-theme-primary);
   border-left-color: color-mix(in srgb, var(--v-theme-primary) 30%, #f1f1f1);
 }
-
 .track {
   position: relative;
   border-left: 1px solid #f1f1f1;
@@ -552,9 +538,7 @@ watch(showCompactFilters, (v) => {
   z-index: 2;
   outline: 2px solid color-mix(in srgb, var(--v-theme-primary) 65%, transparent);
   outline-offset: -1px;
-
 }
-
 /* Event container uses inline-size container queries */
 .event {
   position: absolute;
@@ -566,40 +550,33 @@ watch(showCompactFilters, (v) => {
   container-type: inline-size;
 }
 .event:active { cursor: grabbing; }
-
 /* Wrapper for padding (CQ adjusts this) */
 .event-inner { padding: 8px 10px 20px 10px; position: relative; height: 100%; }
-
 /* base typography with truncation */
 .event-title { font-weight: 600; line-height: 1.2; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; text-overflow: ellipsis; white-space: nowrap; }
 .event-time { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.event-avatar { position: absolute; right: 4px; top: 4px; background: #f2f2f2; font-size: 16px; line-height: 16px; text-transform: uppercase; border: 2px solid var(--v-theme-primary); }
+/* Avatar must be white */
+.event-avatar { position: absolute; right: 4px; top: 4px; background: #ffffff !important; color: inherit; font-size: 16px; line-height: 16px; text-transform: uppercase; border: 2px solid rgba(0,0,0,0.08); }
 .event-note-icon { position: absolute; right: 6px; bottom: 6px; color: rgba(0,0,0,.60); pointer-events: none; opacity: .85; }
 .event-note-icon:hover { opacity: 1; }
-
 /* Fallback height-based classes */
 .event.event--xs .event-inner { padding: 0; }
 .event.event--xs .event-title,
 .event.event--xs .event-time,
 .event.event--xs .event-note-icon,
 .event.event--xs .event-avatar { display: none !important; }
-
 .event.event--sm .event-inner { padding: 4px 8px; }
 .event.event--sm .event-time,
 .event.event--sm .event-note-icon,
 .event.event--sm .event-avatar {}
 .event.event--sm .event-title { font-size: 12px; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; -webkit-line-clamp: 1; }
-
 .event.event--md .event-inner { padding: 6px 8px 10px 8px; }
 .event.event--md .event-avatar { display: none; }
 .event.event--md .event-title { -webkit-line-clamp: 1; }
 .event.event--md .event-time { font-size: 12px; }
-
 /* Detail card */
 .detail-card { background: #eceff1; border-radius: 14px; box-shadow: 0 6px 20px rgba(0,0,0,.18); }
-
 .text-ellipsis { max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-
 /* Compact filters styling */
 .dmv-list-filters { display: grid; grid-template-rows: auto auto; row-gap: 8px; }
 .dmv-filters-row { display: grid; grid-template-columns: 170px 170px 1fr auto; column-gap: 12px; align-items: center; }
@@ -611,7 +588,6 @@ watch(showCompactFilters, (v) => {
 /* Default values for CSS vars to silence analyzers and provide fallbacks */
 :root { --tick-h: 80px; }
 </style>
-
 <style>
 @import '@/styles/event-compact.css';
 </style>

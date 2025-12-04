@@ -45,7 +45,7 @@ const FOCUS_REFRESH_DEBOUNCE_MS = 350
 
 const DAILY_LIST_HEADERS: Header[] = [
   { title: 'Stav', key: 'status', width: 110 },
-  { title: 'Stroj', key: 'device', width: 90 },
+  { title: 'Stroj', key: 'device', width: 120 },
   { title: 'Název', key: 'title', minWidth: 220 },
   { title: 'Datum', key: 'date', width: 180 },
   { title: 'Čas', key: 'time', width: 160 },
@@ -61,6 +61,18 @@ const listLoading = ref(false)
 const listError = ref<string | null>(null)
 const listRaw = ref<ReservationDto[]>([])
 const devices = ref<DeviceResponse[]>([])
+
+
+
+// map device code -> color for chip rendering
+const deviceColorByCode = computed<Map<string, string>>(() => {
+  const map = new Map<string, string>()
+  for (const d of devices.value) {
+    const c = (d.color ?? '').trim()
+    map.set(d.code, c || '#9E9E9E')
+  }
+  return map
+})
 
 const nowMs = ref<number>(Date.now())
 let nowTimer: number | null = null
@@ -92,7 +104,9 @@ const listFiltered = computed<ReservationDto[]>(() => {
   return listRaw.value.filter(r => {
     const inTitle = (r.title || '').toLowerCase().includes(needle)
     const inNote = includeNotesInSearch.value ? (r.note || '').toLowerCase().includes(needle) : false
-    return inTitle || inNote
+    const inUser = (r.username || '').toLowerCase().includes(needle)
+    const inDevice = (r.deviceCode || '').toLowerCase().includes(needle)
+    return inTitle || inNote || inUser || inDevice
   })
 })
 
@@ -193,6 +207,8 @@ const detailItem = ref<ReservationDto | null>(null)
 const detailItemId = ref<number | null>(null)
 const visibleItems = computed<DailyListRow[]>(() => tableItems.value)
 
+
+
 function openDetailAtIndex(idx: number) {
   if (idx < 0 || idx >= visibleItems.value.length) return
   captureScroll()
@@ -260,7 +276,6 @@ function onKey(e: KeyboardEvent) {
   const key = e.key.toLowerCase()
 
   if (ctrl && key === 'enter') { e.preventDefault(); loadListRange(); return }
- // if (ctrl && key === 'r')     { e.preventDefault(); loadListRange(); return }
   if (key === '/' || (ctrl && key === 'l')) { e.preventDefault(); nextTick(() => searchInput.value?.focus()); return }
   if (key === 'arrowdown') { e.preventDefault(); moveSelection(1); return }
   if (key === 'arrowup') { e.preventDefault(); moveSelection(-1); return }
@@ -425,6 +440,7 @@ onMounted(async () => {
   listFrom.value = toYmdLocal(from)
   listTo.value = toYmdLocal(to)
 
+  // Load devices immediately (used for chips and editing) – not gated by NAČÍST
   try {
     const resp = await get('reservations/devices', undefined)
     devices.value = resp?.data?.items ?? []
@@ -435,10 +451,9 @@ onMounted(async () => {
   window.addEventListener('focus', onVisibilityOrFocus)
   document.addEventListener('visibilitychange', onVisibilityOrFocus)
 
-  if (props.autoLoad) {
-    await loadListRange()
-    startAutoRefresh()
-  }
+  // Auto-load reservations for initial range
+  await loadListRange()
+  startAutoRefresh()
 })
 onBeforeUnmount(() => {
   stopAutoRefresh()
@@ -451,12 +466,11 @@ onBeforeUnmount(() => {
 
 watch(
   () => [props.projectId, JSON.stringify(props.deviceCodes ?? [])],
-  async () => { if (props.autoLoad) await loadListRange() }
+  async () => { await loadListRange() }
 )
 
 let rangeReloadDebounce: number | null = null
 function scheduleRangeReload() {
-  if (!props.autoLoad) return
   if (rangeReloadDebounce) window.clearTimeout(rangeReloadDebounce)
   rangeReloadDebounce = window.setTimeout(() => { loadListRange() }, 350)
 }
@@ -617,6 +631,21 @@ defineExpose({ loadListRange, loadAll })
           </span>
         </template>
 
+        <!-- Device column: colored chip like measurement table -->
+        <template #[`item.device`]="{ item }">
+          <v-chip
+            :style="{
+              backgroundColor: deviceColorByCode.get(item.device) || '#9E9E9E',
+              color: '#fff'
+            }"
+            size="small"
+            variant="flat"
+            class="font-weight-medium"
+          >
+            {{ item.device || '—' }}
+          </v-chip>
+        </template>
+
         <template #[`item.status`]="{ item }">
           <v-chip
             size="small"
@@ -648,9 +677,8 @@ defineExpose({ loadListRange, loadAll })
           indeterminate
           size="18"
           color="primary"
-          class="mr-2"
         />
-        <span class="text-medium-emphasis">Načítám další…</span>
+        <span class="text-medium-emphasis ml-2">Načítám další…</span>
       </div>
     </div>
 
@@ -715,8 +743,9 @@ defineExpose({ loadListRange, loadAll })
             <template #selection="{ item }">
               <v-chip
                 size="small"
-                color="primary"
+                :color="item.raw.color || 'primary'"
                 text-color="white"
+                variant="flat"
               >
                 {{ item.raw.code }}
               </v-chip>
@@ -806,7 +835,6 @@ defineExpose({ loadListRange, loadAll })
 .search-input { width: 100%; }
 .load-btn { height: 40px; min-width: 96px; padding-inline: 12px; }
 .filters-row-bottom { display: grid; grid-template-columns: 1fr auto; align-items: end; }
-/* DŮLEŽITÉ: vypnout anchoring, aby se při změnách DOM/otvírání dialogu tabulka neposunula */
 .table-wrap { max-height: 65vh; overflow: auto; position: relative; overflow-anchor: none; }
 .table-sentinel { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px 0 16px; color: rgba(0,0,0,.55); }
 </style>

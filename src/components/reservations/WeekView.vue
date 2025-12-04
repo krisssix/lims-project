@@ -227,6 +227,38 @@ function sizeClass(i: ResItem): string {
   if (h < 140) return 'event--md'
   return 'event--lg'
 }
+
+/* --- Consistent device-colored event background + contrast text (same as DailyMachines) --- */
+function parseColorToRGB(color: string): { r: number; g: number; b: number } {
+  const c = color.trim()
+  if (c.startsWith('#')) {
+    const hex = c.slice(1)
+    const full = hex.length === 3 ? hex.split('').map(h => h + h).join('') : hex
+    const r = parseInt(full.slice(0, 2), 16)
+    const g = parseInt(full.slice(2, 4), 16)
+    const b = parseInt(full.slice(4, 6), 16)
+    return { r, g, b }
+  }
+  const m = c.match(/rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)/i)
+  if (m) return { r: Number(m[1]), g: Number(m[2]), b: Number(m[3]) }
+  return { r: 30, g: 136, b: 229 }
+}
+function luminance({ r, g, b }: { r: number; g: number; b: number }): number {
+  const srgb = [r, g, b].map(v => {
+    const c = v / 255
+    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4)
+  })
+  return 0.2126 * srgb[0] + 0.7152 * srgb[1] + 0.0722 * srgb[2]
+}
+function contrastText(color: string): 'black' | 'white' {
+  const lum = luminance(parseColorToRGB(color))
+  return lum > 0.5 ? 'black' : 'white'
+}
+function deviceEventStyle(deviceId: string): { backgroundColor: string; color: string } {
+  const bg = props.deviceColorOf(deviceId)
+  const fg = contrastText(bg)
+  return { backgroundColor: bg, color: fg }
+}
 </script>
 
 <template>
@@ -312,13 +344,16 @@ function sizeClass(i: ResItem): string {
             <template #activator="{ props: act }">
               <div
                 class="event"
-                :class="[props.eventBgClass(i), sizeClass(i)]"
+                :class="[sizeClass(i)]"
                 v-bind="act"
-                :style="props.eventStyle(
-                  i,
-                  (props.layoutForDay[props.dateKey(day)]?.[i.id]?.left ?? 0),
-                  (props.layoutForDay[props.dateKey(day)]?.[i.id]?.width ?? 1)
-                )"
+                :style="{
+                  ...props.eventStyle(
+                    i,
+                    (props.layoutForDay[props.dateKey(day)]?.[i.id]?.left ?? 0),
+                    (props.layoutForDay[props.dateKey(day)]?.[i.id]?.width ?? 1)
+                  ),
+                  ...deviceEventStyle(i.deviceId)
+                }"
                 @pointerdown.stop.prevent="(e: PointerEvent) => props.onEventPointerDown(e, i)"
                 @click.stop="(e: MouseEvent) => props.onEventClick(i.id, e)"
               >
@@ -339,8 +374,7 @@ function sizeClass(i: ResItem): string {
                   <v-avatar
                     size="28"
                     class="event-avatar"
-                    :color="props.deviceColorOf(i.deviceId)"
-                    :style="{ borderColor: `var(--v-theme-${props.deviceColorOf(i.deviceId)})` }"
+                    color="white"
                   >
                     <span>{{ props.initials(i.username) }}</span>
                   </v-avatar>
@@ -419,7 +453,6 @@ function sizeClass(i: ResItem): string {
   outline-offset: -1px;
 }
 
-
 /* Event container uses inline-size container queries */
 .event {
   position: absolute;
@@ -438,7 +471,10 @@ function sizeClass(i: ResItem): string {
 /* base typography with truncation */
 .event-title { font-weight: 600; line-height: 1.2; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; text-overflow: ellipsis; white-space: nowrap; }
 .event-time { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.event-avatar { position: absolute; right: 4px; top: 4px; background: #f2f2f2; font-size: 16px; line-height: 16px; text-transform: uppercase; border: 2px solid var(--v-theme-primary); }
+
+/* Avatar always white, text inherits event contrast color */
+.event-avatar { position: absolute; right: 4px; top: 4px; background: #ffffff !important; color: inherit; font-size: 16px; line-height: 16px; text-transform: uppercase; border: 2px solid rgba(0,0,0,0.08); }
+
 .event-note-icon { position: absolute; right: 6px; bottom: 6px; color: rgba(0,0,0,.60); pointer-events: none; opacity: .85; }
 .event-note-icon:hover { opacity: 1; }
 
@@ -459,6 +495,7 @@ function sizeClass(i: ResItem): string {
 .event.event--md .event-avatar { display: none; }
 .event.event--md .event-title { -webkit-line-clamp: 1; }
 .event.event--md .event-time { font-size: 12px; }
+
 .scroll-viewport { overflow-y: auto; outline: none; overflow-anchor: none; }
 /* Detail card */
 .detail-card { background: #eceff1; border-radius: 14px; box-shadow: 0 6px 20px rgba(0,0,0,.18); }
