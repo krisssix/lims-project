@@ -1,29 +1,20 @@
 <script setup lang="ts">
-
-
-
-
-
-
-
-
-
-
-
 import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
+//conflict dialog in calendar
+import ConflictDialog from '@/components/reservations/ConflictDialog.vue'
+import { buildDayGaps, proposeSlotsAround, firstGapNextDays, type ResItem as ResItemSlot } from '@/utils/calendar/calendarSlotHelpers'
 import EntityEditorDialog from '@/components/EntityEditorDialog.vue'
 import Dialog from '@/components/Dialog.vue'
+import { layoutForDeviceEvents, type EventLayout as EventLayoutImported} from '@/utils/calendar/computeOverlapLayout'
 import { useReservationsStore } from '@/stores/reservations'
+import { useDeviceStore } from '@/stores/devices'
 import { useProjectStore } from '@/stores/project/project'
 import { auth } from '@/stores/auth'
-
 import DailyMachinesView from '@/components/reservations/DailyMachinesView.vue'
 import DailyListView from '@/components/reservations/DailyListView.vue'
 import WeekView from '@/components/reservations/WeekView.vue'
 import LeftFiltersPanel from '@/components/LeftFiltersPanel.vue'
-
-
 const HOURS_START = 0
 const HOURS_END = 24
 const GRID_MINUTES = 15
@@ -32,43 +23,12 @@ const HOUR_HEIGHT = 80
 const MIN_EVENT_PX = 24
 const DRAG_CLICK_THRESHOLD = 5
 const DAY_HOURS = 24
-
 const isSideFilterOpen = ref(false)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 type ViewMode = 'daily-machines' | 'daily-list' | 'week-work' | 'week-all'
 type StatusType = 'plan' | 'running' | 'done'
-
 function onDailyListRowDblClick(_ev: MouseEvent, payload: { item: any }) {
   openEdit(dtoToResItem(payload.item._raw))
-
-
-
-
-
-
-
 }
-
 interface ResItem {
   id: number
   title: string
@@ -79,7 +39,6 @@ interface ResItem {
   username: string | null
   note: string | null
 }
-
 interface DragState {
   id: number
   pointerId: number
@@ -93,16 +52,19 @@ interface DragState {
   view: ViewMode
   ghostEl: HTMLElement
   copyMode?: boolean
-
+  mode: 'move' | 'resize'
+  origStart: Date
+  origEnd: Date
+  origHeight: number
 }
+type EventLayoutLocal = Record<number, { left: number; width: number }>
+
 
 type EventLayout = Record<number, { left: number; width: number }>
-
 const route = useRoute()
 const projectId = Number((route.params as any).projectId)
 const reservations = useReservationsStore()
 const projectStore = useProjectStore()
-
 function pad2(n: number): string { return String(n).padStart(2, '0') }
 function toYmdLocal(d: Date): string {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`
@@ -116,23 +78,63 @@ function normalizeToDate(v: string | Date): Date {
     ? new Date(v.getFullYear(), v.getMonth(), v.getDate(), 0, 0, 0, 0)
     : fromYmdLocal(v)
 }
-function hmFromDate(d: Date) { return `${pad2(d.getHours())}:${pad2(d.getMinutes())}` }
+function hmFromDate(d: Date): string { return `${pad2(d.getHours())}:${pad2(d.getMinutes())}` }
+
 function setHM(base: Date, hm: string) {
   const [h, m] = hm.split(':').map(v => parseInt(v, 10) || 0)
   const d = new Date(base); d.setHours(h, m, 0, 0); return d
 }
 function toIsoLocal(d: Date) {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`
-
-
-
-
 }
+
+/* CONFLICT DIALOG CALLBACKS */
+
+function onConfirmConflict(slot: { start: Date; end: Date }) {
+  conflictOpen.value = false
+  const ctx = conflictCtx.value
+  conflictCtx.value = null
+  if (!ctx) return
+
+  const { reservationId, deviceId, dayKey } = ctx
+  const startMs = slot.start.getTime()
+  const endMs = slot.end.getTime()
+
+  if (wouldConflict(reservationId, deviceId, slot.start, slot.end, dayKey)) {
+    // závod na FE – neriskuj, nevolej PATCH
+    return
+  }
+
+  reservations.updateReservation(reservationId, {
+    startTime: startMs,
+    endTime: endMs,
+    deviceCode: deviceId
+  })
+    .then(async () => {
+      await nextTick()
+      await loadWeekFor(currentDay.value)
+    })
+    .catch((e) => {
+      console.error('Confirm-conflict update failed', e)
+    })
+}
+
+function onSuggestNextDay() {
+  conflictOpen.value = false
+  const next = conflictFallbackNext.value
+  conflictCtx.value = null
+  if (next) {
+    selectedDate.value = toYmdLocal(next.day)
+    // Volitelné: rovnou otevři editor
+    // const deviceCode = conflictCtx.value?.deviceId ?? (devicesToShow.value[0]?.id || allDevices.value[0]?.id || 'M1')
+    // openCreateWith({ baseDay: next.day, start: next.slot.start, end: next.slot.end, deviceCode })
+  }
+}
+
 
 // DTO from DailyListView
 interface ReservationDto {
   id: number
-
   title: string
   deviceCode: string
   startTime: number
@@ -157,14 +159,7 @@ function dtoToResItem(r: ReservationDto): ResItem {
 }
 function openEditFromDto(raw: ReservationDto) { openEdit(dtoToResItem(raw)) }
 function askDeleteFromDto(raw: ReservationDto) { askDelete(dtoToResItem(raw)) }
-
 /* Date selection  */
-
-
-
-
-
-
 const selectedDate = ref<string | Date>(toYmdLocal(new Date()))
 function addDays(n: number) {
   const d = normalizeToDate(selectedDate.value)
@@ -173,7 +168,6 @@ function addDays(n: number) {
 }
 function goToday() { selectedDate.value = toYmdLocal(new Date()) }
 const currentDay = computed<Date>(() => normalizeToDate(selectedDate.value))
-
 /* Intl */
 const fmtDateLongFmt   = new Intl.DateTimeFormat('cs-CZ', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
 const fmtTimeFmt       = new Intl.DateTimeFormat('cs-CZ', { hour: '2-digit', minute: '2-digit' })
@@ -183,36 +177,27 @@ const fmtDateLong    = (d: Date) => fmtDateLongFmt.format(d)
 const fmtTime        = (d: Date) => fmtTimeFmt.format(d)
 const fmtDetailDate  = (d: Date) => fmtDetailDateFmt.format(d)
 const fmtDetailTime  = (d: Date) => fmtDetailTimeFmt.format(d)
-
 /* Filters */
 const pickedMembers = ref<string[]>([])
 const pickedDevices = ref<string[]>([])
 const membersList = computed<string[]>(() =>
   projectStore.projectMembers.map((m: { username: string }) => m.username)
 )
-const allDevices = computed(() => reservations.devices.map(d => ({
+
+const deviceStore = useDeviceStore()
+
+
+const allDevices = computed(() => deviceStore.devices.map(d => ({
   id: d.code,
   name: d.name,
   color: d.color || 'primary'
 })))
 const devicesToShow = computed(() =>
-
-
-
-
-
-
-
-
-
-
-
-
-
   pickedDevices.value.length
     ? allDevices.value.filter(d => pickedDevices.value.includes(d.id))
     : allDevices.value
 )
+
 
 type GroupConfig = {
   key: string
@@ -226,11 +211,6 @@ type GroupConfig = {
   showField?: string
 }
 const leftSelection = ref<Record<string, string[]>>({ devices: [], members: [] })
-
-
-
-
-
 const leftGroups = computed<GroupConfig[]>(() => [
   {
     key: 'members',
@@ -273,6 +253,55 @@ watch(pickedMembers, (v) => {
   if (!arraysEqual(next, leftSelection.value.members)) leftSelection.value.members = [...next]
 })
 
+
+// Stav cofnlict dialogu
+type ConflictContext = {
+  reservationId: number
+  deviceId: string
+  dayKey: string
+} | null
+
+const conflictCtx = ref<ConflictContext>(null)
+
+const conflictOpen = ref(false)
+const conflictDeviceName = ref<string>('')
+const conflictRequested = ref<{ start: Date; end: Date }>({ start: new Date(), end: new Date() })
+const conflictProposals = ref<Array<{ slot: { start: Date; end: Date }; label: string }>>([])
+const conflictFallbackNext = ref<{ day: Date; slot: { start: Date; end: Date } } | null>(null)
+
+function deviceNameById(id: string): string {
+  return allDevices.value.find(d => d.id === id)?.name || id
+}
+function getEventsForDayDevice(day: Date, deviceId: string): ResItem[] {
+  const k = dateKey(day)
+  return (eventsByDay.value[k] ?? []).filter(e => e.deviceId === deviceId)
+}
+
+function openConflictDialog(
+  deviceId: string,
+  requested: { start: Date; end: Date },
+  ctx: { reservationId: number; dayKey: string }
+) {
+  conflictCtx.value = { reservationId: ctx.reservationId, deviceId, dayKey: ctx.dayKey }
+  conflictDeviceName.value = deviceNameById(deviceId)
+  conflictRequested.value = requested
+  const dayBase = new Date(requested.start.getFullYear(), requested.start.getMonth(), requested.start.getDate(), 0, 0, 0, 0)
+  const gaps = buildDayGaps(getEventsForDayDevice(dayBase, deviceId), dayBase)
+  const props = proposeSlotsAround(requested, gaps)
+  conflictProposals.value = props.map((s, idx) => ({ slot: s, label: idx === 0 ? 'Nejbližší po' : 'Nejbližší před' }))
+  conflictFallbackNext.value = firstGapNextDays(getEventsForDayDevice, dayBase, deviceId, requested.end.getTime() - requested.start.getTime(), 30)
+  conflictOpen.value = true
+}
+
+// Pomocník – kontrola kolize s jinou rezervací na stejném zařízení (aktuální den):
+function wouldConflict(id: number, deviceId: string, start: Date, end: Date, dayKey: string): boolean {
+  const arr = (eventsByDay.value[dayKey] ?? []).filter(e => e.deviceId === deviceId)
+  const target = { start, end }
+  return arr.some(e => e.id !== id && (new Date(e.end).getTime() > start.getTime() && new Date(e.start).getTime() < end.getTime()))
+}
+
+
+
 /* View Mode */
 const viewMode = ref<ViewMode>('daily-machines')
 const viewLabel = computed(() => {
@@ -283,7 +312,6 @@ const viewLabel = computed(() => {
     case 'daily-list': return 'REZERVACE'
   }
 })
-
 /* Menu control passed to child (FIX: make it reactive on key changes) */
 const openMenu = ref<Record<number, boolean>>({})
 function isMenuOpen(id: number) { return !!openMenu.value[id] }
@@ -291,13 +319,11 @@ function setMenuOpen(id: number, v: boolean) {
   // reassign a new object so Vue tracks the change
   openMenu.value = { ...openMenu.value, [id]: v }
 }
-
 /* Viewport refs */
 const viewportDaily = ref<HTMLElement | null>(null)
 const viewportWeek = ref<HTMLElement | null>(null)
 function setDailyViewportRef(el: HTMLElement | null) { viewportDaily.value = el }
 function setWeekViewportRef(el: HTMLElement | null) { viewportWeek.value = el }
-
 /* Time grid helpers */
 const tickHeight = computed<number>(() => HOUR_HEIGHT)
 const PX_PER_MIN = computed<number>(() => HOUR_HEIGHT / 60)
@@ -319,7 +345,6 @@ function scrollToHour(hour = 7) {
   const y = Math.max(0, Math.min(FULL_TRACK_HEIGHT.value - el.clientHeight, targetY))
   el.scrollTop = y
 }
-
 /* Data structures */
 const eventsByDay = ref<Record<string, ResItem[]>>({})
 function dateKey(d: Date) { return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}` }
@@ -328,7 +353,6 @@ function ensureDay(d: Date): ResItem[] {
   if (!eventsByDay.value[k]) eventsByDay.value[k] = []
   return eventsByDay.value[k]
 }
-
 /* Week calculations */
 function weekRange(date: Date) {
   const base = new Date(date)
@@ -345,7 +369,6 @@ const daysForView = computed<Date[]>(() =>
 )
 const colsDevices = computed<number>(() => devicesToShow.value.length)
 const colsWeek = computed<number>(() => viewMode.value === 'week-work' ? 5 : 7)
-
 /* Load events */
 function resetAllDays(days: Date[]) {
   for (const d of days) eventsByDay.value[dateKey(d)] = []
@@ -355,7 +378,6 @@ async function loadWeekFor(date: Date) {
   const from = new Date(days[0].getFullYear(), days[0].getMonth(), days[0].getDate(), 0, 0, 0, 0).getTime()
   const last = days[days.length - 1]
   const to = new Date(last.getFullYear(), last.getMonth(), last.getDate(), 23, 59, 59, 999).getTime()
-
   resetAllDays(days)
   const data = await reservations.fetchByProject(projectId, from, to)
   for (const r of data) {
@@ -378,24 +400,45 @@ async function loadWeekFor(date: Date) {
   await nextTick()
   scrollToHour(7)
 }
-
 /* Initial load */
 onMounted(async () => {
-  await reservations.fetchDevices()
+  await deviceStore.fetchDevices()              // ← místo reservations.fetchDevices()
   await projectStore.fetchProjectMembers(projectId)
   await loadWeekFor(currentDay.value)
   await nextTick()
   scrollToHour(7)
 })
-watch(selectedDate, async v => { await loadWeekFor(normalizeToDate(v)) })
-watch(viewMode, async () => { await nextTick(); scrollToHour(7) })
+
+
+watch(selectedDate, async v => {
+  if (drag.value) {
+    drag.value.ghostEl.remove()
+    drag.value = null
+    clearHighlight()
+    window.removeEventListener('pointermove', onPointerMove)
+  }
+  await loadWeekFor(normalizeToDate(v))
+})
+
+
+watch(viewMode, async () => {
+  // pokud běží drag, force ukončení
+  if (drag.value) {
+    drag.value.ghostEl.remove()
+    drag.value = null
+    clearHighlight()
+    window.removeEventListener('pointermove', onPointerMove)
+  }
+  await nextTick()
+  scrollToHour(7)
+})
+
 
 /* Daily list auto-load */
 type DailyListViewExposed = { loadListRange: () => void | Promise<void>; loadAll?: () => void | Promise<void> }
 const dailyListRef = ref<DailyListViewExposed | null>(null)
 const isDailyList = computed(() => viewMode.value === 'daily-list')
 watch(isDailyList, async v => { if (v) { await nextTick(); dailyListRef.value?.loadListRange() } })
-
 /* Filtering helpers */
 function filterItems(arr: ResItem[]): ResItem[] {
   return arr.filter(i => {
@@ -409,35 +452,31 @@ const itemsForDayFiltered = computed<ResItem[]>(() => filterItems(itemsFor(curre
 function itemsForDayDevice(deviceId: string) {
   return itemsForDayFiltered.value.filter(i => i.deviceId === deviceId)
 }
-
 /* Device color + event style */
 const deviceColorOf = (id: string) => allDevices.value.find(d => d.id === id)?.color || 'primary'
 function eventBgClass(i: ResItem) {
   const color = deviceColorOf(i.deviceId)
   return (color === 'primary' || color === 'secondary') ? `bg-${color}` : `bg-${color}-lighten-4`
 }
-function eventStyle(i: ResItem, left: number, width: number) {
+function eventStyle(i: ResItem, left: number, width: number): Record<string, string> {
   const color = deviceColorOf(i.deviceId)
   return {
     top: `${topFromDate(new Date(i.start))}px`,
     height: `${heightFromRange(new Date(i.start), new Date(i.end))}px`,
-    left: `calc(${left * 100}% + 8px)`,
-    width: `calc(${width * 100}% - 16px)`,
+    left: `${left * 100}%`,
+    width: `${width * 100}%`,
     borderLeft: `4px solid var(--v-theme-${color})`,
     background: `color-mix(in srgb, var(--v-theme-${color}) 18%, #fff)`
-  } as Record<string, string>
+  }
 }
 function deviceHeaderStyle(d: { id: string; color: string }) {
   const base = `var(--v-theme-${d.color})`
   return {
     background: `color-mix(in srgb, ${base} 18%, #ffffff)`,
     boxShadow: `inset 0 -3px 0 0 ${base}`,
-
-
   }
 }
 function initials(u: string | null) { return (u?.[0] ?? '?').toUpperCase() }
-
 /* Layout (collisions) */
 function eventsCollide(a: ResItem, b: ResItem): boolean {
   const aS = +new Date(a.start), aE = +new Date(a.end), bS = +new Date(b.start), bE = +new Date(b.end)
@@ -485,16 +524,57 @@ function layoutForTrack(trackEvents: ResItem[]): EventLayout {
   }
   return layout
 }
+/*
 const layoutDailyByDevice = computed<Record<string, EventLayout>>(() => {
   const out: Record<string, EventLayout> = {}
   for (const d of devicesToShow.value) out[d.id] = layoutForTrack(itemsForDayDevice(d.id))
   return out
 })
-const layoutWeeklyByDay = computed<Record<string, EventLayout>>(() => {
-  const out: Record<string, EventLayout> = {}
-  for (const day of daysForView.value) out[dateKey(day)] = layoutForTrack(filterItems(itemsFor(day)))
+
+ */
+const layoutWeeklyByDay = computed<Record<string, EventLayoutImported>>(() => {
+  const out: Record<string, EventLayoutImported> = {}
+  for (const day of daysForView.value) {
+    const key = dateKey(day)
+    const list = filterItems(itemsFor(day))
+    out[key] = layoutForDeviceEvents(list.map((i) => ({
+      id: i.id,
+      start: i.start,
+      end: i.end
+    })))
+  }
   return out
 })
+
+const itemsByDevice = computed<Map<string, ResItem[]>>(() => {
+  const map = new Map<string, ResItem[]>()
+  const list = filterItems(itemsFor(currentDay.value))
+  for (const i of list) {
+    const arr = map.get(i.deviceId)
+    if (arr) arr.push(i)
+    else map.set(i.deviceId, [i])
+  }
+  // Seřadit v každém zařízení podle času
+  for (const [key, arr] of map.entries()) {
+    arr.sort((a, b) => +new Date(a.start) - +new Date(b.start))
+    map.set(key, arr)
+  }
+  return map
+})
+
+const layoutForDevice = computed<Record<string, EventLayoutImported>>(() => {
+  const result: Record<string, EventLayoutImported> = {}
+  for (const d of devicesToShow.value) {
+    const list = itemsByDevice.value.get(d.id) || []
+    result[d.id] = layoutForDeviceEvents(list.map((i) => ({
+      id: i.id,
+      start: i.start,
+      end: i.end
+    })))
+  }
+  return result
+})
+
 
 /* Drag & Drop */
 const drag = ref<DragState | null>(null)
@@ -505,7 +585,6 @@ const pointerStart = ref({ x: 0, y: 0 })
 const movedBeyondThreshold = ref(false)
 const suppressClick = ref(false)
 let suppressTimer: number | null = null
-
 function attachHighlight(el: HTMLElement | null) {
   if (highlightEl && highlightEl !== el) highlightEl.classList.remove('drop-highlight')
   highlightEl = el
@@ -543,11 +622,58 @@ function onEventPointerDown(e: PointerEvent, item: ResItem) {
     origDayKey: dateKey(start),
     origDeviceId: item.deviceId,
     view: viewMode.value,
-    ghostEl: ghost
+    ghostEl: ghost,
+    mode: 'move',
+    origStart: start,
+    origEnd: end,
+    origHeight: rect.height
   }
   try { target.setPointerCapture(e.pointerId) } catch {}
   window.addEventListener('pointermove', onPointerMove, { passive: true })
   window.addEventListener('pointerup', onPointerUp, { once: true })
+  window.addEventListener('pointercancel', onPointerUp, { once: true })
+}
+function onResizePointerDown(e: PointerEvent, item: ResItem) {
+  if (e.button !== 0) return
+  e.stopPropagation()
+  // Find the event element (parent of resize handle)
+  const handleEl = e.currentTarget as HTMLElement | null
+  const eventEl = handleEl?.closest('.event') as HTMLElement | null
+  if (!eventEl) return
+  const rect = eventEl.getBoundingClientRect()
+  const start = new Date(item.start)
+  const end = new Date(item.end)
+  pointerStart.value = { x: e.clientX, y: e.clientY }
+  movedBeyondThreshold.value = false
+  const ghost = eventEl.cloneNode(true) as HTMLElement
+  ghost.classList.add('drag-ghost', 'resize-ghost')
+  ghost.style.width = rect.width + 'px'
+  ghost.style.height = rect.height + 'px'
+  ghost.style.left = rect.left + 'px'
+  ghost.style.top = rect.top + 'px'
+  ghost.style.pointerEvents = 'none'
+  document.body.appendChild(ghost)
+  drag.value = {
+    id: item.id,
+    pointerId: e.pointerId,
+    offsetY: e.clientY - rect.top,
+    offsetX: e.clientX - rect.left,
+    originTop: rect.top,
+    originLeft: rect.left,
+    durationMin: Math.max(15, Math.round((end.getTime() - start.getTime()) / 60000)),
+    origDayKey: dateKey(start),
+    origDeviceId: item.deviceId,
+    view: viewMode.value,
+    ghostEl: ghost,
+    mode: 'resize',
+    origStart: start,
+    origEnd: end,
+    origHeight: rect.height
+  }
+  try { handleEl?.setPointerCapture(e.pointerId) } catch {}
+  window.addEventListener('pointermove', onPointerMove, { passive: true })
+  window.addEventListener('pointerup', onPointerUp, { once: true })
+  window.addEventListener('pointercancel', onPointerUp, { once: true })
 }
 function onPointerMove(ev: PointerEvent) {
   if (!drag.value) return
@@ -562,11 +688,21 @@ function onPointerMove(ev: PointerEvent) {
       if (!drag.value || !lastMoveEvent) return
       const d = drag.value
       const e = lastMoveEvent
-      const newLeft = e.clientX - d.offsetX
-      const newTop = e.clientY - d.offsetY
-      d.ghostEl.style.transform = `translate(${newLeft - d.originLeft}px, ${newTop - d.originTop}px)`
-      const hit = findTrackAt(e.clientX, e.clientY)
-      attachHighlight(hit?.el ?? null)
+      
+      if (d.mode === 'resize') {
+        // Resize mode: only change height, not position
+        const deltaY = e.clientY - pointerStart.value.y
+        const newHeight = Math.max(MIN_EVENT_PX, d.origHeight + deltaY)
+        d.ghostEl.style.height = newHeight + 'px'
+        // No transform for resize - ghost stays in original position
+      } else {
+        // Move mode: translate ghost element
+        const newLeft = e.clientX - d.offsetX
+        const newTop = e.clientY - d.offsetY
+        d.ghostEl.style.transform = `translate(${newLeft - d.originLeft}px, ${newTop - d.originTop}px)`
+        const hit = findTrackAt(e.clientX, e.clientY)
+        attachHighlight(hit?.el ?? null)
+      }
     })
   }
 }
@@ -590,33 +726,77 @@ function minutesFromTrackY(y: number, rect: DOMRect, offsetY: number) {
   const minutes = (relY / PX_PER_MIN.value) + HOURS_START * 60
   return clamp(roundToStep(minutes, GRID_MINUTES), HOURS_START * 60, HOURS_END * 60)
 }
-async function commitMove(d: DragState, x: number, y: number) {
+async function commitMove(d: DragState, x: number, y: number): Promise<void> {
+  const sourceArr = eventsByDay.value[d.origDayKey] || []
+  const idx = sourceArr.findIndex((r: ResItem) => r.id === d.id)
+  if (idx === -1) return
+  const ev = sourceArr[idx]
+  
+  // Handle resize mode
+  if (d.mode === 'resize') {
+    // Calculate new duration from mouse Y position
+    const deltaY = y - pointerStart.value.y
+    const deltaMinutes = Math.round(deltaY / PX_PER_MIN.value / GRID_MINUTES) * GRID_MINUTES
+    const newDurationMin = Math.max(GRID_MINUTES, d.durationMin + deltaMinutes)
+    
+    // Keep original start, calculate new end
+    const startDate = d.origStart
+    const [Y, M, D] = d.origDayKey.split('-').map((v: string) => Number(v))
+    const baseDay = new Date(Y, (M || 1) - 1, D || 1, 0, 0, 0, 0)
+    
+    // Clamp end to day boundaries
+    const endMinutes = Math.min(
+      HOURS_END * 60,
+      (startDate.getHours() * 60 + startDate.getMinutes()) + newDurationMin
+    )
+    const endDate = new Date(baseDay)
+    endDate.setHours(Math.floor(endMinutes / 60), endMinutes % 60, 0, 0)
+    
+    // Ensure end > start
+    if (endDate.getTime() <= startDate.getTime()) return
+    
+    // Check conflict
+    if (wouldConflict(d.id, d.origDeviceId, startDate, endDate, d.origDayKey)) {
+      const req = { start: startDate, end: endDate }
+      openConflictDialog(d.origDeviceId, req, { reservationId: d.id, dayKey: d.origDayKey })
+      return
+    }
+    
+    // PATCH with new end time only
+    try {
+      await reservations.updateReservation(d.id, {
+        startTime: startDate.getTime(),
+        endTime: endDate.getTime(),
+        deviceCode: d.origDeviceId
+      })
+      await nextTick()
+      await loadWeekFor(currentDay.value)
+    } catch (err) {
+      console.error('Reservation resize failed.', err)
+    }
+    return
+  }
+  
+  // Move mode (existing logic)
   const hit = findTrackAt(x, y)
   if (!hit) return
   const { type, id, rect } = hit
-
   let newDayKey = d.origDayKey
   let newDeviceId = d.origDeviceId
   if (d.view === 'daily-machines' && type === 'device') newDeviceId = id
   else if ((d.view === 'week-work' || d.view === 'week-all') && type === 'day') newDayKey = id
   else return
 
-  const [Y, M, D] = newDayKey.split('-').map(Number)
+  const [Y, M, D] = newDayKey.split('-').map((v: string) => Number(v))
   const baseDay = new Date(Y, (M || 1) - 1, D || 1, 0, 0, 0, 0)
-  let startMinutes = minutesFromTrackY(y, rect, d.offsetY)
-  const endMinutes = Math.min(HOURS_END * 60, startMinutes + d.durationMin)
-  if (endMinutes - startMinutes < d.durationMin) {
-    startMinutes = Math.max(HOURS_START * 60, endMinutes - d.durationMin)
-  }
-  const startDate = new Date(baseDay)
-  startDate.setHours(Math.floor(startMinutes / 60), startMinutes % 60, 0, 0)
-  const endDate = new Date(startDate.getTime() + d.durationMin * 60000)
-  const sourceArr = eventsByDay.value[d.origDayKey] || []
-  const idx = sourceArr.findIndex(x => x.id === d.id)
-  if (idx === -1) return
-  const ev = sourceArr[idx]
-  const prev = { dayKey: d.origDayKey, deviceId: ev.deviceId, start: ev.start, end: ev.end }
 
+  const startMinutes = minutesFromTrackY(y, rect, d.offsetY)
+  const endMinutesTarget = Math.min(HOURS_END * 60, startMinutes + d.durationMin)
+  const effStart = Math.max(HOURS_START * 60, endMinutesTarget - d.durationMin)
+  const startDate = new Date(baseDay.getTime()); startDate.setHours(Math.floor(effStart / 60), effStart % 60, 0, 0)
+  const endDate = new Date(startDate.getTime() + d.durationMin * 60000)
+
+  // COPY režim: zůstává (POST → pak lokálně přidat + reload)
   if (d.copyMode === true) {
     try {
       const created = await reservations.createReservation({
@@ -625,10 +805,9 @@ async function commitMove(d: DragState, x: number, y: number) {
         startTime: startDate.getTime(),
         endTime: endDate.getTime(),
         projectId,
-        username: ev.username ?? null,
+        username: ev.username ?? '',
         note: ev.note ?? null
       })
-      // Optimistically place the new event into the target day list
       const targetArr = ensureDay(baseDay)
       targetArr.push({
         id: created.id,
@@ -641,8 +820,7 @@ async function commitMove(d: DragState, x: number, y: number) {
         note: created.note ?? null
       })
       targetArr.sort((a, b) => +new Date(a.start) - +new Date(b.start))
-
-      // Keep original where it is; then refresh week for consistency
+      await nextTick()
       await loadWeekFor(currentDay.value)
     } catch (err) {
       console.error('Reservation copy failed.', err)
@@ -650,52 +828,33 @@ async function commitMove(d: DragState, x: number, y: number) {
     return
   }
 
-
-  if (newDayKey !== d.origDayKey) {
-    sourceArr.splice(idx, 1)
-    const targetArr = ensureDay(baseDay)
-    ev.deviceId = newDeviceId
-    ev.start = toIsoLocal(startDate)
-    ev.end = toIsoLocal(endDate)
-    targetArr.push(ev)
-    targetArr.sort((a, b) => +new Date(a.start) - +new Date(b.start))
-  } else {
-    ev.deviceId = newDeviceId
-    ev.start = toIsoLocal(startDate)
-    ev.end = toIsoLocal(endDate)
-    sourceArr.sort((a, b) => +new Date(a.start) - +new Date(b.start))
+  // 1) PREVENCE: pokud FE vidí konflikt, nehneme s UI a otevřeme dialog
+  const req = { start: startDate, end: endDate }
+  if (wouldConflict(d.id, newDeviceId, startDate, endDate, newDayKey)) {
+    openConflictDialog(newDeviceId, req, { reservationId: d.id, dayKey: newDayKey })
+    return
   }
+
+  // 2) PATCH BEZ optimistického přesunu; UI měníme až po úspěchu
   try {
     await reservations.updateReservation(d.id, {
       startTime: startDate.getTime(),
       endTime: endDate.getTime(),
       deviceCode: newDeviceId
     })
+    // Úspěch → teprve teď lokálně přemístíme a/nebo reloadneme (preferuji reload pro jistotu):
+    await nextTick()
     await loadWeekFor(currentDay.value)
   } catch (err) {
-
-    if (newDayKey !== prev.dayKey) {
-      const newArr = eventsByDay.value[newDayKey] || []
-      const nIdx = newArr.findIndex(x => x.id === d.id)
-      if (nIdx !== -1) newArr.splice(nIdx, 1)
-      const origDate = new Date(prev.start)
-      const origArr = ensureDay(origDate)
-      ev.deviceId = prev.deviceId
-      ev.start = prev.start
-      ev.end = prev.end
-      origArr.push(ev)
-      origArr.sort((a, b) => +new Date(a.start) - +new Date(b.start))
-    } else {
-      ev.deviceId = prev.deviceId
-      ev.start = prev.start
-      ev.end = prev.end
-      sourceArr.sort((a, b) => +new Date(a.start) - +new Date(b.start))
+    // Backend odmítl – pokud 409 a FE vidí konflikt, otevři dialog
+    if (wouldConflict(d.id, newDeviceId, startDate, endDate, newDayKey)) {
+      openConflictDialog(newDeviceId, req, { reservationId: d.id, dayKey: newDayKey })
+      return
     }
-    console.error('Reservation update failed, reverted.', err)
+    // Jiné chyby → zachovej původní stav (UI už zůstalo původní)
+    console.error('Reservation update failed.', err)
   }
 }
-
-
 
 function onPointerUp(e: PointerEvent) {
   window.removeEventListener('pointermove', onPointerMove)
@@ -715,10 +874,8 @@ function onPointerUp(e: PointerEvent) {
 onBeforeUnmount(() => { window.removeEventListener('pointermove', onPointerMove) })
 function onEventClick(id: number, _e: MouseEvent) {
   if (suppressClick.value || movedBeyondThreshold.value || drag.value) return
-  // ensure single menu open and make changes reactive
   openMenu.value = { [id]: true }
 }
-
 /* Delete */
 async function handleDelete(i: ResItem) {
   try {
@@ -736,13 +893,10 @@ async function handleDelete(i: ResItem) {
 const confirmDeleteOpen = ref(false)
 const deleteTarget = ref<ResItem | null>(null)
 const deleteLoading = ref(false)
-
-
 function askDelete(i: ResItem) {
   deleteTarget.value = i
   confirmDeleteOpen.value = true
 }
-
 async function confirmDelete() {
   if (!deleteTarget.value) { confirmDeleteOpen.value = false; return }
   deleteLoading.value = true
@@ -754,51 +908,17 @@ async function confirmDelete() {
     deleteLoading.value = false
   }
 }
-
 function cancelDelete() {
   confirmDeleteOpen.value = false
   deleteTarget.value = null
 }
-
 /* Track click -> open Create editor with prefilled fields */
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 function onTrackClick(evt: MouseEvent, ctx: { type: 'device' | 'day'; deviceId?: string; day?: Date }) {
   if (drag.value || suppressClick.value) return
   const track = evt.currentTarget as HTMLElement | null
   if (!track) return
   const rect = track.getBoundingClientRect()
   const baseDay = ctx.type === 'day' ? (ctx.day as Date) : currentDay.value
-
-
-
-
-
-
-
-
-
-
-
   const relY = clamp(evt.clientY - rect.top, 0, FULL_TRACK_HEIGHT.value)
   const minutes = (relY / PX_PER_MIN.value) + HOURS_START * 60
   const snapped = clamp(roundToStep(minutes, GRID_MINUTES), HOURS_START * 60, HOURS_END * 60)
@@ -807,16 +927,8 @@ function onTrackClick(evt: MouseEvent, ctx: { type: 'device' | 'day'; deviceId?:
   const deviceCode = ctx.type === 'device'
     ? (ctx.deviceId as string)
     : (devicesToShow.value[0]?.id || allDevices.value[0]?.id || 'M1')
-
-
-
-
-
-
-
   openCreateWith({ baseDay, start, end, deviceCode })
 }
-
 /* Unified Reservation Editor (create/edit) */
 type ReservationEditorForm = {
   id?: number
@@ -832,27 +944,7 @@ const editorOpen = ref(false)
 const editorMode = ref<'create' | 'edit'>('create')
 const editorSaving = ref(false)
 const resForm = ref<ReservationEditorForm | null>(null)
-
-
-
-
-
-
-
-
-
-
-
-
-
 function openCreateWith(opts: { baseDay: Date; start: Date; end: Date; deviceCode: string }) {
-
-
-
-
-
-
-
   const me = auth.getUserInfo().preferredUsername
   resForm.value = {
     title: 'Nová rezervace',
@@ -866,7 +958,6 @@ function openCreateWith(opts: { baseDay: Date; start: Date; end: Date; deviceCod
   editorMode.value = 'create'
   editorOpen.value = true
 }
-
 function openEdit(i: ResItem) {
   const s = new Date(i.start)
   const e = new Date(i.end)
@@ -883,9 +974,7 @@ function openEdit(i: ResItem) {
   editorMode.value = 'edit'
   editorOpen.value = true
 }
-
 watch(() => resForm.value?.dateYmd, (v) => { if (v) selectedDate.value = v })
-
 const isEditorValid = computed(() => {
   const f = resForm.value
   if (!f) return false
@@ -899,7 +988,6 @@ const isEditorValid = computed(() => {
   const e = setHM(day, f.endHM)
   return e.getTime() > s.getTime()
 })
-
 async function saveReservation() {
   if (!resForm.value || !isEditorValid.value) return
   editorSaving.value = true
@@ -912,7 +1000,6 @@ async function saveReservation() {
   const clampEnd = new Date(day); clampEnd.setHours(HOURS_END, 0, 0, 0)
   if (start < clampStart) start = clampStart
   if (end > clampEnd) end = clampEnd
-
   try {
     if (editorMode.value === 'create') {
       const created = await reservations.createReservation({
@@ -958,31 +1045,52 @@ async function saveReservation() {
     }
     editorOpen.value = false
     resForm.value = null
-  } catch (e) {
-    console.error('Save reservation failed', e)
+  } catch (e: unknown) {
+    // Handle 409 Conflict (device already reserved)
+    const err = e as { statusCode?: number; message?: string }
+    if (err.statusCode === 409) {
+      // Show conflict dialog with alternative time proposals
+      const deviceName = deviceNameById(f.deviceCode)
+      conflictDeviceName.value = deviceName
+      conflictRequested.value = { start, end }
+      
+      // Compute alternative time proposals
+      const dayBase = new Date(day.getFullYear(), day.getMonth(), day.getDate(), 0, 0, 0, 0)
+      const existingEvents = getEventsForDayDevice(dayBase, f.deviceCode)
+      const gaps = buildDayGaps(existingEvents, dayBase)
+      const proposals = proposeSlotsAround({ start, end }, gaps)
+      conflictProposals.value = proposals.map((s, idx) => ({ 
+        slot: s, 
+        label: idx === 0 ? 'Nejbližší po' : 'Nejbližší před' 
+      }))
+      
+      // Find fallback in next days
+      const durationMs = end.getTime() - start.getTime()
+      conflictFallbackNext.value = firstGapNextDays(getEventsForDayDevice, dayBase, f.deviceCode, durationMs, 30)
+      
+      // Set context (null for create, set for edit)
+      conflictCtx.value = editorMode.value === 'edit' && f.id
+        ? { reservationId: f.id, deviceId: f.deviceCode, dayKey: dateKey(day) }
+        : null
+      conflictOpen.value = true
+    } else {
+      console.error('Save reservation failed', e)
+    }
   } finally {
     editorSaving.value = false
   }
 }
-
 function openCreateFromToolbar() {
   const day = normalizeToDate(selectedDate.value)
   const start = new Date(day); start.setHours(9, 0, 0, 0)
   const end = new Date(start.getTime() + 60 * 60000)
   const deviceCode = devicesToShow.value[0]?.id || allDevices.value[0]?.id || 'M1'
-
-
-
-
   openCreateWith({ baseDay: day, start, end, deviceCode })
 }
-
-
 const confirmPrimaryBtn = ref<HTMLButtonElement | null>(null)
 watch(confirmDeleteOpen, v => {
   if (v) nextTick(() => confirmPrimaryBtn.value?.focus())
 })
-
 /* Global hotkeys (sjednocení s Measurements/Board: Ctrl+B pro procházet) */
 function onHotkeys(e: KeyboardEvent) {
   // Toggle postranní panel (sjednocení s Board.vue)
@@ -1007,17 +1115,12 @@ function onHotkeys(e: KeyboardEvent) {
   }
 }
 onMounted(() => window.addEventListener('keydown', onHotkeys))
-onBeforeUnmount(() => window.removeEventListener('keydown', onHotkeys))
-
-
-
-
-
-
-
-
+onBeforeUnmount(() => {
+  window.removeEventListener('pointermove', onPointerMove)
+  window.removeEventListener('pointerup', onPointerUp)
+  window.removeEventListener('pointercancel', onPointerUp)
+})
 </script>
-
 <template>
   <v-container fluid class="pa-0">
     <!-- Sjednocená horní lišta jako v Board.vue -->
@@ -1025,11 +1128,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onHotkeys))
       <v-btn color="primary"variant="tonal" @click="isSideFilterOpen = !isSideFilterOpen">
         Procházet
       </v-btn>
-
       <v-btn color="primary" variant="flat" class="ml-2" @click="openCreateFromToolbar">
         VYTVOŘIT REZERVACI
       </v-btn>
-
       <v-menu>
         <template #activator="{ props }">
           <v-btn v-bind="props" append-icon="mdi-menu-down" variant="tonal" class="ml-2">
@@ -1043,7 +1144,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onHotkeys))
           <v-list-item @click="viewMode = 'daily-list'">Rezervace (seznam)</v-list-item>
         </v-list>
       </v-menu>
-
       <v-spacer />
       <div class="text-subtitle-1 mx-2" style="text-transform: capitalize; min-width: 180px;">
         {{ selectedDate ? fmtDateLong(normalizeToDate(selectedDate)) : '' }}
@@ -1051,9 +1151,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onHotkeys))
       <v-btn variant="tonal" @click="goToday" title="Dnes (Ctrl+T)">DNES</v-btn>
       <v-btn icon="mdi-chevron-left" variant="text" @click="addDays(-1)" />
       <v-btn icon="mdi-chevron-right" variant="text" @click="addDays(1)" />
-
     </v-toolbar>
-
     <v-container fluid class="pa-4">
       <v-row>
         <!-- LEFT PANEL (toggle jako v Board.vue) -->
@@ -1064,7 +1162,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onHotkeys))
             :groups="leftGroups"
           />
         </v-col>
-
         <!-- RIGHT PANEL -->
         <v-col :cols="12" :md="isSideFilterOpen ? 9 : 12">
           <v-card>
@@ -1078,7 +1175,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onHotkeys))
                 :viewport-height="VIEWPORT_HEIGHT"
                 :full-track-height="FULL_TRACK_HEIGHT"
                 :get-items-for-device="(id: string) => itemsForDayDevice(id)"
-                :layout-for-device="layoutDailyByDevice"
+                :layout-for-device="layoutForDevice"
                 :device-header-style="deviceHeaderStyle"
                 :event-bg-class="eventBgClass"
                 :event-style="eventStyle"
@@ -1091,12 +1188,12 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onHotkeys))
                 :set-menu-open="setMenuOpen"
                 :on-track-click="onTrackClick"
                 :on-event-pointer-down="onEventPointerDown"
+                :on-resize-pointer-down="onResizePointerDown"
                 :on-event-click="onEventClick"
                 :open-edit="openEdit"
                 :ask-delete="askDelete"
                 :set-viewport-ref="setDailyViewportRef"
               />
-
               <DailyListView
                 v-else-if="isDailyList"
                 ref="dailyListRef"
@@ -1107,7 +1204,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onHotkeys))
                 :ask-delete="askDeleteFromDto"
                 :selected-date="selectedDate"
               />
-
               <WeekView
                 v-else
                 :days="daysForView"
@@ -1130,6 +1226,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onHotkeys))
                 :set-menu-open="setMenuOpen"
                 :on-track-click="onTrackClick"
                 :on-event-pointer-down="onEventPointerDown"
+                :on-resize-pointer-down="onResizePointerDown"
                 :on-event-click="onEventClick"
                 :open-edit="openEdit"
                 :ask-delete="askDelete"
@@ -1139,7 +1236,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onHotkeys))
           </v-card>
         </v-col>
       </v-row>
-
       <EntityEditorDialog
         v-model:is-open="editorOpen"
         :entity-label="'rezervace'"
@@ -1156,35 +1252,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onHotkeys))
                         :rules="[v => !!(v && v.trim()) || 'Název je povinný']" autofocus />
           <v-select v-model="resForm.deviceCode" :items="allDevices" item-title="name" item-value="id" label="Přístroj"
                     density="comfortable" variant="outlined" class="mb-2" />
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
           <v-select v-model="resForm.username" :items="membersList" label="Člen" density="comfortable"
                     variant="outlined" class="mb-2" :clearable="true" />
           <v-text-field v-model="resForm.dateYmd" label="Datum" type="date" density="comfortable" variant="outlined" class="mb-2" />
@@ -1195,7 +1262,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onHotkeys))
           <v-textarea v-model="resForm.note" label="Poznámka" auto-grow rows="2" density="comfortable" variant="outlined" class="mt-2" />
         </div>
       </EntityEditorDialog>
-
       <!-- CONFIRM DELETE -->
       <Dialog v-model:is-open="confirmDeleteOpen" width="auto" :hide-footer="true">
         <template #content>
@@ -1203,7 +1269,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onHotkeys))
             <div class="text-h6 mb-6">Opravdu chcete rezervaci zrušit?</div>
             <div class="d-flex align-center" style="gap:14px">
               <v-btn
-
                 color="primary" variant="flat"
                 size="large"
                 :loading="deleteLoading"
@@ -1225,10 +1290,21 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onHotkeys))
           </div>
         </template>
       </Dialog>
+
+      <ConflictDialog
+        :open="conflictOpen"
+        :device-name="conflictDeviceName"
+        :requested="conflictRequested"
+        :proposals="conflictProposals"
+        :fallback-next-day="conflictFallbackNext"
+        @update:open="v => conflictOpen = v"
+        @confirm="onConfirmConflict"
+        @suggest-next-day="onSuggestNextDay"
+        @cancel="() => { conflictOpen = false }"
+      />
     </v-container>
   </v-container>
 </template>
-
 <style scoped>
 .event {
   position: absolute;
@@ -1240,7 +1316,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onHotkeys))
   will-change: transform, top, height;
   transform: translateZ(0);
   contain: layout paint style;
+  inset-inline: 4px;
+  box-sizing: border-box;
 }
+.event:active { cursor: grabbing; }
 .event:active { cursor: grabbing; }
 .event-title { font-weight: 600; line-height: 1.2; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical;text-overflow: ellipsis; white-space: normal; }
 .event-time { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -1264,19 +1343,15 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onHotkeys))
   background: linear-gradient(to bottom, rgba(70,120,255,0.04), rgba(70,120,255,0.04)),
   repeating-linear-gradient(to bottom, rgba(0,0,0,0.02) 0, rgba(0,0,0,0.02) calc(var(--tick-h) / 2), transparent calc(var(--tick-h) / 2), transparent var(--tick-h)); }
 .text-truncate { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-
 .schedule { border-radius: 12px; overflow: hidden; }
-
 .tracks.row.header { display: grid; gap: 0; border-bottom: 1px solid #e5e5e5; }
 .tracks.row.body   { display: grid; }
-
 .scroll-viewport { overflow-y: auto; }
 .time-col { background: #fafafa; border-right: 1px solid #e5e5e5; }
 .time-tick { padding: 4px 8px; font-size: 12px; color: #777; border-bottom: 1px dashed #eee; }
 .track-name { padding: 12px 8px; text-align: center; border-left: 1px solid #f1f1f1; }
 .track-name .weekday { text-transform: uppercase; font-weight: 700; letter-spacing: .02em; }
 .track-name.weekend { background: #fafaff; }
-
 .track {
   position: relative;
   border-left: 1px solid #f1f1f1;
@@ -1300,7 +1375,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onHotkeys))
       transparent var(--tick-h)
     );
 }
-
 .event {
   position: absolute;
   border-radius: 10px;
@@ -1308,11 +1382,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onHotkeys))
   padding: 8px 10px 20px 10px;
   cursor: grab;
   user-select: none;
-
-
-
-
-
 }
 .event:active { cursor: grabbing; }
 .event-title { font-weight: 600; line-height: 1.2; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; text-overflow: ellipsis; white-space: normal; }
@@ -1320,22 +1389,18 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onHotkeys))
 .event-avatar { position: absolute; right: 4px; top: 4px; background: #f2f2f2; font-size: 18px; line-height: 18px; text-transform: uppercase; border: 2px solid var(--v-theme-primary); }
 .event-note-icon { position: absolute; right: 6px; bottom: 6px; color: rgba(0,0,0,.60); pointer-events: none; opacity: .85; }
 .event-note-icon:hover { opacity: 1; }
-
 .detail-card { background: #eceff1; border-radius: 14px; box-shadow: 0 6px 20px rgba(0,0,0,.18); }
 .text-ellipsis { max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-
 .event.event--xs { padding: 0; }
 .event.event--xs .event-title,
 .event.event--xs .event-time,
 .event.event--xs .event-note-icon,
 .event.event--xs .event-avatar { display: none !important; }
-
 .event.event--sm { padding: 4px 8px; }
 .event.event--sm .event-time,
 .event.event--sm .event-note-icon,
 .event.event--sm .event-avatar { display: none !important; }
 .event.event--sm .event-title { font-size: 12px; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; }
-
 .event.event--md { padding: 6px 8px 10px 8px; }
 .event.event--md .event-avatar { display: none; }
 .event.event--md .event-time { font-size: 12px; }
