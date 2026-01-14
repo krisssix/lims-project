@@ -6,6 +6,7 @@ import { inferType } from './inferType'
 import { computeStats } from './stats'
 import { normalizeHeader } from './normalizeHeader'
 import { extractExcel } from './excelAdapter'
+import { czechDateToEpoch } from '@/utils/czechDateParser'
 import type {
   FileParseResult,
   RawFileKind,
@@ -71,7 +72,7 @@ export async function parseMeasurementFile(input: File | string, opts: ParseOpti
     const splitted = blockLines.map(l => l.split(delimiterCandidate))
 
     if (splitted.length < 2) {
-      warnings.push(`Blok ${globalBlockIndex} má méně než 2 řádky – přeskočeno`)
+      warnings.push(`Tabulka hodnot ${globalBlockIndex} má méně než 2 řádky – přeskočeno`)
       continue
     }
 
@@ -160,7 +161,7 @@ export function buildTemplateDraft(result: FileParseResult, proposedName: string
     columns,
     blocks: result.blocks.map(b => ({
       blockIndex: b.blockIndex,
-      title: b.title || `Blok ${b.blockIndex}`,
+      title: b.title || `Tabulka hodnot ${b.blockIndex}`,
       fields: b.header.map((h, i) => {
         const unit = b.unitRow?.[i]?.trim() || null
         const samples = b.rows.slice(0, 50).map(r => r[i] ?? '').filter(s => s.trim().length)
@@ -229,11 +230,16 @@ function convertValue(raw: string, type: InferredValueType | undefined): unknown
     }
     case 'bool': {
       const t = trimmed.toLowerCase()
-      if (['true','1','yes','y','ano','a','t'].includes(t)) return true
-      if (['false','0','no','n','ne','f'].includes(t)) return false
+      if (['true', '1', 'yes', 'y', 'ano', 'a', 't'].includes(t)) return true
+      if (['false', '0', 'no', 'n', 'ne', 'f'].includes(t)) return false
       return null
     }
     case 'date': {
+      // Try Czech date parser first (handles "4. října 2022 16:58:51")
+      const czechMs = czechDateToEpoch(trimmed)
+      if (czechMs !== null) return czechMs
+
+      // Fallback to standard Date.parse
       const ms = Date.parse(trimmed)
       return Number.isFinite(ms) ? ms : trimmed
     }
