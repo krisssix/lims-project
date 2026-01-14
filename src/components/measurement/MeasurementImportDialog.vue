@@ -143,7 +143,10 @@ watch(() => props.modelValue, v => {
     <template #header>
       <div class="text-h6">
         Import měření
-        <span v-if="parseResult?.fileName" class="text-caption ml-3">
+        <span
+          v-if="parseResult?.fileName"
+          class="text-caption ml-3"
+        >
           {{ parseResult.fileName }}
         </span>
       </div>
@@ -156,7 +159,10 @@ watch(() => props.modelValue, v => {
           Zdroj dat
         </div>
         <v-row class="g-4">
-          <v-col cols="12" md="6">
+          <v-col
+            cols="12"
+            md="6"
+          >
             <v-file-input
               :model-value="rawFile"
               label="Soubor (.csv / .tsv / .txt / .xlsx)"
@@ -170,7 +176,10 @@ watch(() => props.modelValue, v => {
               @update:model-value="f => onFileSelected((Array.isArray(f) ? f[0] : f) as File | null)"
             />
           </v-col>
-          <v-col cols="12" md="6">
+          <v-col
+            cols="12"
+            md="6"
+          >
             <v-select
               v-model="deviceId"
               :items="props.deviceIdOptions"
@@ -195,7 +204,10 @@ watch(() => props.modelValue, v => {
             />
           </v-col>
         </v-row>
-        <div class="d-flex align-center mt-3" style="gap:12px;">
+        <div
+          class="d-flex align-center mt-3"
+          style="gap:12px;"
+        >
           <v-btn
             color="primary"
             variant="flat"
@@ -208,21 +220,26 @@ watch(() => props.modelValue, v => {
           <v-btn
             variant="tonal"
             :color="delimiterOverride ? 'deep-purple' : undefined"
-            @click="cycleDelimiter"
             title="Cyklus delimiteru (Alt+D)"
+            @click="cycleDelimiter"
           >
             Delimiter: {{ delimiterOverride || 'AUTO' }}
           </v-btn>
           <v-btn
             variant="tonal"
             :color="useSecondLineUnits ? 'primary' : undefined"
-            @click="toggleUnits"
             title="Použít 2. řádek jako jednotky (Alt+U)"
+            @click="toggleUnits"
           >
             Jednotky: {{ useSecondLineUnits ? 'ANO' : 'NE' }}
           </v-btn>
         </div>
-        <v-alert v-if="errorMessage" type="error" variant="tonal" class="mt-3">
+        <v-alert
+          v-if="errorMessage"
+          type="error"
+          variant="tonal"
+          class="mt-3"
+        >
           {{ errorMessage }}
         </v-alert>
       </div>
@@ -232,42 +249,84 @@ watch(() => props.modelValue, v => {
         <div class="text-subtitle-2 mb-2">
           Náhled dat (bloky: {{ parseResult?.blocks.length || 0 }})
         </div>
-        <v-alert v-if="parseResult?.warnings.length" type="warning" variant="tonal" class="mb-3">
+        <v-alert
+          v-if="parseResult?.warnings.length"
+          type="warning"
+          variant="tonal"
+          class="mb-3"
+        >
           {{ parseResult.warnings.join(' | ') }}
         </v-alert>
-        <div v-for="block in parseResult?.blocks || []" :key="block.blockIndex" class="mb-4 block-preview">
-          <div class="d-flex align-center mb-1" style="gap:8px;">
-            <v-chip size="small" color="primary" variant="tonal">
-              Blok {{ block.blockIndex }}
+        <div
+          v-for="block in parseResult?.blocks || []"
+          :key="block.blockIndex"
+          class="mb-4 block-preview"
+        >
+          <div
+            class="d-flex align-center mb-1"
+            style="gap:8px;"
+          >
+            <v-chip
+              size="small"
+              color="primary"
+              variant="tonal"
+            >
+              Tabulka hodnot {{ block.blockIndex }}
             </v-chip>
             <span class="text-medium-emphasis text-caption">
               Řádků: {{ block.rows.length }} | Sloupců: {{ block.header.length }}
             </span>
             <v-spacer />
           </div>
-          <v-table density="compact" class="mb-2">
+          <v-table
+            density="compact"
+            class="mb-2"
+          >
             <thead>
-            <tr>
-              <th v-for="(h,i) in block.header" :key="i" class="text-caption">
-                {{ h }}<span v-if="block.unitRow?.[i]" class="text-medium-emphasis"> ({{ block.unitRow[i] }})</span>
-              </th>
-            </tr>
+              <tr>
+                <th
+                  v-for="(h,i) in block.header"
+                  :key="i"
+                  class="text-caption"
+                >
+                  {{ h }}<span
+                    v-if="block.unitRow?.[i]"
+                    class="text-medium-emphasis"
+                  > ({{ block.unitRow[i] }})</span>
+                </th>
+              </tr>
             </thead>
             <tbody>
-            <tr v-for="(row,ri) in block.rows.slice(0,10)" :key="ri">
-              <td v-for="(cell,ci) in row" :key="ci">
-                {{ cell }}
-              </td>
-            </tr>
-            <tr v-if="block.rows.length > 10">
-              <td :colspan="block.header.length" class="text-center text-caption text-medium-emphasis">
-                + {{ block.rows.length - 10 }} dalších…
-              </td>
-            </tr>
+              <tr
+                v-for="(row,ri) in block.rows.slice(0,10)"
+                :key="ri"
+              >
+                <td
+                  v-for="(cell,ci) in row"
+                  :key="ci"
+                >
+                  {{ cell }}
+                </td>
+              </tr>
+              <tr v-if="block.rows.length > 10">
+                <td
+                  :colspan="block.header.length"
+                  class="text-center text-caption text-medium-emphasis"
+                >
+                  + {{ block.rows.length - 10 }} dalších…
+                </td>
+              </tr>
             </tbody>
           </v-table>
-          <div v-if="block.stats && Object.keys(block.stats).length" class="text-caption stats-row">
-            <span v-for="(st,name) in block.stats" :key="name" class="mr-2">
+          <div
+            v-if="block.stats && Object.keys(block.stats).length"
+            class="text-caption stats-row"
+          >
+            <span
+              v-for="(st,name) in block.stats"
+              :key="name"
+              class="mr-2"
+            >
               {{ name }}: μ={{ st.mean.toFixed(2) }} σ={{ st.stdDev.toFixed(2) }}
             </span>
           </div>
@@ -294,36 +353,55 @@ watch(() => props.modelValue, v => {
           >
             Importovat měření
           </v-btn>
-          <v-btn variant="text" class="ml-2" @click="step = 1">
+          <v-btn
+            variant="text"
+            class="ml-2"
+            @click="step = 1"
+          >
             Zpět
           </v-btn>
         </div>
 
-        <div v-if="preview" class="mt-6">
+        <div
+          v-if="preview"
+          class="mt-6"
+        >
           <div class="text-subtitle-2 mb-1">
             Náhled záznamů (prvních 5)
           </div>
           <v-table density="compact">
             <thead>
-            <tr>
-              <th>Record</th>
-              <th>Fields</th>
-            </tr>
+              <tr>
+                <th>Record</th>
+                <th>Fields</th>
+              </tr>
             </thead>
             <tbody>
-            <tr v-for="rec in preview.records.slice(0,5)" :key="rec.recordIndex">
-              <td class="text-caption">{{ rec.recordIndex }}</td>
-              <td>
-                <div class="text-caption">
-                    <span v-for="f in rec.fields.slice(0,6)" :key="f.name + f.blockIndex" class="mr-2">
+              <tr
+                v-for="rec in preview.records.slice(0,5)"
+                :key="rec.recordIndex"
+              >
+                <td class="text-caption">
+                  {{ rec.recordIndex }}
+                </td>
+                <td>
+                  <div class="text-caption">
+                    <span
+                      v-for="f in rec.fields.slice(0,6)"
+                      :key="f.name + f.blockIndex"
+                      class="mr-2"
+                    >
                       {{ f.name }}={{ String(f.value ?? '')?.slice(0,16) }}
                     </span>
-                  <span v-if="rec.fields.length > 6" class="text-medium-emphasis">
+                    <span
+                      v-if="rec.fields.length > 6"
+                      class="text-medium-emphasis"
+                    >
                       +{{ rec.fields.length - 6 }}
                     </span>
-                </div>
-              </td>
-            </tr>
+                  </div>
+                </td>
+              </tr>
             </tbody>
           </v-table>
         </div>
@@ -335,7 +413,12 @@ watch(() => props.modelValue, v => {
     </template>
 
     <template #footer>
-      <v-btn variant="text" @click="close">Zavřít</v-btn>
+      <v-btn
+        variant="text"
+        @click="close"
+      >
+        Zavřít
+      </v-btn>
       <v-spacer />
       <v-btn
         v-if="step === 1"

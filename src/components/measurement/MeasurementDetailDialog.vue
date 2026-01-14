@@ -2,9 +2,13 @@
 import { ref, watch, computed, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import EntityEditorDialog from '@/components/EntityEditorDialog.vue'
 import ChartPanel from '@/components/chart/ChartPanel.vue'
+import TemplateSelect from '@/components/measurement/TemplateSelect.vue'
+import MarkdownEditor from '@/components/editor/MarkdownEditor.vue'
+import FileUploader from '@/components/measurement/FileUploader.vue'
+import AttachmentList from '@/components/measurement/AttachmentList.vue'
 import { isEditableElement } from '@/components/ui/hotkeyGuard'
 import { type DeviceItem, type ValueType, type TemplateItem, type TemplateBlockRow } from '@/types/measurement-ui'
-import { type MeasurementResponse, type MeasuredValue } from '@/stores/measurement'
+import { type MeasurementResponse, type MeasuredValue, type MeasurementSeriesResponse } from '@/stores/measurement'
 import {
   groupValuesToRecords,
   flattenRecords,
@@ -17,6 +21,10 @@ import {
   type MeasurementRecord,
   type RecordField
 } from '@/utils/measurement-record-helpers'
+import { uploadFile, extractFilesFromRecords } from '@/services/api/file-upload'
+import { config } from '@/config'
+import { contrastText } from '@/utils/colorContrast'
+import { type FileAttachment } from '@/composables/useAttachments'
 
 /* ---------- Props / Emits ---------- */
 const props = defineProps<{
@@ -55,6 +63,15 @@ const TYPE_LABEL: Record<ValueType, string> = {
   date: 'Datum'
 }
 
+// Helper: get correct Zenodo URL (sandbox vs production)
+function getZenodoUrl(doi: string): string {
+  if (doi.startsWith('10.5072/')) {
+    const recordId = doi.replace('10.5072/zenodo.', '')
+    return `https://sandbox.zenodo.org/records/${recordId}`
+  }
+  return `https://doi.org/${doi}`
+}
+
 /* ---------- Meta stav ---------- */
 const selectedTemplateName = ref<string>('')
 const selectedDeviceId = ref<string>('')
@@ -82,6 +99,30 @@ function setHM(base: Date, hm: string): Date {
   return d
 }
 
+/* ---------- CreatedAt (read-only) ---------- */
+const createdAtFormatted = computed(() => {
+  const raw = props.item?.createdAt
+  if (!raw || typeof raw !== 'number') return { date: '', time: '' }
+  const d = new Date(raw)
+  if (isNaN(d.getTime())) return { date: '', time: '' }
+  return {
+    date: `${d.getDate()}. ${d.getMonth() + 1}. ${d.getFullYear()}`,
+    time: `${pad2(d.getHours())}:${pad2(d.getMinutes())}`
+  }
+})
+
+/* ---------- UpdatedAt (read-only) ---------- */
+const updatedAtFormatted = computed(() => {
+  const raw = props.item?.updatedAt
+  if (!raw || typeof raw !== 'number') return { date: '', time: '' }
+  const d = new Date(raw)
+  if (isNaN(d.getTime())) return { date: '', time: '' }
+  return {
+    date: `${d.getDate()}. ${d.getMonth() + 1}. ${d.getFullYear()}`,
+    time: `${pad2(d.getHours())}:${pad2(d.getMinutes())}`
+  }
+})
+
 /* ---------- Records ---------- */
 const records = ref<MeasurementRecord[]>([])
 const currentRecordIndex = ref<number>(1)
@@ -89,6 +130,13 @@ const selectedRecordIndexes = ref<Set<number>>(new Set())
 
 /* ---------- Block navigation ---------- */
 const currentBlockIndex = ref<number>(0)
+
+/* ---------- Data Series ---------- */
+const selectedSeriesIdx = ref<number>(0)
+const selectedSeries = computed(() => {
+  if (!props.item?.series?.length) return null
+  return props.item.series[selectedSeriesIdx.value] ?? props.item.series[0]
+})
 
 function ensureCurrentRecordExists(): void {
   if (!records.value.length) return
@@ -101,12 +149,24 @@ const selectedTemplate = computed<TemplateItem | null>(() =>
     props.templates.find(t => t.name === selectedTemplateName.value) ?? null
 )
 
+/* ---------- Filtered templates by device ---------- */
+const filteredTemplates = computed<TemplateItem[]>(() => {
+  if (!selectedDeviceId.value) return []
+  return props.templates.filter(t => t.deviceId === selectedDeviceId.value)
+})
+
 /* ---------- Template blocks ---------- */
 const templateBlocks = computed<TemplateBlockRow[]>(() => {
   const tpl = selectedTemplate.value
 
   if (tpl && tpl.blocks && tpl.blocks.length > 0) {
-    return tpl.blocks
+    // Filter out series blocks - they are displayed in a separate section
+    return tpl.blocks.filter(b => {
+      const isSeries = b.kind === 'series' || 
+        (b.title?.toLowerCase().includes('série')) ||
+        (b.title?.toLowerCase().includes('series'))
+      return !isSeries
+    })
   }
 
   const rec = currentRecord.value
@@ -125,7 +185,7 @@ const templateBlocks = computed<TemplateBlockRow[]>(() => {
           .map(([blockIndex, data]) => ({
             id: blockIndex,
             blockIndex,
-            title: data.title || `Blok ${blockIndex}`,
+            title: data.title || `Tabulka hodnot ${blockIndex}`,
             fields: data.fields.map((f, i) => ({
               orderIndex: i + 1,
               type: f.type,
@@ -251,6 +311,11 @@ function buildFrom(item: MeasurementResponse | null): void {
   timeHM.value = hmFromMs(ts)
 
   const vals = item.values ?? []
+  console.log('[MeasurementDetailDialog] Loading values:', vals)
+  // Debug: Log file fields specifically
+  vals.filter(v => v.type === 'file').forEach(v => {
+    console.log('[MeasurementDetailDialog] File field:', v.name, 'fileUrl:', v.fileUrl, 'raw value:', v)
+  })
   if (vals.length) {
     records.value = groupValuesToRecords(vals)
   } else {
@@ -281,6 +346,43 @@ watch(() => props.item, v => buildFrom(v), { immediate: true })
 const currentRecord = computed<MeasurementRecord | null>(() =>
     records.value.find(r => r.recordIndex === currentRecordIndex.value) ?? null
 )
+
+/* ---------- Record navigation (dropdown) ---------- */
+const recordItems = computed(() =>
+  records.value.map(r => ({
+    title: `Záznam ${r.recordIndex}`,
+    value: r.recordIndex
+  }))
+)
+
+const currentPosition = computed(() => {
+  const idx = records.value.findIndex(r => r.recordIndex === currentRecordIndex.value)
+  return idx + 1
+})
+
+function onSelectRecord(val: number): void {
+  currentRecordIndex.value = val
+  currentBlockIndex.value = 0
+  rebuildDerived()
+}
+
+function prevRecord(): void {
+  const idx = records.value.findIndex(r => r.recordIndex === currentRecordIndex.value)
+  if (idx > 0) {
+    currentRecordIndex.value = records.value[idx - 1]!.recordIndex
+    currentBlockIndex.value = 0
+    rebuildDerived()
+  }
+}
+
+function nextRecord(): void {
+  const idx = records.value.findIndex(r => r.recordIndex === currentRecordIndex.value)
+  if (idx < records.value.length - 1) {
+    currentRecordIndex.value = records.value[idx + 1]!.recordIndex
+    currentBlockIndex.value = 0
+    rebuildDerived()
+  }
+}
 
 const numericFieldNames = computed<string[]>(() => {
   const seen = new Set<string>()
@@ -434,8 +536,62 @@ function dateModel(field: RecordField): string | null {
       : (field.value as string | null | undefined) ?? null
 }
 function fileModel(field: RecordField): File | null | undefined {
-  return field.value as File | null | undefined
+  // Only return File objects, not URL strings
+  if (field.value instanceof File) return field.value
+  return null
 }
+
+/**
+ * Check if a file field has an existing uploaded file URL (not a File object)
+ */
+function hasExistingFileUrl(field: RecordField): boolean {
+  return typeof field.value === 'string' && field.value.length > 0
+}
+
+/**
+ * Get the full URL for displaying/downloading an existing file
+ */
+function getFileDisplayUrl(field: RecordField): string {
+  if (typeof field.value !== 'string') return ''
+  // If it's already a full URL, return as-is
+  if (field.value.startsWith('http://') || field.value.startsWith('https://')) {
+    return field.value
+  }
+  // Otherwise prepend the server URL (remove trailing slash if present)
+  const baseUrl = config.serverUrl.endsWith('/') 
+    ? config.serverUrl.slice(0, -1) 
+    : config.serverUrl
+  // Handle leading slash in the file path
+  const filePath = field.value.startsWith('/') ? field.value : `/${field.value}`
+  return `${baseUrl}${filePath}`
+}
+
+/**
+ * Get the filename from a file URL for display
+ */
+function getFileNameFromUrl(field: RecordField): string {
+  if (typeof field.value !== 'string') return ''
+  // Extract filename from path like "files/abc123-uuid.jpg"
+  const parts = field.value.split('/')
+  return parts[parts.length - 1] || field.value
+}
+
+/**
+ * Check if the file is an image based on extension
+ */
+function isImageFile(field: RecordField): boolean {
+  if (typeof field.value !== 'string') return false
+  const ext = field.value.split('.').pop()?.toLowerCase() || ''
+  return ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'].includes(ext)
+}
+
+/**
+ * Clear the existing file and allow new upload
+ */
+function clearExistingFile(field: RecordField): void {
+  field.value = null
+}
+
 function fieldError(field: RecordField): string | null {
   return validateField(field)
 }
@@ -444,9 +600,30 @@ function fieldError(field: RecordField): string | null {
 const metaCollapsed = ref(false)
 const valuesCollapsed = ref(false)
 const statsCollapsed = ref(false)
+const seriesCollapsed = ref(false)
+const attachmentsCollapsed = ref(false)
 function toggleMeta(): void { metaCollapsed.value = !metaCollapsed.value }
 function toggleValues(): void { valuesCollapsed.value = !valuesCollapsed.value }
 function toggleStats(): void { statsCollapsed.value = !statsCollapsed.value }
+function toggleAttachments(): void { attachmentsCollapsed.value = !attachmentsCollapsed.value }
+
+/* ---------- Attachments ---------- */
+const attachmentListRef = ref<InstanceType<typeof AttachmentList> | null>(null)
+function onAttachmentUploaded(file: FileAttachment): void {
+  // Refresh attachment list after upload
+  attachmentListRef.value?.refresh()
+}
+function toggleSeries(): void { seriesCollapsed.value = !seriesCollapsed.value }
+
+/* ---------- Datové série ---------- */
+const measurementSeries = computed<MeasurementSeriesResponse[]>(() => {
+  return props.item?.series ?? []
+})
+const hasSeries = computed(() => measurementSeries.value.length > 0)
+const selectedSeriesIndex = ref(0)
+const currentSeries = computed<MeasurementSeriesResponse | null>(() =>
+  measurementSeries.value[selectedSeriesIndex.value] ?? null
+)
 
 /* ---------- Statistiky & graf ---------- */
 const chartPoints = computed<number[]>(() => {
@@ -478,6 +655,40 @@ async function onSave(): Promise<void> {
   if (!props.item || !canSaveMeta.value) return
   isSaving.value = true
   try {
+    // Step 1: Upload all file fields first
+    const filesToUpload = extractFilesFromRecords(records.value)
+    if (filesToUpload.length > 0) {
+      // Upload files and store their URLs back into records
+      for (const fileInfo of filesToUpload) {
+        const result = await uploadFile(fileInfo.file)
+        if (result.success) {
+          // Find the record and field, update the value with the server URL
+          const record = records.value.find(r => r.recordIndex === fileInfo.recordIndex)
+          if (record) {
+            const field = record.fields.find(
+              f => f.name === fileInfo.fieldName && (f.blockIndex ?? 1) === fileInfo.blockIndex
+            )
+            if (field) {
+              // Replace File object with the server URL
+              field.value = result.fileUrl
+            }
+          }
+        } else {
+          console.error(`Failed to upload file ${fileInfo.file.name}:`, result.error)
+          // Keep the filename as fallback if upload fails
+          const record = records.value.find(r => r.recordIndex === fileInfo.recordIndex)
+          if (record) {
+            const field = record.fields.find(
+              f => f.name === fileInfo.fieldName && (f.blockIndex ?? 1) === fileInfo.blockIndex
+            )
+            if (field) {
+              field.value = fileInfo.file.name
+            }
+          }
+        }
+      }
+    }
+
     const firstNumeric = records.value
         .flatMap(r => r.fields)
         .filter(f => f.type === 'float' || f.type === 'int')
@@ -593,336 +804,526 @@ const liveStatus = computed<string>(() => {
 
 <template>
   <EntityEditorDialog
-      :is-open="modelValue"
-      entity-label="měření"
-      mode="edit"
-      :saving="isSaving"
-      :deletable="true"
-      :width="'980px'"
-      :title-extra="dateYmd ? `${dateYmd}${timeHM ? ' ' + timeHM : ''}` : ''"
-      @update:is-open="v => emits('update:modelValue', v)"
-      @save="onSave"
-      @delete="() => emits('delete')"
-      @cancel="() => emits('update:modelValue', false)"
+    :is-open="modelValue"
+    entity-label="měření"
+    mode="edit"
+    :saving="isSaving"
+    :deletable="true"
+    :width="'1280px'"
+    :max-height="'90vh'"
+    :title-extra="dateYmd ? `${dateYmd}${timeHM ? ' ' + timeHM : ''}` : ''"
+    @update:is-open="v => emits('update:modelValue', v)"
+    @save="onSave"
+    @delete="() => emits('delete')"
+    @cancel="() => emits('update:modelValue', false)"
   >
     <template #header-right>
       <v-btn
-          icon="mdi-chevron-up"
-          variant="text"
-          title="Předchozí měření (Ctrl+←)"
-          @click="() => emits('prev')"
+        icon="mdi-chevron-up"
+        variant="text"
+        title="Předchozí měření (Ctrl+←)"
+        @click="() => emits('prev')"
       />
       <v-btn
-          icon="mdi-chevron-down"
-          variant="text"
-          title="Další měření (Ctrl+→)"
-          @click="() => emits('next')"
+        icon="mdi-chevron-down"
+        variant="text"
+        title="Další měření (Ctrl+→)"
+        @click="() => emits('next')"
       />
     </template>
 
     <v-toolbar
-        density="compact"
-        class="sticky-toolbar mb-3 elevation-1"
-        flat
-        role="toolbar"
-        aria-label="Sekce detailu měření"
+      density="compact"
+      class="sticky-toolbar mb-3 elevation-1"
+      flat
+      role="toolbar"
+      aria-label="Sekce detailu měření"
     >
       <v-toolbar-title class="text-body-2 font-weight-medium">
         Detail měření
       </v-toolbar-title>
       <v-spacer />
       <v-btn
-          size="small"
-          :variant="metaCollapsed ? 'tonal' : 'flat'"
-          :color="metaCollapsed ? undefined : 'primary'"
-          class="mr-1"
-          :aria-expanded="!metaCollapsed"
-          aria-controls="section-meta"
-          title="Meta"
-          @click="toggleMeta"
+        size="small"
+        :variant="metaCollapsed ? 'tonal' : 'flat'"
+        :color="metaCollapsed ? undefined : 'primary'"
+        class="mr-1"
+        :aria-expanded="!metaCollapsed"
+        aria-controls="section-meta"
+        title="Meta"
+        @click="toggleMeta"
       >
         Meta
       </v-btn>
       <v-btn
-          size="small"
-          :variant="valuesCollapsed ? 'tonal' : 'flat'"
-          :color="valuesCollapsed ? undefined : 'primary'"
-          class="mr-1"
-          :aria-expanded="!valuesCollapsed"
-          aria-controls="section-values"
-          title="Hodnoty"
-          @click="toggleValues"
+        size="small"
+        :variant="valuesCollapsed ? 'tonal' : 'flat'"
+        :color="valuesCollapsed ? undefined : 'primary'"
+        class="mr-1"
+        :aria-expanded="!valuesCollapsed"
+        aria-controls="section-values"
+        title="Hodnoty"
+        @click="toggleValues"
       >
         Hodnoty
         <v-badge
-            v-if="invalidCount > 0"
-            :content="invalidCount"
-            color="error"
-            inline
-            class="ml-2"
-            :title="`${invalidCount} neplatných`"
+          v-if="invalidCount > 0"
+          :content="invalidCount"
+          color="error"
+          inline
+          class="ml-2"
+          :title="`${invalidCount} neplatných`"
         />
       </v-btn>
       <v-btn
-          size="small"
-          :variant="statsCollapsed ? 'tonal' : 'flat'"
-          :color="statsCollapsed ? undefined : 'primary'"
-          :aria-expanded="!statsCollapsed"
-          aria-controls="section-stats"
-          title="Statistika"
-          @click="toggleStats"
+        size="small"
+        :variant="statsCollapsed ? 'tonal' : 'flat'"
+        :color="statsCollapsed ? undefined : 'primary'"
+        :aria-expanded="!statsCollapsed"
+        aria-controls="section-stats"
+        title="Statistika"
+        @click="toggleStats"
       >
         Statistika
+      </v-btn>
+      <v-btn
+        size="small"
+        :variant="attachmentsCollapsed ? 'tonal' : 'flat'"
+        :color="attachmentsCollapsed ? undefined : 'primary'"
+        :aria-expanded="!attachmentsCollapsed"
+        aria-controls="section-attachments"
+        title="Přílohy"
+        @click="toggleAttachments"
+      >
+        Přílohy
       </v-btn>
     </v-toolbar>
 
     <div
-        class="detail-scroll"
-        style="height:720px; overflow:auto; padding-right:4px;"
-        aria-live="polite"
-        :aria-label="liveStatus"
+      class="detail-scroll"
+      style="height:720px; overflow:auto; padding-right:4px;"
+      aria-live="polite"
+      :aria-label="liveStatus"
     >
       <!-- Meta -->
       <section
-          id="section-meta"
-          class="mb-4"
-          :aria-hidden="metaCollapsed"
+        id="section-meta"
+        class="meta-section mb-4"
+        :aria-hidden="metaCollapsed"
       >
-        <div
-            class="d-flex align-center mb-2 section-heading"
-            style="gap:6px"
-        >
-          <v-icon size="18" color="grey-darken-2">mdi-information-outline</v-icon>
-          <span class="text-caption text-medium-emphasis">Metadata měření</span>
+        <div class="section-header-row">
+          <v-icon size="18" color="primary">mdi-card-account-details-outline</v-icon>
+          <span class="section-title">Metadata</span>
           <div
-              v-if="metaCollapsed"
-              class="d-flex align-center flex-wrap"
-              style="gap:4px; margin-left:8px;"
+            v-if="metaCollapsed"
+            class="d-flex align-center flex-wrap"
+            style="gap:4px; margin-left:8px;"
           >
-            <v-chip size="x-small" variant="tonal">
-              {{ selectedUsername || '—' }}
-            </v-chip>
-            <v-chip size="x-small" variant="tonal">
-              {{ selectedDeviceId || '—' }}
-            </v-chip>
-            <v-chip size="x-small" variant="tonal">
-              {{ selectedTemplateName || '—' }}
-            </v-chip>
+            <v-chip size="small" variant="tonal">{{ selectedUsername || '—' }}</v-chip>
+            <v-chip size="small" variant="tonal">{{ selectedDeviceId || '—' }}</v-chip>
+            <v-chip size="small" variant="tonal">{{ selectedTemplateName || '—' }}</v-chip>
           </div>
           <v-spacer />
           <v-btn
-              icon
-              variant="text"
-              :aria-label="metaCollapsed ? 'Rozbalit meta' : 'Sbalit meta'"
-              :title="metaCollapsed ? 'Rozbalit' : 'Sbalit'"
-              @click="toggleMeta"
+            icon
+            size="small"
+            variant="text"
+            :title="metaCollapsed ? 'Rozbalit' : 'Sbalit'"
+            @click="toggleMeta"
           >
             <v-icon :class="{'rot-180': !metaCollapsed}">mdi-chevron-down</v-icon>
           </v-btn>
         </div>
-        <v-divider class="mb-2" />
-        <div v-show="!metaCollapsed">
-          <v-row class="g-4">
+        <div v-show="!metaCollapsed" class="meta-content">
+          <!-- ZÁKLADNÍ INFORMACE -->
+          <div class="subsection-label">ZÁKLADNÍ INFORMACE</div>
+          <v-row class="mb-4">
             <v-col cols="12" md="4">
+              <div class="field-label">Člen</div>
               <v-select
-                  v-model="selectedUsername"
-                  :items="members"
-                  label="Člen"
-                  variant="outlined"
-                  density="comfortable"
-                  hide-details="auto"
-                  clearable
-                  data-meta-first
-                  :hint="!selectedUsername ? 'Vyplňte autora měření' : undefined"
-                  persistent-hint
+                v-model="selectedUsername"
+                :items="members"
+                variant="outlined"
+                density="comfortable"
+                hide-details="auto"
+                clearable
+                data-meta-first
+                placeholder="Vyberte člena..."
               />
             </v-col>
             <v-col cols="12" md="4">
+              <div class="field-label">Přístroj</div>
               <v-select
-                  v-model="selectedDeviceId"
-                  :items="devices"
-                  item-title="name"
-                  item-value="id"
-                  label="Přístroj"
-                  variant="outlined"
-                  density="comfortable"
-                  hide-details="auto"
+                v-model="selectedDeviceId"
+                :items="devices"
+                item-title="name"
+                item-value="id"
+                variant="outlined"
+                density="comfortable"
+                hide-details="auto"
+                readonly
+                disabled
+                bg-color="grey-lighten-4"
               >
                 <template #selection="{ item }">
-                  <v-chip size="small" :color="item.raw?.color" text-color="white">
+                  <v-chip
+                    size="small"
+                    :color="item.raw?.color || 'primary'"
+                    variant="flat"
+                    :style="{ color: item.raw?.color ? contrastText(item.raw.color) : 'white' }"
+                  >
                     {{ item.raw?.id }}
                   </v-chip>
                 </template>
               </v-select>
             </v-col>
             <v-col cols="12" md="4">
-              <v-select
-                  v-model="selectedTemplateName"
-                  :items="templates"
-                  item-title="name"
-                  item-value="name"
-                  label="Šablona"
-                  variant="outlined"
-                  density="comfortable"
-                  hide-details="auto"
-                  clearable
-              />
-            </v-col>
-            <v-col cols="12" md="6">
-              <v-text-field
-                  v-model="dateYmd"
-                  type="date"
-                  label="Datum měření"
-                  variant="outlined"
-                  density="comfortable"
-                  hide-details="auto"
-              />
-            </v-col>
-            <v-col cols="12" md="6">
-              <v-text-field
-                  v-model="timeHM"
-                  type="time"
-                  label="Čas měření"
-                  variant="outlined"
-                  density="comfortable"
-                  hide-details="auto"
-              />
-            </v-col>
-            <v-col cols="12">
-              <v-textarea
-                  v-model="noteText"
-                  label="Poznámka"
-                  variant="outlined"
-                  density="comfortable"
-                  auto-grow
-                  rows="2"
-                  hide-details="auto"
+              <div class="field-label">Šablona</div>
+              <TemplateSelect
+                v-model="selectedTemplateName"
+                :items="templates"
+                :device-id="selectedDeviceId"
+                value-key="name"
+                readonly
+                disabled
               />
             </v-col>
           </v-row>
+
+          <!-- DATUM A ČAS MĚŘENÍ -->
+          <div class="subsection-label">DATUM A ČAS MĚŘENÍ</div>
+          <v-row class="mb-4">
+            <v-col cols="12" md="6">
+              <div class="field-label">Datum měření</div>
+              <v-text-field
+                v-model="dateYmd"
+                type="date"
+                variant="outlined"
+                density="comfortable"
+                hide-details="auto"
+              />
+            </v-col>
+            <v-col cols="12" md="6">
+              <div class="field-label">Čas měření</div>
+              <v-text-field
+                v-model="timeHM"
+                type="time"
+                variant="outlined"
+                density="comfortable"
+                hide-details="auto"
+              />
+            </v-col>
+          </v-row>
+
+          <!-- DATUM A ČAS VLOŽENÍ -->
+          <div v-if="createdAtFormatted.date" class="subsection-label">DATUM A ČAS VLOŽENÍ</div>
+          <v-row v-if="createdAtFormatted.date" class="mb-4">
+            <v-col cols="12" md="6">
+              <div class="field-label">Datum vložení</div>
+              <v-text-field
+                :model-value="createdAtFormatted.date"
+                type="text"
+                variant="outlined"
+                density="comfortable"
+                hide-details="auto"
+                readonly
+                bg-color="grey-lighten-4"
+              />
+            </v-col>
+            <v-col cols="12" md="6">
+              <div class="field-label">Čas vložení</div>
+              <v-text-field
+                :model-value="createdAtFormatted.time"
+                type="text"
+                variant="outlined"
+                density="comfortable"
+                hide-details="auto"
+                readonly
+                bg-color="grey-lighten-4"
+              />
+            </v-col>
+          </v-row>
+
+          <!-- DATUM A ČAS ZMĚNY -->
+          <div v-if="updatedAtFormatted.date" class="subsection-label">DATUM A ČAS ZMĚNY</div>
+          <v-row v-if="updatedAtFormatted.date" class="mb-4">
+            <v-col cols="12" md="6">
+              <div class="field-label">Datum změny</div>
+              <v-text-field
+                :model-value="updatedAtFormatted.date"
+                type="text"
+                variant="outlined"
+                density="comfortable"
+                hide-details="auto"
+                readonly
+                bg-color="grey-lighten-4"
+              />
+            </v-col>
+            <v-col cols="12" md="6">
+              <div class="field-label">Čas změny</div>
+              <v-text-field
+                :model-value="updatedAtFormatted.time"
+                type="text"
+                variant="outlined"
+                density="comfortable"
+                hide-details="auto"
+                readonly
+                bg-color="grey-lighten-4"
+              />
+            </v-col>
+          </v-row>
+
+          <!-- Poznámky -->
+          <div class="subsection-label d-flex align-center" style="gap: 6px;">
+            <v-icon size="16">mdi-notebook-outline</v-icon>
+            Poznámky
+          </div>
+          <MarkdownEditor
+            v-model="noteText"
+            :min-height="'150px'"
+            placeholder="Pište poznámky v markdown formátu..."
+          />
+
+          <!-- Zenodo sekce -->
+          <div v-if="item?.zenodoDoi" class="subsection-label d-flex align-center mt-4" style="gap: 6px;">
+            <v-icon size="16" color="deep-purple">mdi-cloud-check</v-icon>
+            Zenodo publikace
+          </div>
+          <v-alert 
+            v-if="item?.zenodoDoi"
+            type="info"
+            variant="tonal"
+            color="deep-purple"
+            class="mt-2"
+            density="compact"
+          >
+            <div class="d-flex align-center justify-space-between flex-wrap" style="gap: 8px;">
+              <div>
+                <strong>DOI:</strong>
+                <a 
+                  :href="getZenodoUrl(item.zenodoDoi)" 
+                  target="_blank"
+                  class="text-decoration-none ml-2"
+                  style="font-family: monospace;"
+                >
+                  {{ item.zenodoDoi }}
+                </a>
+              </div>
+              <v-btn
+                :href="getZenodoUrl(item.zenodoDoi)"
+                target="_blank"
+                size="small"
+                variant="tonal"
+                color="deep-purple"
+                prepend-icon="mdi-open-in-new"
+              >
+                Otevřít v Zenodo
+              </v-btn>
+            </div>
+          </v-alert>
         </div>
       </section>
 
       <!-- Hodnoty -->
       <section
-          id="section-values"
-          class="mb-4"
-          :aria-hidden="valuesCollapsed"
+        id="section-values"
+        class="values-section mb-4"
+        :aria-hidden="valuesCollapsed"
       >
-        <div
-            class="d-flex align-center mb-2"
-            style="gap:8px;"
-        >
-          <span class="text-subtitle-2">Hodnoty (Záznamy)</span>
-          <div
-              class="d-flex flex-wrap"
-              style="gap:6px; margin-left:12px;"
+        <!-- Section header -->
+        <div class="section-header-row">
+          <v-icon size="18" color="primary">mdi-table</v-icon>
+          <span class="section-title">Hodnoty</span>
+          <v-spacer />
+          <v-btn
+            icon
+            size="small"
+            variant="text"
+            :title="valuesCollapsed ? 'Rozbalit' : 'Sbalit'"
+            @click="toggleValues"
           >
-            <v-chip
-                v-for="r in records"
-                :key="r.recordIndex"
-                size="small"
-                :color="r.recordIndex === currentRecordIndex ? 'primary' : (selectedRecordIndexes.has(r.recordIndex) ? 'deep-purple' : undefined)"
-                variant="tonal"
-                :title="`Record ${r.recordIndex} (Shift+klik subset)`"
-                @click="toggleRecordSelection(r.recordIndex, false)"
-                @mousedown.shift.prevent="toggleRecordSelection(r.recordIndex, true)"
+            <v-icon :class="{'rot-180': !valuesCollapsed}">mdi-chevron-down</v-icon>
+          </v-btn>
+        </div>
+
+        <div v-show="!valuesCollapsed">
+        <!-- Records toolbar -->
+        <div
+          class="records-toolbar d-flex align-center justify-space-between mb-3 flex-wrap mt-3"
+          style="gap: 12px;"
+        >
+          <div
+            class="d-flex align-center"
+            style="gap: 6px;"
+          >
+            <v-btn
+              size="small"
+              color="primary"
+              variant="flat"
+              prepend-icon="mdi-plus"
+              title="Přidat další záznam"
+              class="control-btn"
+              @click="addNewRecord"
             >
-              {{ r.recordIndex }}
-            </v-chip>
+              Přidat záznam
+            </v-btn>
             <v-btn
-                size="x-small"
-                variant="text"
-                icon="mdi-plus"
-                title="Nový record"
-                @click="addNewRecord"
+              size="small"
+              variant="tonal"
+              color="secondary"
+              icon="mdi-content-duplicate"
+              title="Duplikovat záznam"
+              :disabled="!currentRecord"
+              @click="duplicateCurrentRecord"
             />
             <v-btn
-                size="x-small"
-                variant="text"
-                icon="mdi-content-copy"
-                title="Duplikovat record"
-                :disabled="!currentRecord"
-                @click="duplicateCurrentRecord"
-            />
-            <v-btn
-                size="x-small"
-                variant="text"
-                icon="mdi-delete-outline"
-                title="Smazat record"
-                :disabled="records.length <= 1"
-                @click="deleteCurrentRecord"
+              size="small"
+              variant="tonal"
+              icon="mdi-delete-outline"
+              color="error"
+              title="Smazat záznam"
+              :disabled="records.length <= 1"
+              @click="deleteCurrentRecord"
             />
           </div>
 
-          <v-spacer />
+          <div
+            class="record-nav d-flex align-center"
+            style="gap: 8px;"
+          >
+            <v-select
+              :model-value="currentRecordIndex"
+              :items="recordItems"
+              item-title="title"
+              item-value="value"
+              density="compact"
+              variant="outlined"
+              hide-details
+              class="record-select"
+              @update:model-value="onSelectRecord"
+            >
+              <template #selection="{ item }">
+                <div
+                  class="d-flex align-center"
+                  style="gap: 8px;"
+                >
+                  <v-icon
+                    size="16"
+                    color="primary"
+                  >
+                    mdi-file-document-outline
+                  </v-icon>
+                  <span>{{ item.title }}</span>
+                </div>
+              </template>
+              <template #append-inner>
+                <v-chip
+                  size="small"
+                  color="primary"
+                  variant="tonal"
+                  class="record-count-chip"
+                >
+                  {{ currentPosition }} / {{ records.length }}
+                </v-chip>
+              </template>
+            </v-select>
+
+            <div
+              class="nav-buttons d-flex"
+              style="gap: 2px;"
+            >
+              <v-btn
+                size="small"
+                variant="tonal"
+                icon="mdi-chevron-left"
+                title="Předchozí (←)"
+                :disabled="currentPosition <= 1"
+                @click="prevRecord"
+              />
+              <v-btn
+                size="small"
+                variant="tonal"
+                icon="mdi-chevron-right"
+                title="Další (→)"
+                :disabled="currentPosition >= records.length"
+                @click="nextRecord"
+              />
+            </div>
+          </div>
+
           <v-btn
-              size="x-small"
-              variant="text"
-              :icon="valuesCollapsed ? 'mdi-chevron-down' : 'mdi-chevron-up'"
-              :title="valuesCollapsed ? 'Rozbalit' : 'Sbalit'"
-              @click="toggleValues"
+            size="small"
+            variant="text"
+            :icon="valuesCollapsed ? 'mdi-chevron-down' : 'mdi-chevron-up'"
+            :title="valuesCollapsed ? 'Rozbalit' : 'Sbalit'"
+            @click="toggleValues"
           />
         </div>
 
         <div v-show="!valuesCollapsed">
           <!-- Block navigation -->
           <div
-              v-if="templateBlocks.length > 1"
-              class="block-navigation mb-3"
+            v-if="templateBlocks.length > 1"
+            class="block-navigation mb-3"
           >
             <div class="d-flex align-center justify-space-between">
-              <div class="d-flex align-center" style="gap: 8px;">
+              <div
+                class="d-flex align-center"
+                style="gap: 8px;"
+              >
                 <v-btn
-                    icon="mdi-chevron-left"
-                    size="small"
-                    variant="text"
-                    :disabled="currentBlockIndex === 0"
-                    title="Předchozí blok"
-                    @click="prevBlock"
+                  icon="mdi-chevron-left"
+                  size="small"
+                  variant="text"
+                  :disabled="currentBlockIndex === 0"
+                  title="Předchozí Tabulka hodnot"
+                  @click="prevBlock"
                 />
                 <div class="text-subtitle-1 font-weight-medium">
-                  {{ currentBlock?.title || `Blok ${currentBlockIndex + 1}` }}
+                  {{ currentBlock?.title || `Tabulka hodnot ${currentBlockIndex + 1}` }}
                 </div>
                 <v-btn
-                    icon="mdi-chevron-right"
-                    size="small"
-                    variant="text"
-                    :disabled="currentBlockIndex === templateBlocks.length - 1"
-                    title="Další blok"
-                    @click="nextBlock"
+                  icon="mdi-chevron-right"
+                  size="small"
+                  variant="text"
+                  :disabled="currentBlockIndex === templateBlocks.length - 1"
+                  title="Další Tabulka hodnot"
+                  @click="nextBlock"
                 />
               </div>
-              <v-chip size="small" variant="tonal">
+              <v-chip
+                size="small"
+                variant="tonal"
+              >
                 {{ currentBlockIndex + 1 }} / {{ templateBlocks.length }}
               </v-chip>
             </div>
 
             <div class="block-tabs mt-2">
               <v-chip
-                  v-for="(block, idx) in templateBlocks"
-                  :key="block.id"
-                  size="small"
-                  :color="idx === currentBlockIndex ? 'primary' : undefined"
-                  :variant="idx === currentBlockIndex ? 'flat' : 'tonal'"
-                  class="mr-1"
-                  @click="currentBlockIndex = idx"
+                v-for="(block, idx) in templateBlocks"
+                :key="block.id"
+                size="small"
+                :color="idx === currentBlockIndex ? 'primary' : undefined"
+                :variant="idx === currentBlockIndex ? 'flat' : 'tonal'"
+                class="mr-1"
+                @click="currentBlockIndex = idx"
               >
                 {{ block.title }}
                 <v-badge
-                    v-if="block.fields.length"
-                    :content="block.fields.length"
-                    color="grey"
-                    inline
-                    class="ml-1"
+                  v-if="block.fields.length"
+                  :content="block.fields.length"
+                  color="grey"
+                  inline
+                  class="ml-1"
                 />
               </v-chip>
             </div>
           </div>
 
           <div
-              v-else-if="currentBlock && templateBlocks.length === 1"
-              class="block-header mb-3"
+            v-else-if="currentBlock && templateBlocks.length === 1"
+            class="block-header mb-3"
           >
             <div class="text-subtitle-1 font-weight-medium">
               {{ currentBlock.title }}
@@ -931,28 +1332,40 @@ const liveStatus = computed<string>(() => {
 
           <!-- Fields grid (bez Poř. kolony) -->
           <div class="grid header-row">
-            <div class="cell muted">Název + Typ</div>
-            <div class="cell muted">Hodnota</div>
-            <div class="cell muted">Stav</div>
+            <div class="cell muted">
+              Název + Typ
+            </div>
+            <div class="cell muted">
+              Hodnota
+            </div>
+            <div class="cell muted">
+              Stav
+            </div>
           </div>
 
-          <transition-group name="fade-y" tag="div">
+          <transition-group
+            name="fade-y"
+            tag="div"
+          >
             <div
-                v-for="(field, idx) in currentBlockFields"
-                :key="field.name"
-                class="grid data-row"
-                :class="{'has-error': !!fieldError(field)}"
-                :aria-label="`Field ${idx+1}: ${field.name} (${TYPE_LABEL[field.type]})`"
+              v-for="(field, idx) in currentBlockFields"
+              :key="field.name"
+              class="grid data-row"
+              :class="{'has-error': !!fieldError(field)}"
+              :aria-label="`Field ${idx+1}: ${field.name} (${TYPE_LABEL[field.type]})`"
             >
               <!-- Název + typ -->
               <div class="cell name name-with-chip">
-                <div class="d-flex align-center" style="gap:8px; min-width:0;">
+                <div
+                  class="d-flex align-center"
+                  style="gap:8px; min-width:0;"
+                >
                   <span class="name-text">{{ field.name }}</span>
                   <v-chip
-                      size="x-small"
-                      color="primary"
-                      variant="tonal"
-                      class="type-chip"
+                    size="small"
+                    color="primary"
+                    variant="tonal"
+                    class="type-chip"
                   >
                     {{ TYPE_LABEL[field.type] }}
                   </v-chip>
@@ -962,51 +1375,81 @@ const liveStatus = computed<string>(() => {
               <!-- Hodnota -->
               <div class="cell value">
                 <v-switch
-                    v-if="field.type === 'bool'"
-                    :model-value="textModel(field)"
-                    color="deep-purple"
-                    hide-details
-                    inset
-                    density="comfortable"
-                    data-field-input
-                    @update:model-value="val => updateField(field, val)"
+                  v-if="field.type === 'bool'"
+                  :model-value="textModel(field)"
+                  color="deep-purple"
+                  hide-details
+                  inset
+                  density="comfortable"
+                  data-field-input
+                  @update:model-value="val => updateField(field, val)"
                 />
                 <v-text-field
-                    v-else-if="field.type === 'int'"
-                    :model-value="textModel(field)"
-                    type="text"
-                    inputmode="numeric"
-                    variant="outlined"
-                    density="comfortable"
-                    hide-details="auto"
-                    placeholder="123"
-                    data-field-input
-                    @update:model-value="val => updateField(field, val)"
+                  v-else-if="field.type === 'int'"
+                  :model-value="textModel(field)"
+                  type="text"
+                  inputmode="numeric"
+                  variant="outlined"
+                  density="comfortable"
+                  hide-details="auto"
+                  placeholder="123"
+                  data-field-input
+                  @update:model-value="val => updateField(field, val)"
                 />
                 <v-text-field
-                    v-else-if="field.type === 'float'"
-                    :model-value="textModel(field)"
-                    type="text"
-                    inputmode="decimal"
-                    variant="outlined"
-                    density="comfortable"
-                    hide-details="auto"
-                    placeholder="123,45"
-                    data-field-input
-                    @update:model-value="val => updateField(field, val)"
+                  v-else-if="field.type === 'float'"
+                  :model-value="textModel(field)"
+                  type="text"
+                  inputmode="decimal"
+                  variant="outlined"
+                  density="comfortable"
+                  hide-details="auto"
+                  placeholder="123,45"
+                  data-field-input
+                  @update:model-value="val => updateField(field, val)"
                 />
                 <v-text-field
-                    v-else-if="field.type === 'date'"
-                    :model-value="dateModel(field)"
-                    type="date"
-                    variant="outlined"
-                    density="comfortable"
-                    hide-details="auto"
-                    data-field-input
-                    @update:model-value="val => updateField(field, val)"
+                  v-else-if="field.type === 'date'"
+                  :model-value="dateModel(field)"
+                  type="date"
+                  variant="outlined"
+                  density="comfortable"
+                  hide-details="auto"
+                  data-field-input
+                  @update:model-value="val => updateField(field, val)"
                 />
-                <v-file-input
-                    v-else-if="field.type === 'file'"
+                <!-- File field: show existing file or upload input -->
+                <div v-else-if="field.type === 'file'" class="file-field-container">
+                  <!-- Show existing uploaded file -->
+                  <div v-if="hasExistingFileUrl(field)" class="existing-file d-flex align-center ga-2">
+                    <v-img
+                      v-if="isImageFile(field)"
+                      :src="getFileDisplayUrl(field)"
+                      max-width="60"
+                      max-height="60"
+                      class="rounded border"
+                      cover
+                    />
+                    <v-icon v-else size="24" color="grey">mdi-file-document-outline</v-icon>
+                    <a 
+                      :href="getFileDisplayUrl(field)" 
+                      target="_blank" 
+                      class="text-primary text-decoration-none"
+                    >
+                      {{ getFileNameFromUrl(field) }}
+                    </a>
+                    <v-btn
+                      icon="mdi-close"
+                      size="small"
+                      variant="text"
+                      color="error"
+                      title="Odstranit soubor a nahrát nový"
+                      @click="clearExistingFile(field)"
+                    />
+                  </div>
+                  <!-- Show file input for new upload -->
+                  <v-file-input
+                    v-else
                     :model-value="fileModel(field)"
                     density="comfortable"
                     hide-details="auto"
@@ -1015,116 +1458,119 @@ const liveStatus = computed<string>(() => {
                     show-size
                     data-field-input
                     @update:model-value="val => updateField(field, (Array.isArray(val) ? val[0] : val))"
-                />
+                  />
+                </div>
                 <v-text-field
-                    v-else
-                    :model-value="textModel(field)"
-                    type="text"
-                    variant="outlined"
-                    density="comfortable"
-                    hide-details="auto"
-                    placeholder="Text…"
-                    data-field-input
-                    @update:model-value="val => updateField(field, val)"
+                  v-else
+                  :model-value="textModel(field)"
+                  type="text"
+                  variant="outlined"
+                  density="comfortable"
+                  hide-details="auto"
+                  placeholder="Text…"
+                  data-field-input
+                  @update:model-value="val => updateField(field, val)"
                 />
               </div>
 
               <!-- Stav -->
               <div class="cell right">
                 <v-tooltip
-                    v-if="fieldError(field)"
-                    location="top"
+                  v-if="fieldError(field)"
+                  location="top"
                 >
                   <template #activator="{ props: tp }">
                     <v-icon
-                        v-bind="tp"
-                        size="18"
-                        color="error"
-                        icon="mdi-alert-circle-outline"
+                      v-bind="tp"
+                      size="18"
+                      color="error"
+                      icon="mdi-alert-circle-outline"
                     />
                   </template>
                   <span>{{ fieldError(field) }}</span>
                 </v-tooltip>
                 <v-icon
-                    v-else
-                    size="18"
-                    color="green-darken-2"
-                    icon="mdi-check-circle-outline"
+                  v-else
+                  size="18"
+                  color="green-darken-2"
+                  icon="mdi-check-circle-outline"
                 />
               </div>
             </div>
           </transition-group>
         </div>
+        </div>
       </section>
 
       <!-- Statistika -->
       <section
-          id="section-stats"
-          :aria-hidden="statsCollapsed"
+        id="section-stats"
+        class="stats-section"
+        :aria-hidden="statsCollapsed"
       >
-        <div
-            class="d-flex align-center mb-2"
-            style="gap:6px;"
-        >
-          <span class="text-subtitle-2">Vizualizace / Statistika</span>
+        <div class="section-header-row">
+          <v-icon size="18" color="primary">mdi-chart-bar</v-icon>
+          <span class="section-title">Statistika</span>
           <div
-              v-if="statsCollapsed"
-              class="d-flex align-center flex-wrap"
-              style="gap:4px; margin-left:8px;"
+            v-if="statsCollapsed"
+            class="d-flex align-center flex-wrap"
+            style="gap:4px; margin-left:8px;"
           >
             <v-chip
-                v-for="(t, i) in statsSummary"
-                :key="i"
-                size="x-small"
-                variant="tonal"
+              v-for="(t, i) in statsSummary"
+              :key="i"
+              size="small"
+              variant="tonal"
             >
               {{ t }}
             </v-chip>
           </div>
           <v-spacer />
           <v-btn
-              size="x-small"
-              variant="text"
-              :icon="statsCollapsed ? 'mdi-chevron-down' : 'mdi-chevron-up'"
-              :title="statsCollapsed ? 'Rozbalit' : 'Sbalit'"
-              @click="toggleStats"
-          />
+            icon
+            size="small"
+            variant="text"
+            :title="statsCollapsed ? 'Rozbalit' : 'Sbalit'"
+            @click="toggleStats"
+          >
+            <v-icon :class="{'rot-180': !statsCollapsed}">mdi-chevron-down</v-icon>
+          </v-btn>
         </div>
 
         <v-sheet
-            v-show="!statsCollapsed"
-            elevation="1"
-            class="pa-4 rounded-lg"
-            aria-label="Panel statistik"
+          v-show="!statsCollapsed"
+          elevation="1"
+          class="pa-4 rounded-lg"
+          aria-label="Panel statistik"
         >
           <div
-              class="d-flex align-center mb-3 flex-wrap"
-              style="gap:8px;"
+            class="d-flex align-center mb-3 flex-wrap"
+            style="gap:8px;"
           >
             <div class="text-caption font-weight-medium">
               Numerická pole:
             </div>
             <div
-                class="d-flex align-center flex-wrap"
-                style="gap:6px;"
+              class="d-flex align-center flex-wrap"
+              style="gap:6px;"
             >
               <v-chip
-                  v-for="(f, i) in numericFieldNames"
-                  :key="`${f}-${i}`"
-                  :color="selectedField === f ? 'primary' : undefined"
-                  variant="tonal"
-                  size="small"
-                  @click="selectedField = f"
+                v-for="(f, i) in numericFieldNames"
+                :key="`${f}-${i}`"
+                :color="selectedField === f ? 'primary' : undefined"
+                variant="tonal"
+                size="small"
+                @click="selectedField = f"
               >
                 {{ f }}
               </v-chip>
               <v-chip
-                  v-if="numericFieldNames.length > 1"
-                  :color="!selectedField ? 'primary' : undefined"
-                  variant="tonal"
-                  size="small"
-                  title="Vše"
-                  @click="selectedField = null"
+                v-if="numericFieldNames.length > 1"
+                :color="!selectedField ? 'primary' : undefined"
+                variant="tonal"
+                size="small"
+                title="Vše"
+                @click="selectedField = null"
               >
                 Vše
               </v-chip>
@@ -1132,30 +1578,203 @@ const liveStatus = computed<string>(() => {
 
             <v-spacer />
             <v-btn
-                size="small"
-                variant="text"
-                title="Export numerických hodnot (Ctrl+E)"
-                @click="exportSelectedCsv"
+              size="small"
+              variant="text"
+              title="Export numerických hodnot (Ctrl+E)"
+              @click="exportSelectedCsv"
             >
               Export CSV
             </v-btn>
           </div>
 
           <ChartPanel
-              :chart-points="chartPoints"
-              :stats="statsObj"
-              :fields="numericFieldNames"
-              :selected-field="selectedField"
-              @select-field="f => (selectedField = f)"
+            :chart-points="chartPoints"
+            :stats="statsObj"
+            :fields="numericFieldNames"
+            :selected-field="selectedField"
+            @select-field="f => (selectedField = f)"
           />
           <div
-              v-if="outliers.outlierIndexes.length"
-              class="text-caption mt-2"
+            v-if="outliers.outlierIndexes.length"
+            class="text-caption mt-2"
           >
             Outliers: {{ outliers.outlierIndexes.join(', ') }}
             (fence {{ outliers.lowerFence.toFixed(2) }} – {{ outliers.upperFence.toFixed(2) }})
           </div>
         </v-sheet>
+      </section>
+
+      <!-- Datové série -->
+      <section
+        v-if="hasSeries"
+        id="section-series"
+        :aria-hidden="seriesCollapsed"
+        class="mt-4"
+      >
+        <div
+          class="d-flex align-center mb-2"
+          style="gap:8px;"
+        >
+          <span class="text-subtitle-2">Datové série</span>
+          <v-chip
+            size="small"
+            color="deep-purple"
+            variant="tonal"
+          >
+            {{ measurementSeries.length }} {{ measurementSeries.length === 1 ? 'série' : 'sérií' }}
+          </v-chip>
+          <v-spacer />
+          <v-btn
+            size="small"
+            variant="text"
+            :icon="seriesCollapsed ? 'mdi-chevron-down' : 'mdi-chevron-up'"
+            :title="seriesCollapsed ? 'Rozbalit' : 'Sbalit'"
+            @click="toggleSeries"
+          />
+        </div>
+
+        <v-sheet
+          v-show="!seriesCollapsed"
+          class="pa-4"
+          rounded="lg"
+          color="grey-lighten-5"
+        >
+          <!-- Series selector -->
+          <div
+            v-if="measurementSeries.length > 1"
+            class="mb-3"
+          >
+            <div
+              class="d-flex align-center flex-wrap"
+              style="gap: 6px;"
+            >
+              <v-chip
+                v-for="(s, idx) in measurementSeries"
+                :key="s.id || idx"
+                :color="selectedSeriesIndex === idx ? 'deep-purple' : undefined"
+                :variant="selectedSeriesIndex === idx ? 'flat' : 'tonal'"
+                size="small"
+                @click="selectedSeriesIndex = idx"
+              >
+                {{ s.seriesName || s.seriesType || `Série ${idx + 1}` }}
+              </v-chip>
+            </div>
+          </div>
+
+          <!-- Current series info -->
+          <div
+            v-if="currentSeries"
+            class="series-info"
+          >
+            <div class="d-flex align-center justify-space-between mb-2">
+              <div>
+                <span class="text-subtitle-2">{{ currentSeries.seriesName || currentSeries.seriesType }}</span>
+                <v-chip
+                  size="small"
+                  variant="outlined"
+                  class="ml-2"
+                >
+                  {{ currentSeries.seriesType }}
+                </v-chip>
+              </div>
+              <v-chip
+                size="small"
+                color="primary"
+                variant="tonal"
+              >
+                {{ (currentSeries.xValues ?? []).length }} bodů
+              </v-chip>
+            </div>
+
+            <!-- Units -->
+            <div
+              v-if="currentSeries.xUnit || currentSeries.yUnit"
+              class="text-caption text-medium-emphasis mb-2"
+            >
+              X: {{ currentSeries.xUnit || '—' }} | Y: {{ currentSeries.yUnit || '—' }}
+            </div>
+
+            <!-- Data preview -->
+            <div
+              class="series-data-preview"
+              style="max-height: 400px; overflow-y: auto;"
+            >
+              <v-table
+                density="compact"
+                class="series-table"
+              >
+                <thead>
+                  <tr>
+                    <th style="width: 60px;">
+                      #
+                    </th>
+                    <th>X</th>
+                    <th>Y</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    v-for="(x, i) in (currentSeries.xValues ?? [])"
+                    :key="i"
+                  >
+                    <td class="text-caption text-medium-emphasis">
+                      {{ i + 1 }}
+                    </td>
+                    <td>{{ x }}</td>
+                    <td>{{ (currentSeries.yValues ?? [])[i] ?? '—' }}</td>
+                  </tr>
+                </tbody>
+              </v-table>
+            </div>
+          </div>
+        </v-sheet>
+      </section>
+
+      <!-- Přílohy / Attachments -->
+      <section
+        id="section-attachments"
+        class="mt-4"
+        :aria-hidden="attachmentsCollapsed"
+      >
+        <div class="section-header-row">
+          <v-icon size="18" color="primary">mdi-paperclip</v-icon>
+          <span class="section-title">Přílohy</span>
+          <v-spacer />
+          <v-btn
+            icon
+            size="small"
+            variant="text"
+            :title="attachmentsCollapsed ? 'Rozbalit' : 'Sbalit'"
+            @click="toggleAttachments"
+          >
+            <v-icon :class="{'rot-180': !attachmentsCollapsed}">mdi-chevron-down</v-icon>
+          </v-btn>
+        </div>
+        <div v-show="!attachmentsCollapsed" class="attachments-content">
+          <!-- File Uploader -->
+          <FileUploader
+            v-if="item?.id"
+            :measurement-id="item.id"
+            class="mb-4"
+            @uploaded="onAttachmentUploaded"
+          />
+          <v-alert
+            v-else
+            type="info"
+            variant="tonal"
+            density="compact"
+            class="mb-4"
+          >
+            Uložte měření pro možnost přidávat přílohy.
+          </v-alert>
+
+          <!-- Attachment List -->
+          <AttachmentList
+            v-if="item?.id"
+            ref="attachmentListRef"
+            :measurement-id="item.id"
+          />
+        </div>
       </section>
     </div>
 
@@ -1170,23 +1789,23 @@ const liveStatus = computed<string>(() => {
           </span>
         </div>
         <div
-            class="d-flex"
-            style="gap:12px;"
+          class="d-flex"
+          style="gap:12px;"
         >
           <v-btn
-              variant="text"
-              title="Zavřít (Esc)"
-              @click="emits('update:modelValue', false)"
+            variant="text"
+            title="Zavřít (Esc)"
+            @click="emits('update:modelValue', false)"
           >
             Zavřít
           </v-btn>
           <v-btn
-              color="primary"
-              variant="flat"
-              :disabled="!canSaveMeta || isSaving"
-              :loading="isSaving"
-              title="Uložit (Ctrl+S)"
-              @click="onSave"
+            color="primary"
+            variant="flat"
+            :disabled="!canSaveMeta || isSaving"
+            :loading="isSaving"
+            title="Uložit (Ctrl+S)"
+            @click="onSave"
           >
             Uložit
           </v-btn>
@@ -1197,44 +1816,107 @@ const liveStatus = computed<string>(() => {
 </template>
 
 <style scoped>
+/* ===== Section Cards - Unified Visual Separator ===== */
+.section-card {
+  background: #fafbfc;
+  border: 1px solid #e8eaed;
+  border-radius: 12px;
+  padding: 16px 20px;
+  margin-bottom: 16px;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e8eaed;
+}
+
+.section-title {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: #1f2937;
+}
+
+.section-icon {
+  color: #6366f1;
+}
+
+/* ===== Section Header Row - Unified ===== */
+.section-header-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.section-title {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: #1f2937;
+}
+
+/* ===== Grid Layout ===== */
 .grid {
   display: grid;
   grid-template-columns: 1fr minmax(240px, 1.5fr) 72px;
   gap: 8px;
   align-items: center;
 }
+
 .header-row {
   padding: 6px 6px 8px 6px;
   font-size: 0.75rem;
   letter-spacing: .03em;
   text-transform: uppercase;
-  color: var(--v-theme-grey-darken-2);
+  color: #6b7280;
+  font-weight: 600;
 }
+
 .data-row {
-  padding: 6px;
+  padding: 8px 10px;
   border-radius: 8px;
   transition: background-color .15s, box-shadow .15s;
+  border: 1px solid transparent;
 }
-.data-row:hover { background: #f9fafc; }
-.data-row.has-error { background: #fff6f6; }
-.cell.muted { font-size: .75rem; }
+
+.data-row:hover { 
+  background: #f3f4f6; 
+  border-color: #e5e7eb;
+}
+
+.data-row.has-error { 
+  background: #fef2f2; 
+  border-color: #fecaca;
+}
+
+.cell.muted { font-size: .75rem; color: #6b7280; }
 .cell.right { text-align: right; }
+
+/* ===== Name and Type Chips ===== */
 .name-with-chip { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.name-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+.name-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; color: #1f2937; }
 .type-chip { font-weight: 600; letter-spacing: .02em; text-transform: none; }
 
+/* ===== Utilities ===== */
 .rot-180 { transform: rotate(180deg); }
-
 .detail-scroll { box-sizing: border-box; }
 
+/* ===== Sticky Toolbar ===== */
 .sticky-toolbar {
   position: sticky;
   top: 0;
   z-index: 30;
-  backdrop-filter: blur(6px);
-  background-color: rgba(255,255,255,0.78);
+  backdrop-filter: blur(8px);
+  background: linear-gradient(to bottom, rgba(255,255,255,0.95), rgba(255,255,255,0.90));
+  border-bottom: 1px solid #e5e7eb;
 }
 
+/* ===== Focus Styles ===== */
 [data-field-input]:focus-visible {
   outline: 2px solid var(--v-theme-primary);
   outline-offset: 2px;
@@ -1243,27 +1925,176 @@ const liveStatus = computed<string>(() => {
 
 .section-heading { font-weight: 600; letter-spacing: .02em; }
 
+/* ===== Block Navigation ===== */
 .block-navigation {
-  background: #f8f9fb;
-  border-radius: 8px;
-  padding: 12px 16px;
+  background: #f1f5f9;
+  border-radius: 10px;
+  padding: 14px 18px;
+  border: 1px solid #e2e8f0;
 }
 
 .block-tabs {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: 6px;
 }
 
 .block-header {
-  background: #f8f9fb;
-  border-radius: 8px;
-  padding: 12px 16px;
+  background: #f1f5f9;
+  border-radius: 10px;
+  padding: 14px 18px;
+  border: 1px solid #e2e8f0;
 }
 
+/* ===== Record Navigation ===== */
+.record-select {
+  min-width: 180px;
+  max-width: 220px;
+}
+
+.record-count-chip {
+  font-weight: 600;
+  font-size: 0.7rem;
+}
+
+.record-nav {
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+}
+
+.nav-buttons {
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.records-toolbar {
+  background: linear-gradient(135deg, #f0f9ff 0%, #faf5ff 100%);
+  border-radius: 10px;
+  padding: 10px 14px;
+  border: 1px solid #e0e7ff;
+}
+
+/* ===== Responsive ===== */
 @media (max-width: 1040px) {
   .grid {
     grid-template-columns: 1fr minmax(180px, 1.2fr) 56px;
   }
+}
+
+/* ===== Series Section ===== */
+.series-section {
+  background: linear-gradient(135deg, #faf5ff 0%, #f0f9ff 100%);
+  border: 1px solid #e9d5ff;
+  border-radius: 12px;
+  padding: 16px 20px;
+}
+
+.series-data-preview {
+  max-height: 300px;
+  overflow-y: auto;
+  border-radius: 8px;
+  background: white;
+}
+
+.series-data-table {
+  background: white;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid #e5e7eb;
+}
+
+.series-table {
+  width: 100%;
+  font-size: 0.85rem;
+  border-collapse: collapse;
+}
+
+.series-table th {
+  font-weight: 600;
+  background: #f8fafc;
+  padding: 10px 12px;
+  text-align: left;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.series-table td {
+  font-family: 'Roboto Mono', monospace;
+  font-size: 0.8rem;
+  padding: 8px 12px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.series-table tr:last-child td {
+  border-bottom: none;
+}
+
+/* ===== File Field Styles ===== */
+.file-field-container {
+  min-height: 40px;
+}
+
+.existing-file {
+  padding: 10px 14px;
+  background: #f8fafc;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+
+.existing-file a {
+  font-weight: 500;
+  word-break: break-all;
+  color: #6366f1;
+}
+
+.existing-file a:hover {
+  text-decoration: underline !important;
+}
+
+/* ===== Stats Section ===== */
+.stats-section {
+  background: linear-gradient(135deg, #f0fdf4 0%, #f0f9ff 100%);
+  border: 1px solid #bbf7d0;
+  border-radius: 12px;
+  padding: 16px 20px;
+}
+
+/* ===== Meta Section ===== */
+.meta-section {
+  background: #fafbfc;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 16px 20px;
+}
+
+/* ===== Values Section ===== */
+.values-section {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 16px 20px;
+}
+
+/* ===== Metadata Content ===== */
+.meta-content {
+  margin-top: 8px;
+}
+
+.subsection-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #6b7280;
+  margin-bottom: 12px;
+  margin-top: 8px;
+}
+
+.field-label {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: #374151;
+  margin-bottom: 6px;
 }
 </style>

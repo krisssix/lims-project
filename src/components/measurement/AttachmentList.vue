@@ -1,0 +1,289 @@
+<template>
+  <div class="attachment-list">
+    <!-- Empty State -->
+    <div v-if="!loading && attachments.length === 0" class="empty-state">
+      <v-icon size="48" color="grey-lighten-1">mdi-paperclip</v-icon>
+      <p class="text-grey mt-2">Žádné přílohy</p>
+    </div>
+
+    <!-- Loading State -->
+    <div v-else-if="loading" class="d-flex justify-center py-4">
+      <v-progress-circular indeterminate color="primary" size="32" />
+    </div>
+
+    <!-- Attachment Items -->
+    <div v-else class="attachment-items">
+      <div
+        v-for="attachment in attachments"
+        :key="attachment.id"
+        class="attachment-item"
+        @click="viewFile(attachment)"
+      >
+        <!-- Preview / Icon -->
+        <div class="attachment-item__preview">
+          <img
+            v-if="isImage(attachment.contentType)"
+            :src="getDownloadUrl(attachment)"
+            :alt="attachment.originalName"
+            class="attachment-item__thumbnail"
+          />
+          <v-icon
+            v-else
+            :icon="getIcon(attachment.contentType)"
+            :color="getIconColor(attachment.contentType)"
+            size="32"
+          />
+        </div>
+
+        <!-- Info -->
+        <div class="attachment-item__info">
+          <p class="attachment-item__name text-truncate">{{ attachment.originalName }}</p>
+          <p class="attachment-item__meta text-grey">
+            {{ formatSize(attachment.sizeBytes) }}
+            <span v-if="attachment.uploadedByUsername"> • {{ attachment.uploadedByUsername }}</span>
+            <span v-if="attachment.createdAt"> • {{ formatDate(attachment.createdAt) }}</span>
+          </p>
+        </div>
+
+        <!-- Actions -->
+        <div class="attachment-item__actions" @click.stop>
+          <v-btn
+            icon="mdi-download"
+            size="small"
+            variant="text"
+            color="primary"
+            title="Stáhnout"
+            @click="downloadFile(attachment)"
+          />
+          <v-btn
+            v-if="!readonly"
+            icon="mdi-delete"
+            size="small"
+            variant="text"
+            color="error"
+            title="Smazat"
+            :loading="deletingId === attachment.id"
+            @click="confirmDelete(attachment)"
+          />
+        </div>
+      </div>
+    </div>
+
+    <!-- Delete Confirmation Dialog -->
+    <v-dialog v-model="deleteDialog" max-width="400">
+      <v-card>
+        <v-card-title>Smazat přílohu?</v-card-title>
+        <v-card-text>
+          Opravdu chcete smazat soubor <strong>{{ attachmentToDelete?.originalName }}</strong>?
+          Tato akce je nevratná.
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn variant="text" @click="deleteDialog = false">Zrušit</v-btn>
+          <v-btn color="error" variant="flat" @click="doDelete">Smazat</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, watch, onMounted } from 'vue'
+import {
+  useAttachments,
+  formatFileSize,
+  getFileTypeConfig,
+  isImageType,
+  type FileAttachment
+} from '@/composables/useAttachments'
+
+const props = defineProps<{
+  measurementId: number
+  readonly?: boolean
+}>()
+
+const emit = defineEmits<{
+  (e: 'deleted', fileId: number): void
+}>()
+
+const {
+  loading,
+  attachments,
+  fetchAttachments,
+  deleteAttachment,
+  getDownloadUrl,
+  getViewUrl
+} = useAttachments()
+
+const deleteDialog = ref(false)
+const attachmentToDelete = ref<FileAttachment | null>(null)
+const deletingId = ref<number | null>(null)
+
+// Fetch on mount and when measurementId changes
+onMounted(() => {
+  if (props.measurementId) {
+    fetchAttachments(props.measurementId)
+  }
+})
+
+watch(() => props.measurementId, (newId) => {
+  if (newId) {
+    fetchAttachments(newId)
+  }
+})
+
+function isImage(contentType: string | undefined): boolean {
+  return isImageType(contentType)
+}
+
+function getIcon(contentType: string | undefined): string {
+  return getFileTypeConfig(contentType).icon
+}
+
+function getIconColor(contentType: string | undefined): string {
+  return getFileTypeConfig(contentType).color
+}
+
+function formatSize(bytes: number): string {
+  return formatFileSize(bytes)
+}
+
+function formatDate(timestamp: number): string {
+  const date = new Date(timestamp)
+  return date.toLocaleDateString('cs-CZ', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric'
+  })
+}
+
+function viewFile(attachment: FileAttachment) {
+  const url = getViewUrl(attachment)
+  window.open(url, '_blank')
+}
+
+function downloadFile(attachment: FileAttachment) {
+  const url = getDownloadUrl(attachment)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = attachment.originalName
+  link.target = '_blank'
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+}
+
+function confirmDelete(attachment: FileAttachment) {
+  attachmentToDelete.value = attachment
+  deleteDialog.value = true
+}
+
+async function doDelete() {
+  if (!attachmentToDelete.value) return
+
+  const id = attachmentToDelete.value.id
+  deletingId.value = id
+  deleteDialog.value = false
+
+  try {
+    await deleteAttachment(id)
+    emit('deleted', id)
+  } catch (e) {
+    console.error('Failed to delete attachment:', e)
+  } finally {
+    deletingId.value = null
+    attachmentToDelete.value = null
+  }
+}
+
+/**
+ * Refresh attachments list (can be called externally after upload).
+ */
+function refresh() {
+  if (props.measurementId) {
+    fetchAttachments(props.measurementId)
+  }
+}
+
+defineExpose({ refresh })
+</script>
+
+<style scoped>
+.attachment-list {
+  width: 100%;
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 32px;
+  color: rgba(var(--v-theme-on-surface), 0.5);
+}
+
+.attachment-items {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.attachment-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 8px;
+  background: #2196f30d;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.attachment-item:hover {
+  background: rgba(var(--v-theme-primary), 0.08);
+}
+
+.attachment-item__preview {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: 8px;
+  background: rgba(var(--v-theme-surface-variant), 0.5);
+  overflow: hidden;
+}
+
+.attachment-item__thumbnail {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.attachment-item__info {
+  flex: 1;
+  min-width: 0;
+}
+
+.attachment-item__name {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.attachment-item__meta {
+  margin: 2px 0 0;
+  font-size: 0.75rem;
+}
+
+.attachment-item__actions {
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.attachment-item:hover .attachment-item__actions {
+  opacity: 1;
+}
+</style>
