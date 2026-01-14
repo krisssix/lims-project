@@ -341,7 +341,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
                   <span class="preview-name">{{ formName || 'Název přístroje' }}</span>
                   <v-chip
                     v-if="active"
-                    size="x-small"
+                    size="small"
                     color="success"
                     variant="flat"
                   >
@@ -349,7 +349,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
                   </v-chip>
                   <v-chip
                     v-if="!active"
-                    size="x-small"
+                    size="small"
                     color="grey"
                     variant="flat"
                   >

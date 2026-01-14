@@ -135,7 +135,7 @@ function onKeydown(e: KeyboardEvent): void {
           </v-avatar>
           <div class="ml-3">
             <div class="text-h6">
-              Nový přístroj
+              Vytvořit nový přístroj
             </div>
             <div class="text-caption text-medium-emphasis">
               Vytvořte nový měřicí přístroj
@@ -321,7 +321,7 @@ function onKeydown(e: KeyboardEvent): void {
                   </v-chip>
                   <span class="preview-name">{{ formName || 'Název přístroje' }}</span>
                   <v-chip
-                    size="x-small"
+                    size="small"
                     :color="active ? 'success' : 'grey'"
                     variant="flat"
                   >

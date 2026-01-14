@@ -24,24 +24,45 @@ const filtered = computed<Device[]>(() => {
 const selectedIds = ref<Set<number>>(new Set())
 const lastClickedId = ref<number | null>(null)
 
-function handleRowClick(device: Device, event: MouseEvent): void {
-  const deviceIndex = filtered.value.findIndex(d => d.id === device.id)
+// Shift key state tracking
+const shiftPressed = ref(false)
 
-  if (event.shiftKey && lastClickedId.value !== null) {
-    // Shift+click: range select
-    const lastIndex = filtered.value.findIndex(d => d.id === lastClickedId.value)
-    if (lastIndex !== -1 && deviceIndex !== -1) {
-      const start = Math.min(lastIndex, deviceIndex)
-      const end = Math.max(lastIndex, deviceIndex)
-      const newSet = new Set(selectedIds.value)
-      for (let i = start; i <= end; i++) {
-        const d = filtered.value[i]
-        if (d) newSet.add(d.id)
-      }
-      selectedIds.value = newSet
+function handleKeyDown(e: KeyboardEvent): void {
+  if (e.key === 'Shift') shiftPressed.value = true
+}
+
+function handleKeyUp(e: KeyboardEvent): void {
+  if (e.key === 'Shift') shiftPressed.value = false
+}
+
+// Range select helper function
+function selectRange(fromId: number | null, toId: number): void {
+  if (fromId === null) {
+    const newSet = new Set(selectedIds.value)
+    newSet.add(toId)
+    selectedIds.value = newSet
+    return
+  }
+
+  const fromIndex = filtered.value.findIndex(d => d.id === fromId)
+  const toIndex = filtered.value.findIndex(d => d.id === toId)
+
+  if (fromIndex !== -1 && toIndex !== -1) {
+    const start = Math.min(fromIndex, toIndex)
+    const end = Math.max(fromIndex, toIndex)
+    const newSet = new Set(selectedIds.value)
+    for (let i = start; i <= end; i++) {
+      const d = filtered.value[i]
+      if (d) newSet.add(d.id)
     }
+    selectedIds.value = newSet
+  }
+}
+
+function handleRowClick(device: Device, event: MouseEvent): void {
+  if (event.shiftKey && lastClickedId.value !== null) {
+    selectRange(lastClickedId.value, device.id)
   } else if (event.ctrlKey || event.metaKey) {
-    // Ctrl+click: toggle selection
     const newSet = new Set(selectedIds.value)
     if (newSet.has(device.id)) {
       newSet.delete(device.id)
@@ -51,10 +72,24 @@ function handleRowClick(device: Device, event: MouseEvent): void {
     selectedIds.value = newSet
     lastClickedId.value = device.id
   } else {
-    // Normal click: open detail dialog
     openDetail(device)
     lastClickedId.value = device.id
   }
+}
+
+function handleCheckboxClick(device: Device, checked: boolean, event: MouseEvent): void {
+  if (event.shiftKey && lastClickedId.value !== null) {
+    selectRange(lastClickedId.value, device.id)
+  } else {
+    const newSet = new Set(selectedIds.value)
+    if (checked) {
+      newSet.add(device.id)
+    } else {
+      newSet.delete(device.id)
+    }
+    selectedIds.value = newSet
+  }
+  lastClickedId.value = device.id
 }
 
 function isSelected(id: number): boolean {
@@ -134,7 +169,8 @@ const canReactivate = computed(() =>
 
 // Hotkeys
 function handleKey(e: KeyboardEvent): void {
-  // Skip if in input
+  handleKeyDown(e)
+
   const target = e.target as HTMLElement
   if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return
 
@@ -171,16 +207,18 @@ function handleKey(e: KeyboardEvent): void {
 onMounted(() => {
   void store.fetchAll()
   window.addEventListener('keydown', handleKey)
+  window.addEventListener('keyup', handleKeyUp)
 })
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', handleKey)
+  window.removeEventListener('keyup', handleKeyUp)
 })
 </script>
 
 <template>
-  <v-container fluid class="pa-4">
-    <!-- Header -->
-    <div class="d-flex align-center mb-3" style="gap: 12px;">
+  <v-container fluid class="pa-0">
+    <!-- Unified top toolbar like Measurements/Reservations -->
+    <v-toolbar color="white" class="border-b-sm pl-3 pr-3" density="comfortable">
       <v-btn
         color="primary"
         variant="flat"
@@ -188,70 +226,93 @@ onBeforeUnmount(() => {
         title="Vytvořit nový přístroj (N)"
         @click="openCreate"
       >
-        Nový přístroj
+        NOVÝ PŘÍSTROJ
       </v-btn>
 
-      <v-spacer />
+      <v-divider vertical class="mx-3" />
 
-      <!-- Selection info -->
-      <v-fade-transition>
+      <!-- Bulk actions (visible when items selected) -->
+      <template v-if="selectedIds.size > 0">
         <v-chip
-          v-if="selectedIds.size > 0"
           color="primary"
           variant="tonal"
           closable
+          class="mr-2"
           @click:close="clearSelection"
         >
           Vybráno: {{ selectedIds.size }}
         </v-chip>
+        <v-btn
+          variant="tonal"
+          color="error"
+          size="small"
+          :disabled="!canDeactivate"
+          :loading="bulkLoading"
+          prepend-icon="mdi-close-circle-outline"
+          title="Deaktivovat vybrané (A)"
+          class="mr-2"
+          @click="bulkDeactivate"
+        >
+          Deaktivovat
+        </v-btn>
+        <v-btn
+          variant="tonal"
+          color="success"
+          size="small"
+          :disabled="!canReactivate"
+          :loading="bulkLoading"
+          prepend-icon="mdi-check-circle-outline"
+          title="Reaktivovat vybrané (R)"
+          @click="bulkReactivate"
+        >
+          Reaktivovat
+        </v-btn>
+        <v-divider vertical class="mx-3" />
+      </template>
+
+      <!-- Selection mode indicator -->
+      <v-fade-transition>
+        <v-chip
+          v-if="shiftPressed"
+          color="deep-purple"
+          variant="flat"
+          size="small"
+          prepend-icon="mdi-select-multiple"
+        >
+          Režim výběru rozsahu
+        </v-chip>
       </v-fade-transition>
 
-      <!-- Bulk actions -->
-      <v-btn
-        variant="tonal"
-        color="error"
-        :disabled="selectedIds.size === 0 || ! canDeactivate"
-        :loading="bulkLoading"
-        prepend-icon="mdi-close-circle-outline"
-        title="Deaktivovat vybrané (A)"
-        @click="bulkDeactivate"
-      >
-        Deaktivovat
-      </v-btn>
-      <v-btn
-        variant="tonal"
-        color="success"
-        :disabled="selectedIds.size === 0 || !canReactivate"
-        :loading="bulkLoading"
-        prepend-icon="mdi-check-circle-outline"
-        title="Reaktivovat vybrané (R)"
-        @click="bulkReactivate"
-      >
-        Reaktivovat
-      </v-btn>
+      <v-spacer />
 
-      <v-divider vertical class="mx-2" />
-
+      <!-- Filter controls on the right -->
       <v-switch
         v-model="showOnlyActive"
         inset
-        density="comfortable"
+        density="compact"
         hide-details
         color="primary"
-        label="Pouze aktivní"
-      />
+        class="mr-4"
+      >
+        <template #label>
+          <span class="text-body-2">Pouze aktivní</span>
+        </template>
+      </v-switch>
+
       <v-text-field
         v-model="filterText"
-        label="Filtrovat"
+        placeholder="Hledat..."
         variant="outlined"
-        density="comfortable"
-        hide-details="auto"
-        style="max-width: 260px"
+        density="compact"
+        hide-details
+        style="max-width: 220px"
         prepend-inner-icon="mdi-magnify"
         clearable
-        title="Filtrovat"
+        @click:clear="filterText = ''"
       />
-    </div>
+    </v-toolbar>
+
+    <v-container fluid class="pa-4">
 
     <!-- Error alert -->
     <v-alert
@@ -279,7 +340,10 @@ onBeforeUnmount(() => {
     </v-alert>
 
     <!-- Table -->
-    <v-table class="elevation-1 devices-table">
+    <v-table
+      class="elevation-1 devices-table"
+      :class="{ 'shift-mode': shiftPressed }"
+    >
       <thead>
       <tr>
         <th style="width: 48px;">
@@ -291,10 +355,16 @@ onBeforeUnmount(() => {
             @update:model-value="v => v ?  selectAll() : clearSelection()"
           />
         </th>
-        <th style="width: 140px;">Kód</th>
+        <th style="width: 140px;">
+          Kód
+        </th>
         <th>Název</th>
-        <th style="width: 100px;">Barva</th>
-        <th style="width: 100px;">Stav</th>
+        <th style="width: 100px;">
+          Barva
+        </th>
+        <th style="width: 100px;">
+          Stav
+        </th>
       </tr>
       </thead>
       <tbody>
@@ -313,12 +383,7 @@ onBeforeUnmount(() => {
             :model-value="isSelected(d.id)"
             hide-details
             density="compact"
-            @update:model-value="v => {
-                const newSet = new Set(selectedIds)
-                v ?  newSet.add(d.id) : newSet.delete(d.id)
-                selectedIds = newSet
-                lastClickedId = d.id
-              }"
+            @click="(e: MouseEvent) => handleCheckboxClick(d, ! isSelected(d.id), e)"
           />
         </td>
         <td>
@@ -330,7 +395,9 @@ onBeforeUnmount(() => {
             {{ d.code }}
           </v-chip>
         </td>
-        <td class="font-weight-medium">{{ d.name }}</td>
+        <td class="font-weight-medium">
+          {{ d.name }}
+        </td>
         <td>
           <div
             v-if="d.color"
@@ -338,7 +405,10 @@ onBeforeUnmount(() => {
             :style="{ backgroundColor: d.color }"
             :title="d.color"
           />
-          <span v-else class="text-medium-emphasis">—</span>
+          <span
+            v-else
+            class="text-medium-emphasis"
+          >—</span>
         </td>
         <td>
           <v-chip
@@ -346,10 +416,13 @@ onBeforeUnmount(() => {
             :color="d.active ? 'success' : 'grey'"
             :variant="d.active ? 'flat' : 'tonal'"
           >
-            <v-icon size="14" start>
+            <v-icon
+              size="14"
+              start
+            >
               {{ d.active ? 'mdi-check-circle' : 'mdi-close-circle' }}
             </v-icon>
-            {{ d.active ? 'Aktivní' : 'Neaktivní' }}
+            {{ d.active ?  'Aktivní' : 'Neaktivní' }}
           </v-chip>
         </td>
       </tr>
@@ -380,6 +453,7 @@ onBeforeUnmount(() => {
       @deactivated="handleDetailClosed"
       @reactivated="handleDetailClosed"
     />
+    </v-container>
   </v-container>
 </template>
 
@@ -425,5 +499,18 @@ kbd {
   background: rgba(0, 0, 0, 0.08);
   border-radius: 4px;
   border: 1px solid rgba(0, 0, 0, 0.12);
+}
+
+/* Shift mode - jednoduché fialové podbarvení */
+.shift-mode {
+  background-color: rgba(103, 58, 183, 0.04);
+}
+
+.shift-mode .device-row:hover {
+  background-color: rgba(103, 58, 183, 0.08) !important;
+}
+
+.shift-mode .row-selected {
+  background-color: rgba(103, 58, 183, 0.15) !important;
 }
 </style>

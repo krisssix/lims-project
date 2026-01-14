@@ -265,6 +265,19 @@ function onKeydown(e: KeyboardEvent): void {
                 <v-divider vertical />
                 <div>
                   <div class="text-caption text-medium-emphasis">
+                    Barva
+                  </div>
+                  <div class="d-flex align-center" style="gap: 6px;">
+                    <div
+                      class="color-swatch-small"
+                      :style="{ backgroundColor: formColor }"
+                    />
+                    <span class="text-body-2 font-weight-medium">{{ formColor }}</span>
+                  </div>
+                </div>
+                <v-divider vertical />
+                <div>
+                  <div class="text-caption text-medium-emphasis">
                     Stav
                   </div>
                   <div class="text-body-2 font-weight-medium">
@@ -399,5 +412,12 @@ function onKeydown(e: KeyboardEvent): void {
   flex: 1;
   font-weight: 500;
   color: rgba(0, 0, 0, 0.87);
+}
+
+.color-swatch-small {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
 }
 </style>
