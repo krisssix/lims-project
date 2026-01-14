@@ -14,7 +14,7 @@
           {{ pbi + 1 }}. {{ pb.title }}
         </div>
         <v-chip
-          size="x-small"
+          size="small"
           class="ml-1"
           color="grey"
           variant="tonal"
@@ -215,19 +215,19 @@
             <div class="d-flex ga-1">
               <v-btn
                 icon="mdi-chevron-up"
-                size="x-small"
+                size="small"
                 variant="text"
                 @click="moveFieldIn(index, -1)"
               />
               <v-btn
                 icon="mdi-chevron-down"
-                size="x-small"
+                size="small"
                 variant="text"
                 @click="moveFieldIn(index, 1)"
               />
               <v-btn
                 icon="mdi-delete-outline"
-                size="x-small"
+                size="small"
                 variant="text"
                 color="error"
                 @click="removeFieldIn(index)"

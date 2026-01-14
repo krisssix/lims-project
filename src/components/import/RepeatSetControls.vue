@@ -57,7 +57,7 @@ function toNext() { emit('next') }
       <v-btn
         icon="mdi-chevron-left"
         variant="text"
-        title="Předchozí sada (Alt+←)"
+        title="Předchozí tabulka(Alt+←)"
         @click="toPrev"
       />
       <div class="text-subtitle-2">
@@ -66,7 +66,7 @@ function toNext() { emit('next') }
       <v-btn
         icon="mdi-chevron-right"
         variant="text"
-        title="Další sada (Alt+→)"
+        title="Další tabulka(Alt+→)"
         @click="toNext"
       />
     </div>
