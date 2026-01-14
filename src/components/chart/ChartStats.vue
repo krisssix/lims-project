@@ -3,11 +3,13 @@ import { type StatsObj, type OutliersMeta, fmt2 } from './types'
 defineProps<{
   stats: StatsObj | null
   outliers?: OutliersMeta | null
+  /** Compact mode for sidebar display */
+  compact?: boolean
 }>()
 </script>
 <template>
-  <section class="modern-section stats-section">
-    <div class="section-header">
+  <section class="modern-section stats-section" :class="{ 'stats-compact': compact }">
+    <div v-if="!compact" class="section-header">
       <v-icon
         size="18"
         color="primary"
@@ -18,11 +20,15 @@ defineProps<{
         Statistické ukazatele
       </h3>
     </div>
+    <div v-if="compact" class="compact-header">
+      <v-icon size="14" color="primary">mdi-chart-box-outline</v-icon>
+      <span>Statistika</span>
+    </div>
     <div
       v-if="stats"
       class="stats-content"
     >
-      <div class="stats-grid">
+      <div class="stats-grid" :class="{ 'stats-grid-compact': compact }">
         <div class="stat-item">
           <div class="stat-label">
             <v-icon
@@ -310,5 +316,58 @@ defineProps<{
   .stat-value {
     font-size: 1.1rem;
   }
+}
+
+/* Compact Mode for Sidebar */
+.stats-compact {
+  background: transparent;
+  border: none;
+}
+.stats-compact:hover {
+  background: transparent;
+  box-shadow: none;
+}
+.compact-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: rgba(0, 0, 0, 0.5);
+  margin-bottom: 8px;
+}
+.stats-grid-compact {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.stats-grid-compact .stat-item {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 0;
+  min-height: auto;
+  border: none;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  background: transparent;
+}
+.stats-grid-compact .stat-item:last-child {
+  border-bottom: none;
+}
+.stats-grid-compact .stat-label {
+  margin-bottom: 0;
+  font-size: 0.65rem;
+}
+.stats-grid-compact .stat-value {
+  font-size: 0.85rem;
+}
+.stats-compact .stats-content {
+  background: transparent;
+}
+.stats-compact .outliers-alert {
+  display: none;
 }
 </style>

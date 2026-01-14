@@ -160,7 +160,7 @@ const liveStatus = computed<string>(() => {
           <template #activator="{ props }">
             <v-chip
               v-bind="props"
-              size="x-small"
+              size="small"
               color="grey-darken-1"
               variant="tonal"
               class="keyboard-hint cursor-help"
@@ -253,16 +253,10 @@ const liveStatus = computed<string>(() => {
     </section>
 
 
-
-
-    <!-- Stats Component -->
-    <ChartStats
-      :stats="stats"
-      :outliers="outliers"
-      class="mb-4"
-    />
-    <!-- Chart with Integrated Controls -->
-    <section class="modern-section chart-section">
+    <!-- Chart + Stats Horizontal Layout -->
+    <div class="chart-stats-row">
+      <!-- Chart with Integrated Controls -->
+      <section class="modern-section chart-section chart-section-flex">
       <!-- Chart Type Selector Bar -->
       <div class="chart-type-bar">
         <v-icon
@@ -445,6 +439,13 @@ const liveStatus = computed<string>(() => {
         </div>
       </div>
     </section>
+    <!-- Stats Component (beside chart) -->
+    <ChartStats
+      :stats="stats"
+      :outliers="outliers"
+      class="stats-beside-chart"
+    />
+    </div><!-- end chart-stats-row -->
     <!-- Series Legend -->
     <v-expand-transition>
       <section
@@ -474,7 +475,7 @@ const liveStatus = computed<string>(() => {
             >
               {{ s.label }}
               <v-chip
-                size="x-small"
+                size="small"
                 variant="elevated"
                 color="white"
                 class="ml-1"
@@ -511,9 +512,9 @@ const liveStatus = computed<string>(() => {
 .section-header {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 14px 16px;
-  min-height: 56px;
+  gap: 8px;
+  padding: 8px 12px;
+  min-height: 40px;
   border-bottom: 1px solid rgba(0, 0, 0, 0.06);
   background: rgba(255, 255, 255, 0.4);
 }
@@ -544,6 +545,39 @@ const liveStatus = computed<string>(() => {
   font-family: ui-monospace, monospace;
   font-size: 0.7rem;
 }
+/* Chart + Stats Horizontal Layout */
+.chart-stats-row {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+.chart-section-flex {
+  flex: 1;
+  min-width: 0;
+}
+.stats-beside-chart {
+  width: 280px;
+  flex-shrink: 0;
+}
+.stats-beside-chart :deep(.stats-grid) {
+  grid-template-columns: repeat(2, 1fr);
+}
+.stats-beside-chart :deep(.stat-item) {
+  padding: 12px 14px;
+  min-height: 70px;
+}
+.stats-beside-chart :deep(.stat-item:nth-child(3n)) {
+  border-right: 1px solid rgba(0, 0, 0, 0.06);
+}
+.stats-beside-chart :deep(.stat-item:nth-child(2n)) {
+  border-right: none;
+}
+.stats-beside-chart :deep(.stat-item:nth-last-child(-n+3)) {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+.stats-beside-chart :deep(.stat-item:nth-last-child(-n+2)) {
+  border-bottom: none;
+}
 /* Chart Section Specific */
 .chart-section {
   padding: 0;
@@ -551,8 +585,8 @@ const liveStatus = computed<string>(() => {
 .chart-type-bar {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 14px 16px;
+  gap: 8px;
+  padding: 8px 12px;
   background: rgba(255, 255, 255, 0.4);
   border-bottom: 1px solid rgba(0, 0, 0, 0.06);
 }
@@ -573,7 +607,7 @@ const liveStatus = computed<string>(() => {
 /* Main Chart Layout */
 .chart-main-layout {
   display: flex;
-  min-height: 400px;
+  min-height: 280px;
 }
 .chart-visualizer-wrapper {
   flex: 1;
