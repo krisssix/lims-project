@@ -7,6 +7,8 @@
  * Frontend: MeasurementRecord = { recordIndex; fields[] } kde fields odpovídají template fieldům.
  */
 
+import { parseCzechDate } from '@/utils/czechDateParser'
+
 export type ValueType = 'float' | 'int' | 'text' | 'file' | 'bool' | 'date'
 
 export interface RecordField {
@@ -16,6 +18,7 @@ export interface RecordField {
   value: unknown
   blockIndex?: number | null
   blockTitle?: string | null
+  orderIndex?: number | null
 }
 
 export interface MeasurementRecord {
@@ -101,7 +104,7 @@ export function flattenRecords(records: MeasurementRecord[]): MeasuredValue[] {
         case 'file':
           mv.fileUrl =
             f.value && typeof f.value === 'object' && 'name' in (f.value as Record<string, unknown>)
-              ?  String((f.value as { name?: unknown }).name)
+              ? String((f.value as { name?: unknown }).name)
               : (typeof f.value === 'string' ? f.value : null)
           break
         case 'text':
@@ -127,7 +130,7 @@ export function groupValuesToRecords(values: MeasuredValue[]): MeasurementRecord
   const map = new Map<number, MeasurementRecord>()
 
   for (const v of values) {
-    const ri = v.recordIndex ??  1
+    const ri = v.recordIndex ?? 1
     if (!map.has(ri)) {
       map.set(ri, { recordIndex: ri, fields: [] })
     }
@@ -138,9 +141,10 @@ export function groupValuesToRecords(values: MeasuredValue[]): MeasurementRecord
       required: true,
       blockIndex: v.blockIndex ?? 1,
       blockTitle: null, // Backend neposílá blockTitle, ale blockIndex stačí
+      orderIndex: v.orderIndex, // Preserve original order from API
       value:
         v.type === 'float' || v.type === 'int'
-          ? v. numberValue
+          ? v.numberValue
           : v.type === 'bool'
             ? v.boolValue
             : v.type === 'date'
@@ -152,17 +156,17 @@ export function groupValuesToRecords(values: MeasuredValue[]): MeasurementRecord
   }
 
   // Seřadit pole uvnitř recordu podle blockIndex a pak orderIndex
-  const records = [... map.values()]
+  const records = [...map.values()]
   records.forEach(r => {
     r.fields.sort((a, b) => {
       const blockDiff = (a.blockIndex ?? 1) - (b.blockIndex ?? 1)
       if (blockDiff !== 0) return blockDiff
-      // Fallback: podle jména pokud nemáme orderIndex
-      return a.name.localeCompare(b. name, 'cs')
+      // Use orderIndex to preserve original upload order
+      return (a.orderIndex ?? 0) - (b.orderIndex ?? 0)
     })
   })
 
-  return records. sort((a, b) => a.recordIndex - b.recordIndex)
+  return records.sort((a, b) => a.recordIndex - b.recordIndex)
 }
 
 /**
@@ -178,7 +182,7 @@ export function groupRecordByBlocks(
   for (const block of templateBlocks) {
     blocksMap.set(block.blockIndex, {
       blockIndex: block.blockIndex,
-      blockTitle: block.title || `Blok ${block.blockIndex}`,
+      blockTitle: block.title || `Tabulka hodnot ${block.blockIndex}`,
       fields: []
     })
   }
@@ -188,10 +192,10 @@ export function groupRecordByBlocks(
     const blockIdx = field.blockIndex ?? 1
 
     if (!blocksMap.has(blockIdx)) {
-      // Fallback blok pokud neexistuje v šabloně
+      // Fallback Tabulka hodnot pokud neexistuje v šabloně
       blocksMap.set(blockIdx, {
         blockIndex: blockIdx,
-        blockTitle: `Blok ${blockIdx}`,
+        blockTitle: `Tabulka hodnot ${blockIdx}`,
         fields: []
       })
     }
@@ -206,10 +210,10 @@ export function groupRecordByBlocks(
 }
 
 /**
- * Vrátí pole pouze pro konkrétní blok.
+ * Vrátí pole pouze pro konkrétní Tabulka hodnot.
  */
 export function getFieldsForBlock(record: MeasurementRecord, blockIndex: number): RecordField[] {
-  return record.fields.filter(f => (f.blockIndex ??  1) === blockIndex)
+  return record.fields.filter(f => (f.blockIndex ?? 1) === blockIndex)
 }
 
 /* ---------- Field factory ---------- */
@@ -229,7 +233,7 @@ export function newRecordFromTemplateFields(
       type: f.type,
       required: f.required,
       blockIndex: f.blockIndex ?? 1,
-      blockTitle: f.blockTitle ??  null,
+      blockTitle: f.blockTitle ?? null,
       value: initialValueForType(f.type)
     }))
   }
@@ -304,9 +308,9 @@ function initialValueForType(t: ValueType): unknown {
 
 export function toNumber(raw: unknown, integer: boolean): number | null {
   if (raw === '' || raw == null) return null
-  if (typeof raw === 'number') return Number.isFinite(raw) ?  raw : null
+  if (typeof raw === 'number') return Number.isFinite(raw) ? raw : null
   const s = String(raw).replace(',', '.').trim()
-  if (! s.length) return null
+  if (!s.length) return null
   const n = integer ? parseInt(s, 10) : parseFloat(s)
   return Number.isFinite(n) ? n : null
 }
@@ -325,6 +329,16 @@ export function toDateMs(raw: unknown): number | null {
   if (typeof raw === 'number') return Number.isFinite(raw) ? raw : null
   if (raw instanceof Date) return raw.getTime()
   if (typeof raw === 'string') {
+    // Try Czech date parser first (handles "4. října 2022 16:58:51")
+    try {
+      const parsed = parseCzechDate(raw)
+      if (parsed.success && parsed.date) {
+        return parsed.date.getTime()
+      }
+    } catch {
+      // Fallback if parser fails
+    }
+    // Fallback to standard Date.parse
     const ms = Date.parse(raw)
     return Number.isFinite(ms) ? ms : null
   }
@@ -343,7 +357,7 @@ export interface BasicStats {
 }
 
 export function computeBasicStats(values: number[]): BasicStats | null {
-  if (! values.length) return null
+  if (!values.length) return null
   const count = values.length
   const mean = values.reduce((a, b) => a + b, 0) / count
   const sorted = [...values].sort((a, b) => a - b)
@@ -360,7 +374,7 @@ export function computeBasicStats(values: number[]): BasicStats | null {
     mean,
     median,
     stdDev,
-    min: sorted[0]! ,
+    min: sorted[0]!,
     max: sorted[sorted.length - 1]!,
     count
   }
@@ -414,7 +428,7 @@ export function extractSeries(records: MeasurementRecord[], fieldName: string): 
   const out: number[] = []
   for (const rec of records) {
     const f = rec.fields.find(ff => ff.name === fieldName)
-    if (! f) continue
+    if (!f) continue
     if (f.type === 'float' || f.type === 'int') {
       const num = typeof f.value === 'number'
         ? f.value
@@ -439,7 +453,7 @@ export function extractSeriesFromBlock(
 ): number[] {
   const out: number[] = []
   for (const rec of records) {
-    const f = rec.fields.find(ff => ff.name === fieldName && (ff.blockIndex ??  1) === blockIndex)
+    const f = rec.fields.find(ff => ff.name === fieldName && (ff.blockIndex ?? 1) === blockIndex)
     if (!f) continue
     if (f.type === 'float' || f.type === 'int') {
       const num = typeof f.value === 'number'
@@ -527,7 +541,7 @@ export function setFieldValueInBlock(
   return {
     recordIndex: record.recordIndex,
     fields: record.fields.map(f =>
-      f.name === fieldName && (f.blockIndex ??  1) === blockIndex
+      f.name === fieldName && (f.blockIndex ?? 1) === blockIndex
         ? { ...f, value: newValue }
         : f
     )
@@ -553,11 +567,11 @@ export function validateField(field: RecordField): string | null {
       return ms != null ? null : 'Neplatné datum'
     }
     case 'file':
-      return field.value != null ?  null : 'Vyžadován soubor'
+      return field.value != null ? null : 'Vyžadován soubor'
     case 'text':
     default: {
       const s = (field.value == null ? '' : String(field.value)).trim()
-      return s.length ?  null : 'Vyžadováno'
+      return s.length ? null : 'Vyžadováno'
     }
   }
 }
@@ -579,7 +593,7 @@ export function validateRecord(record: MeasurementRecord): { errors: Record<stri
  */
 export function validateBlock(record: MeasurementRecord, blockIndex: number): { errors: Record<string, string>; valid: boolean } {
   const errors: Record<string, string> = {}
-  const blockFields = record.fields.filter(f => (f.blockIndex ??  1) === blockIndex)
+  const blockFields = record.fields.filter(f => (f.blockIndex ?? 1) === blockIndex)
 
   blockFields.forEach(f => {
     const err = validateField(f)
@@ -626,7 +640,7 @@ export function getUniqueBlocks(record: MeasurementRecord): Array<{ blockIndex: 
   for (const field of record.fields) {
     const idx = field.blockIndex ?? 1
     if (!seen.has(idx)) {
-      seen.set(idx, field.blockTitle ??  null)
+      seen.set(idx, field.blockTitle ?? null)
     }
   }
 

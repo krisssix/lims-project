@@ -1,8 +1,8 @@
 <script setup lang="ts" name=src/pages/Measurements.vue>
 import { computed, ref, onMounted, watch, onBeforeUnmount } from 'vue'
 import { useRoute } from 'vue-router'
-import LeftFiltersPanel from '@/components/LeftFiltersPanel.vue'
 import Dialog from '@/components/Dialog.vue'
+import DateFilterPanel, { type DateFilter } from '@/components/ui/DateFilterPanel.vue'
 import TemplateFromClipboardDialog from '@/components/import/TemplateFromClipboardDialog.vue'
 import RepeatSetsControls from '@/components/import/RepeatSetControls.vue'
 
@@ -11,6 +11,10 @@ import TemplatesOverviewDialog from '@/components/measurement/TemplatesOverviewD
 import TemplateWizardDialog from '@/components/import/TemplateWizardDialog.vue'
 import MeasurementCreateDialog from '@/components/measurement/MeasurementCreateDialog.vue'
 import MeasurementDetailDialog from '@/components/measurement/MeasurementDetailDialog.vue'
+import ZenodoDialog from '@/components/measurement/ZenodoDialog.vue'
+import ExportDialog from '@/components/measurement/ExportDialog.vue'
+import VersionConflictDialog from '@/components/measurement/VersionConflictDialog.vue'
+import { type ExportFormat } from '@/composables/useExport'
 
 import {
   useMeasurementStore,
@@ -89,7 +93,11 @@ const templates = computed<TemplateItem[]>(() =>
           required: !!f.required,
           name: f.name
         })),
-      blocks  // <-- PŘIDAT TOTO
+      blocks,
+      createdAt: t.createdAt,
+      updatedAt: t.updatedAt,
+      status: t.status || 'ACTIVE',
+      version: t.version || '1.0'
     }
   })
 )
@@ -104,7 +112,21 @@ async function handleTemplateConfirm(payload: WizardTemplatePayload): Promise<vo
     if (payload.templateId) {
       const idNum = Number(payload.templateId)
       if (Number.isFinite(idNum)) {
-        await templatesStore.updateFromWizard(projectId, idNum, payload)
+        if (payload.createVersionType) {
+          // 1. Create new version from current
+          const newVersion = await templatesStore.createVersion(idNum, payload.createVersionType)
+          
+          // 2. Update the NEW version with the editor content
+          // We must update the payload to point to the new ID
+          const newId = newVersion.id
+          await templatesStore.updateFromWizard(projectId, newId, { ...payload, templateId: String(newId) })
+          
+          // 3. Mark as ACTIVE immediately? (Optional, based on requirement. Assuming Update keeps it properly set or backend handles it)
+          // If needed: await templatesStore.publish(newId)
+        } else {
+          // Standard update of existing ID
+          await templatesStore.updateFromWizard(projectId, idNum, payload)
+        }
       }
     } else {
       await templatesStore.createFromWizard(projectId, payload)
@@ -132,15 +154,39 @@ async function handleTemplateConfirm(payload: WizardTemplatePayload): Promise<vo
 const membersList = computed<string[]>(() => projectStore.projectMembers.map((m: { username: string }) => m.username))
 const currentUsername = computed<string>(() => auth.getUserInfo().preferredUsername || '')
 
-/* Toolbar + filters – nechávám beze změn (už ti fungují) */
+/* Toolbar + filters */
 const isSideFilterOpen = ref(false)
-const selectedDate = ref<string | Date | null>(null)
+const includeWeekends = ref(true)
+
+/* Date Filter Logic */
+const dateFilterModel = ref<DateFilter>({
+  field: 'date',
+  preset: null,
+  from: null,
+  to: null
+})
+
+const selectedDateLabel = computed(() => {
+  const f = dateFilterModel.value
+  if (!f.from || !f.to) return 'Všechna měření'
+
+  if (f.preset === 'today') return 'Dnes'
+  if (f.preset === 'thisWeek') return 'Tento týden'
+  if (f.preset === 'thisMonth') return 'Tento měsíc'
+
+  const d1 = f.from.toLocaleDateString('cs-CZ')
+  const d2 = f.to.toLocaleDateString('cs-CZ')
+  return d1 === d2 ? d1 : `${d1} – ${d2}`
+})
+
 const headers = ref<TableHeader[]>([
-  { title: 'Šablona',      key: 'type' },
-  { title: 'Přístroj',     key: 'device' },
-  { title: 'Datum měření', key: 'date' },
-  { title: 'Počet hodnot', key: 'count' },
-  { title: 'Člen',         key: 'user' },
+  { title: 'Šablona',        key: 'type' },
+  { title: 'Přístroj',       key: 'device' },
+  { title: 'Datum měření',   key: 'date' },
+  { title: 'Datum vložení',  key: 'createdAt' },
+  { title: 'Datum změny',    key: 'updatedAt' },
+  { title: 'Počet hodnot',   key: 'count' },
+  { title: 'Člen',           key: 'user' },
 ])
 
 const leftSelection = ref<Record<string, string[]>>({ devices: [], templates: [] })
@@ -150,6 +196,12 @@ const leftGroups = computed(() => [
 ])
 const pickedDevices = ref<string[]>([])
 const pickedTemplates = ref<string[]>([])
+const pickedMembers = ref<string[]>([])
+
+const templateFilterItems = computed<{ id: string; name: string }[]>(() => {
+  const uniqueNames = new Set(templates.value.map(t => t.name))
+  return Array.from(uniqueNames).map(n => ({ id: n, name: n }))
+})
 function arraysEqual(a: string[], b: string[]): boolean {
   if (a.length !== b.length) return false
   const as = [...a].sort()
@@ -170,24 +222,8 @@ watch(pickedTemplates, (v) => {
   const next = Array.isArray(v) ? v : []
   if (!arraysEqual(next, leftSelection.value.templates)) leftSelection.value.templates = [...next]
 })
-function pad2(n: number): string { return String(n).padStart(2, '0') }
-function toYmdLocal(d: Date): string { return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}` }
-function normalizeToDate(v: string | Date | null): Date {
-  if (v instanceof Date) return new Date(v.getFullYear(), v.getMonth(), v.getDate(), 0, 0, 0, 0)
-  if (typeof v === 'string') return new Date(v)
-  return new Date()
-}
 const fmtDateLongFmt = new Intl.DateTimeFormat('cs-CZ', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
 const fmtDateLong = (d: Date): string => fmtDateLongFmt.format(d)
-function addDays(n: number): void {
-  const base = selectedDate.value ? normalizeToDate(selectedDate.value) : new Date()
-  base.setDate(base.getDate() + n)
-  selectedDate.value = toYmdLocal(base)
-}
-function goToday(): void {
-  const today = toYmdLocal(new Date())
-  selectedDate.value = selectedDate.value === today ? null : today
-}
 
 /* Filtrování měření – nechávám, funguje */
 function toMs(v: unknown): number {
@@ -211,40 +247,51 @@ function formatLocal(ts: unknown): string {
     hour12: false
   })
 }
-function dayBoundsLocal(val: string | Date) {
-  const base = val instanceof Date
-    ? val
-    : (/^\d{4}-\d{2}-\d{2}$/.test(val as string)
-      ? new Date((val as string) + 'T00:00:00')
-      : new Date(val as string))
-  const start = new Date(base.getFullYear(), base.getMonth(), base.getDate(), 0, 0, 0, 0).getTime()
-  const end = new Date(base.getFullYear(), base.getMonth(), base.getDate(), 23, 59, 59, 999).getTime()
-  return { start, end }
-}
+
 const measurementsSorted = computed<MeasurementResponse[]>(() => {
   const list = measurementStore.allMeasurements || []
   return list.slice().sort((a, b) => toMs(b.timestamp) - toMs(a.timestamp))
 })
 const filteredMeasurements = computed(() => {
-  const bounds = selectedDate.value ? dayBoundsLocal(selectedDate.value) : null
+  const f = dateFilterModel.value
+  const hasDateFilter = f.from && f.to
+  const start = f.from ? f.from.getTime() : 0
+  const end = f.to ? f.to.getTime() : Infinity
+
   return measurementsSorted.value
     .filter(m => {
       if (pickedDevices.value.length && !pickedDevices.value.includes(m.unit)) return false
       if (pickedTemplates.value.length && !pickedTemplates.value.includes(m.type)) return false
-      if (!bounds) return true
-      const t = toMs(m.timestamp)
-      return !Number.isNaN(t) && t >= bounds.start && t <= bounds.end
+
+      const username = (m as unknown as { measuredByUsername?: string | null }).measuredByUsername
+      if (pickedMembers.value.length && (!username || !pickedMembers.value.includes(username))) return false
+
+      if (hasDateFilter) {
+        // Vybereme pole podle filtru
+        let t = NaN
+        if (f.field === 'date') t = toMs(m.timestamp)
+        else if (f.field === 'createdAt') t = m.createdAt ? toMs(m.createdAt) : 0
+        else if (f.field === 'updatedAt') t = m.updatedAt ? toMs(m.updatedAt) : 0
+
+        if (Number.isNaN(t)) return false // Nemá datum -> skrýt (nebo zobrazit?) - bez data asi skrýt
+        if (t < start || t > end) return false
+      }
+      return true
     })
     .map(m => {
       const valuesCount = Array.isArray(m.values) ? m.values.length : (m.value != null ? 1 : 0)
       const user = (m as unknown as { measuredByUsername?: string | null }).measuredByUsername ?? '—'
       const note = (m as unknown as { note?: string | null }).note ?? null
+      const createdAt = (m as unknown as { createdAt?: string | number | null }).createdAt
+      const updatedAt = (m as unknown as { updatedAt?: string | number | null }).updatedAt
       return {
         id: m.id,
         type: m.type,
         device: m.unit ?? '',
         user,
-        date: formatLocal(m.timestamp),
+        date: toMs(m.timestamp), // Datum měření
+        createdAt: createdAt ? toMs(createdAt) : undefined, // Datum vložení
+        updatedAt: updatedAt ? toMs(updatedAt) : undefined, // Datum změny
         count: valuesCount,
         note,
         _raw: m
@@ -292,6 +339,8 @@ function startEditTemplate(t: TemplateItem): void {
         name: f.name,
       })),
     })) ?? [],
+    version: t.version,
+    updatedAt: t.updatedAt,
   }
   templateWizardOpen.value = true
 }
@@ -331,17 +380,193 @@ const initialWizardTemplate = ref<{
     title: string
     fields: Array<{ orderIndex: number; type: FieldType; required: boolean; name: string }>
   }>
+  version?: string
+  updatedAt?: string
 } | null>(null)
+/** Device to pre-select in TemplateWizardDialog */
+const preselectedDeviceForWizard = ref<string | null>(null)
 
-function startCreateTemplate(): void {
+function startCreateTemplate(deviceCode?: string): void {
   wizardMode.value = 'empty'
   initialWizardTemplate.value = null
+  preselectedDeviceForWizard.value = deviceCode || null
   templateWizardOpen.value = true
 }
-function startCreateTemplateFromFile(): void {
+function startCreateTemplateFromFile(deviceCode?: string): void {
   wizardMode.value = 'import'
   initialWizardTemplate.value = null
+  preselectedDeviceForWizard.value = deviceCode || null
   templateWizardOpen.value = true
+}
+
+function startDeriveTemplate(templateId: string): void {
+  const tpl = templates.value.find(t => t.id === templateId)
+  if (!tpl) return
+
+  const fullTemplate = templatesStore.items.find(t => String(t.id) === templateId)
+
+  wizardMode.value = 'empty'
+  initialWizardTemplate.value = {
+    templateId: '', // null ID = nová šablona
+    name: tpl.name + ' (kopie)',
+    deviceCode: tpl.deviceId,
+    fields: tpl.fields.map((f, i) => ({
+      orderIndex: i + 1,
+      type: f.type,
+      required: f.required,
+      name: f.name,
+    })),
+    blocks: fullTemplate?.blocks?.map(b => ({
+      blockIndex: b.blockIndex,
+      title: b.title ?? `Blok ${b.blockIndex}`,
+      fields: (b.fields ?? []).map((f, i) => ({
+        orderIndex: i + 1,
+        type: f.type as FieldType,
+        required: !!f.required,
+        name: f.name,
+      })),
+    })) ?? [],
+  }
+  overviewOpen.value = false
+  templateWizardOpen.value = true
+}
+
+async function handlePublishTemplate(templateId: string): Promise<void> {
+  try {
+    await templatesStore.publish(Number(templateId))
+    snackbar.value = { open: true, text: 'Šablona byla úspěšně publikována' }
+  } catch (err) {
+    console.error('Failed to publish template:', err)
+    snackbar.value = { open: true, text: 'Chyba při publikování šablony' }
+  }
+}
+
+async function handleDeprecateTemplate(templateId: string): Promise<void> {
+  try {
+    await templatesStore.deprecate(Number(templateId))
+    snackbar.value = { open: true, text: 'Šablona byla označena jako zastaralá' }
+  } catch (err) {
+    console.error('Failed to deprecate template:', err)
+    snackbar.value = { open: true, text: 'Chyba při označování šablony' }
+  }
+}
+
+// Version conflict dialog state
+const versionConflictOpen = ref(false)
+const versionDialogData = ref<{
+  templateId: string
+  templateName: string
+  sourceVersion: string
+  sourceStatus: string
+  targetVersion: string
+  higherVersion: string
+  type: 'minor' | 'major'
+  existingDrafts: Array<{ id: string; version: string; createdAt?: string }>
+}>({
+  templateId: '',
+  templateName: '',
+  sourceVersion: '1.0',
+  sourceStatus: 'ACTIVE',
+  targetVersion: '1.1',
+  higherVersion: '1.2',
+  type: 'minor',
+  existingDrafts: []
+})
+
+function incrementVersion(version: string, isMajor: boolean): string {
+  const [major, minor] = version.split('.').map(Number)
+  if (isMajor) return `${major + 1}.0`
+  return `${major}.${(minor || 0) + 1}`
+}
+
+async function handleCreateVersion(templateId: string, type: 'minor' | 'major'): Promise<void> {
+  try {
+    // Find current template info
+    const tpl = templates.value.find(t => t.id === templateId)
+    if (!tpl) return
+
+    // Check for existing drafts
+    const drafts = await templatesStore.checkDrafts(Number(templateId))
+    const highestVersion = templates.value
+      .filter(t => t.name === tpl.name && t.deviceId === tpl.deviceId)
+      .map(t => t.version || '1.0')
+      .sort((a, b) => {
+        const [ma, mi] = a.split('.').map(Number)
+        const [mb, mj] = b.split('.').map(Number)
+        return mb - ma || mj - mi
+      })[0] || '1.0'
+
+    const targetVersion = incrementVersion(highestVersion, type === 'major')
+    const higherVersion = incrementVersion(targetVersion, false)
+
+    versionDialogData.value = {
+      templateId,
+      templateName: tpl.name,
+      sourceVersion: tpl.version || '1.0',
+      sourceStatus: tpl.status || 'ACTIVE',
+      targetVersion,
+      higherVersion,
+      type,
+      existingDrafts: drafts.map(d => ({ id: String(d.id), version: d.version || '1.0', createdAt: d.createdAt }))
+    }
+    versionConflictOpen.value = true
+  } catch (err) {
+    console.error('Failed to check drafts:', err)
+    snackbar.value = { open: true, text: 'Chyba při kontrole existujících verzí' }
+  }
+}
+
+async function onVersionCreate(_description: string): Promise<void> {
+  try {
+    const { templateId, type } = versionDialogData.value
+    const newVersion = await templatesStore.createVersion(Number(templateId), type)
+    snackbar.value = { open: true, text: `Vytvořena nová verze v${newVersion.version} (DRAFT)` }
+  } catch (err) {
+    console.error('Failed to create version:', err)
+    snackbar.value = { open: true, text: 'Chyba při vytváření nové verze' }
+  }
+}
+
+function onVersionContinue(draftId: string): void {
+  // Open the draft for editing
+  const draft = templates.value.find(t => t.id === draftId)
+  if (draft) {
+    selectedTemplateId.value = draftId
+    initialWizardTemplate.value = {
+      templateId: draftId,
+      name: draft.name,
+      deviceCode: draft.deviceId,
+      blocks: draft.blocks || [],
+      fields: []
+    }
+    templateWizardOpen.value = true
+  }
+}
+
+async function onVersionDiscardAndCreate(draftIds: string[]): Promise<void> {
+  try {
+    // Delete existing drafts first
+    for (const id of draftIds) {
+      await templatesStore.remove(Number(id))
+    }
+    // Then create new version
+    await onVersionCreate('')
+  } catch (err) {
+    console.error('Failed to discard and create:', err)
+    snackbar.value = { open: true, text: 'Chyba při vytváření nové verze' }
+  }
+}
+
+async function onVersionCreateHigher(): Promise<void> {
+  try {
+    // Create with the higher version number
+    const { templateId, type } = versionDialogData.value
+    const newVersion = await templatesStore.createVersion(Number(templateId), type)
+    snackbar.value = { open: true, text: `Vytvořena nová verze v${newVersion.version} (DRAFT)` }
+  } catch (err) {
+    console.error('Failed to create higher version:', err)
+    snackbar.value = { open: true, text: 'Chyba při vytváření nové verze' }
+  }
 }
 
 /* Template ze schránky – zachováno (není součástí této změny) */
@@ -396,6 +621,30 @@ function openDetailById(id: number): void {
   detailOpen.value = !!raw
 }
 
+/* Zenodo publishing */
+const zenodoDialogOpen = ref(false)
+const measurementsForZenodo = ref<MeasurementResponse[]>([])
+
+function onPublishZenodo(ids: number[]): void {
+  const list = measurementStore.allMeasurements || []
+  measurementsForZenodo.value = list.filter(m => ids.includes(m.id))
+  zenodoDialogOpen.value = true
+}
+
+async function onZenodoPublished(payload: { doi: string; recordId: number; measurementIds: number[] }): Promise<void> {
+  // Update local measurements with DOI and recordId if they were part of the publish
+  const list = measurementStore.allMeasurements || []
+  list.forEach(m => {
+    if (payload.measurementIds.includes(m.id)) {
+      m.zenodoDoi = payload.doi
+      m.zenodoRecordId = payload.recordId
+    }
+  })
+  snackbar.value = { open: true, text: 'Měření byla publikována v Zenodo' }
+  // Optionally reload from server to be sure
+  await loadMeasurements()
+}
+
 function prevDetail(): void {
   const items = filteredMeasurements.value
   if (!detailItem.value || !items.length) return
@@ -448,6 +697,53 @@ async function confirmDelete(): Promise<void> {
 }
 function cancelDelete(): void { confirmDeleteOpen.value = false }
 
+/* Bulk operations */
+const bulkDeleteConfirmOpen = ref(false)
+const bulkDeleteLoading = ref(false)
+const bulkDeleteIds = ref<number[]>([])
+const selectedMeasurements = ref<Array<{ id: number; type: string; device: string; user?: string; date: string | number; count: number; note?: string | null }>>([])
+
+function onBulkDelete(ids: number[]): void {
+  bulkDeleteIds.value = ids
+  bulkDeleteConfirmOpen.value = true
+}
+
+async function confirmBulkDelete(): Promise<void> {
+  if (!bulkDeleteIds.value.length) {
+    bulkDeleteConfirmOpen.value = false
+    return
+  }
+  bulkDeleteLoading.value = true
+  try {
+    for (const id of bulkDeleteIds.value) {
+      await measurementStore.deleteMeasurement(id)
+    }
+    await loadMeasurements()
+    snackbar.value = { open: true, text: `Smazáno ${bulkDeleteIds.value.length} měření` }
+    bulkDeleteConfirmOpen.value = false
+    bulkDeleteIds.value = []
+    selectedMeasurements.value = []
+  } finally {
+    bulkDeleteLoading.value = false
+  }
+}
+
+/* Export dialog */
+const exportDialogOpen = ref(false)
+const measurementsForExport = ref<MeasurementResponse[]>([])
+
+function onOpenExport(ids: number[]): void {
+  const measurements = measurementStore.allMeasurements?.filter(m => ids.includes(m.id)) || []
+  if (!measurements.length) return
+  measurementsForExport.value = measurements
+  exportDialogOpen.value = true
+}
+
+function onExported(format: ExportFormat, count: number): void {
+  snackbar.value = { open: true, text: `Exportováno ${count} měření do ${format.toUpperCase()}` }
+  selectedMeasurements.value = []
+}
+
 /* Načtení */
 async function loadMeasurements(): Promise<void> {
   await measurementStore.fetchAllMeasurements(projectId)
@@ -469,45 +765,61 @@ function isEditableTarget(target: EventTarget | null): boolean {
 function onHotkeys(e: KeyboardEvent): void {
   const editable = isEditableTarget(e.target)
   if (!measurementCreateOpen.value && !overviewOpen.value && !detailOpen.value && editable) return
-  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b') { e.preventDefault(); isSideFilterOpen.value = !isSideFilterOpen.value; return }
-  if (e.key === 'ArrowLeft' && !measurementCreateOpen.value) { e.preventDefault(); addDays(-1); return }
-  if (e.key === 'ArrowRight' && !measurementCreateOpen.value) { e.preventDefault(); addDays(1); return }
-  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 't') { e.preventDefault(); goToday(); return }
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'n') { e.preventDefault(); measurementCreateOpen.value = true; return }
 }
+
 onMounted(() => window.addEventListener('keydown', onHotkeys))
 onBeforeUnmount(() => window.removeEventListener('keydown', onHotkeys))
 </script>
 
 <template>
   <v-container fluid class="pa-0">
-    <v-toolbar color="white" class="border-b-sm pl-3 pr-3" density="comfortable">
-      <v-btn color="primary" variant="tonal" @click="isSideFilterOpen = !isSideFilterOpen">Procházet</v-btn>
-      <v-btn color="primary"  variant="flat" class="ml-3"@click="measurementCreateOpen = true">VYTVOŘIT MĚŘENÍ</v-btn>
-      <v-btn elevation="0" variant="tonal" class="ml-2" @click="openOverview">PŘEHLED ŠABLON</v-btn>
-      <v-spacer />
-      <div class="text-subtitle-1 mx-2" style="text-transform: capitalize; min-width: 180px;">
-        {{ selectedDate ? fmtDateLong(normalizeToDate(selectedDate)) : '' }}
-      </div>
-      <v-btn variant="tonal" @click="goToday" title="Dnes (Ctrl+T)">DNES</v-btn>
-      <v-btn icon="mdi-chevron-left" variant="text" @click="addDays(-1)" />
-      <v-btn icon="mdi-chevron-right" variant="text" @click="addDays(1)" />
-    </v-toolbar>
+    <!-- Top Toolbar -->
+    <div class="top-toolbar">
+      <!-- Primary Action -->
+      <button class="btn-primary" @click="measurementCreateOpen = true">
+        <i class="mdi mdi-plus"></i>
+        Vytvořit měření
+      </button>
+
+      <!-- Secondary Action -->
+      <button class="btn-secondary" @click="openOverview">
+        <i class="mdi mdi-view-list-outline"></i>
+        Přehled šablon
+      </button>
+    </div>
 
     <v-container fluid class="pa-4">
-      <v-row>
-        <v-col v-if="isSideFilterOpen" cols="12" md="3">
-          <LeftFiltersPanel v-model:date="selectedDate" v-model:selection="leftSelection" :groups="leftGroups" />
+      <v-row class="flex-nowrap">
+        <!-- Sidebar -->
+        <v-col cols="auto">
+          <div style="width: 320px;">
+             <DateFilterPanel
+               v-model="dateFilterModel"
+               :devices="devices"
+               :members="membersList"
+               :templates="templateFilterItems"
+               v-model:pickedDevices="pickedDevices"
+               v-model:pickedMembers="pickedMembers"
+               v-model:pickedTemplates="pickedTemplates"
+               v-model:includeWeekends="includeWeekends"
+             />
+          </div>
         </v-col>
 
-        <v-col :cols="12" :md="isSideFilterOpen ? 9 : 12">
+        <v-col class="flex-grow-1" style="min-width: 0;">
           <v-sheet elevation="1" class="pa-4 rounded-xl">
             <MeasurementTable
+              v-model:selected="selectedMeasurements"
               :headers="headers"
               :items="filteredMeasurements"
               :devices-by-id="devicesById"
+              :active-date-field="dateFilterModel.field"
               @row-click="openDetailById"
               @create-measurement="measurementCreateOpen = true"
+              @publish-zenodo="onPublishZenodo"
+              @delete-selected="onBulkDelete"
+              @export-selected="onOpenExport"
             />
           </v-sheet>
         </v-col>
@@ -520,6 +832,24 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onHotkeys))
         @edit="startEditTemplate"
         @createBlank="startCreateTemplate"
         @createFromFile="openImportTemplate"
+        @deriveTemplate="startDeriveTemplate"
+        @publish="handlePublishTemplate"
+        @deprecate="handleDeprecateTemplate"
+        @createVersion="handleCreateVersion"
+      />
+
+      <VersionConflictDialog
+        v-model="versionConflictOpen"
+        :template-name="versionDialogData.templateName"
+        :source-version="versionDialogData.sourceVersion"
+        :source-status="versionDialogData.sourceStatus"
+        :target-version="versionDialogData.targetVersion"
+        :higher-version="versionDialogData.higherVersion"
+        :existing-drafts="versionDialogData.existingDrafts"
+        @create="onVersionCreate"
+        @continue="onVersionContinue"
+        @discard-and-create="onVersionDiscardAndCreate"
+        @create-higher="onVersionCreateHigher"
       />
 
       <TemplateWizardDialog
@@ -530,6 +860,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onHotkeys))
         :initial-template="initialWizardTemplate"
         :delete-loading="deleteTemplateLoading"
         :start-mode="wizardMode"
+        :preselected-device="preselectedDeviceForWizard"
         @delete="askDeleteTemplate"
       />
 
@@ -590,6 +921,12 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onHotkeys))
         @next="nextDetail"
       />
 
+      <ZenodoDialog
+        v-model="zenodoDialogOpen"
+        :measurements="measurementsForZenodo"
+        @published="onZenodoPublished"
+      />
+
       <Dialog
         :is-open="confirmDeleteOpen"
         @update:is-open="v => confirmDeleteOpen = v"
@@ -609,7 +946,38 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onHotkeys))
         </template>
       </Dialog>
 
+      <!-- Bulk Delete Confirmation -->
+      <Dialog
+        :is-open="bulkDeleteConfirmOpen"
+        @update:is-open="v => bulkDeleteConfirmOpen = v"
+        width="520px"
+        :hide-footer="true"
+      >
+        <template #content>
+          <form class="pa-4" @submit.prevent="confirmBulkDelete" @keydown.enter.prevent="confirmBulkDelete">
+            <div class="text-h6 mb-2">Smazat {{ bulkDeleteIds.length }} měření?</div>
+            <div class="mb-4">Tato akce je nevratná. Opravdu chcete smazat vybraná měření?</div>
+            <div class="d-flex" style="gap: 12px">
+              <v-btn type="submit" color="error" :loading="bulkDeleteLoading" :disabled="bulkDeleteLoading">Smazat vše</v-btn>
+              <v-spacer />
+              <v-btn variant="tonal" :disabled="bulkDeleteLoading" @click="() => bulkDeleteConfirmOpen = false">Zrušit</v-btn>
+            </div>
+          </form>
+        </template>
+      </Dialog>
+
+      <!-- Export Dialog -->
+      <ExportDialog
+        v-model="exportDialogOpen"
+        :measurements="measurementsForExport"
+        @exported="onExported"
+      />
+
       <v-snackbar v-model="snackbar.open" :timeout="2200">{{ snackbar.text }}</v-snackbar>
     </v-container>
   </v-container>
 </template>
+
+<style scoped>
+/* Styles moved to global settings.scss */
+</style>

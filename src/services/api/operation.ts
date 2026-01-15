@@ -48,12 +48,18 @@ async function renewAccessToken() {
 }
 
 async function makeRequest(method, uri, data, headers){
-  return await axios.create({
-    validateStatus: () => true // Prevent axios from throwing Promise exception, so it can be handled in operation.checkResponse().
-  }).request({
+  const axiosConfig: Record<string, unknown> = {
     method: method,
     url: config.serverUrl + uri,
-    data: data,
     headers: headers
-  });
+  }
+  
+  // For DELETE with body, axios needs special handling
+  if (data !== null && data !== undefined) {
+    axiosConfig.data = data
+  }
+  
+  return await axios.create({
+    validateStatus: () => true // Prevent axios from throwing Promise exception, so it can be handled in operation.checkResponse().
+  }).request(axiosConfig);
 }

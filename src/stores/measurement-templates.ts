@@ -30,6 +30,11 @@ export interface MeasurementTemplateResponse {
   deviceColor: string | null
   fields: TemplateFieldResponse[]
   blocks: TemplateBlockResponse[]
+  createdAt?: string
+  updatedAt?: string
+  status?: 'DRAFT' | 'ACTIVE' | 'DEPRECATED'
+  version?: string
+  parentVersionId?: number
 }
 
 /* ===== Request DTO ===== */
@@ -52,6 +57,7 @@ export interface MeasurementTemplateRequest {
   name: string
   deviceCode: string
   blocks: TemplateBlockRequest[]
+  changeDescription?: string
 }
 
 /* ===== Wizard payload ===== */
@@ -70,6 +76,8 @@ export interface WizardTemplatePayload {
   blocks?: WizardBlockPayload[]
   fields?: TemplateFieldRequest[]
   templateId?: string
+  changeDescription?: string
+  createVersionType?: 'minor' | 'major'
 }
 
 /* API wrappers */
@@ -114,7 +122,7 @@ export const useMeasurementTemplatesStore = defineStore('measurement-templates',
       incomingBlocks.length
         ? incomingBlocks
         : (fallbackFields.length
-          ? [{ blockIndex: 1, title: 'Blok 1', fields: fallbackFields }]
+          ? [{ blockIndex: 1, title: 'Tabulka hodnot 1', fields: fallbackFields }]
           : [])
 
     if (!effectiveBlocks.length) {
@@ -123,7 +131,7 @@ export const useMeasurementTemplatesStore = defineStore('measurement-templates',
         deviceCode,
         blocks: [{
           blockIndex: 1,
-          title: 'Blok 1',
+          title: 'Tabulka hodnot 1',
           fields: [{
             orderIndex: 1,
             type: 'text',
@@ -139,8 +147,8 @@ export const useMeasurementTemplatesStore = defineStore('measurement-templates',
         ? b.blockIndex
         : rawIndex + 1
 
-      const titleRaw = (b.title ?? `Blok ${blockIndex}`).toString().trim()
-      const title = titleRaw.length ? titleRaw : `Blok ${blockIndex}`
+      const titleRaw = (b.title ?? `Tabulka hodnot ${blockIndex}`).toString().trim()
+      const title = titleRaw.length ? titleRaw : `Tabulka hodnot ${blockIndex}`
 
       const rawFields = Array.isArray(b.fields) ? b.fields : []
       const seen = new Set<string>()
@@ -173,7 +181,7 @@ export const useMeasurementTemplatesStore = defineStore('measurement-templates',
       return { blockIndex, kind: b.kind, title, fields }
     })
 
-    return { name, deviceCode, blocks }
+    return { name, deviceCode, blocks, changeDescription: p.changeDescription }
   }
 
   async function fetchByProject(projectId: number): Promise<MeasurementTemplateResponse[]> {
@@ -223,6 +231,56 @@ export const useMeasurementTemplatesStore = defineStore('measurement-templates',
     if (selected.value?.id === id) selected.value = null
   }
 
+  async function deleteAll(ids: number[]): Promise<void> {
+    await post('measurement-templates/bulk-delete', ids, undefined)
+    items.value = items.value.filter(t => !ids.includes(t.id))
+    if (selected.value && ids.includes(selected.value.id)) selected.value = null
+  }
+
+  async function publish(id: number): Promise<MeasurementTemplateResponse> {
+    const resp = await post(`measurement-templates/${id}/publish`, {}, undefined)
+    const typed = resp as ApiResponse<ApiObject<MeasurementTemplateResponse>> | undefined
+    const saved = typed?.data?.content
+      ? normalizeTemplate(typed.data.content)
+      : (null as unknown as MeasurementTemplateResponse)
+    const idx = items.value.findIndex(t => t.id === id)
+    if (idx !== -1) items.value[idx] = saved
+    return saved
+  }
+
+  async function deprecate(id: number): Promise<MeasurementTemplateResponse> {
+    const resp = await post(`measurement-templates/${id}/deprecate`, {}, undefined)
+    const typed = resp as ApiResponse<ApiObject<MeasurementTemplateResponse>> | undefined
+    const saved = typed?.data?.content
+      ? normalizeTemplate(typed.data.content)
+      : (null as unknown as MeasurementTemplateResponse)
+    const idx = items.value.findIndex(t => t.id === id)
+    if (idx !== -1) items.value[idx] = saved
+    return saved
+  }
+
+  async function createVersion(id: number, type: 'minor' | 'major'): Promise<MeasurementTemplateResponse> {
+    const resp = await post(`measurement-templates/${id}/create-version?type=${type}`, {}, undefined)
+    const typed = resp as ApiResponse<ApiObject<MeasurementTemplateResponse>> | undefined
+    const saved = typed?.data?.content
+      ? normalizeTemplate(typed.data.content)
+      : (null as unknown as MeasurementTemplateResponse)
+    items.value.push(saved)
+    return saved
+  }
+
+  async function checkDrafts(id: number): Promise<MeasurementTemplateResponse[]> {
+    const resp = await get(`measurement-templates/${id}/check-drafts`, undefined)
+    const typed = resp as ApiResponse<{ items: MeasurementTemplateResponse[], count: number }> | undefined
+    return typed?.data?.items?.map(normalizeTemplate) ?? []
+  }
+
+  async function fetchVersions(id: number): Promise<MeasurementTemplateResponse[]> {
+    const resp = await get(`measurement-templates/${id}/versions`, undefined)
+    const typed = resp as ApiResponse<ApiList<MeasurementTemplateResponse>> | undefined
+    return typed?.data?.items?.map(normalizeTemplate) ?? []
+  }
+
   return {
     items,
     selected,
@@ -232,5 +290,11 @@ export const useMeasurementTemplatesStore = defineStore('measurement-templates',
     update,
     updateFromWizard,
     remove,
+    deleteAll,
+    publish,
+    deprecate,
+    createVersion,
+    checkDrafts,
+    fetchVersions,
   }
 })

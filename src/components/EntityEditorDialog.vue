@@ -7,6 +7,7 @@ type Mode = 'create' | 'edit'
 const props = withDefaults(defineProps<{
   isOpen: boolean
   width?: string | null
+  maxHeight?: string | null
   entityLabel: string            // e.g. "rezervace"
   mode: Mode                     // 'create' | 'edit'
   saving?: boolean               // show loading on Save
@@ -15,6 +16,7 @@ const props = withDefaults(defineProps<{
 
 }>(), {
   width: null,
+  maxHeight: null,
   saving: false,
   deletable: false,
   titleExtra: null,                  //
@@ -41,7 +43,7 @@ function del() {
 }
 
 // Keyboard shortcuts inside the dialog:
-// - Enter or Ctrl/Cmd+S → Save
+// - Ctrl/Cmd+S → Save
 // - Esc → Cancel/Close
 // - Del (only in edit mode and deletable) → Delete
 function onKeydown(e: KeyboardEvent) {
@@ -59,17 +61,7 @@ function onKeydown(e: KeyboardEvent) {
     return
   }
 
-  if (key === 'enter' && !e.shiftKey && !e.altKey && !e.metaKey && !e.ctrlKey) {
-    // avoid submitting while focusing buttons (they already call save)
-    const tgt = e.target as HTMLElement | null
-    const tag = (tgt?.tagName || '').toLowerCase()
-    // allow Enter from inputs and the dialog body
-    if (['input', 'textarea', 'select', 'div'].includes(tag)) {
-      e.preventDefault()
-      if (!props.saving) save()
-    }
-    return
-  }
+  // Note: Enter key no longer triggers save to allow multi-line input in text areas
 
   if (key === 'delete' && props.mode === 'edit' && props.deletable) {
     e.preventDefault()
@@ -85,6 +77,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
   <Dialog
     :is-open="isOpen"
     :width="width"
+    :max-height="maxHeight"
     :hide-footer="false"
     @after-leave="() => emit('update:isOpen', false)"
   >

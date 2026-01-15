@@ -10,6 +10,7 @@ type ResItem = {
   status: 'plan' | 'running' | 'done'
   username: string | null
   note: string | null
+  seriesId?: string | null
 }
 type EventLayout = Record<number, { left: number; width: number }>
 type Device = { id: string; name: string; color: string }
@@ -38,6 +39,7 @@ const props = defineProps<{
   // interactions (delegated to parent)
   onTrackClick: (evt: MouseEvent, ctx: { type: 'device'; deviceId: string }) => void
   onEventPointerDown: (e: PointerEvent, item: ResItem) => void
+  onResizePointerDown: (e: PointerEvent, item: ResItem) => void
   onEventClick: (id: number, e: MouseEvent) => void
   openEdit: (i: ResItem) => void
   askDelete: (i: ResItem) => void
@@ -130,6 +132,10 @@ function viewportRefHandler(el: Element | ComponentPublicInstance | null) {
     el instanceof HTMLElement
       ? el
       : (hasEl(el) && el.$el instanceof HTMLElement ? (el.$el as HTMLElement) : null)
+
+  // If same element, don't re-attach or re-scroll (prevents glitch on re-render)
+  if (dom === viewportEl.value) return
+
   // detach old listener
   if (viewportEl.value) viewportEl.value.removeEventListener('scroll', onViewportScroll)
   viewportEl.value = dom
@@ -176,17 +182,9 @@ function onTrackClickWithFocus(e: MouseEvent, d: Device) {
   focusDevice(d)
   props.onTrackClick(e, { type: 'device', deviceId: d.id })
 }
-/* Grid columns with focused expansion */
+/* Grid columns - equal width for all devices */
 const gridTemplateColumns = computed(() => {
-  if (!focusEnabled.value) {
-    return `80px repeat(${props.devices?.length ?? 0}, 1fr)`
-  }
-  const devCols = (props.devices ?? []).map((d: Device) =>
-    isFocused(d)
-      ? `minmax(0, ${focusedFr.value}fr)`
-      : `minmax(0, ${othersFr.value}fr)`
-  ).join(' ')
-  return `80px ${devCols}`
+  return `80px repeat(${props.devices?.length ?? 0}, 1fr)`
 })
 /* -------- Event height aware rendering (fallback, for tiny heights) -------- */
 const MIN_EVENT_PX = 24
@@ -219,29 +217,7 @@ onMounted(() => {
 onBeforeUnmount(() => { ro?.disconnect(); ro = null })
 const minWidth = computed(() => props.minCalendarWidth ?? 900)
 const showCompactFilters = computed(() => containerWidth.value > 0 && containerWidth.value < minWidth.value)
-/* Compact filter state (visual-only) */
-const listFrom = ref<string>('')
-const listTo = ref<string>('')
-const listSearch = ref<string>('')
-const includeNotesInSearch = ref(true)
-function startOfDayMs(ymd: string): number { const [y,m,d] = ymd.split('-').map(Number); return new Date(y||1970,(m||1)-1,d||1,0,0,0,0).getTime() }
-function endOfDayMs(ymd: string): number { const [y,m,d] = ymd.split('-').map(Number); return new Date(y||1970,(m||1)-1,d||1,23,59,59,999).getTime() }
-const listRangeDays = computed(() => {
-  if (!listFrom.value || !listTo.value) return 0
-  const diff = endOfDayMs(listTo.value) - startOfDayMs(listFrom.value)
-  return diff >= 0 ? (diff / 86400000) + 1 : 0
-})
-watch(showCompactFilters, (v) => {
-  if (v && !listFrom.value && !listTo.value) {
-    const now = new Date()
-    const y = now.getFullYear()
-    const m = String(now.getMonth() + 1).padStart(2,'0')
-    const d = String(now.getDate()).padStart(2,'0')
-    const ymd = `${y}-${m}-${d}`
-    listFrom.value = ymd
-    listTo.value = ymd
-  }
-})
+/* Filter logic removed */
 /* --------- New: event coloring based on device color, avatar white ---------- */
 // Parse hex/rgb and compute contrast (WCAG-like approximation)
 function parseColorToRGB(color: string): { r: number; g: number; b: number } {
@@ -279,83 +255,12 @@ function deviceEventStyle(deviceId: string): { backgroundColor: string; color: s
 }
 </script>
 <template>
-  <div ref="root">
-    <v-sheet
-      v-if="showCompactFilters"
-      elevation="1"
-      class="pa-3 mb-4 dmv-list-filters"
-      color="grey-lighten-5"
-    >
-      <div class="dmv-filters-row">
-        <v-text-field
-          v-model="listFrom"
-          type="date"
-          label="Datum od"
-          variant="outlined"
-          density="comfortable"
-          hide-details
-        />
-        <v-text-field
-          v-model="listTo"
-          type="date"
-          label="Datum do"
-          variant="outlined"
-          density="comfortable"
-          hide-details
-        />
-        <v-text-field
-          v-model="listSearch"
-          clearable
-          label="Hledat"
-          variant="outlined"
-          density="comfortable"
-          class="dmv-search-input"
-          hide-details
-        />
-        <div class="dmv-actions d-flex ga-2">
-          <v-btn
-            color="primary"
-            class="dmv-load-btn"
-            title="Načíst"
-            disabled
-          >
-            NAČÍST
-          </v-btn>
-          <v-btn
-            class="dmv-load-btn"
-            variant="text"
-            title="Načíst všechny"
-            disabled
-          >
-            NAČÍST VŠE
-          </v-btn>
-        </div>
-      </div>
-      <div class="dmv-filters-row-bottom">
-        <div class="d-flex align-center ga-4">
-          <v-switch
-            v-model="includeNotesInSearch"
-            color="primary"
-            inset
-            density="comfortable"
-            hide-details
-            label="Hledat i v poznámkách"
-          />
-        </div>
-        <div class="text-caption text-medium-emphasis count">
-          <span v-if="listRangeDays > 0">Rozsah: {{ Math.round(listRangeDays) }} dní</span>
-        </div>
-      </div>
-      <v-alert
-        type="info"
-        density="comfortable"
-        class="mt-3"
-        border="start"
-      >
-        Pro detailní práci se seznamem rezervací přepněte zobrazení na "Rezervace (seznam)".
-      </v-alert>
-    </v-sheet>
+    <div ref="root">
+    <!-- Filters removed per user request -->
+
     <!-- Legend chips -->
+    <!--
+
     <div
       v-if="!showCompactFilters"
       class="d-flex flex-wrap mb-3"
@@ -367,15 +272,20 @@ function deviceEventStyle(deviceId: string): { backgroundColor: string; color: s
       >
         <v-chip
           :color="d.color"
-          size="x-small"
+          size="small"
+          variant="flat"
           class="mr-2"
-        />
+          :style="{ color: contrastText(d.color) }"
+        >
+          {{ d.id }}
+        </v-chip>
         <span class="text-caption">{{ d.name }}</span>
       </div>
     </div>
+
+    -->
     <!-- Full calendar schedule -->
     <div
-      v-if="!showCompactFilters"
       class="schedule"
     >
       <div
@@ -392,13 +302,19 @@ function deviceEventStyle(deviceId: string): { backgroundColor: string; color: s
           role="button"
           tabindex="0"
           :aria-pressed="isFocused(d)"
+          :title="d.name"
           @click="(ev) => onDeviceHeaderClick(d, ev)"
           @keydown.enter.prevent="onDeviceHeaderClick(d)"
           @keydown.space.prevent="onDeviceHeaderClick(d)"
         >
-          <div class="weekday">
-            {{ d.name }}
-          </div>
+          <v-chip
+            :color="d.color"
+            size="small"
+            variant="flat"
+            :style="{ color: contrastText(d.color) }"
+          >
+            {{ d.id }}
+          </v-chip>
         </div>
       </div>
       <div
@@ -460,28 +376,49 @@ function deviceEventStyle(deviceId: string): { backgroundColor: string; color: s
                   @pointerdown.stop.prevent="(e: PointerEvent) => props.onEventPointerDown(e, i)"
                   @click.stop="(e: MouseEvent) => props.onEventClick(i.id, e)"
                 >
-                  <div class="event-inner">
-                    <v-icon
-                      v-if="i.note && i.note.trim().length"
-                      size="16"
-                      class="event-note-icon"
-                      icon="mdi-text"
-                    />
-                    <div class="event-title">
-                      {{ i.title }}
+                    <div class="event-inner" style="position: relative; padding: 6px 30px 6px 8px; height: 100%; display: flex; flex-direction: column; gap: 2px; overflow: hidden;">
+                      <!-- Title row with optional series icon -->
+                      <div style="display: flex; align-items: center; gap: 4px;">
+                        <i
+                          v-if="i.seriesId"
+                          class="mdi-repeat mdi v-icon"
+                          style="font-size: 12px; flex-shrink: 0;"
+                          :style="{ color: contrastText(props.deviceColorOf(d.id)) === 'white' ? 'rgba(255,255,255,.85)' : 'rgba(0,0,0,0.6)' }"
+                        ></i>
+                        <div class="event-title" style="font-weight: 600; font-size: 12px; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0;">
+                          {{ i.title }}
+                        </div>
+                      </div>
+                      <!-- Device name chip -->
+                      <div
+                        class="event-device-chip"
+                        style="display: inline-flex; align-items: center; gap: 3px; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 500; max-width: fit-content;"
+                        :style="{
+                          background: contrastText(props.deviceColorOf(d.id)) === 'white' ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)',
+                          color: contrastText(props.deviceColorOf(d.id)) === 'white' ? 'rgba(255,255,255,0.95)' : 'rgba(0,0,0,0.7)'
+                        }"
+                      >
+                        <i class="mdi mdi-flask" style="font-size: 10px;"></i>
+                        <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ d.name }}</span>
+                      </div>
+                      <!-- Time -->
+                      <div class="event-time" style="font-size: 10px; opacity: 0.9; white-space: nowrap;">
+                        {{ props.fmtTime(new Date(i.start)) }} – {{ props.fmtTime(new Date(i.end)) }}
+                      </div>
+                      <!-- Avatar at bottom-right -->
+                      <div
+                        class="bg-white event-avatar"
+                        style="position: absolute; bottom: 4px; right: 4px; width: 22px; height: 22px; font-size: 10px; font-weight: 600; display: flex; align-items: center; justify-content: center; border-radius: 50%;"
+                        :style="{ color: props.deviceColorOf(d.id) }"
+                      >
+                        <span>{{ props.initials(i.username) }}</span>
+                      </div>
                     </div>
-                    <div class="event-time">
-                      {{ props.fmtTime(new Date(i.start)) }} – {{ props.fmtTime(new Date(i.end)) }}
-                    </div>
-                    <!-- Avatar: always white background, text inherits event contrast via CSS -->
-                    <v-avatar
-                      color="white"
-                      size="28"
-                      class="event-avatar"
-                    >
-                      <span>{{ props.initials(i.username) }}</span>
-                    </v-avatar>
-                  </div>
+                  <!-- Resize handle at bottom of event -->
+                  <div
+                    class="resize-handle"
+                    @pointerdown.stop="(e: PointerEvent) => props.onResizePointerDown(e, i)"
+                  />
                 </div>
               </template>
               <!-- Default slot to get isActive for reliable close -->
@@ -489,6 +426,7 @@ function deviceEventStyle(deviceId: string): { backgroundColor: string; color: s
                 <EventDetailCard
                   :item="i"
                   :color="d.color"
+                  :device-name="d.name"
                   :fmt-detail-date="props.fmtDetailDate"
                   :fmt-detail-time="props.fmtDetailTime"
                   :on-edit="props.openEdit"
@@ -509,21 +447,31 @@ function deviceEventStyle(deviceId: string): { backgroundColor: string; color: s
 /* grid without unresolved CSS custom properties; columns set inline from template */
 .tracks.row.header { display: grid; gap: 0; border-bottom: 1px solid #e5e5e5; }
 .tracks.row.body   { display: grid; }
-/* DŮLEŽITÉ: vypnutí scroll anchoringu, aby se viewport nehýbal při změnách DOM uvnitř */
 .scroll-viewport { overflow-y: auto; outline: none; overflow-anchor: none; }
-.time-col { background: #fafafa; border-right: 1px solid #e5e5e5; }
+.time-col { background: #fafafa; border-right: 1px solid #e5e5e5; box-sizing: border-box; }
 .time-tick { padding: 4px 8px; font-size: 12px; color: #777; border-bottom: 1px dashed #eee; }
-.track-name { padding: 12px 8px; text-align: center; border-left: 1px solid #f1f1f1; cursor: pointer; user-select: none; }
+.track-name {
+  padding: 12px 8px;
+  text-align: center;
+  cursor: pointer;
+  user-select: none;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.track-name:not(:first-of-type) {
+  border-left: 1px solid #f1f1f1;
+}
 .track-name .weekday { text-transform: uppercase; font-weight: 700; letter-spacing: .02em; }
 /* Focused header styling */
 .track-name.focused {
   background: color-mix(in srgb, var(--v-theme-primary) 16%, #ffffff);
   box-shadow: inset 0 -3px 0 0 var(--v-theme-primary);
-  border-left-color: color-mix(in srgb, var(--v-theme-primary) 30%, #f1f1f1);
 }
 .track {
   position: relative;
-  border-left: 1px solid #f1f1f1;
+  box-sizing: border-box;
   background:
     repeating-linear-gradient(
       to bottom,
@@ -533,13 +481,14 @@ function deviceEventStyle(deviceId: string): { backgroundColor: string; color: s
       transparent var(--tick-h)
     );
 }
-/* Focused column outline and subtle background */
+.track:not(:first-of-type) {
+  border-left: 1px solid #f1f1f1;
+}
 .track.focused {
   z-index: 2;
   outline: 2px solid color-mix(in srgb, var(--v-theme-primary) 65%, transparent);
   outline-offset: -1px;
 }
-/* Event container uses inline-size container queries */
 .event {
   position: absolute;
   border-radius: 10px;
@@ -550,16 +499,13 @@ function deviceEventStyle(deviceId: string): { backgroundColor: string; color: s
   container-type: inline-size;
 }
 .event:active { cursor: grabbing; }
-/* Wrapper for padding (CQ adjusts this) */
 .event-inner { padding: 8px 10px 20px 10px; position: relative; height: 100%; }
-/* base typography with truncation */
 .event-title { font-weight: 600; line-height: 1.2; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; text-overflow: ellipsis; white-space: nowrap; }
 .event-time { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-/* Avatar must be white */
 .event-avatar { position: absolute; right: 4px; top: 4px; background: #ffffff !important; color: inherit; font-size: 16px; line-height: 16px; text-transform: uppercase; border: 2px solid rgba(0,0,0,0.08); }
 .event-note-icon { position: absolute; right: 6px; bottom: 6px; color: rgba(0,0,0,.60); pointer-events: none; opacity: .85; }
 .event-note-icon:hover { opacity: 1; }
-/* Fallback height-based classes */
+.event-repeat-icon { position: absolute; right: 26px; bottom: 6px; color: rgba(0,0,0,.60); pointer-events: none; opacity: .85; }
 .event.event--xs .event-inner { padding: 0; }
 .event.event--xs .event-title,
 .event.event--xs .event-time,
@@ -568,26 +514,32 @@ function deviceEventStyle(deviceId: string): { backgroundColor: string; color: s
 .event.event--sm .event-inner { padding: 4px 8px; }
 .event.event--sm .event-time,
 .event.event--sm .event-note-icon,
-.event.event--sm .event-avatar {}
-.event.event--sm .event-title { font-size: 12px; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; -webkit-line-clamp: 1; }
+.event.event--sm .event-avatar { /* kept empty for override inheritance */ opacity: 1; }
+.event.event--sm .event-title { font-size: 12px; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; -webkit-line-clamp: 1; line-clamp: 1; }
 .event.event--md .event-inner { padding: 6px 8px 10px 8px; }
 .event.event--md .event-avatar { display: none; }
-.event.event--md .event-title { -webkit-line-clamp: 1; }
+.event.event--md .event-title { -webkit-line-clamp: 1; line-clamp: 1; }
 .event.event--md .event-time { font-size: 12px; }
+/* Resize handle */
+.resize-handle {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 8px;
+  cursor: ns-resize;
+  background: transparent;
+  z-index: 2;
+}
+.resize-handle:hover {
+  background: rgba(0,0,0,0.1);
+}
 /* Detail card */
 .detail-card { background: #eceff1; border-radius: 14px; box-shadow: 0 6px 20px rgba(0,0,0,.18); }
 .text-ellipsis { max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* Compact filters styling */
-.dmv-list-filters { display: grid; grid-template-rows: auto auto; row-gap: 8px; }
-.dmv-filters-row { display: grid; grid-template-columns: 170px 170px 1fr auto; column-gap: 12px; align-items: center; }
-.dmv-actions { display: flex; align-items: end; }
-.dmv-search-input { width: 100%; }
-.dmv-load-btn { height: 40px; min-width: 96px; padding-inline: 12px; }
-.dmv-filters-row-bottom { display: grid; grid-template-columns: 1fr auto; align-items: end; }
+/* Compact filters styling removed */
 .scroll-viewport { overflow-y: auto; outline: none; overflow-anchor: none; }
 /* Default values for CSS vars to silence analyzers and provide fallbacks */
 :root { --tick-h: 80px; }
-</style>
-<style>
-@import '@/styles/event-compact.css';
 </style>

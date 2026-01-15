@@ -3992,7 +3992,7 @@ function onManualBlocksSelect(selectedBlockIds: string[], blockTypes: Map<string
  * Handle manual header selection from the redesigned picker dialog.
  * Creates table blocks and/or series fields from user-selected headers.
  */
-function onManualHeadersApply(result: { tableHeaders: string[], seriesHeaders: string[], headerRowIndex: number }): void {
+function onManualHeadersApply(result: { tableHeaders: string[], seriesHeaders: string[], headerRowIndex: number | null }): void {
   console.log('[onManualHeadersApply]', result)
 
   // Create table block from table headers

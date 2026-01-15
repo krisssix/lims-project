@@ -105,6 +105,20 @@ function selectAll(): void {
   selectedIds.value = new Set(filtered.value.map(d => d.id))
 }
 
+// Table headers for v-data-table
+const tableHeaders = [
+  { title: 'Název přístroje', key: 'name', sortable: true },
+  { title: 'Kód přístroje', key: 'code', width: '220px', sortable: true },
+]
+
+// Two-way binding for v-data-table selection
+const selectedIdsArray = computed({
+  get: () => Array.from(selectedIds.value),
+  set: (val: number[]) => {
+    selectedIds.value = new Set(val)
+  }
+})
+
 // Create dialog
 const createDialogOpen = ref(false)
 function openCreate(): void {
@@ -284,32 +298,6 @@ onBeforeUnmount(() => {
       </v-fade-transition>
 
       <v-spacer />
-
-      <!-- Filter controls on the right -->
-      <v-switch
-        v-model="showOnlyActive"
-        inset
-        density="compact"
-        hide-details
-        color="primary"
-        class="mr-4"
-      >
-        <template #label>
-          <span class="text-body-2">Pouze aktivní</span>
-        </template>
-      </v-switch>
-
-      <v-text-field
-        v-model="filterText"
-        placeholder="Hledat..."
-        variant="outlined"
-        density="compact"
-        hide-details
-        style="max-width: 220px"
-        prepend-inner-icon="mdi-magnify"
-        clearable
-        @click:clear="filterText = ''"
-      />
     </v-toolbar>
 
     <v-container fluid class="pa-4">
@@ -339,95 +327,85 @@ onBeforeUnmount(() => {
       <kbd>Shift</kbd>+klik pro výběr rozsahu.
     </v-alert>
 
-    <!-- Table -->
-    <v-table
-      class="elevation-1 devices-table"
-      :class="{ 'shift-mode': shiftPressed }"
-    >
-      <thead>
-      <tr>
-        <th style="width: 48px;">
-          <v-checkbox
-            :model-value="selectedIds.size > 0 && selectedIds.size === filtered.length"
-            :indeterminate="selectedIds.size > 0 && selectedIds.size < filtered.length"
+    <!-- Table Card -->
+    <v-sheet elevation="1" class="pa-4 rounded-xl">
+      <!-- Table Toolbar with Search and Filter -->
+      <div class="table-toolbar">
+        <!-- Search Bar -->
+        <v-text-field
+          v-model="filterText"
+          placeholder="Hledat podle názvu přístroje nebo kódu"
+          variant="solo-filled"
+          density="comfortable"
+          hide-details
+          bg-color="grey-lighten-4"
+          prepend-inner-icon="mdi-magnify"
+          clearable
+          class="search-bar"
+          @click:clear="filterText = ''"
+        />
+        
+        <!-- Active Toggle -->
+        <div class="filter-toggle">
+          <v-switch
+            v-model="showOnlyActive"
+            color="primary"
+            density="comfortable"
             hide-details
-            density="compact"
-            @update:model-value="v => v ?  selectAll() : clearSelection()"
-          />
-        </th>
-        <th style="width: 140px;">
-          Kód
-        </th>
-        <th>Název</th>
-        <th style="width: 100px;">
-          Barva
-        </th>
-        <th style="width: 100px;">
-          Stav
-        </th>
-      </tr>
-      </thead>
-      <tbody>
-      <tr
-        v-for="d in filtered"
-        :key="d.id"
-        class="device-row"
-        :class="{
-            'row-selected': isSelected(d.id),
-            'row-inactive': !d.active
-          }"
-        @click="handleRowClick(d, $event)"
+          >
+            <template #label>
+              <span class="text-body-2">Pouze aktivní</span>
+            </template>
+          </v-switch>
+        </div>
+      </div>
+
+      <!-- Data Table -->
+      <v-data-table
+        :items="filtered"
+        :headers="tableHeaders"
+        :items-per-page="15"
+        hover
+        class="modern-table elevation-0"
+        :class="{ 'shift-mode': shiftPressed }"
+        show-select
+        item-value="id"
+        v-model="selectedIdsArray"
       >
-        <td @click.stop>
-          <v-checkbox
-            :model-value="isSelected(d.id)"
-            hide-details
-            density="compact"
-            @click="(e: MouseEvent) => handleCheckboxClick(d, ! isSelected(d.id), e)"
-          />
-        </td>
-        <td>
-          <v-chip
-            size="small"
-            :color="d.color || 'primary'"
-            variant="flat"
+        <!-- Device name with status chip -->
+        <template #item.name="{ item }">
+          <div 
+            class="d-flex align-center ga-2 device-row-content"
+            @click="openDetail(item)"
           >
-            {{ d.code }}
-          </v-chip>
-        </td>
-        <td class="font-weight-medium">
-          {{ d.name }}
-        </td>
-        <td>
-          <div
-            v-if="d.color"
-            class="color-swatch"
-            :style="{ backgroundColor: d.color }"
-            :title="d.color"
-          />
-          <span
-            v-else
-            class="text-medium-emphasis"
-          >—</span>
-        </td>
-        <td>
-          <v-chip
-            size="small"
-            :color="d.active ? 'success' : 'grey'"
-            :variant="d.active ? 'flat' : 'tonal'"
-          >
-            <v-icon
-              size="14"
-              start
+            <span class="font-weight-medium">{{ item.name }}</span>
+            <v-chip
+              size="small"
+              :color="item.active ? 'success' : 'grey'"
+              variant="flat"
             >
-              {{ d.active ? 'mdi-check-circle' : 'mdi-close-circle' }}
-            </v-icon>
-            {{ d.active ?  'Aktivní' : 'Neaktivní' }}
-          </v-chip>
-        </td>
-      </tr>
-      </tbody>
-    </v-table>
+              <v-icon size="14" start>
+                {{ item.active ? 'mdi-check-circle' : 'mdi-close-circle' }}
+              </v-icon>
+              {{ item.active ? 'Aktivní' : 'Neaktivní' }}
+            </v-chip>
+          </div>
+        </template>
+
+        <!-- Code chip with color -->
+        <template #item.code="{ item }">
+          <div class="d-flex justify-start">
+            <v-chip
+              size="small"
+              variant="flat"
+              :style="{ backgroundColor: item.color || '#1976D2', color: '#fff' }"
+            >
+              {{ item.code }}
+            </v-chip>
+          </div>
+        </template>
+      </v-data-table>
+    </v-sheet>
 
     <!-- Empty state -->
     <v-alert
@@ -458,37 +436,55 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-.devices-table {
+/* Table Toolbar */
+.table-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-right: 12px;
+  margin-bottom: 16px;
+}
+
+.search-bar {
+  flex: 1;
+  min-width: 240px;
+}
+
+.search-bar :deep(.v-field) {
+  border-radius: 12px;
+}
+
+.filter-toggle {
+  flex: 0 0 auto;
+  height: 44px;
+  padding: 0 12px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  display: flex;
+  align-items: center;
+}
+
+/* Modern Table */
+.modern-table {
   border-radius: 8px;
   overflow: hidden;
 }
 
-.device-row {
+.modern-table :deep(th) {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  color: #64748b;
+}
+
+.device-row-content {
   cursor: pointer;
-  transition: background-color 0.15s;
 }
 
-.device-row:hover {
-  background-color: #f5f5f5;
-}
-
-.row-selected {
-  background-color: #e3f2fd ! important;
-}
-
-.row-inactive {
-  opacity: 0.7;
-}
-
-.row-inactive td {
-  color: rgba(0, 0, 0, 0.5);
-}
-
-.color-swatch {
-  width: 24px;
-  height: 24px;
-  border-radius: 4px;
-  border: 1px solid rgba(0, 0, 0, 0.12);
+.device-row-content:hover {
+  color: #1976d2;
 }
 
 kbd {
@@ -501,16 +497,16 @@ kbd {
   border: 1px solid rgba(0, 0, 0, 0.12);
 }
 
-/* Shift mode - jednoduché fialové podbarvení */
+/* Shift mode - fialové podbarvení */
 .shift-mode {
   background-color: rgba(103, 58, 183, 0.04);
 }
 
-.shift-mode .device-row:hover {
+.shift-mode :deep(tr:hover) {
   background-color: rgba(103, 58, 183, 0.08) !important;
 }
 
-.shift-mode .row-selected {
+.shift-mode :deep(.v-data-table__selected) {
   background-color: rgba(103, 58, 183, 0.15) !important;
 }
 </style>

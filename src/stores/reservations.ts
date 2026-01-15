@@ -11,6 +11,15 @@ export type ReservationItem = {
   username: string | null
   projectId: number
   note: string | null
+  seriesId?: string | null
+}
+
+export type RecurrenceRequest = {
+  recurrenceType: 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY'
+  interval: number
+  daysOfWeek?: number[]
+  count?: number
+  until?: number
 }
 
 export type DeviceItem = { id: number; code: string; name: string; color?: string }
@@ -22,7 +31,9 @@ type CreateReservationPayload = {
   endTime: number
   projectId: number
   username: string
+
   note?: string | null
+  recurrence?: RecurrenceRequest | null
 }
 
 type UpdateReservationPayload = {
@@ -32,6 +43,7 @@ type UpdateReservationPayload = {
   endTime?: number
   username?: string | null
   note?: string | null
+  recurrence?: RecurrenceRequest | null
 }
 
 export const useReservationsStore = defineStore('reservations', () => {
@@ -46,7 +58,7 @@ export const useReservationsStore = defineStore('reservations', () => {
   async function fetchByProject(projectId: number, from: number, to: number, deviceCodes: string[] = []) {
     const codes = deviceCodes.length ? `&deviceCodes=${encodeURIComponent(deviceCodes.join(','))}` : ''
     const resp = await get<{ items: ReservationItem[] }>(
-        `reservations/by-project/${projectId}?from=${from}&to=${to}${codes}`
+      `reservations/by-project/${projectId}?from=${from}&to=${to}${codes}`
     )
     items.value = resp.data.items
     return items.value
@@ -98,6 +110,29 @@ export const useReservationsStore = defineStore('reservations', () => {
     items.value = items.value.filter(i => i.id !== id)
   }
 
+  async function fetchSeriesRecurrence(seriesId: string) {
+    const resp = await get<{ content: RecurrenceRequest }>(`reservations/series/${seriesId}/recurrence`)
+    return resp.data.content
+  }
+
+  async function updateSeries(id: number, payload: UpdateReservationPayload, scope: 'series' | 'following') {
+    // This endpoint handles both 'series' and 'following' scopes based on query param or body
+    // Assuming backend API: PATCH /reservations/{id}/series?scope=...
+    const resp = await patch<{ items: ReservationItem[] }>(`reservations/${id}/series?scope=${scope}`, payload)
+    // We should probably invalidate/reload data in the view because multiple items changed
+    return resp.data.items
+  }
+
+  async function deleteSeriesReservations(seriesId: string) {
+    await del(`reservations/series/${seriesId}`)
+    items.value = items.value.filter(i => i.seriesId !== seriesId)
+  }
+
+  async function deleteSeriesFromDate(seriesId: string, fromDate: number) {
+    await del(`reservations/series/${seriesId}/from/${fromDate}`)
+    // Optimistic update difficult for 'from date', easier to reload
+  }
+
   return {
     devices,
     items,
@@ -106,6 +141,10 @@ export const useReservationsStore = defineStore('reservations', () => {
     createReservation,
     updateReservation,
     updateReservationNote,
-    deleteReservation
+    deleteReservation,
+    fetchSeriesRecurrence,
+    updateSeries,
+    deleteSeriesReservations,
+    deleteSeriesFromDate,
   }
 })

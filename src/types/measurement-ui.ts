@@ -24,9 +24,12 @@ export type UiFieldRow = {
 
 export type DeviceItem = {
   id: string
+  code?: string
   name: string
   color: string
 }
+
+export type TemplateStatus = 'DRAFT' | 'ACTIVE' | 'DEPRECATED'
 
 export type TemplateItem = {
   id: string
@@ -34,7 +37,13 @@ export type TemplateItem = {
   deviceId: string
   deviceColor: string
   fields: TemplateFieldRow[]
-  blocks?: TemplateBlockRow[]  // <-- PŘIDAT TOTO
+  blocks?: TemplateBlockRow[]
+  createdAt?: string
+  updatedAt?: string
+  status?: TemplateStatus
+  version?: string
+  parentVersionId?: number
+  changeDescription?: string
 }
 
 export type ValueRow = {

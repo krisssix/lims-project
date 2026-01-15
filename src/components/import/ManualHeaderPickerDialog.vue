@@ -37,8 +37,32 @@ watch(() => props.modelValue, (open) => {
     seriesCells.value = new Set()
     lastClickedCell.value = null
     selectionMode.value = 'cell'
+    noHeaderMode.value = false
+    renamedHeaders.value = new Map()
   }
 })
+
+// No Header Mode state
+const noHeaderMode = ref(false)
+const renamedHeaders = ref<Map<number, string>>(new Map())
+const showRenameDialog = ref(false)
+const columnToRename = ref<number | null>(null)
+const tempRenameValue = ref('')
+
+function openRenameDialog(colIdx: number) {
+  columnToRename.value = colIdx
+  tempRenameValue.value = renamedHeaders.value.get(colIdx) || colLetter(colIdx)
+  showRenameDialog.value = true
+}
+
+function saveColumnName() {
+  if (columnToRename.value !== null && tempRenameValue.value.trim()) {
+    renamedHeaders.value.set(columnToRename.value, tempRenameValue.value.trim())
+    // Trigger reactivity
+    renamedHeaders.value = new Map(renamedHeaders.value)
+  }
+  showRenameDialog.value = false
+}
 
 // Get max columns
 const maxCols = computed(() => {
@@ -142,7 +166,31 @@ function handleColClick(colIdx: number, event: MouseEvent): void {
   }
   
   selectedCells.value = new Set(selectedCells.value)
+  selectedCells.value = new Set(selectedCells.value)
   lastClickedCell.value = { row: 0, col: colIdx }
+
+  // In No Header mode, clicking a column header allows renaming ONLY IF it's a simple click (no shift/ctrl)
+  // and we want to offer rename functionality immediately or via double click?
+  // Let's stick to a specific action or maybe double click.
+  // Actually, let's just use the click to select, and provide a Rename button in toolbar?
+  // User said: "v teto komponente prosim dej funkcionalitu... Navic budu moct pojmenovat... tak se mi objevi moznost"
+  // Let's open rename dialog if No Header Mode is active and user clicks the header of an already selected column?
+  // Or just always open on click?
+  // Better: Add an edit icon or simple dialog trigger.
+}
+
+function handleHeaderCellClick(colIdx: number, event: MouseEvent) {
+  if (noHeaderMode.value) {
+    // If no header mode, we are selecting the column conceptually. 
+    // Let's select it first.
+    handleColClick(colIdx, event)
+    
+    // Check if we should open rename dialog: only if single column selected?
+    // Let's use a explicit "Rename" button or icon in the header cell.
+    return
+  }
+  // Normal mode
+  handleColClick(colIdx, event)
 }
 
 // Get cell value
@@ -203,6 +251,12 @@ function removeFromSeries(key: string): void {
 
 // Get assigned headers
 const tableHeaders = computed(() => {
+  if (noHeaderMode.value) {
+    const cols = new Set<number>()
+    tableCells.value.forEach(key => cols.add(Number(key.split(',')[1])))
+    return Array.from(cols).sort((a, b) => a - b).map(c => renamedHeaders.value.get(c) || colLetter(c))
+  }
+
   const headers: string[] = []
   tableCells.value.forEach(key => {
     const [r, c] = key.split(',').map(Number)
@@ -213,6 +267,12 @@ const tableHeaders = computed(() => {
 })
 
 const seriesHeaders = computed(() => {
+  if (noHeaderMode.value) {
+    const cols = new Set<number>()
+    seriesCells.value.forEach(key => cols.add(Number(key.split(',')[1])))
+    return Array.from(cols).sort((a, b) => a - b).map(c => renamedHeaders.value.get(c) || colLetter(c))
+  }
+
   const headers: string[] = []
   seriesCells.value.forEach(key => {
     const [r, c] = key.split(',').map(Number)
@@ -230,7 +290,7 @@ function applySelection(): void {
   emits('apply', {
     tableHeaders: tableHeaders.value,
     seriesHeaders: seriesHeaders.value,
-    headerRowIndex: null // No single header row in new design
+    headerRowIndex: null // In No Header mode (and current mixed mode), we don't pick a specific header row idx to return
   })
   emits('update:modelValue', false)
 }
@@ -314,6 +374,35 @@ function colLetter(idx: number): string {
             >
               → Datová série
             </v-btn>
+            
+             <!-- Rename button for No Header mode -->
+             <v-btn
+              v-if="noHeaderMode && selectedCells.size > 0"
+              size="small"
+              variant="tonal"
+              color="secondary"
+              prepend-icon="mdi-pencil"
+              @click="() => {
+                 // Find the first selected column to rename
+                 const firstKey = selectedCells.values().next().value
+                 if(firstKey) {
+                   const c = Number(firstKey.split(',')[1])
+                   openRenameDialog(c)
+                 }
+              }"
+            >
+              Přejmenovat sloupec
+            </v-btn>
+
+            <v-divider vertical class="mx-2" style="height: 24px;" />
+             <v-checkbox
+              v-model="noHeaderMode"
+              label="Bez hlavičky (No Header)"
+              density="compact"
+              hide-details
+              color="warning"
+              class="mr-2"
+            />
             <v-divider vertical class="mx-2" style="height: 24px;" />
             <v-btn
               size="small"
@@ -326,6 +415,20 @@ function colLetter(idx: number): string {
           </div>
         </div>
 
+        <!-- Alert for No Header Mode -->
+        <v-alert
+          v-if="noHeaderMode"
+          type="warning"
+          variant="tonal"
+          density="compact"
+          icon="mdi-alert-circle-outline"
+          class="flex-grow-0"
+        >
+          <strong>Režim bez hlavičky:</strong> V tomto režimu nejsou data brána jako hlavičky. 
+          Vyberte sloupce a přiřaďte je k Tabulce nebo Térii (sloupce budou použity jako pole). 
+          Názvy sloupců (A, B...) můžete přejmenovat.
+        </v-alert>
+
         <!-- Grid container -->
         <div ref="gridContainerRef" class="grid-container">
           <table class="data-grid">
@@ -336,9 +439,18 @@ function colLetter(idx: number): string {
                   v-for="c in maxCols"
                   :key="c - 1"
                   class="col-header"
-                  @click="handleColClick(c - 1, $event)"
+                  @click="handleHeaderCellClick(c - 1, $event)"
                 >
-                  {{ colLetter(c - 1) }}
+                  {{ noHeaderMode && renamedHeaders.has(c - 1) ? renamedHeaders.get(c - 1) : colLetter(c - 1) }}
+                  <v-icon
+                    v-if="noHeaderMode"
+                    size="x-small"
+                    class="ml-1"
+                    color="grey"
+                    @click.stop="openRenameDialog(c - 1)"
+                  >
+                    mdi-pencil
+                  </v-icon>
                 </th>
               </tr>
             </thead>
@@ -397,11 +509,39 @@ function colLetter(idx: number): string {
             </div>
           </div>
 
+
+        <!-- Rename Dialog -->
+        <v-dialog v-model="showRenameDialog" max-width="400">
+          <v-card>
+            <v-card-title class="text-h6">Přejmenovat sloupec</v-card-title>
+            <v-card-text>
+              <v-text-field
+                v-model="tempRenameValue"
+                label="Název sloupce"
+                variant="outlined"
+                autofocus
+                @keydown.enter="saveColumnName"
+              />
+            </v-card-text>
+            <v-card-actions>
+              <v-spacer />
+              <v-btn variant="text" @click="showRenameDialog = false">Zrušit</v-btn>
+              <v-btn color="primary" @click="saveColumnName">Uložit</v-btn>
+            </v-card-actions>
+          </v-card>
+        </v-dialog>
+
           <!-- Series headers -->
           <div class="assignment-panel series-panel">
             <div class="panel-header">
               <v-icon size="18" color="success" class="mr-1">mdi-chart-line</v-icon>
               <span>Datová série ({{ seriesHeaders.length }})</span>
+              <v-tooltip location="top">
+                <template #activator="{ props }">
+                  <v-icon v-bind="props" size="small" class="ml-2" color="success">mdi-information</v-icon>
+                </template>
+                Datové série jsou obvykle číselné (float). Systém se pokusí typ detekovat.
+              </v-tooltip>
             </div>
             <div class="panel-content">
               <v-chip

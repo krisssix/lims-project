@@ -12,9 +12,9 @@ import App from './App.vue'
 
 // Composables
 import { createApp } from 'vue'
-import {auth} from "@/stores/auth";
+import { auth } from "@/stores/auth";
 
-async function initApp(){
+async function initApp() {
   const app = createApp(App)
   await auth.init()
 

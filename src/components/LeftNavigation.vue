@@ -2,7 +2,7 @@
 import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter, type RouteRecordName, type RouteLocationRaw } from 'vue-router'
 
-type ProjectRouteName = 'Board' | 'Measurements' | 'Reservations' | 'PeopleWork' | 'Summary'
+type ProjectRouteName = 'Board' | 'Measurements' | 'Devices' | 'Reservations' | 'PeopleWork' | 'Summary'
 
 const route = useRoute()
 const router = useRouter()
@@ -22,20 +22,11 @@ function toggleRail() {
   localStorage.setItem('ui:navRail', isRail.value ? '1' : '0')
 }
 
-function onKey(e: KeyboardEvent) {
-  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b') {
-    e.preventDefault()
-    toggleRail()
-  }
-}
-onMounted(() => window.addEventListener('keydown', onKey))
-onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
-
 const links: Array<{ title: string; componentName: ProjectRouteName; icon: string }> = [
   { title: 'Board',        componentName: 'Board',        icon: 'mdi-bulletin-board' },
   { title: 'Měření',       componentName: 'Measurements', icon: 'mdi-flask-outline' },
-  { title: 'Přístroje',    componentName: 'Devices',      icon: 'mdi-devices' },
   { title: 'Rezervace',    componentName: 'Reservations', icon: 'mdi-calendar' },
+  { title: 'Přístroje',    componentName: 'Devices',      icon: 'mdi-devices' },
   { title: 'Lidé a práce', componentName: 'PeopleWork',   icon: 'mdi-account-group-outline' },
   { title: 'Souhrn',       componentName: 'Summary',      icon: 'mdi-chart-bar' },
 ]
@@ -68,7 +59,7 @@ function navigate(componentName: ProjectRouteName) {
           size="small"
           variant="text"
           :icon="isRail ? 'mdi-chevron-double-right' : 'mdi-chevron-double-left'"
-          :title="isRail ? 'Rozbalit (Ctrl+B)' : 'Sbalit (Ctrl+B)'"
+          :title="isRail ? 'Rozbalit' : 'Sbalit'"
           @click="toggleRail"
         />
       </div>

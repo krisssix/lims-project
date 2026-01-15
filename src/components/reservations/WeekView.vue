@@ -11,6 +11,7 @@ type ResItem = {
   status: 'plan' | 'running' | 'done'
   username: string | null
   note: string | null
+  seriesId?: string | null
 }
 type EventLayout = Record<number, { left: number; width: number }>
 
@@ -36,6 +37,7 @@ const props = withDefaults(defineProps<{
   fmtDetailTime: (d: Date) => string
   initials: (u: string | null) => string
   deviceColorOf: (deviceId: string) => string
+  deviceNameOf: (deviceId: string) => string
 
   // menu state
   isMenuOpen: (id: number) => boolean
@@ -44,6 +46,7 @@ const props = withDefaults(defineProps<{
   // events
   onTrackClick: (evt: MouseEvent, ctx: { type: 'day'; day: Date }) => void
   onEventPointerDown: (e: PointerEvent, item: ResItem) => void
+  onResizePointerDown: (e: PointerEvent, item: ResItem) => void
   onEventClick: (id: number, e: MouseEvent) => void
   openEdit: (i: ResItem) => void
   askDelete: (i: ResItem) => void
@@ -194,6 +197,9 @@ function viewportRefHandler(el: Element | ComponentPublicInstance | null) {
     el instanceof HTMLElement
       ? el
       : (hasEl(el) && el.$el instanceof HTMLElement ? (el.$el as HTMLElement) : null)
+
+  // If same element, don't re-attach or re-scroll (prevents glitch on re-render)
+  if (dom === viewportEl.value) return
 
   // detach old
   if (viewportEl.value) viewportEl.value.removeEventListener('scroll', onViewportScroll)
@@ -357,28 +363,53 @@ function deviceEventStyle(deviceId: string): { backgroundColor: string; color: s
                 @pointerdown.stop.prevent="(e: PointerEvent) => props.onEventPointerDown(e, i)"
                 @click.stop="(e: MouseEvent) => props.onEventClick(i.id, e)"
               >
-                <div class="event-inner">
-                  <v-icon
-                    v-if="i.note && i.note.trim().length"
-                    size="16"
-                    class="event-note-icon"
-                  >
-                    mdi-text
-                  </v-icon>
-                  <div class="event-title">
-                    {{ i.title }}
+                <div class="event-inner" style="position: relative; padding: 6px 30px 6px 8px; height: 100%; display: flex; flex-direction: column; gap: 2px; overflow: hidden;">
+                  <!-- Title row with optional series icon -->
+                  <div style="display: flex; align-items: center; gap: 4px;">
+                    <i 
+                      v-if="i.seriesId" 
+                      class="mdi-repeat mdi v-icon" 
+                      style="font-size: 12px; flex-shrink: 0;"
+                      :style="{ color: contrastText(props.deviceColorOf(i.deviceId)) === 'white' ? 'rgba(255,255,255,.85)' : 'rgba(0,0,0,0.6)' }"
+                    ></i>
+                    <div class="event-title" style="font-weight: 600; font-size: 12px; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0;">
+                      {{ i.title }}
+                    </div>
                   </div>
-                  <div class="event-time">
+                  <!-- Device chip -->
+                  <div class="event-device" style="overflow: hidden;">
+                    <div style="display: flex; flex-wrap: nowrap; gap: 4px; overflow-x: auto; scrollbar-width: none;">
+                      <span 
+                        style="display: inline-flex; align-items: center; gap: 3px; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 600; white-space: nowrap;"
+                        :style="{ 
+                          background: contrastText(props.deviceColorOf(i.deviceId)) === 'white' ? 'rgba(255,255,255,.2)' : 'rgba(0,0,0,0.1)', 
+                          border: contrastText(props.deviceColorOf(i.deviceId)) === 'white' ? '1px solid rgba(255,255,255,.3)' : '1px solid rgba(0,0,0,0.15)', 
+                          color: contrastText(props.deviceColorOf(i.deviceId)) === 'white' ? 'rgba(255,255,255,.95)' : 'rgba(0,0,0,0.75)' 
+                        }"
+                      >
+                        <i class="mdi-flask-outline mdi v-icon" style="font-size: 11px;"></i>
+                        {{ props.deviceNameOf(i.deviceId) }}
+                      </span>
+                    </div>
+                  </div>
+                  <!-- Time -->
+                  <div class="event-time" style="font-size: 10px; opacity: 0.9; white-space: nowrap;">
                     {{ props.fmtTime(new Date(i.start)) }} – {{ props.fmtTime(new Date(i.end)) }}
                   </div>
-                  <v-avatar
-                    size="28"
-                    class="event-avatar"
-                    color="white"
+                  <!-- Avatar at bottom-right -->
+                  <div 
+                    class="bg-white event-avatar" 
+                    style="position: absolute; bottom: 4px; right: 4px; width: 22px; height: 22px; font-size: 10px; font-weight: 600; display: flex; align-items: center; justify-content: center; border-radius: 50%;"
+                    :style="{ color: props.deviceColorOf(i.deviceId) }"
                   >
                     <span>{{ props.initials(i.username) }}</span>
-                  </v-avatar>
+                  </div>
                 </div>
+                <!-- Resize handle at bottom of event -->
+                <div
+                  class="resize-handle"
+                  @pointerdown.stop="(e: PointerEvent) => props.onResizePointerDown(e, i)"
+                />
               </div>
             </template>
 
@@ -387,6 +418,7 @@ function deviceEventStyle(deviceId: string): { backgroundColor: string; color: s
               <EventDetailCard
                 :item="i"
                 :color="props.deviceColorOf(i.deviceId)"
+                :device-name="props.deviceNameOf(i.deviceId)"
                 :fmt-detail-date="props.fmtDetailDate"
                 :fmt-detail-time="props.fmtDetailTime"
                 :on-edit="props.openEdit"
@@ -406,11 +438,11 @@ function deviceEventStyle(deviceId: string): { backgroundColor: string; color: s
 .schedule { border-radius: 12px; overflow: hidden; }
 
 /* Header/body grids */
-.tracks.row.header { display: grid; gap: 0; border-bottom: 1px solid #e5e5e5; }
+.tracks.row.header { display: grid; gap: 0; border-bottom: 1px solid #e5e5e5; margin-right: 12px; }
 .tracks.row.body   { display: grid; }
 
 /* DŮLEŽITÉ: vypnutí scroll anchoringu, aby se viewport nehýbal při změnách DOM uvnitř */
-.scroll-viewport { overflow-y: auto; outline: none; overflow-anchor: none; }
+.scroll-viewport { overflow-y: scroll; scrollbar-gutter: stable; outline: none; overflow-anchor: none; }
 
 .time-col { background: #fafafa; border-right: 1px solid #e5e5e5; }
 .time-tick { padding: 4px 8px; font-size: 12px; color: #777; border-bottom: 1px dashed #eee; }
@@ -470,6 +502,7 @@ function deviceEventStyle(deviceId: string): { backgroundColor: string; color: s
 
 /* base typography with truncation */
 .event-title { font-weight: 600; line-height: 1.2; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; text-overflow: ellipsis; white-space: nowrap; }
+.event-device { font-size: 13px; opacity: 0.85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; font-weight: 500; }
 .event-time { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* Avatar always white, text inherits event contrast color */
@@ -477,6 +510,7 @@ function deviceEventStyle(deviceId: string): { backgroundColor: string; color: s
 
 .event-note-icon { position: absolute; right: 6px; bottom: 6px; color: rgba(0,0,0,.60); pointer-events: none; opacity: .85; }
 .event-note-icon:hover { opacity: 1; }
+.event-repeat-icon { position: absolute; right: 26px; bottom: 6px; color: rgba(0,0,0,.60); pointer-events: none; opacity: .85; }
 
 /* Fallback height-based classes */
 .event.event--xs .event-inner { padding: 0; }
@@ -488,15 +522,30 @@ function deviceEventStyle(deviceId: string): { backgroundColor: string; color: s
 .event.event--sm .event-inner { padding: 4px 8px; }
 .event.event--sm .event-time,
 .event.event--sm .event-note-icon,
-.event.event--sm .event-avatar {}
-.event.event--sm .event-title { font-size: 12px; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; -webkit-line-clamp: 1; }
+.event.event--sm .event-avatar { /* kept empty for override */ opacity: 1; }
+.event.event--sm .event-title { font-size: 12px; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; -webkit-line-clamp: 1; line-clamp: 1; }
 
 .event.event--md .event-inner { padding: 6px 8px 10px 8px; }
 .event.event--md .event-avatar { display: none; }
-.event.event--md .event-title { -webkit-line-clamp: 1; }
+.event.event--md .event-title { -webkit-line-clamp: 1; line-clamp: 1; }
 .event.event--md .event-time { font-size: 12px; }
 
-.scroll-viewport { overflow-y: auto; outline: none; overflow-anchor: none; }
+/* Resize handle */
+.resize-handle {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 8px;
+  cursor: ns-resize;
+  background: transparent;
+  z-index: 2;
+}
+.resize-handle:hover {
+  background: rgba(0,0,0,0.1);
+}
+
+.scroll-viewport { overflow-y: scroll; scrollbar-gutter: stable; outline: none; overflow-anchor: none; }
 /* Detail card */
 .detail-card { background: #eceff1; border-radius: 14px; box-shadow: 0 6px 20px rgba(0,0,0,.18); }
 

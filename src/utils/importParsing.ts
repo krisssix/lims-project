@@ -406,7 +406,7 @@ function parseTableBlock(
   // Filter out stats rows from data
   dataRows = dataRows.filter(row => {
     const firstCell = row[0]?.toLowerCase().trim() || ''
-    return ! isComputedStat(firstCell)
+    return !isComputedStat(firstCell)
   })
 
   const headersNormalized = headersRaw.map(normalizeHeader)
@@ -425,7 +425,7 @@ function parseTableBlock(
 // ============ SMART SPLIT (CSV-aware) ============
 
 function smartSplit(line: string, delimiter: string): string[] {
-  if (! line) return []
+  if (!line) return []
 
   // Handle quoted CSV
   if (delimiter === ',' || delimiter === ';') {
@@ -453,7 +453,7 @@ function splitCsvLine(line: string, sep: string): string[] {
       } else {
         inQuote = !inQuote
       }
-    } else if (! inQuote && ch === sep) {
+    } else if (!inQuote && ch === sep) {
       out.push(cur)
       cur = ''
     } else {
@@ -467,14 +467,14 @@ function splitCsvLine(line: string, sep: string): string[] {
 // ============ UNIT ROW DETECTION ============
 
 function looksLikeUnitRow(parts: string[]): boolean {
-  if (! parts || parts.length === 0) return false
+  if (!parts || parts.length === 0) return false
 
   let unitCount = 0
   let nonEmpty = 0
 
   for (const p of parts) {
     const s = p.trim()
-    if (! s) continue
+    if (!s) continue
     nonEmpty++
 
     const low = s.toLowerCase()
@@ -499,10 +499,10 @@ function mergeHeadersWithUnits(headers: string[], units: string[]): string[] {
   for (let i = 0; i < headers.length; i++) {
     const base = headers[i]?.trim() || ''
     const unitIdx = i - offset
-    const unit = (unitIdx >= 0 && unitIdx < units.length) ?  units[unitIdx].trim() : ''
+    const unit = (unitIdx >= 0 && unitIdx < units.length) ? units[unitIdx].trim() : ''
 
-    if (unit && ! base.includes(unit)) {
-      result.push(base ?  `${base} (${unit})` : unit)
+    if (unit && !base.includes(unit)) {
+      result.push(base ? `${base} (${unit})` : unit)
     } else {
       result.push(base)
     }
@@ -529,17 +529,21 @@ function normalizeHeader(h: string): string {
 export function inferFieldType(header: string): ColumnType {
   const h = header.toLowerCase()
 
-  if (/datum|date|time|čas|timestamp/.test(h)) return 'date'
-  if (/bool|ano|ne|yes|no|true|false/.test(h)) return 'bool'
-  if (/soubor|file|image|foto|picture|img/.test(h)) return 'file'
-  if (/počet|count|id|index|pořadí/.test(h)) return 'int'
-  if (/hodnota|value|měření|num|float|%|°|size|diameter|intensity/.test(h)) return 'float'
+  // Use word boundaries to avoid false positives (e.g. "hodnota" contains "no", "ano"; "jméno" contains "no")
+  if (/(^|\s)(datum|date|time|čas|timestamp)(\s|$)/.test(h)) return 'date'
+  if (/^(bool|boolean|ano|ne|yes|no|true|false)$/.test(h) ||
+    /(^|\s)(bool|boolean|ano|ne|yes|no|true|false)(\s|$)/.test(h)) return 'bool'
+  if (/(soubor|file|image|foto|picture|img)/.test(h)) return 'file'
+  if (/(počet|count|id|index|pořadí)/.test(h)) return 'int'
+  if (/^(hodnota|value|měření)$/.test(h) ||
+    /(^|\s)(hodnota|value|měření)(\s|$)/.test(h) ||
+    /(num|float|%|°|size|diameter|intensity)/.test(h)) return 'float'
 
   return 'text'
 }
 
 export function inferFieldTypeFromSamples(samples: string[]): ColumnType {
-  if (! samples || samples.length === 0) return 'text'
+  if (!samples || samples.length === 0) return 'text'
 
   let ints = 0
   let floats = 0
@@ -549,7 +553,7 @@ export function inferFieldTypeFromSamples(samples: string[]): ColumnType {
   let n = 0
 
   for (const s of samples) {
-    if (! s || s.trim() === '') continue
+    if (!s || s.trim() === '') continue
     n++
     const t = s.trim()
 
@@ -580,7 +584,7 @@ export function inferFieldTypeFromSamples(samples: string[]): ColumnType {
 // ============ REPEAT SET DETECTION ============
 
 export function buildRepeatMetaFromHeaders(headers: string[]): RepeatMeta {
-  if (! headers || headers.length < 2) {
+  if (!headers || headers.length < 2) {
     return { repeatDetected: false, baseHeaders: headers || [], repeatCount: 1 }
   }
 
@@ -640,7 +644,7 @@ export function saveImportProfile(profile: ImportProfile): void {
 
 export function findMatchingProfile(headers: string[]): ImportProfile | null {
   const profiles = loadImportProfiles()
-  if (profiles.length === 0 || ! headers.length) return null
+  if (profiles.length === 0 || !headers.length) return null
 
   const normalizedInput = new Set(headers.map(normalizeHeader))
 

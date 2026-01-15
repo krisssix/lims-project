@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { post } from '@/services/api/api-requests'
+import { post, get, del } from '@/services/api/api-requests'
 import { inferFieldType, type FieldType } from '@/utils/inferFieldType'
 
 export type ColumnType = 'float' | 'int' | 'bool' | 'date' | 'text' | 'file' | 'empty' | 'unknown'
@@ -14,6 +14,30 @@ export type SuggestMappingRequest = {
   templateId: number
   headers: string[]
   threshold?: number
+}
+
+/* -------- Learned mapping suggestions (from DB) -------- */
+export type SuggestedMapping = {
+  targetFieldName: string
+  matchType: 'LEARNED' | 'EXACT_MATCH' | 'PARTIAL_MATCH'
+  confidence: number
+}
+export type SuggestedSeriesMapping = {
+  targetSeriesType: string
+  matchType: 'LEARNED' | 'HEURISTIC'
+  confidence: number
+}
+export type LearnedMappingSuggestions = Record<string, SuggestedMapping>
+export type LearnedSeriesSuggestions = Record<string, SuggestedSeriesMapping>
+
+/* -------- Learned mapping management DTO -------- */
+export type LearnedMapping = {
+  id: number
+  sourceColumnRaw: string
+  targetFieldName: string
+  mappingType: 'VALUE' | 'SERIES'
+  useCount: number
+  lastUsed: number
 }
 
 /* -------- Import preview/commit DTOs (v souladu s BE) -------- */
@@ -151,6 +175,49 @@ export const useImportStore = defineStore('import', () => {
   }
 
   /**
+   * Learned mappings: POST /measurement-import/template/{templateId}/suggest-mappings
+   * Vrací uložená mapování z předchozích importů.
+   */
+  async function suggestLearnedMappings(
+    templateId: number,
+    headers: string[],
+    templateFieldNames: string[]
+  ): Promise<LearnedMappingSuggestions> {
+    try {
+      const resp = await post(
+        `measurement-import/template/${templateId}/suggest-mappings`,
+        { headers, templateFieldNames },
+        undefined
+      )
+      if (!hasContent<LearnedMappingSuggestions>(resp)) {
+        console.warn('Learned mappings: invalid response, using empty')
+        return {}
+      }
+      return resp.data.content
+    } catch (e) {
+      // Fallback: pokud endpoint selže, vrátíme prázdný objekt
+      console.warn('Learned mappings API failed, using fallback:', e)
+      return {}
+    }
+  }
+
+  /**
+   * Získá seznam naučených mapování pro správu.
+   */
+  async function fetchLearnedMappings(templateId: number): Promise<LearnedMapping[]> {
+    const resp = await get(`measurement-import/template/${templateId}/mappings`, undefined)
+    if (!hasContent<LearnedMapping[]>(resp)) return []
+    return resp.data.content
+  }
+
+  /**
+   * Smaže naučené mapování.
+   */
+  async function deleteLearnedMapping(mappingId: number): Promise<void> {
+    await del(`measurement-import/mapping/${mappingId}`, undefined)
+  }
+
+  /**
    * FE-only: Návrh šablony nad preview odpovědí – zpětná kompatibilita pro UI.
    */
   async function suggestTemplate(projectId: number, req: ImportStartRequest): Promise<TemplateSuggestionResponse> {
@@ -180,5 +247,39 @@ export const useImportStore = defineStore('import', () => {
     }
   }
 
-  return { startImport, commitImport, suggestMapping, suggestTemplate }
+  /**
+   * Uloží mapování sloupců pro šablonu (learning).
+   * Volat po úspěšném importu měření.
+   */
+  async function saveMappings(
+    templateId: number,
+    mapping: Record<string, string>,
+    seriesMapping?: Record<string, string>
+  ): Promise<void> {
+    const url = `measurement-import/template/${templateId}/save-mappings`
+    console.log('[saveMappings] Calling:', url, 'with', mapping)
+    try {
+      await post(
+        url,
+        { mapping, seriesMapping: seriesMapping || {} },
+        undefined
+      )
+      console.log('[saveMappings] Saved', Object.keys(mapping).length, 'mappings for template', templateId)
+    } catch (e) {
+      console.warn('[saveMappings] Failed to save mappings:', e)
+      // Neblokujeme UI při selhání - mapování je nice-to-have
+    }
+  }
+
+  return {
+    startImport,
+    commitImport,
+    suggestMapping,
+    suggestLearnedMappings,
+    fetchLearnedMappings,
+    deleteLearnedMapping,
+    suggestTemplate,
+    saveMappings
+  }
 })
+

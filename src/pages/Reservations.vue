@@ -14,7 +14,13 @@ import { auth } from '@/stores/auth'
 import DailyMachinesView from '@/components/reservations/DailyMachinesView.vue'
 import DailyListView from '@/components/reservations/DailyListView.vue'
 import WeekView from '@/components/reservations/WeekView.vue'
+import RecurrenceEditor from '@/components/reservations/RecurrenceEditor.vue'
+import ReservationEditorDialog from '@/components/reservations/ReservationEditorDialog.vue'
 import LeftFiltersPanel from '@/components/LeftFiltersPanel.vue'
+import FilterMultiSelect from '@/components/ui/FilterMultiSelect.vue'
+import DateFilterPanel, { type DateFilter } from '@/components/ui/DateFilterPanel.vue'
+import SeriesScopeDialog from '@/components/reservations/SeriesScopeDialog.vue'
+import type { RecurrenceRequest } from '@/stores/reservations'
 const HOURS_START = 0
 const HOURS_END = 24
 const GRID_MINUTES = 15
@@ -38,6 +44,7 @@ interface ResItem {
   status: StatusType
   username: string | null
   note: string | null
+  seriesId?: string | null
 }
 interface DragState {
   id: number
@@ -66,18 +73,12 @@ const projectId = Number((route.params as any).projectId)
 const reservations = useReservationsStore()
 const projectStore = useProjectStore()
 function pad2(n: number): string { return String(n).padStart(2, '0') }
-function toYmdLocal(d: Date): string {
-  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`
-}
+
 function fromYmdLocal(s: string): Date {
   const [y, m, d] = s.split('-').map(Number)
   return new Date(y, (m || 1) - 1, d || 1, 0, 0, 0, 0)
 }
-function normalizeToDate(v: string | Date): Date {
-  return v instanceof Date
-    ? new Date(v.getFullYear(), v.getMonth(), v.getDate(), 0, 0, 0, 0)
-    : fromYmdLocal(v)
-}
+
 function hmFromDate(d: Date): string { return `${pad2(d.getHours())}:${pad2(d.getMinutes())}` }
 
 function setHM(base: Date, hm: string) {
@@ -89,6 +90,8 @@ function toIsoLocal(d: Date) {
 }
 
 /* CONFLICT DIALOG CALLBACKS */
+
+
 
 function onConfirmConflict(slot: { start: Date; end: Date }) {
   conflictOpen.value = false
@@ -133,6 +136,18 @@ function onSuggestNextDay() {
 
 
 // DTO from DailyListView
+function toYmdLocal(d: Date): string {
+  const year = d.getFullYear()
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function normalizeToDate(val: string | Date): Date {
+  if (val instanceof Date) return val
+  return new Date(val + 'T00:00:00')
+}
+
 interface ReservationDto {
   id: number
   title: string
@@ -142,6 +157,7 @@ interface ReservationDto {
   username: string | null
   projectId: number
   note: string | null
+  seriesId?: string | null
 }
 function dtoToResItem(r: ReservationDto): ResItem {
   const s = new Date(r.startTime)
@@ -154,7 +170,8 @@ function dtoToResItem(r: ReservationDto): ResItem {
     end: toIsoLocal(e),
     status: 'plan',
     username: r.username ?? null,
-    note: r.note ?? null
+    note: r.note ?? null,
+    seriesId: r.seriesId ?? null
   }
 }
 function openEditFromDto(raw: ReservationDto) { openEdit(dtoToResItem(raw)) }
@@ -163,11 +180,38 @@ function askDeleteFromDto(raw: ReservationDto) { askDelete(dtoToResItem(raw)) }
 const selectedDate = ref<string | Date>(toYmdLocal(new Date()))
 function addDays(n: number) {
   const d = normalizeToDate(selectedDate.value)
-  d.setDate(d.getDate() + n)
+  // Use week step (7 days) for week views, day step (1 day) for daily views
+  const step = viewMode.value.startsWith('week-') ? 7 : 1
+  d.setDate(d.getDate() + (n * step))
   selectedDate.value = toYmdLocal(d)
 }
 function goToday() { selectedDate.value = toYmdLocal(new Date()) }
 const currentDay = computed<Date>(() => normalizeToDate(selectedDate.value))
+
+/* DateFilterPanel sync */
+const dateFilterModel = ref<DateFilter>({
+  field: 'date',
+  preset: null,
+  from: normalizeToDate(selectedDate.value),
+  to: null
+})
+
+// Sync selectedDate -> dateFilterModel
+watch(selectedDate, (val) => {
+   const d = normalizeToDate(val)
+   if (dateFilterModel.value.from?.getTime() !== d.getTime()) {
+      dateFilterModel.value = { ...dateFilterModel.value, from: d, preset: null }
+   }
+})
+
+// Sync dateFilterModel -> selectedDate
+function onDateFilterUpdate(val: DateFilter) {
+   dateFilterModel.value = val;
+   if (val.from) {
+      selectedDate.value = toYmdLocal(val.from)
+   }
+}
+
 /* Intl */
 const fmtDateLongFmt   = new Intl.DateTimeFormat('cs-CZ', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
 const fmtTimeFmt       = new Intl.DateTimeFormat('cs-CZ', { hour: '2-digit', minute: '2-digit' })
@@ -199,59 +243,11 @@ const devicesToShow = computed(() =>
 )
 
 
-type GroupConfig = {
-  key: string
-  title: string
-  label?: string
-  items: any[]
-  itemTitle?: string
-  itemValue?: string
-  type?: 'plain' | 'devices'
-  colorKey?: string
-  showField?: string
-}
-const leftSelection = ref<Record<string, string[]>>({ devices: [], members: [] })
-const leftGroups = computed<GroupConfig[]>(() => [
-  {
-    key: 'members',
-    title: 'Členové',
-    label: 'Členové',
-    items: membersList.value.map(u => ({ username: u })),
-    itemTitle: 'username',
-    itemValue: 'username',
-    type: 'plain',
-  },
-  {
-    key: 'devices',
-    title: 'Přístroje',
-    label: 'Přístroje',
-    items: allDevices.value,
-    itemTitle: 'name',
-    itemValue: 'id',
-    type: 'devices',
-    colorKey: 'color',
-    showField: 'id',
-  },
-])
-function arraysEqual(a: string[], b: string[]) {
-  if (a.length !== b.length) return false
-  const as = [...a].sort(), bs = [...b].sort()
-  return as.every((v, i) => v === bs[i])
-}
-watch(leftSelection, (sel) => {
-  const devs = Array.isArray(sel.devices) ? sel.devices : []
-  const mems = Array.isArray(sel.members) ? sel.members : []
-  if (!arraysEqual(devs, pickedDevices.value)) pickedDevices.value = [...devs]
-  if (!arraysEqual(mems, pickedMembers.value)) pickedMembers.value = [...mems]
-}, { deep: true, immediate: true })
-watch(pickedDevices, (v) => {
-  const next = Array.isArray(v) ? v : []
-  if (!arraysEqual(next, leftSelection.value.devices)) leftSelection.value.devices = [...next]
-})
-watch(pickedMembers, (v) => {
-  const next = Array.isArray(v) ? v : []
-  if (!arraysEqual(next, leftSelection.value.members)) leftSelection.value.members = [...next]
-})
+// function arraysEqual(a: string[], b: string[]) {
+//   if (a.length !== b.length) return false
+//   const as = [...a].sort(), bs = [...b].sort()
+//   return as.every((v, i) => v === bs[i])
+// }
 
 
 // Stav cofnlict dialogu
@@ -268,6 +264,22 @@ const conflictDeviceName = ref<string>('')
 const conflictRequested = ref<{ start: Date; end: Date }>({ start: new Date(), end: new Date() })
 const conflictProposals = ref<Array<{ slot: { start: Date; end: Date }; label: string }>>([])
 const conflictFallbackNext = ref<{ day: Date; slot: { start: Date; end: Date } } | null>(null)
+const conflictAllReservations = ref<ConflictItem[]>([])
+
+
+// New: list of conflicting reservations for display
+const conflictItems = ref<Array<{ id: number; title: string; start: Date; end: Date; username: string | null }>>([])
+// Pending force-create payload (saved when conflict occurs)
+const pendingForcePayload = ref<{
+  title: string
+  deviceCode: string
+  startTime: number
+  endTime: number
+  projectId: number
+  username: string
+  note: string | null
+  recurrence?: RecurrenceRequest | null
+} | null>(null)
 
 function deviceNameById(id: string): string {
   return allDevices.value.find(d => d.id === id)?.name || id
@@ -276,6 +288,9 @@ function getEventsForDayDevice(day: Date, deviceId: string): ResItem[] {
   const k = dateKey(day)
   return (eventsByDay.value[k] ?? []).filter(e => e.deviceId === deviceId)
 }
+
+const allReservationsForDevice = ref<ConflictItem[]>([])
+
 
 function openConflictDialog(
   deviceId: string,
@@ -291,6 +306,31 @@ function openConflictDialog(
   conflictProposals.value = props.map((s, idx) => ({ slot: s, label: idx === 0 ? 'Nejbližší po' : 'Nejbližší před' }))
   conflictFallbackNext.value = firstGapNextDays(getEventsForDayDevice, dayBase, deviceId, requested.end.getTime() - requested.start.getTime(), 30)
   conflictOpen.value = true
+    const all: ConflictItem[] = []
+  for (const [dayKey, events] of Object.entries(eventsByDay.value)) {
+    for (const ev of events) {
+      if (ev.deviceId === deviceId) {
+        all.push({
+          id: ev.id,
+          title: ev.title,
+          start: new Date(ev.start),
+          end: new Date(ev.end),
+          username: ev.username
+        })
+      }
+    }
+  }
+  allReservationsForDevice.value = all
+  
+  // Filter actual conflicts for the dialog
+  conflictItems.value = all.filter(e => {
+    if (e.id === ctx.reservationId) return false
+    const s = e.start.getTime()
+    const E = e.end.getTime()
+    const rs = requested.start.getTime()
+    const re = requested.end.getTime()
+    return s < re && E > rs
+  })
 }
 
 // Pomocník – kontrola kolize s jinou rezervací na stejném zařízení (aktuální den):
@@ -309,7 +349,7 @@ const viewLabel = computed(() => {
     case 'daily-machines': return 'DENNÍ – STROJE'
     case 'week-work': return 'TÝDENNÍ (PRACOVNÍ)'
     case 'week-all': return 'TÝDENNÍ (S VÍKENDY)'
-    case 'daily-list': return 'REZERVACE'
+    case 'daily-list': return 'SEZNAM REZERVACÍ'
   }
 })
 /* Menu control passed to child (FIX: make it reactive on key changes) */
@@ -354,16 +394,34 @@ function ensureDay(d: Date): ResItem[] {
   return eventsByDay.value[k]
 }
 /* Week calculations */
-function weekRange(date: Date) {
+function weekRange(date: Date, showNextWeekOnWeekend: boolean = false) {
   const base = new Date(date)
-  const day = (base.getDay() + 6) % 7
-  const monday = new Date(base); monday.setDate(base.getDate() - day)
+  const dayOfWeek = base.getDay() // 0 = Sunday, 6 = Saturday
+
+  // Calculate offset to Monday (0 = already Monday, 1 = Sunday needs +1, etc.)
+  let offsetToMonday = (dayOfWeek === 0) ? -6 : 1 - dayOfWeek
+
+  // If we're on weekend and showing work week, show NEXT week instead
+  if (showNextWeekOnWeekend && (dayOfWeek === 0 || dayOfWeek === 6)) {
+    // Sunday: add 1 day to get to Monday
+    // Saturday: add 2 days to get to Monday
+    offsetToMonday = dayOfWeek === 0 ? 1 : 2
+  }
+
+  const monday = new Date(base)
+  monday.setDate(base.getDate() + offsetToMonday)
+
   return Array.from({ length: 7 }, (_, i) => {
     const x = new Date(monday); x.setDate(monday.getDate() + i); return x
   })
 }
-const weekDaysAll = computed<Date[]>(() => weekRange(currentDay.value))
-const weekDaysWork = computed<Date[]>(() => weekDaysAll.value.slice(0, 5))
+const weekDaysAll = computed<Date[]>(() => weekRange(currentDay.value, false))
+const weekDaysWork = computed<Date[]>(() => {
+  // For work week view, show next week on weekends
+  const isWeekend = currentDay.value.getDay() === 0 || currentDay.value.getDay() === 6
+  const showNextWeek = viewMode.value === 'week-work' && isWeekend
+  return weekRange(currentDay.value, showNextWeek).slice(0, 5)
+})
 const daysForView = computed<Date[]>(() =>
   viewMode.value === 'week-work' ? weekDaysWork.value : weekDaysAll.value
 )
@@ -378,8 +436,14 @@ async function loadWeekFor(date: Date) {
   const from = new Date(days[0].getFullYear(), days[0].getMonth(), days[0].getDate(), 0, 0, 0, 0).getTime()
   const last = days[days.length - 1]
   const to = new Date(last.getFullYear(), last.getMonth(), last.getDate(), 23, 59, 59, 999).getTime()
-  resetAllDays(days)
+
+  // Fetch new data BEFORE clearing old data to avoid "blink"
   const data = await reservations.fetchByProject(projectId, from, to)
+
+  // Build new structure
+  const newEventsByDay: Record<string, ResItem[]> = {}
+  for (const d of days) newEventsByDay[dateKey(d)] = []
+
   for (const r of data) {
     const s = new Date(r.startTime)
     const e = new Date(r.endTime)
@@ -391,14 +455,24 @@ async function loadWeekFor(date: Date) {
       end: toIsoLocal(e),
       status: 'plan',
       username: r.username ?? null,
-      note: r.note ?? null
+      note: r.note ?? null,
+      seriesId: r.seriesId ?? null
     }
-    const list = ensureDay(s)
-    list.push(item)
-    list.sort((a, b) => +new Date(a.start) - +new Date(b.start))
+    const k = dateKey(s)
+    if (!newEventsByDay[k]) newEventsByDay[k] = []
+    newEventsByDay[k].push(item)
   }
-  await nextTick()
-  scrollToHour(7)
+
+  // Sort each day's events
+  for (const k of Object.keys(newEventsByDay)) {
+    newEventsByDay[k].sort((a, b) => +new Date(a.start) - +new Date(b.start))
+  }
+
+  // Atomic replacement - no blink
+  for (const k of Object.keys(newEventsByDay)) {
+    eventsByDay.value[k] = newEventsByDay[k]
+  }
+  // NOTE: scrollToHour removed here - scroll should only happen on initial load or view switch
 }
 /* Initial load */
 onMounted(async () => {
@@ -418,6 +492,8 @@ watch(selectedDate, async v => {
     window.removeEventListener('pointermove', onPointerMove)
   }
   await loadWeekFor(normalizeToDate(v))
+  await nextTick()
+  scrollToHour(7) // Scroll to default when user navigates dates
 })
 
 
@@ -435,7 +511,13 @@ watch(viewMode, async () => {
 
 
 /* Daily list auto-load */
-type DailyListViewExposed = { loadListRange: () => void | Promise<void>; loadAll?: () => void | Promise<void> }
+type DailyListViewExposed = {
+  loadListRange: (silent?: boolean) => void | Promise<void>
+  loadAll?: (silent?: boolean) => void | Promise<void>
+  addReservation?: (item: { id: number; title: string; deviceCode: string; startTime: number; endTime: number; username: string | null; projectId: number; note: string | null }) => void
+  updateReservation?: (id: number, updates: Partial<{ title: string; deviceCode: string; startTime: number; endTime: number; username: string | null; note: string | null }>) => void
+  removeReservation?: (id: number) => void
+}
 const dailyListRef = ref<DailyListViewExposed | null>(null)
 const isDailyList = computed(() => viewMode.value === 'daily-list')
 watch(isDailyList, async v => { if (v) { await nextTick(); dailyListRef.value?.loadListRange() } })
@@ -577,6 +659,7 @@ const layoutForDevice = computed<Record<string, EventLayoutImported>>(() => {
 
 
 /* Drag & Drop */
+/* Drag & Drop */
 const drag = ref<DragState | null>(null)
 let movePending = false
 let lastMoveEvent: PointerEvent | null = null
@@ -585,6 +668,35 @@ const pointerStart = ref({ x: 0, y: 0 })
 const movedBeyondThreshold = ref(false)
 const suppressClick = ref(false)
 let suppressTimer: number | null = null
+
+let snapGhostEl: HTMLElement | null = null // Visual indicator of drop target
+
+// Force inline styles to bypass scoped CSS and ensure correct layer position
+function setupGhost(ghost: HTMLElement, rect: DOMRect) {
+  ghost.style.position = 'fixed'
+  ghost.style.left = rect.left + 'px'
+  ghost.style.top = rect.top + 'px'
+  ghost.style.width = rect.width + 'px'
+  ghost.style.height = rect.height + 'px'
+  ghost.style.zIndex = '9999'
+  ghost.style.pointerEvents = 'none'
+  ghost.style.opacity = '0.9'
+  ghost.style.boxShadow = '0 8px 20px rgba(0,0,0,.20)'
+  ghost.style.borderRadius = '10px'
+  ghost.style.willChange = 'transform, top, left, width, height'
+  ghost.style.margin = '0'
+  ghost.style.transform = 'none'
+  ghost.style.transition = 'none'
+}
+function setupSnapGhost(ghost: HTMLElement, rect: DOMRect) {
+  setupGhost(ghost, rect)
+  ghost.style.zIndex = '9998' // Below drag ghost
+  ghost.style.opacity = '0.4' // More transparent
+  ghost.style.boxShadow = 'none' // Flat
+  ghost.style.border = '2px dashed #888' // Dashed border for placeholder effect
+  ghost.classList.add('snap-ghost')
+}
+
 function attachHighlight(el: HTMLElement | null) {
   if (highlightEl && highlightEl !== el) highlightEl.classList.remove('drop-highlight')
   highlightEl = el
@@ -601,16 +713,29 @@ function onEventPointerDown(e: PointerEvent, item: ResItem) {
   const rect = target.getBoundingClientRect()
   const start = new Date(item.start)
   const end = new Date(item.end)
+
   pointerStart.value = { x: e.clientX, y: e.clientY }
   movedBeyondThreshold.value = false
+
+  // Create Drag Ghost (follows mouse)
   const ghost = target.cloneNode(true) as HTMLElement
   ghost.classList.add('drag-ghost')
-  ghost.style.width = rect.width + 'px'
-  ghost.style.height = rect.height + 'px'
-  ghost.style.left = rect.left + 'px'
-  ghost.style.top = rect.top + 'px'
-  ghost.style.pointerEvents = 'none'
+  setupGhost(ghost, rect)
+  // Ensure we copy background color from inline style if present
+  if (target.style.background) ghost.style.background = target.style.background
+  if (target.style.backgroundColor) ghost.style.backgroundColor = target.style.backgroundColor
   document.body.appendChild(ghost)
+
+  // Create Snap Ghost (drop placeholder) - initially hidden
+  const snap = target.cloneNode(true) as HTMLElement
+  snap.classList.add('snap-ghost')
+  setupSnapGhost(snap, rect)
+  if (target.style.background) snap.style.background = target.style.background
+  if (target.style.backgroundColor) snap.style.backgroundColor = target.style.backgroundColor
+  snap.style.display = 'none' // Hide until moved
+  document.body.appendChild(snap)
+  snapGhostEl = snap
+
   drag.value = {
     id: item.id,
     pointerId: e.pointerId,
@@ -622,12 +747,14 @@ function onEventPointerDown(e: PointerEvent, item: ResItem) {
     origDayKey: dateKey(start),
     origDeviceId: item.deviceId,
     view: viewMode.value,
-    ghostEl: ghost,
+    ghostEl: ghost, // The one following mouse
     mode: 'move',
     origStart: start,
     origEnd: end,
-    origHeight: rect.height
+    origHeight: rect.height,
+    copyMode: false
   }
+
   try { target.setPointerCapture(e.pointerId) } catch {}
   window.addEventListener('pointermove', onPointerMove, { passive: true })
   window.addEventListener('pointerup', onPointerUp, { once: true })
@@ -636,7 +763,6 @@ function onEventPointerDown(e: PointerEvent, item: ResItem) {
 function onResizePointerDown(e: PointerEvent, item: ResItem) {
   if (e.button !== 0) return
   e.stopPropagation()
-  // Find the event element (parent of resize handle)
   const handleEl = e.currentTarget as HTMLElement | null
   const eventEl = handleEl?.closest('.event') as HTMLElement | null
   if (!eventEl) return
@@ -645,14 +771,25 @@ function onResizePointerDown(e: PointerEvent, item: ResItem) {
   const end = new Date(item.end)
   pointerStart.value = { x: e.clientX, y: e.clientY }
   movedBeyondThreshold.value = false
+
+  // Drag Ghost
   const ghost = eventEl.cloneNode(true) as HTMLElement
   ghost.classList.add('drag-ghost', 'resize-ghost')
-  ghost.style.width = rect.width + 'px'
-  ghost.style.height = rect.height + 'px'
-  ghost.style.left = rect.left + 'px'
-  ghost.style.top = rect.top + 'px'
-  ghost.style.pointerEvents = 'none'
+  setupGhost(ghost, rect)
+  if (eventEl.style.background) ghost.style.background = eventEl.style.background
+  if (eventEl.style.backgroundColor) ghost.style.backgroundColor = eventEl.style.backgroundColor
   document.body.appendChild(ghost)
+
+  // Snap Ghost for resize? Maybe useful to see snap grid.
+  const snap = eventEl.cloneNode(true) as HTMLElement
+  snap.classList.add('snap-ghost')
+  setupSnapGhost(snap, rect)
+  if (eventEl.style.background) snap.style.background = eventEl.style.background
+  if (eventEl.style.backgroundColor) snap.style.backgroundColor = eventEl.style.backgroundColor
+  snap.style.display = 'none'
+  document.body.appendChild(snap)
+  snapGhostEl = snap
+
   drag.value = {
     id: item.id,
     pointerId: e.pointerId,
@@ -665,46 +802,117 @@ function onResizePointerDown(e: PointerEvent, item: ResItem) {
     origDeviceId: item.deviceId,
     view: viewMode.value,
     ghostEl: ghost,
-    mode: 'resize',
+    mode: 'resize', // resize mode
     origStart: start,
     origEnd: end,
     origHeight: rect.height
   }
-  try { handleEl?.setPointerCapture(e.pointerId) } catch {}
+  try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId) } catch {}
   window.addEventListener('pointermove', onPointerMove, { passive: true })
   window.addEventListener('pointerup', onPointerUp, { once: true })
   window.addEventListener('pointercancel', onPointerUp, { once: true })
 }
-function onPointerMove(ev: PointerEvent) {
+function onPointerMove(e: PointerEvent) {
   if (!drag.value) return
-  lastMoveEvent = ev
-  const dx = Math.abs(ev.clientX - pointerStart.value.x)
-  const dy = Math.abs(ev.clientY - pointerStart.value.y)
-  if (dx > DRAG_CLICK_THRESHOLD || dy > DRAG_CLICK_THRESHOLD) movedBeyondThreshold.value = true
-  if (!movePending) {
-    movePending = true
-    requestAnimationFrame(() => {
-      movePending = false
-      if (!drag.value || !lastMoveEvent) return
-      const d = drag.value
-      const e = lastMoveEvent
-      
-      if (d.mode === 'resize') {
-        // Resize mode: only change height, not position
-        const deltaY = e.clientY - pointerStart.value.y
-        const newHeight = Math.max(MIN_EVENT_PX, d.origHeight + deltaY)
-        d.ghostEl.style.height = newHeight + 'px'
-        // No transform for resize - ghost stays in original position
-      } else {
-        // Move mode: translate ghost element
-        const newLeft = e.clientX - d.offsetX
-        const newTop = e.clientY - d.offsetY
-        d.ghostEl.style.transform = `translate(${newLeft - d.originLeft}px, ${newTop - d.originTop}px)`
-        const hit = findTrackAt(e.clientX, e.clientY)
-        attachHighlight(hit?.el ?? null)
-      }
-    })
-  }
+  if (movePending) { lastMoveEvent = e; return }
+  movePending = true
+
+  requestAnimationFrame(() => {
+    movePending = false
+    const d = drag.value
+    if (!d) return
+    const dx = Math.abs(e.clientX - pointerStart.value.x)
+    const dy = Math.abs(e.clientY - pointerStart.value.y)
+
+    // Optimization: Only update ref if value actually changes
+    if ((dx > DRAG_CLICK_THRESHOLD || dy > DRAG_CLICK_THRESHOLD) && !movedBeyondThreshold.value) {
+        movedBeyondThreshold.value = true
+    }
+
+    if (d.mode === 'resize') {
+       const deltaY = e.clientY - pointerStart.value.y
+       const newHeight = Math.max(MIN_EVENT_PX, d.origHeight + deltaY)
+       d.ghostEl.style.height = newHeight + 'px'
+
+       // Calculate new end time for resize
+       const deltaMinutes = Math.round(deltaY / PX_PER_MIN.value / GRID_MINUTES) * GRID_MINUTES
+       const newDurationMin = Math.max(GRID_MINUTES, d.durationMin + deltaMinutes)
+       const newEndMinutes = Math.min(HOURS_END * 60, (d.origStart.getHours() * 60 + d.origStart.getMinutes()) + newDurationMin)
+       const newEndH = Math.floor(newEndMinutes / 60)
+       const newEndM = newEndMinutes % 60
+       const timeStr = `${pad2(d.origStart.getHours())}:${pad2(d.origStart.getMinutes())} – ${pad2(newEndH)}:${pad2(newEndM)}`
+
+       // Update time display on ghost
+       const timeEl = d.ghostEl.querySelector('.event-time')
+       if (timeEl) timeEl.textContent = timeStr
+
+       // Update snap ghost height for resize
+       if (snapGhostEl) {
+          snapGhostEl.style.height = (newDurationMin * PX_PER_MIN.value) + 'px'
+          snapGhostEl.style.display = 'block'
+          const snapTimeEl = snapGhostEl.querySelector('.event-time')
+          if (snapTimeEl) snapTimeEl.textContent = timeStr
+       }
+       return
+    }
+
+    // Move mode logic
+    const newLeft = e.clientX - d.offsetX
+    const newTop = e.clientY - d.offsetY
+
+    // Copy mode logic
+    const wantCopy = e.ctrlKey || e.altKey
+    if (d.copyMode !== wantCopy) {
+        d.copyMode = wantCopy
+        if (wantCopy) {
+             d.ghostEl.classList.add('copy-cursor')
+             const badge = document.createElement('div'); badge.className = 'copy-badge'; badge.textContent = '+'
+             Object.assign(badge.style, { position: 'absolute', right: '-10px', top: '-10px', background: 'green', color: 'white', borderRadius: '50%', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '14px', zIndex: '10000' })
+             d.ghostEl.appendChild(badge)
+        } else {
+             d.ghostEl.classList.remove('copy-cursor')
+             d.ghostEl.querySelector('.copy-badge')?.remove()
+        }
+    }
+
+    // Direct transform update
+    d.ghostEl.style.transform = `translate(${newLeft - d.originLeft}px, ${newTop - d.originTop}px)`
+
+    // Look for drop target
+    const hit = findTrackAt(e.clientX, e.clientY)
+    if (hit) {
+        attachHighlight(hit.el)
+        // Calculate snap position and new time
+        const startMinutes = minutesFromTrackY(e.clientY, hit.rect, d.offsetY)
+        const snapTop = hit.rect.top + (startMinutes - HOURS_START * 60) * PX_PER_MIN.value
+        const endMinutes = Math.min(HOURS_END * 60, startMinutes + d.durationMin)
+
+        // Format time string
+        const startH = Math.floor(startMinutes / 60)
+        const startM = startMinutes % 60
+        const endH = Math.floor(endMinutes / 60)
+        const endM = endMinutes % 60
+        const timeStr = `${pad2(startH)}:${pad2(startM)} – ${pad2(endH)}:${pad2(endM)}`
+
+        // Update time on drag ghost
+        const ghostTimeEl = d.ghostEl.querySelector('.event-time')
+        if (ghostTimeEl) ghostTimeEl.textContent = timeStr
+
+        // Position SNAP GHOST
+        if (snapGhostEl) {
+             snapGhostEl.style.display = 'block'
+             snapGhostEl.style.left = hit.rect.left + 'px'
+             snapGhostEl.style.width = hit.rect.width + 'px'
+             snapGhostEl.style.top = snapTop + 'px'
+             // Update time on snap ghost too
+             const snapTimeEl = snapGhostEl.querySelector('.event-time')
+             if (snapTimeEl) snapTimeEl.textContent = timeStr
+        }
+    } else {
+        clearHighlight()
+        if (snapGhostEl) snapGhostEl.style.display = 'none'
+    }
+  })
 }
 function findTrackAt(x: number, y: number) {
   let el = document.elementFromPoint(x, y) as HTMLElement | null
@@ -726,58 +934,100 @@ function minutesFromTrackY(y: number, rect: DOMRect, offsetY: number) {
   const minutes = (relY / PX_PER_MIN.value) + HOURS_START * 60
   return clamp(roundToStep(minutes, GRID_MINUTES), HOURS_START * 60, HOURS_END * 60)
 }
+
+function getScrollPos() {
+  const el = viewportDaily.value || viewportWeek.value
+  return el ? el.scrollTop : null
+}
+function restoreScrollPos(pos: number | null) {
+  if (pos === null) return
+  const el = viewportDaily.value || viewportWeek.value
+  if (el) el.scrollTop = pos
+}
+
 async function commitMove(d: DragState, x: number, y: number): Promise<void> {
   const sourceArr = eventsByDay.value[d.origDayKey] || []
   const idx = sourceArr.findIndex((r: ResItem) => r.id === d.id)
   if (idx === -1) return
-  const ev = sourceArr[idx]
-  
+
+  const item = sourceArr[idx]
+
   // Handle resize mode
   if (d.mode === 'resize') {
-    // Calculate new duration from mouse Y position
     const deltaY = y - pointerStart.value.y
     const deltaMinutes = Math.round(deltaY / PX_PER_MIN.value / GRID_MINUTES) * GRID_MINUTES
     const newDurationMin = Math.max(GRID_MINUTES, d.durationMin + deltaMinutes)
-    
-    // Keep original start, calculate new end
     const startDate = d.origStart
     const [Y, M, D] = d.origDayKey.split('-').map((v: string) => Number(v))
     const baseDay = new Date(Y, (M || 1) - 1, D || 1, 0, 0, 0, 0)
-    
-    // Clamp end to day boundaries
-    const endMinutes = Math.min(
-      HOURS_END * 60,
-      (startDate.getHours() * 60 + startDate.getMinutes()) + newDurationMin
-    )
+    const endMinutes = Math.min(HOURS_END * 60, (startDate.getHours() * 60 + startDate.getMinutes()) + newDurationMin)
     const endDate = new Date(baseDay)
     endDate.setHours(Math.floor(endMinutes / 60), endMinutes % 60, 0, 0)
-    
-    // Ensure end > start
     if (endDate.getTime() <= startDate.getTime()) return
-    
-    // Check conflict
     if (wouldConflict(d.id, d.origDeviceId, startDate, endDate, d.origDayKey)) {
-      const req = { start: startDate, end: endDate }
-      openConflictDialog(d.origDeviceId, req, { reservationId: d.id, dayKey: d.origDayKey })
-      return
+        const req = { start: startDate, end: endDate }
+        openConflictDialog(d.origDeviceId, req, { reservationId: d.id, dayKey: d.origDayKey })
+        return
     }
-    
-    // PATCH with new end time only
+
+    // CHECK SERIES (RESIZE)
+    if (item.seriesId) {
+        pendingSaveForSeries.value = {
+            actionType: 'resize',
+            id: d.id,
+            item,
+            start: startDate, // same as orig
+            end: endDate,
+            deviceId: d.origDeviceId,
+            origDayKey: d.origDayKey,
+            origEnd: d.origEnd
+        }
+        seriesScopeMode.value = 'edit'
+        seriesScopeOpen.value = true
+        return
+    }
+
+    // OPTIMISTIC UPDATE: Update local state immediately
+    item.end = toIsoLocal(endDate)
+
+    // Check for Series (RESIZE) - before calling single update
+    if (item.seriesId) {
+       pendingSaveForSeries.value = {
+          actionType: 'resize',
+          id: d.id,
+          // Use 'item' from closure (which is the reactive object in eventsByDay)
+          item: item, 
+          start: startDate, 
+          end: endDate,
+          deviceId: d.origDeviceId,
+          origDayKey: d.origDayKey,
+          origDeviceId: d.origDeviceId
+       }
+       seriesScopeMode.value = 'edit'
+       seriesScopeOpen.value = true
+       return
+    }
+
     try {
       await reservations.updateReservation(d.id, {
         startTime: startDate.getTime(),
         endTime: endDate.getTime(),
         deviceCode: d.origDeviceId
       })
-      await nextTick()
-      await loadWeekFor(currentDay.value)
+      // Success - local state already updated, no reload needed
+      if (isDailyList.value && dailyListRef.value?.updateReservation) {
+        dailyListRef.value.updateReservation(d.id, { startTime: startDate.getTime(), endTime: endDate.getTime() })
+      }
     } catch (err) {
+      // Rollback on error
+      item.end = toIsoLocal(d.origEnd)
       console.error('Reservation resize failed.', err)
     }
     return
   }
-  
-  // Move mode (existing logic)
+
+
+  // Move mode ...
   const hit = findTrackAt(x, y)
   if (!hit) return
   const { type, id, rect } = hit
@@ -786,92 +1036,189 @@ async function commitMove(d: DragState, x: number, y: number): Promise<void> {
   if (d.view === 'daily-machines' && type === 'device') newDeviceId = id
   else if ((d.view === 'week-work' || d.view === 'week-all') && type === 'day') newDayKey = id
   else return
-
   const [Y, M, D] = newDayKey.split('-').map((v: string) => Number(v))
   const baseDay = new Date(Y, (M || 1) - 1, D || 1, 0, 0, 0, 0)
-
   const startMinutes = minutesFromTrackY(y, rect, d.offsetY)
   const endMinutesTarget = Math.min(HOURS_END * 60, startMinutes + d.durationMin)
   const effStart = Math.max(HOURS_START * 60, endMinutesTarget - d.durationMin)
   const startDate = new Date(baseDay.getTime()); startDate.setHours(Math.floor(effStart / 60), effStart % 60, 0, 0)
   const endDate = new Date(startDate.getTime() + d.durationMin * 60000)
 
-  // COPY režim: zůstává (POST → pak lokálně přidat + reload)
   if (d.copyMode === true) {
-    try {
-      const created = await reservations.createReservation({
-        title: ev.title,
-        deviceCode: newDeviceId,
-        startTime: startDate.getTime(),
-        endTime: endDate.getTime(),
-        projectId,
-        username: ev.username ?? '',
-        note: ev.note ?? null
-      })
-      const targetArr = ensureDay(baseDay)
-      targetArr.push({
-        id: created.id,
-        title: created.title,
-        deviceId: created.deviceCode,
-        start: toIsoLocal(startDate),
-        end: toIsoLocal(endDate),
-        status: 'plan',
-        username: created.username ?? null,
-        note: created.note ?? null
-      })
-      targetArr.sort((a, b) => +new Date(a.start) - +new Date(b.start))
-      await nextTick()
-      await loadWeekFor(currentDay.value)
-    } catch (err) {
-      console.error('Reservation copy failed.', err)
-    }
-    return
-  }
-
-  // 1) PREVENCE: pokud FE vidí konflikt, nehneme s UI a otevřeme dialog
-  const req = { start: startDate, end: endDate }
-  if (wouldConflict(d.id, newDeviceId, startDate, endDate, newDayKey)) {
-    openConflictDialog(newDeviceId, req, { reservationId: d.id, dayKey: newDayKey })
-    return
-  }
-
-  // 2) PATCH BEZ optimistického přesunu; UI měníme až po úspěchu
-  try {
-    await reservations.updateReservation(d.id, {
-      startTime: startDate.getTime(),
-      endTime: endDate.getTime(),
-      deviceCode: newDeviceId
-    })
-    // Úspěch → teprve teď lokálně přemístíme a/nebo reloadneme (preferuji reload pro jistotu):
-    await nextTick()
-    await loadWeekFor(currentDay.value)
-  } catch (err) {
-    // Backend odmítl – pokud 409 a FE vidí konflikt, otevři dialog
-    if (wouldConflict(d.id, newDeviceId, startDate, endDate, newDayKey)) {
-      openConflictDialog(newDeviceId, req, { reservationId: d.id, dayKey: newDayKey })
+      if (wouldConflict(-1, newDeviceId, startDate, endDate, newDayKey)) {
+           const req = { start: startDate, end: endDate }
+           conflictDeviceName.value = deviceNameById(newDeviceId)
+           conflictRequested.value = req
+           const dayBase = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate(), 0, 0, 0, 0)
+           const gaps = buildDayGaps(getEventsForDayDevice(dayBase, newDeviceId), dayBase)
+           const props = proposeSlotsAround(req, gaps)
+           conflictProposals.value = props.map((s, idx) => ({ slot: s, label: idx === 0 ? 'Nejbližší po' : 'Nejbližší před' }))
+           conflictFallbackNext.value = firstGapNextDays(getEventsForDayDevice, dayBase, newDeviceId, endDate.getTime() - startDate.getTime(), 30)
+           const conflictList = getEventsForDayDevice(dayBase, newDeviceId)
+             .filter(e => {
+               const eStart = new Date(e.start).getTime()
+               const eEnd = new Date(e.end).getTime()
+               return eStart < endDate.getTime() && eEnd > startDate.getTime()
+             })
+             .map(e => ({
+               id: e.id,
+               title: e.title,
+               start: new Date(e.start),
+               end: new Date(e.end),
+               username: e.username
+             }))
+           conflictItems.value = conflictList
+           conflictCtx.value = null
+           conflictOpen.value = true
+           pendingForcePayload.value = {
+               title: sourceArr[idx].title + ' (kopie)',
+               deviceCode: newDeviceId,
+               startTime: startDate.getTime(),
+               endTime: endDate.getTime(),
+               projectId,
+               username: sourceArr[idx].username ?? auth.user?.username ?? '',
+               note: sourceArr[idx].note,
+               recurrence: null
+           }
+           return
+      }
+      try {
+          const created = await reservations.createReservation({
+              title: sourceArr[idx].title,
+              deviceCode: newDeviceId,
+              startTime: startDate.getTime(),
+              endTime: endDate.getTime(),
+              projectId,
+              username: sourceArr[idx].username ?? auth.user?.username ?? '',
+              note: sourceArr[idx].note,
+              recurrence: null
+          })
+          // OPTIMISTIC: Add to local state
+          const targetArr = ensureDay(baseDay)
+          targetArr.push({
+            id: created.id,
+            title: created.title,
+            deviceId: created.deviceCode,
+            start: toIsoLocal(startDate),
+            end: toIsoLocal(endDate),
+            status: 'plan',
+            username: created.username ?? null,
+            note: created.note ?? null
+          })
+          targetArr.sort((a, b) => +new Date(a.start) - +new Date(b.start))
+      } catch (e) { console.error(e) }
       return
-    }
-    // Jiné chyby → zachovej původní stav (UI už zůstalo původní)
-    console.error('Reservation update failed.', err)
+  }
+
+  // Move Logic
+  if (wouldConflict(d.id, newDeviceId, startDate, endDate, newDayKey)) {
+      const req = { start: startDate, end: endDate }
+      openConflictDialog(newDeviceId, req, { reservationId: d.id, dayKey: d.origDayKey })
+      return
+  }
+
+  // CHECK SERIES (MOVE)
+  if (item.seriesId) {
+     pendingSaveForSeries.value = {
+        actionType: 'move',
+        id: d.id,
+        item,
+        start: startDate,
+        end: endDate,
+        deviceId: newDeviceId,
+        origDayKey: d.origDayKey,
+        origDeviceId: d.origDeviceId
+     }
+     seriesScopeMode.value = 'edit'
+     seriesScopeOpen.value = true
+     return
+  }
+
+  // OPTIMISTIC UPDATE: Move in local state immediately
+  // 1) Remove from source day
+  sourceArr.splice(idx, 1)
+  // 2) Add to target day
+  const targetArr = ensureDay(baseDay)
+  const movedItem: ResItem = {
+    ...item,
+    deviceId: newDeviceId,
+    start: toIsoLocal(startDate),
+    end: toIsoLocal(endDate)
+  }
+  targetArr.push(movedItem)
+  targetArr.sort((a, b) => +new Date(a.start) - +new Date(b.start))
+
+  try {
+     await reservations.updateReservation(d.id, {
+         startTime: startDate.getTime(),
+         endTime: endDate.getTime(),
+         deviceCode: newDeviceId
+     })
+     // Success - local state already updated
+  } catch (err) {
+     // Rollback on error: remove from target, add back to source
+     const tIdx = targetArr.findIndex(r => r.id === d.id)
+     if (tIdx !== -1) targetArr.splice(tIdx, 1)
+     sourceArr.push(item)
+     sourceArr.sort((a, b) => +new Date(a.start) - +new Date(b.start))
+     console.error('Move failed, rolled back.', err)
   }
 }
 
 function onPointerUp(e: PointerEvent) {
   window.removeEventListener('pointermove', onPointerMove)
-  if (!drag.value) return
+  window.removeEventListener('pointerup', onPointerUp)
+  window.removeEventListener('pointercancel', onPointerUp)
+
+  if (!drag.value) {
+    // Cleanup any orphaned ghost elements just in case
+    document.querySelectorAll('.drag-ghost').forEach(el => el.remove())
+    document.querySelectorAll('.snap-ghost').forEach(el => el.remove())
+    snapGhostEl = null
+    return
+  }
+
   if (movedBeyondThreshold.value) {
     suppressClick.value = true
     if (suppressTimer) window.clearTimeout(suppressTimer)
     suppressTimer = window.setTimeout(() => { suppressClick.value = false }, 200)
   }
+
+  // Save references before potentially async operations
+  const ghostEl = drag.value.ghostEl
+  const pointerId = drag.value.pointerId
+
   drag.value.copyMode = e.ctrlKey === true
-  commitMove(drag.value, e.clientX, e.clientY)
+
+  if (movedBeyondThreshold.value) {
+    commitMove(drag.value, e.clientX, e.clientY)
+  }
   clearHighlight()
-  try { (e.target as HTMLElement)?.releasePointerCapture?.(drag.value.pointerId) } catch {}
-  drag.value.ghostEl.remove()
+
+  try { (e.target as HTMLElement)?.releasePointerCapture?.(pointerId) } catch {}
+
+  // Always remove ghost element
+  if (ghostEl && ghostEl.parentNode) {
+    ghostEl.remove()
+  }
+  if (snapGhostEl && snapGhostEl.parentNode) {
+    snapGhostEl.remove()
+  }
+  snapGhostEl = null
+
+  // Also clean up any orphaned ghost elements (backup cleanup)
+  document.querySelectorAll('.drag-ghost').forEach(el => el.remove())
+  document.querySelectorAll('.snap-ghost').forEach(el => el.remove())
+
   drag.value = null
 }
-onBeforeUnmount(() => { window.removeEventListener('pointermove', onPointerMove) })
+onBeforeUnmount(() => {
+  window.removeEventListener('pointermove', onPointerMove)
+  window.removeEventListener('pointerup', onPointerUp)
+  window.removeEventListener('pointercancel', onPointerUp)
+  // Clean up any ghost elements on unmount
+  document.querySelectorAll('.drag-ghost').forEach(el => el.remove())
+})
 function onEventClick(id: number, _e: MouseEvent) {
   if (suppressClick.value || movedBeyondThreshold.value || drag.value) return
   openMenu.value = { [id]: true }
@@ -886,6 +1233,10 @@ async function handleDelete(i: ResItem) {
     if (idx !== -1) arr.splice(idx, 1)
     openMenu.value[i.id] = false
     await loadWeekFor(currentDay.value)
+    // Immediately remove from daily list if active
+    if (isDailyList.value && dailyListRef.value?.removeReservation) {
+      dailyListRef.value.removeReservation(i.id)
+    }
   } catch (e) {
     console.error('Delete failed', e)
   }
@@ -893,25 +1244,99 @@ async function handleDelete(i: ResItem) {
 const confirmDeleteOpen = ref(false)
 const deleteTarget = ref<ResItem | null>(null)
 const deleteLoading = ref(false)
+const deleteMode = ref<'single' | 'following' | 'series'>('single')
+
+// Check if deleteTarget is the first event in its series
+const isFirstInSeries = computed<boolean>(() => {
+  if (!deleteTarget.value?.seriesId) return false
+  // Find all events with same seriesId
+  const seriesEvents: ResItem[] = []
+  for (const events of Object.values(eventsByDay.value)) {
+    for (const ev of events) {
+      if (ev.seriesId === deleteTarget.value.seriesId) {
+        seriesEvents.push(ev)
+      }
+    }
+  }
+  if (seriesEvents.length === 0) return true
+  // Sort by start time
+  seriesEvents.sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime())
+  // Check if this is the first one
+  return seriesEvents[0]?.id === deleteTarget.value.id
+})
+
 function askDelete(i: ResItem) {
   deleteTarget.value = i
-  confirmDeleteOpen.value = true
+  if (i.seriesId) {
+    seriesScopeMode.value = 'delete'
+    seriesScopeOpen.value = true
+  } else {
+    deleteMode.value = 'single'
+    confirmDeleteOpen.value = true
+  }
 }
+
+async function handleDeleteSeries(seriesId: string) {
+  try {
+    await reservations.deleteSeriesReservations(seriesId)
+    await loadWeekFor(currentDay.value)
+    // Full reload for series delete (multiple items affected)
+    if (isDailyList.value && dailyListRef.value?.loadAll) {
+      await dailyListRef.value.loadAll()
+    }
+  } catch (e) {
+    console.error('Delete series failed', e)
+  }
+}
+async function handleDeleteFollowing(target: ResItem) {
+  if (!target.seriesId) return
+  try {
+    // Delete this event and all following events in the series
+    const targetStart = new Date(target.start).getTime()
+    await reservations.deleteSeriesFromDate(target.seriesId, targetStart)
+    await loadWeekFor(currentDay.value)
+    // Full reload for series delete (multiple items affected)
+    if (isDailyList.value && dailyListRef.value?.loadAll) {
+      await dailyListRef.value.loadAll()
+    }
+  } catch (e) {
+    console.error('Delete following failed', e)
+  }
+}
+
 async function confirmDelete() {
   if (!deleteTarget.value) { confirmDeleteOpen.value = false; return }
   deleteLoading.value = true
   try {
-    await handleDelete(deleteTarget.value)
+    if (deleteMode.value === 'series' && deleteTarget.value.seriesId) {
+      await handleDeleteSeries(deleteTarget.value.seriesId)
+    } else if (deleteMode.value === 'following' && deleteTarget.value.seriesId) {
+      await handleDeleteFollowing(deleteTarget.value)
+    } else {
+      await handleDelete(deleteTarget.value)
+    }
     deleteTarget.value = null
     confirmDeleteOpen.value = false
   } finally {
     deleteLoading.value = false
+    deleteMode.value = 'single'
   }
 }
 function cancelDelete() {
   confirmDeleteOpen.value = false
   deleteTarget.value = null
+  deleteMode.value = 'single'
 }
+const defaultDurationMinutes = ref(60)
+onMounted(() => {
+  const saved = localStorage.getItem('lims:defaultDuration')
+  if (saved) defaultDurationMinutes.value = Number(saved)
+})
+function setDefaultDuration(m: number) {
+  defaultDurationMinutes.value = m
+  localStorage.setItem('lims:defaultDuration', String(m))
+}
+
 /* Track click -> open Create editor with prefilled fields */
 function onTrackClick(evt: MouseEvent, ctx: { type: 'device' | 'day'; deviceId?: string; day?: Date }) {
   if (drag.value || suppressClick.value) return
@@ -923,7 +1348,7 @@ function onTrackClick(evt: MouseEvent, ctx: { type: 'device' | 'day'; deviceId?:
   const minutes = (relY / PX_PER_MIN.value) + HOURS_START * 60
   const snapped = clamp(roundToStep(minutes, GRID_MINUTES), HOURS_START * 60, HOURS_END * 60)
   const start = new Date(baseDay); start.setHours(Math.floor(snapped / 60), snapped % 60, 0, 0)
-  const end = new Date(start.getTime() + 60 * 60000)
+  const end = new Date(start.getTime() + defaultDurationMinutes.value * 60000)
   const deviceCode = ctx.type === 'device'
     ? (ctx.deviceId as string)
     : (devicesToShow.value[0]?.id || allDevices.value[0]?.id || 'M1')
@@ -939,6 +1364,8 @@ type ReservationEditorForm = {
   endHM: string
   username: string | null
   note: string
+  recurrence: RecurrenceRequest | null
+  seriesId?: string | null
 }
 const editorOpen = ref(false)
 const editorMode = ref<'create' | 'edit'>('create')
@@ -947,13 +1374,14 @@ const resForm = ref<ReservationEditorForm | null>(null)
 function openCreateWith(opts: { baseDay: Date; start: Date; end: Date; deviceCode: string }) {
   const me = auth.getUserInfo().preferredUsername
   resForm.value = {
-    title: 'Nová rezervace',
+    title: '',
     deviceCode: opts.deviceCode,
     dateYmd: toYmdLocal(opts.baseDay),
     startHM: hmFromDate(opts.start),
     endHM: hmFromDate(opts.end),
     username: me,
-    note: ''
+    note: '',
+    recurrence: null
   }
   editorMode.value = 'create'
   editorOpen.value = true
@@ -961,20 +1389,33 @@ function openCreateWith(opts: { baseDay: Date; start: Date; end: Date; deviceCod
 function openEdit(i: ResItem) {
   const s = new Date(i.start)
   const e = new Date(i.end)
-  resForm.value = {
+  // Explicitly create primitive values to ensure reactivity works
+  const formData: ReservationEditorForm = {
     id: i.id,
-    title: i.title,
-    deviceCode: i.deviceId,
+    title: String(i.title ?? ''),
+    deviceCode: String(i.deviceId ?? ''),
     dateYmd: toYmdLocal(new Date(s.getFullYear(), s.getMonth(), s.getDate())),
     startHM: hmFromDate(s),
     endHM: hmFromDate(e),
-    username: i.username || '',
-    note: i.note || ''
+    username: i.username ? String(i.username) : '',
+    note: i.note ? String(i.note) : '',
+    recurrence: null,
+    seriesId: i.seriesId ?? null
   }
+  resForm.value = formData
   editorMode.value = 'edit'
   editorOpen.value = true
+
+  // Fetch recurrence rule if series
+  if (i.seriesId) {
+     reservations.fetchSeriesRecurrence(i.seriesId).then(rec => {
+        if (rec && resForm.value && resForm.value.id === i.id) {
+           resForm.value.recurrence = rec
+        }
+     })
+  }
 }
-watch(() => resForm.value?.dateYmd, (v) => { if (v) selectedDate.value = v })
+// Removed: watch(() => resForm.value?.dateYmd) - date should only sync after save, not during editing
 const isEditorValid = computed(() => {
   const f = resForm.value
   if (!f) return false
@@ -988,102 +1429,298 @@ const isEditorValid = computed(() => {
   const e = setHM(day, f.endHM)
   return e.getTime() > s.getTime()
 })
+/* Editor SAVE */
+const seriesScopeOpen = ref(false)
+const seriesScopeMode = ref<'edit' | 'delete'>('edit')
+const pendingSaveForSeries = ref<any>(null)
+
 async function saveReservation() {
   if (!resForm.value || !isEditorValid.value) return
-  editorSaving.value = true
   const f = resForm.value
   const day = fromYmdLocal(f.dateYmd)
-  let start = setHM(day, f.startHM)
-  let end = setHM(day, f.endHM)
-  if (end <= start) end = new Date(start.getTime() + 30 * 60000)
+  const start = setHM(day, f.startHM)
+  const end = setHM(day, f.endHM)
+
+  // Use same clamp logic as before?
+  // Let's rely on doSaveReservation to handle API call details or pass prepared data
+
+  // Check if series
+  if (f.seriesId && editorMode.value === 'edit') {
+    pendingSaveForSeries.value = { f, start, end }
+    seriesScopeMode.value = 'edit'
+    seriesScopeOpen.value = true
+    return
+  }
+
+  await doSaveReservation(f, start, end)
+}
+
+async function doSaveReservation(f: any, start: Date, end: Date, scope: 'single' | 'following' | 'series' = 'single') {
+  console.log('doSaveReservation called', { f, start, end, scope })
+  editorSaving.value = true
+  // Re-apply clamp logic if needed
+  let s = start
+  let e = end
+  if (e <= s) e = new Date(s.getTime() + 30 * 60000)
+  const day = fromYmdLocal(f.dateYmd)
   const clampStart = new Date(day); clampStart.setHours(HOURS_START, 0, 0, 0)
   const clampEnd = new Date(day); clampEnd.setHours(HOURS_END, 0, 0, 0)
-  if (start < clampStart) start = clampStart
-  if (end > clampEnd) end = clampEnd
+  if (s < clampStart) s = clampStart
+  if (e > clampEnd) e = clampEnd
+
   try {
+    const payload = {
+      title: f.title?.trim() || 'Rezervace',
+      deviceCode: f.deviceCode,
+      startTime: s.getTime(),
+      endTime: e.getTime(),
+      projectId,
+      username: f.username || '',
+      note: (f.note ?? '').trim(), // Allow empty string to clear note
+      recurrence: f.recurrence
+    }
+
     if (editorMode.value === 'create') {
-      const created = await reservations.createReservation({
-        title: f.title?.trim() || 'Rezervace',
-        deviceCode: f.deviceCode,
-        startTime: start.getTime(),
-        endTime: end.getTime(),
-        projectId,
-        username: f.username || '',
-        note: (f.note ?? '').trim() || null
-      })
-      // place optimistically if week is same, else reload
-      const baseDay = day
-      const currentMonday = weekRange(currentDay.value)[0]
-      const newMonday = weekRange(baseDay)[0]
-      if (currentMonday.getTime() !== newMonday.getTime()) {
-        await loadWeekFor(baseDay)
-      } else {
-        const arr = ensureDay(baseDay)
-        arr.push({
-          id: created.id,
-          title: created.title,
-          deviceId: created.deviceCode,
-          start: toIsoLocal(start),
-          end: toIsoLocal(end),
-          status: 'plan',
-          username: created.username ?? null,
-          note: created.note ?? null
-        })
-        arr.sort((a, b) => +new Date(a.start) - +new Date(b.start))
+      const created = await reservations.createReservation(payload)
+      await loadWeekFor(day)
+      if (isDailyList.value && dailyListRef.value?.addReservation) {
+        dailyListRef.value.addReservation({ ...created, id: created.id }) // simplify type check
       }
     } else {
-      const id = f.id!
-      await reservations.updateReservation(id, {
-        title: f.title?.trim() || 'Rezervace',
-        deviceCode: f.deviceCode,
-        startTime: start.getTime(),
-        endTime: end.getTime(),
-        username: (f.username ?? '').trim() || null,
-        note: (f.note ?? '').trim() || null
-      })
+      const id = f.id
+      if (scope === 'single') {
+         // Standard update - MUST pass seriesId to preserve series link if only updating one instance
+         await reservations.updateReservation(id, { ...payload, seriesId: f.seriesId })
+      } else if (scope === 'series') {
+         if (f.seriesId) await reservations.updateSeries(id, payload, 'series')
+      } else if (scope === 'following') {
+         if (f.seriesId) await reservations.updateSeries(id, payload, 'following')
+      }
+      // Refresh current view logic
       await loadWeekFor(currentDay.value)
+      if (isDailyList.value) {
+        await dailyListRef.value?.loadListRange()
+      }
     }
+
     editorOpen.value = false
     resForm.value = null
-  } catch (e: unknown) {
-    // Handle 409 Conflict (device already reserved)
-    const err = e as { statusCode?: number; message?: string }
+  } catch (errObj: unknown) {
+    const err = errObj as { statusCode?: number; message?: string }
     if (err.statusCode === 409) {
-      // Show conflict dialog with alternative time proposals
-      const deviceName = deviceNameById(f.deviceCode)
-      conflictDeviceName.value = deviceName
-      conflictRequested.value = { start, end }
-      
-      // Compute alternative time proposals
-      const dayBase = new Date(day.getFullYear(), day.getMonth(), day.getDate(), 0, 0, 0, 0)
-      const existingEvents = getEventsForDayDevice(dayBase, f.deviceCode)
-      const gaps = buildDayGaps(existingEvents, dayBase)
-      const proposals = proposeSlotsAround({ start, end }, gaps)
-      conflictProposals.value = proposals.map((s, idx) => ({ 
-        slot: s, 
-        label: idx === 0 ? 'Nejbližší po' : 'Nejbližší před' 
-      }))
-      
-      // Find fallback in next days
-      const durationMs = end.getTime() - start.getTime()
-      conflictFallbackNext.value = firstGapNextDays(getEventsForDayDevice, dayBase, f.deviceCode, durationMs, 30)
-      
-      // Set context (null for create, set for edit)
+       // Conflict handling
+       const deviceName = deviceNameById(f.deviceCode)
+       conflictDeviceName.value = deviceName
+       conflictRequested.value = { start: s, end: e }
+       const dayBase = new Date(day.getFullYear(), day.getMonth(), day.getDate(), 0, 0, 0, 0)
+       const existingEvents = getEventsForDayDevice(dayBase, f.deviceCode)
+       const gaps = buildDayGaps(existingEvents, dayBase)
+       const proposals = proposeSlotsAround({ start: s, end: e }, gaps)
+       conflictProposals.value = proposals.map((slot, idx) => ({
+         slot,
+         label: idx === 0 ? 'Nejbližší po' : 'Nejbližší před'
+       }))
+       const durationMs = e.getTime() - s.getTime()
+       conflictFallbackNext.value = firstGapNextDays(getEventsForDayDevice, dayBase, f.deviceCode, durationMs, 30)
+       conflictItems.value = existingEvents.filter(ev => {
+          const evStart = new Date(ev.start).getTime()
+          const evEnd = new Date(ev.end).getTime()
+          return evEnd > s.getTime() && evStart < e.getTime()
+        }).map(ev => ({
+          id: ev.id,
+          title: ev.title,
+          start: new Date(ev.start),
+          end: new Date(ev.end),
+          username: ev.username
+        }))
+       pendingForcePayload.value = {
+        title: f.title?.trim() || 'Rezervace',
+        deviceCode: f.deviceCode,
+        startTime: s.getTime(),
+        endTime: e.getTime(),
+        projectId,
+        username: f.username || '',
+        note: (f.note ?? '').trim() || null,
+        recurrence: f.recurrence
+      }
       conflictCtx.value = editorMode.value === 'edit' && f.id
-        ? { reservationId: f.id, deviceId: f.deviceCode, dayKey: dateKey(day) }
+        ? { reservationId: f.id, deviceId: f.deviceCode, dayKey: dateKey(fromYmdLocal(f.dateYmd)) }
         : null
       conflictOpen.value = true
     } else {
-      console.error('Save reservation failed', e)
+      console.error('Save reservation failed', errObj)
     }
   } finally {
     editorSaving.value = false
   }
 }
+
+async function onScopeConfirm(scope: 'single' | 'following' | 'series') {
+  if (seriesScopeMode.value === 'edit' && pendingSaveForSeries.value) {
+    // Check if it is a drag/drop action or form save
+    if (pendingSaveForSeries.value.actionType === 'move' || pendingSaveForSeries.value.actionType === 'resize') {
+       await executeDragAction(scope, pendingSaveForSeries.value)
+    } else {
+       // Form save
+       const { f, start, end } = pendingSaveForSeries.value
+       await doSaveReservation(f, start, end, scope)
+    }
+    pendingSaveForSeries.value = null
+  } else if (seriesScopeMode.value === 'delete' && deleteTarget.value) {
+    deleteMode.value = scope
+    await confirmDelete()
+  }
+}
+
+function onScopeCancel() {
+  seriesScopeOpen.value = false
+  pendingSaveForSeries.value = null
+  deleteTarget.value = null
+}
+
+async function executeDragAction(scope: 'single' | 'following' | 'series', p: any) {
+  const { id, start, end, deviceId, item, origDayKey, origDeviceId, origStart, origEnd } = p
+
+  // Optimistic update helper
+  const doOptimistic = () => {
+     // Remove from old
+     const sourceArr = eventsByDay.value[origDayKey] || []
+     const idx = sourceArr.findIndex((r: any) => r.id === id)
+     if (idx !== -1) sourceArr.splice(idx, 1)
+
+     // Add to new
+     const targetDayKey = dateKey(start) // assuming start is date object
+     const targetArr = ensureDay(start)
+     const newItem = {
+        ...item,
+        deviceId: deviceId,
+        start: toIsoLocal(start),
+        end: toIsoLocal(end)
+     }
+     targetArr.push(newItem)
+     targetArr.sort((a, b) => +new Date(a.start) - +new Date(b.start))
+     return { sourceArr, targetArr, newItem }
+  }
+
+  // NOTE: For 'series' or 'following', optimistic update of single item is weird if we update multiple.
+  // Ideally we should reload. But for UX, we might update the dragged one.
+  // If scope != single, maybe skip optimistic update and just await reload?
+  // Let's reload for series/following to be safe and simple.
+  // For single, we can do optimistic.
+
+  if (scope === 'single') {
+     doOptimistic()
+  }
+
+  try {
+     const payload = {
+        startTime: start.getTime(),
+        endTime: end.getTime(),
+        deviceCode: deviceId
+     }
+
+     if (scope === 'single') {
+        await reservations.updateReservation(id, { ...payload, seriesId: item.seriesId })
+     } else if (scope === 'series') {
+        if (item.seriesId) await reservations.updateSeries(id, payload, 'series')
+     } else if (scope === 'following') {
+        if (item.seriesId) await reservations.updateSeries(id, payload, 'following')
+     }
+
+     // Refresh view
+     if (scope !== 'single') {
+        await loadWeekFor(currentDay.value)
+        if (isDailyList.value && dailyListRef.value?.loadAll) {
+           await dailyListRef.value.loadAll()
+        }
+     }
+
+     if (isDailyList.value && dailyListRef.value?.updateReservation) {
+        dailyListRef.value.updateReservation(id, { startTime: payload.startTime, endTime: payload.endTime })
+     }
+
+  } catch(e: any) {
+     console.error('Drag series action failed', e)
+     
+     if (e.statusCode === 409) {
+        const msg = e.response?.data?.message || 'Kolize s jinou rezervací.'
+        // Ask user if they want to force update
+        if (confirm(`Aktualizace série selhala: ${msg}\n\nChcete provést změnu i přes kolizi?`)) {
+           try {
+              const forcePayload = { ...payload, force: true }
+              
+              if (scope === 'single') {
+                 await reservations.updateReservation(id, { ...forcePayload, seriesId: item.seriesId })
+              } else if (scope === 'series') {
+                 if (item.seriesId) await reservations.updateSeries(id, forcePayload, 'series')
+              } else if (scope === 'following') {
+                 if (item.seriesId) await reservations.updateSeries(id, forcePayload, 'following')
+              }
+
+              // Success path (Retry)
+              if (scope !== 'single') {
+                 await loadWeekFor(currentDay.value)
+                 if (isDailyList.value && dailyListRef.value?.loadAll) {
+                    await dailyListRef.value.loadAll()
+                 }
+              }
+
+              if (isDailyList.value && dailyListRef.value?.updateReservation) {
+                 dailyListRef.value.updateReservation(id, { startTime: payload.startTime, endTime: payload.endTime })
+              }
+              return
+           } catch (e2) {
+              console.error('Force update failed', e2)
+              alert('Nepodařilo se vynutit aktualizaci.')
+           }
+        }
+     }
+     
+     // Rollback optimistic (or failed force)
+     await loadWeekFor(currentDay.value)
+  }
+}
+
+
+// Force-create handler: creates reservation despite conflicts
+async function onForceCreate() {
+  if (!pendingForcePayload.value) return
+  const payload = pendingForcePayload.value
+  try {
+    const created = await reservations.createReservation({
+      ...payload,
+      force: true  // Skip conflict check
+    })
+    // Close dialogs
+    conflictOpen.value = false
+    editorOpen.value = false
+    pendingForcePayload.value = null
+    resForm.value = null
+
+    // Reload week to show new reservation
+    await loadWeekFor(currentDay.value)
+    // Immediately add to daily list if active
+    if (isDailyList.value && dailyListRef.value?.addReservation) {
+      dailyListRef.value.addReservation({
+        id: created.id,
+        title: created.title,
+        deviceCode: created.deviceCode,
+        startTime: created.startTime,
+        endTime: created.endTime,
+        username: created.username,
+        projectId: created.projectId,
+        note: created.note
+      })
+    }
+  } catch (e) {
+    console.error('Force-create failed', e)
+    // Still show error to user
+  }
+}
 function openCreateFromToolbar() {
   const day = normalizeToDate(selectedDate.value)
   const start = new Date(day); start.setHours(9, 0, 0, 0)
-  const end = new Date(start.getTime() + 60 * 60000)
+  const end = new Date(start.getTime() + defaultDurationMinutes.value * 60000)
   const deviceCode = devicesToShow.value[0]?.id || allDevices.value[0]?.id || 'M1'
   openCreateWith({ baseDay: day, start, end, deviceCode })
 }
@@ -1091,10 +1728,8 @@ const confirmPrimaryBtn = ref<HTMLButtonElement | null>(null)
 watch(confirmDeleteOpen, v => {
   if (v) nextTick(() => confirmPrimaryBtn.value?.focus())
 })
-/* Global hotkeys (sjednocení s Measurements/Board: Ctrl+B pro procházet) */
+/* Global hotkeys */
 function onHotkeys(e: KeyboardEvent) {
-  // Toggle postranní panel (sjednocení s Board.vue)
-  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b') { e.preventDefault(); isSideFilterOpen.value = !isSideFilterOpen.value; return }
   // Quick new
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'n') { e.preventDefault(); openCreateFromToolbar(); return }
   // Datum navigace mimo editor
@@ -1123,49 +1758,91 @@ onBeforeUnmount(() => {
 </script>
 <template>
   <v-container fluid class="pa-0">
-    <!-- Sjednocená horní lišta jako v Board.vue -->
-    <v-toolbar color="white" class="border-b-sm pl-3 pr-3" density="comfortable">
-      <v-btn color="primary"variant="tonal" @click="isSideFilterOpen = !isSideFilterOpen">
-        Procházet
-      </v-btn>
-      <v-btn color="primary" variant="flat" class="ml-2" @click="openCreateFromToolbar">
-        VYTVOŘIT REZERVACI
-      </v-btn>
-      <v-menu>
+    <!-- Top Toolbar -->
+    <div class="top-toolbar">
+      <!-- Primary Action -->
+      <button class="btn-primary" @click="openCreateFromToolbar">
+        <i class="mdi mdi-plus"></i>
+        Vytvořit rezervaci
+      </button>
+
+      <!-- Duration Selector -->
+      <v-menu location="bottom center" offset="4">
         <template #activator="{ props }">
-          <v-btn v-bind="props" append-icon="mdi-menu-down" variant="tonal" class="ml-2">
-            {{ viewLabel }}
-          </v-btn>
+          <button class="weekends-toggle" v-bind="props" style="margin-right: auto; gap: 8px;">
+            <i class="mdi mdi-clock-time-four-outline" style="font-size: 18px;"></i>
+            <span>{{ defaultDurationMinutes }} min</span>
+            <i class="mdi mdi-chevron-down" style="font-size: 14px; opacity: 0.7;"></i>
+          </button>
         </template>
-        <v-list>
-          <v-list-item @click="viewMode = 'daily-machines'">Denní – stroje</v-list-item>
-          <v-list-item @click="viewMode = 'week-work'">Týdenní (pracovní)</v-list-item>
-          <v-list-item @click="viewMode = 'week-all'">Týdenní (s víkendy)</v-list-item>
-          <v-list-item @click="viewMode = 'daily-list'">Rezervace (seznam)</v-list-item>
+        <v-list density="compact" rounded="lg" elevation="3" class="pa-1">
+          <v-list-subheader style="height: 32px; min-height: 0; font-size: 11px;">VÝCHOZÍ DÉLKA</v-list-subheader>
+          <v-list-item 
+            v-for="m in [15, 30, 45, 60, 90, 120, 240, 480]" 
+            :key="m" 
+            :value="m"
+            @click="setDefaultDuration(m)" 
+            :active="defaultDurationMinutes === m"
+            color="primary"
+            rounded
+            style="min-height: 36px;"
+          >
+            <template #prepend>
+               <v-icon size="16" :icon="defaultDurationMinutes === m ? 'mdi-check' : 'mdi-circle-small'"></v-icon>
+            </template>
+            <v-list-item-title style="font-size: 13px;">{{ m < 60 ? m + ' min' : (m/60) + ' hod' }}</v-list-item-title>
+          </v-list-item>
         </v-list>
       </v-menu>
-      <v-spacer />
-      <div class="text-subtitle-1 mx-2" style="text-transform: capitalize; min-width: 180px;">
-        {{ selectedDate ? fmtDateLong(normalizeToDate(selectedDate)) : '' }}
+
+      <!-- View Selector -->
+      <div class="view-selector">
+        <button
+          :class="['view-option', { active: viewMode === 'daily-machines' }]"
+          @click="viewMode = 'daily-machines'"
+        >Denní – Stroje</button>
+        <button
+          :class="['view-option', { active: viewMode === 'week-work' || viewMode === 'week-all' }]"
+          @click="viewMode = viewMode === 'week-all' ? 'week-all' : 'week-work'"
+        >Týdenní</button>
+        <button
+          :class="['view-option', { active: viewMode === 'daily-list' }]"
+          @click="viewMode = 'daily-list'"
+        >Seznam</button>
       </div>
-      <v-btn variant="tonal" @click="goToday" title="Dnes (Ctrl+T)">DNES</v-btn>
-      <v-btn icon="mdi-chevron-left" variant="text" @click="addDays(-1)" />
-      <v-btn icon="mdi-chevron-right" variant="text" @click="addDays(1)" />
-    </v-toolbar>
+
+    </div>
     <v-container fluid class="pa-4">
-      <v-row>
-        <!-- LEFT PANEL (toggle jako v Board.vue) -->
-        <v-col v-if="isSideFilterOpen" cols="12" md="3">
-          <LeftFiltersPanel
-            v-model:date="selectedDate"
-            v-model:selection="leftSelection"
-            :groups="leftGroups"
-          />
+      <v-row class="flex-nowrap">
+        <!-- Sidebar Calendar -->
+        <v-col cols="auto" v-if="['daily-machines', 'week-work', 'week-all', 'daily-list'].includes(viewMode)">
+          <div style="width: 320px;">
+            <DateFilterPanel
+              :model-value="dateFilterModel"
+              @update:model-value="onDateFilterUpdate"
+              :hide-presets="viewMode === 'daily-machines'"
+              :hide-field-toggle="true"
+              :show-date-label="viewMode === 'daily-machines'"
+              :show-range-presets="viewMode === 'daily-list'"
+              :view-mode="viewMode"
+              :header-label="viewMode === 'daily-list' ? 'Všechny rezervace' : undefined"
+              :header-icon="viewMode === 'daily-list' ? 'mdi-clipboard-list-outline' : undefined"
+              :devices="allDevices"
+              :members="membersList"
+              :picked-devices="pickedDevices"
+              :picked-members="pickedMembers"
+              :include-weekends="viewMode === 'week-all'"
+              @update:picked-devices="v => pickedDevices = v"
+              @update:picked-members="v => pickedMembers = v"
+              @update:include-weekends="v => viewMode = v ? 'week-all' : 'week-work'"
+            />
+          </div>
         </v-col>
-        <!-- RIGHT PANEL -->
-        <v-col :cols="12" :md="isSideFilterOpen ? 9 : 12">
-          <v-card>
-            <v-card-text>
+
+        <!-- MAIN PANEL - full width now -->
+        <v-col class="flex-grow-1" style="min-width: 0; padding: 0px; margin: 16px;">
+          <v-card style="border-radius: 16px;" >
+            <v-card-text class="pa-0">
               <DailyMachinesView
                 v-if="viewMode === 'daily-machines'"
                 :devices="devicesToShow"
@@ -1203,6 +1880,8 @@ onBeforeUnmount(() => {
                 :open-edit="openEditFromDto"
                 :ask-delete="askDeleteFromDto"
                 :selected-date="selectedDate"
+                :filter-from="dateFilterModel.from ? toYmdLocal(dateFilterModel.from) : null"
+                :filter-to="dateFilterModel.to ? toYmdLocal(dateFilterModel.to) : null"
               />
               <WeekView
                 v-else
@@ -1222,6 +1901,7 @@ onBeforeUnmount(() => {
                 :fmt-detail-time="fmtDetailTime"
                 :initials="initials"
                 :device-color-of="deviceColorOf"
+                :device-name-of="deviceNameById"
                 :is-menu-open="isMenuOpen"
                 :set-menu-open="setMenuOpen"
                 :on-track-click="onTrackClick"
@@ -1236,40 +1916,48 @@ onBeforeUnmount(() => {
           </v-card>
         </v-col>
       </v-row>
-      <EntityEditorDialog
-        v-model:is-open="editorOpen"
-        :entity-label="'rezervace'"
+      <ReservationEditorDialog
+        v-if="resForm"
+        v-model="editorOpen"
         :mode="editorMode"
         :saving="editorSaving"
-        :deletable="editorMode === 'edit'"
+        v-model:title="resForm.title"
+        v-model:device-code="resForm.deviceCode"
+        v-model:username="resForm.username"
+        v-model:date-ymd="resForm.dateYmd"
+        v-model:start-h-m="resForm.startHM"
+        v-model:end-h-m="resForm.endHM"
+        v-model:note="resForm.note"
+        v-model:recurrence="resForm.recurrence"
+        :series-id="resForm.seriesId"
+        :series-index="resForm.seriesIndex"
+        :is-exception="resForm.isException"
+        :devices="allDevices"
+        :members="membersList"
         @save="saveReservation"
-        @delete="() => { if (resForm?.id) askDelete({ id: resForm.id, title: '', deviceId: resForm.deviceCode, start: '', end: '', status: 'plan', username: resForm.username, note: resForm.note ?? null }) }"
+        @delete="() => { if (resForm?.id) askDelete({ id: resForm.id, title: '', deviceId: resForm.deviceCode, start: '', end: '', status: 'plan', username: resForm.username, note: resForm.note ?? null, seriesId: resForm.seriesId }) }"
         @cancel="() => { resForm = null }"
-        :width="'600px'"
-      >
-        <div v-if="resForm" class="pa-1">
-          <v-text-field v-model="resForm.title" label="Název" density="comfortable" variant="outlined" class="mb-2"
-                        :rules="[v => !!(v && v.trim()) || 'Název je povinný']" autofocus />
-          <v-select v-model="resForm.deviceCode" :items="allDevices" item-title="name" item-value="id" label="Přístroj"
-                    density="comfortable" variant="outlined" class="mb-2" />
-          <v-select v-model="resForm.username" :items="membersList" label="Člen" density="comfortable"
-                    variant="outlined" class="mb-2" :clearable="true" />
-          <v-text-field v-model="resForm.dateYmd" label="Datum" type="date" density="comfortable" variant="outlined" class="mb-2" />
-          <div class="d-flex" style="gap:12px">
-            <v-text-field v-model="resForm.startHM" label="Začátek" type="time" density="comfortable" variant="outlined" />
-            <v-text-field v-model="resForm.endHM" label="Konec" type="time" density="comfortable" variant="outlined" />
-          </div>
-          <v-textarea v-model="resForm.note" label="Poznámka" auto-grow rows="2" density="comfortable" variant="outlined" class="mt-2" />
-        </div>
-      </EntityEditorDialog>
-      <!-- CONFIRM DELETE -->
-      <Dialog v-model:is-open="confirmDeleteOpen" width="auto" :hide-footer="true">
+      />
+
+      <!-- SERIES SCOPE DIALOG -->
+      <SeriesScopeDialog
+        v-model:is-open="seriesScopeOpen"
+        :mode="seriesScopeMode"
+        :is-first-in-series="seriesScopeMode === 'delete' && isFirstInSeries"
+        @confirm="onScopeConfirm"
+        @cancel="onScopeCancel"
+      />
+
+      <!-- CONFIRM DELETE (Simple - used for non-series) -->
+      <Dialog v-model:is-open="confirmDeleteOpen" width="420px" :hide-footer="true">
         <template #content>
           <div class="pa-4">
-            <div class="text-h6 mb-6">Opravdu chcete rezervaci zrušit?</div>
+            <div class="text-h6 mb-4">
+              Opravdu chcete rezervaci zrušit?
+            </div>
             <div class="d-flex align-center" style="gap:14px">
               <v-btn
-                color="primary" variant="flat"
+                color="error" variant="flat"
                 size="large"
                 :loading="deleteLoading"
                 :disabled="deleteLoading || !deleteTarget"
@@ -1284,7 +1972,7 @@ onBeforeUnmount(() => {
                 :disabled="deleteLoading"
                 @click="cancelDelete"
               >
-                Ponechat
+                Zrušit
               </v-btn>
             </div>
           </div>
@@ -1297,10 +1985,14 @@ onBeforeUnmount(() => {
         :requested="conflictRequested"
         :proposals="conflictProposals"
         :fallback-next-day="conflictFallbackNext"
+        :conflicts="conflictItems"
+        :all-reservations="allReservationsForDevice"
         @update:open="v => conflictOpen = v"
         @confirm="onConfirmConflict"
         @suggest-next-day="onSuggestNextDay"
-        @cancel="() => { conflictOpen = false }"
+        @cancel="() => { conflictOpen = false; pendingForcePayload = null }"
+        @force-create="onForceCreate"
+
       />
     </v-container>
   </v-container>
@@ -1404,4 +2096,114 @@ onBeforeUnmount(() => {
 .event.event--md { padding: 6px 8px 10px 8px; }
 .event.event--md .event-avatar { display: none; }
 .event.event--md .event-time { font-size: 12px; }
+
+/* ===== NEW TOOLBAR STYLES ===== */
+/* btn-primary and top-toolbar are now global in settings.scss */
+
+.view-selector {
+  display: flex;
+  background: #f1f5f9;
+  border-radius: 10px;
+  padding: 4px;
+  gap: 2px;
+}
+
+.view-option {
+  padding: 8px 16px;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.view-option:hover:not(.active) {
+  background: #e2e8f0;
+  color: #475569;
+}
+
+.view-option.active {
+  background: white;
+  color: #1e40af;
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.weekends-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  color: #475569;
+  transition: all 0.2s ease;
+}
+
+.weekends-toggle:hover {
+  background: #f1f5f9;
+}
+
+.weekends-toggle input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: #3b82f6;
+  cursor: pointer;
+}
+
+.weekends-toggle span {
+  user-select: none;
+}
+
+.filters-group {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.filter-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 40px;
+  padding: 0 14px;
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.filter-btn:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+}
+
+.filter-btn i {
+  font-size: 18px;
+  color: #64748b;
+}
+
+.filter-btn .label {
+  color: #64748b;
+  font-weight: 400;
+}
+
+.filter-btn .value {
+  color: #1e293b;
+  font-weight: 600;
+}
+
+.filter-btn .arrow {
+  color: #94a3b8;
+  margin-left: 2px;
+}
 </style>
