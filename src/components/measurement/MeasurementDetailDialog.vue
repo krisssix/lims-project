@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, computed, nextTick, onMounted, onBeforeUnmount } from 'vue'
+import { ref, watch, computed, nextTick, onMounted, onBeforeUnmount, toRaw } from 'vue'
 import EntityEditorDialog from '@/components/EntityEditorDialog.vue'
 import ChartPanel from '@/components/chart/ChartPanel.vue'
 import TemplateSelect from '@/components/measurement/TemplateSelect.vue'
@@ -535,15 +535,15 @@ function dateModel(field: RecordField): string | null {
       ? new Date(field.value).toISOString().slice(0, 10)
       : (field.value as string | null | undefined) ?? null
 }
+
 function fileModel(field: RecordField): File | null | undefined {
   // Only return File objects, not URL strings
-  if (field.value instanceof File) return field.value
+  // Handle Vue reactivity wrapping File objects
+  const val = toRaw(field.value)
+  if (val instanceof File) return val
   return null
 }
 
-/**
- * Check if a file field has an existing uploaded file URL (not a File object)
- */
 function hasExistingFileUrl(field: RecordField): boolean {
   return typeof field.value === 'string' && field.value.length > 0
 }
@@ -656,7 +656,9 @@ async function onSave(): Promise<void> {
   isSaving.value = true
   try {
     // Step 1: Upload all file fields first
-    const filesToUpload = extractFilesFromRecords(records.value)
+    // Unwrap records to ensure File objects are correctly detected by the service
+    const rawRecords = records.value.map(r => toRaw(r))
+    const filesToUpload = extractFilesFromRecords(rawRecords)
     if (filesToUpload.length > 0) {
       // Upload files and store their URLs back into records
       for (const fileInfo of filesToUpload) {

@@ -21,7 +21,7 @@ interface ApiResponse<T> {
 }
 
 interface ApiListResponse<T> {
-    content: T[]
+    items: T[]
 }
 
 /**
@@ -127,7 +127,7 @@ export function useAttachments() {
             }
 
             const data = await response.json() as ApiListResponse<FileAttachment>
-            attachments.value = data.content ?? []
+            attachments.value = data.items ?? []
             return attachments.value
         } catch (e) {
             error.value = e instanceof Error ? e.message : 'Unknown error'
@@ -204,6 +204,11 @@ export function useAttachments() {
 
             // Start upload
             const token = auth.getToken()
+            if (!token) {
+                loading.value = false
+                reject(new Error('Chybí autentizační token. Přihlaste se prosím znovu.'))
+                return
+            }
             xhr.open('POST', `${API_BASE_URL}measurements/${measurementId}/attachments`)
             xhr.setRequestHeader('Authorization', `Bearer ${token}`)
             xhr.send(formData)

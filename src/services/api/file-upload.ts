@@ -4,6 +4,7 @@
 import { auth } from '@/stores/auth'
 import { config } from '@/config'
 import axios from 'axios'
+import { toRaw } from 'vue'
 
 /**
  * Maximum file size in bytes (50MB - should match backend configuration)
@@ -157,12 +158,12 @@ export function extractFilesFromRecords(
 
     for (const record of records) {
         for (const field of record.fields) {
-            if (field.type === 'file' && field.value instanceof File) {
+            if (field.type === 'file' && toRaw(field.value) instanceof File) {
                 files.push({
                     recordIndex: record.recordIndex,
                     fieldName: field.name,
                     blockIndex: field.blockIndex ?? 1,
-                    file: field.value
+                    file: toRaw(field.value) as File
                 })
             }
         }

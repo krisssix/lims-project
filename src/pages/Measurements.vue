@@ -451,6 +451,60 @@ async function handleDeprecateTemplate(templateId: string): Promise<void> {
   }
 }
 
+async function handleTemplateDelete(id: string): Promise<void> {
+  const idNum = Number(id)
+  if (!Number.isFinite(idNum)) return
+  try {
+    await templatesStore.remove(idNum)
+    await templatesStore.fetchByProject(projectId)
+    // Child dialog shows notification
+  } catch (err) {
+    console.error('Failed to delete template:', err)
+    snackbar.value = { open: true, text: 'Chyba při mazání šablony' }
+  }
+}
+
+async function handleBulkDeleteTemplates(ids: string[]): Promise<void> {
+  const numericIds = ids.map(Number).filter(Number.isFinite)
+  if (numericIds.length === 0) return
+  
+  try {
+    for (const id of numericIds) {
+       await templatesStore.remove(id)
+    }
+    await templatesStore.fetchByProject(projectId)
+    // Child dialog shows notification
+  } catch (err) {
+     console.error('Failed to bulk delete templates:', err)
+     snackbar.value = { open: true, text: 'Chyba při hromadném mazání šablon' }
+  }
+}
+
+const loadingTemplates = ref(false)
+
+async function handleBulkStatusUpdate(ids: string[], status: 'ACTIVE' | 'DRAFT' | 'DEPRECATED'): Promise<void> {
+  const numericIds = ids.map(Number).filter(Number.isFinite)
+  if (!numericIds.length) return
+  
+  loadingTemplates.value = true
+  try {
+    const res = await templatesStore.bulkUpdateStatus(numericIds, status)
+    
+    await templatesStore.fetchByProject(projectId)
+    
+    let msg = `Stav změněn u ${res.updated} z ${res.requested} vybraných šablon.`
+    if (res.skipped > 0) {
+       msg += ` (${res.skipped} již bylo v požadovaném stavu).`
+    }
+    snackbar.value = { open: true, text: msg }
+  } catch (err) {
+    console.error('Bulk status update failed:', err)
+    snackbar.value = { open: true, text: 'Chyba při aktualizaci stavu' }
+  } finally {
+    loadingTemplates.value = false
+  }
+}
+
 // Version conflict dialog state
 const versionConflictOpen = ref(false)
 const versionDialogData = ref<{
@@ -829,6 +883,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onHotkeys))
         v-model="overviewOpen"
         :templates="templates"
         :selected-template-id="selectedTemplateId"
+        :loading="loadingTemplates"
         @edit="startEditTemplate"
         @createBlank="startCreateTemplate"
         @createFromFile="openImportTemplate"
@@ -836,6 +891,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onHotkeys))
         @publish="handlePublishTemplate"
         @deprecate="handleDeprecateTemplate"
         @createVersion="handleCreateVersion"
+        @delete="handleTemplateDelete"
+        @bulkDelete="handleBulkDeleteTemplates"
+        @bulkStatusUpdate="handleBulkStatusUpdate"
       />
 
       <VersionConflictDialog

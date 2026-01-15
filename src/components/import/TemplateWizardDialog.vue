@@ -87,7 +87,7 @@
             <v-icon size="18">
               mdi-history
             </v-icon>
-            Historie verzí
+            Přehled verzí
             <span
               v-if="versionHistory.length"
               class="tab-badge"
@@ -1192,7 +1192,7 @@
           </div>
         </div><!-- End of structure tab -->
 
-        <!-- Tab Content: Historie verzí -->
+        <!-- Tab Content: Přehled verzí -->
         <div
           v-show="mainTab === 'versions'"
           class="versions-tab"
@@ -1218,7 +1218,7 @@
                   >
                     mdi-history
                   </v-icon>
-                  Historie verzí
+                  Přehled verzí
                 </div>
                 <div class="versions-subtitle text-medium-emphasis">
                   Přehled všech verzí této šablony
@@ -1246,7 +1246,7 @@
               indeterminate
               color="primary"
             />
-            <span class="ml-3 text-medium-emphasis">Načítání historie verzí...</span>
+            <span class="ml-3 text-medium-emphasis">Načítání verzí...</span>
           </div>
 
           <!-- Version list -->
@@ -1384,12 +1384,12 @@
                 Systém si pamatuje jak byly sloupce ze souborů mapovány na pole šablony
               </div>
             </div>
-            <button 
+            <button
               v-if="learnedMappings.length > 0"
-              type="button" 
-              style="height: 36px; padding: 0 14px; border: 1px solid #fecaca; background: #fef2f2; color: #dc2626; font-size: 13px; font-weight: 500; cursor: pointer; border-radius: 8px; display: flex; align-items: center; gap: 6px; transition: all 0.15s;" 
+              type="button"
+              style="height: 36px; padding: 0 14px; border: 1px solid #fecaca; background: #fef2f2; color: #dc2626; font-size: 13px; font-weight: 500; cursor: pointer; border-radius: 8px; display: flex; align-items: center; gap: 6px; transition: all 0.15s;"
               @click="confirmClearAll = true"
-              onmouseover="this.style.background='#fee2e2'" 
+              onmouseover="this.style.background='#fee2e2'"
               onmouseout="this.style.background='#fef2f2'"
             >
               <v-icon icon="mdi-delete-sweep" style="font-size: 16px;" />
@@ -1414,7 +1414,7 @@
           </div>
 
           <!-- Mappings grouped by target field -->
-          <div 
+          <div
             v-if="groupedMappings.length > 0"
             style="border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden;"
           >
@@ -1449,11 +1449,11 @@
                   <v-icon icon="mdi-chevron-down" style="font-size: 20px; color: #9ca3af; cursor: pointer;" />
                 </div>
               </div>
-              
+
               <!-- Mapping rows -->
               <div style="background: white;">
-                <div 
-                  v-for="mapping in group.mappings" 
+                <div
+                  v-for="mapping in group.mappings"
                   :key="mapping.id"
                   style="padding: 10px 16px; border-bottom: 1px solid #f3f4f6; display: flex; align-items: center; justify-content: space-between;"
                 >
@@ -1469,10 +1469,10 @@
                   </div>
                   <div style="display: flex; align-items: center; gap: 12px;">
                     <span style="font-size: 12px; color: #6b7280; background: #f3f4f6; padding: 2px 8px; border-radius: 10px;">{{ mapping.useCount }}×</span>
-                    <button 
+                    <button
                       style="width: 28px; height: 28px; border: none; background: transparent; cursor: pointer; border-radius: 6px; display: flex; align-items: center; justify-content: center;"
                       @click="askDeleteMapping(mapping)"
-                      onmouseover="this.style.background='#fee2e2'" 
+                      onmouseover="this.style.background='#fee2e2'"
                       onmouseout="this.style.background='transparent'"
                     >
                       <v-icon icon="mdi-delete-outline" style="font-size: 18px; color: #ef4444;" />
@@ -1516,7 +1516,7 @@
           </div>
 
           <!-- Empty state / Info -->
-          <div 
+          <div
              v-if="learnedMappings.length === 0"
              style="margin-top: 20px; text-align: center; padding: 40px; background: white; border: 1px solid #e5e7eb; border-radius: 12px;"
           >
@@ -1524,13 +1524,13 @@
              <div class="text-body-2 text-medium-emphasis">Žádná naučená mapování</div>
              <div class="text-caption text-medium-emphasis mt-2">Při importu se mapování uloží automaticky.</div>
           </div>
-          
+
           <div v-else style="margin-top: 20px; padding: 16px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; display: flex; align-items: flex-start; gap: 12px;">
             <v-icon icon="mdi-information-outline" style="font-size: 20px; color: #3b82f6; margin-top: 2px;" />
             <div>
               <div style="font-size: 13px; font-weight: 600; color: #1e40af;">Jak to funguje?</div>
               <div style="font-size: 12px; color: #3b82f6; margin-top: 4px;">
-                Při každém importu si systém zapamatuje, jak jste namapovali sloupce ze souboru na pole šablony.  
+                Při každém importu si systém zapamatuje, jak jste namapovali sloupce ze souboru na pole šablony.
                 Příště se stejné sloupce namapují automaticky.
               </div>
             </div>
@@ -1957,19 +1957,19 @@ async function loadVersionHistory() {
   // But simpler is: check if loaded
   if (versionHistoryLoaded.value || versionHistoryLoading.value) return
   if (!props.initialTemplate?.templateId) return
-  
+
   versionHistoryLoading.value = true
   try {
     const templateIdStr = props.initialTemplate.templateId
     const templateId = Number(templateIdStr)
-    
+
     if (isNaN(templateId)) {
       // Fallback for non-numeric IDs if any
       throw new Error('Invalid template ID')
     }
 
     const rawVersions = await templateStore.fetchVersions(templateId)
-    
+
     // Sort by createdAt/updatedAt descending (newest first)
     // Assuming the API returns mixed order
     rawVersions.sort((a, b) => {
@@ -1987,14 +1987,14 @@ async function loadVersionHistory() {
       blocks: v.blocks,
       fields: v.fields
     }))
-    
+
   } catch (e) {
     console.warn('Failed to load version history (backend endpoint missing?), using mock data', e)
-    
+
     // Fallback: Generate mock history based on current version
     const currentV = props.initialTemplate.version || '1.0'
     const now = props.initialTemplate.updatedAt || new Date().toISOString()
-    
+
     const mockHistory: VersionHistoryItem[] = [
       {
         id: props.initialTemplate.templateId,
@@ -2016,7 +2016,7 @@ async function loadVersionHistory() {
         changeDescription: 'Původní verze (ukázka historie)'
       })
     }
-    
+
     versionHistory.value = mockHistory
   } finally {
     versionHistoryLoading.value = false
@@ -2056,19 +2056,19 @@ function openRollbackDialog(version: VersionHistoryItem) {
 
 async function confirmRollback() {
   if (!rollbackTarget.value) return
-  
+
   try {
     loading.value = true // Use main loading indicator
     await templatesStore.publish(Number(rollbackTarget.value.id))
-    
+
     // Refresh history
     versionHistoryLoaded.value = false
     await loadVersionHistory()
-    
-    // Also need to refresh main list in parent? 
-    // Usually dialog is still open. 
+
+    // Also need to refresh main list in parent?
+    // Usually dialog is still open.
     // Maybe we should emit an event? or just show success.
-    
+
     showRollbackDialog.value = false
     rollbackTarget.value = null
   } catch(e) {
@@ -2080,16 +2080,16 @@ async function confirmRollback() {
 }
 
 // Bulk delete helpers
-const selectableVersions = computed(() => 
+const selectableVersions = computed(() =>
   versionHistory.value.filter(v => v.status !== 'ACTIVE')
 )
 
-const allSelectableSelected = computed(() => 
-  selectableVersions.value.length > 0 && 
+const allSelectableSelected = computed(() =>
+  selectableVersions.value.length > 0 &&
   selectableVersions.value.every(v => selectedVersionIds.value.has(v.id))
 )
 
-const someSelected = computed(() => 
+const someSelected = computed(() =>
   selectableVersions.value.some(v => selectedVersionIds.value.has(v.id))
 )
 
@@ -2115,12 +2115,12 @@ function toggleSelectAll() {
 
 async function confirmBulkDelete() {
   if (selectedVersionIds.value.size === 0) return
-  
+
   bulkDeleteLoading.value = true
   try {
     const idsToDelete = Array.from(selectedVersionIds.value).map(Number)
     await templatesStore.deleteAll(idsToDelete)
-    
+
     // Clear selection and refresh
     selectedVersionIds.value = new Set()
     versionHistoryLoaded.value = false
@@ -4135,8 +4135,8 @@ function generateChangeDescription(): string {
   // Helper to distinguish table/series blocks in initial template
   const oldBlocks = props.initialTemplate.blocks || []
   const oldTableBlocks = oldBlocks.filter(b => {
-     const isSeries = (b as any).kind === 'series' || 
-       (b.title?.toLowerCase().includes('série')) || 
+     const isSeries = (b as any).kind === 'series' ||
+       (b.title?.toLowerCase().includes('série')) ||
        (b.title?.toLowerCase().includes('series'))
      return !isSeries
   })
@@ -4144,11 +4144,11 @@ function generateChangeDescription(): string {
   // Compare Table Blocks
   const newBlocks = pickedBlocks.value
   const maxLen = Math.max(oldTableBlocks.length, newBlocks.length)
-  
+
   for (let i = 0; i < maxLen; i++) {
     const ob = oldTableBlocks[i]
     const nb = newBlocks[i]
-    
+
     if (!ob && nb) {
       changes.push(`Přidán nový blok: "${nb.title}"`)
       continue
@@ -4157,17 +4157,17 @@ function generateChangeDescription(): string {
       changes.push(`Odebrán blok: "${ob.title}"`)
       continue
     }
-    
+
     if (ob.title !== nb.title) {
        changes.push(`Přejmenován blok: "${ob.title}" -> "${nb.title}"`)
     }
-    
+
     // Compare fields
     const oldFields = ob.fields || []
     const newFields = nb.fieldRows || []
     const oldFieldMap = new Map(oldFields.map(f => [f.name, f]))
     const newFieldMap = new Map(newFields.map(f => [f.name, f]))
-    
+
     // Additions & Mods
     for (const nf of newFields) {
        const of = oldFieldMap.get(nf.name)

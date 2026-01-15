@@ -281,6 +281,28 @@ export const useMeasurementTemplatesStore = defineStore('measurement-templates',
     return typed?.data?.items?.map(normalizeTemplate) ?? []
   }
 
+  async function setDraft(id: number): Promise<MeasurementTemplateResponse> {
+    const resp = await post(`measurement-templates/${id}/draft`, {}, undefined)
+    const typed = resp as ApiResponse<ApiObject<MeasurementTemplateResponse>> | undefined
+    const saved = typed?.data?.content
+      ? normalizeTemplate(typed.data.content)
+      : (null as unknown as MeasurementTemplateResponse)
+    const idx = items.value.findIndex(t => t.id === id)
+    if (idx !== -1) items.value[idx] = saved
+    return saved
+  }
+
+  async function bulkUpdateStatus(ids: number[], status: 'ACTIVE' | 'DRAFT' | 'DEPRECATED'): Promise<{ requested: number; updated: number; skipped: number }> {
+    const payload = { templateIds: ids, targetStatus: status }
+    // Note: API wrapper structure might differ, checking usage above generally 'post' returns unknown or typed response.
+    // Based on create: post(...) returns response.
+    const resp = await post('measurement-templates/status', payload, undefined)
+    // The previous code casts resp. Let's assume resp IS the response object or contains data.
+    // The Controller returns BulkStatusUpdateResponse directly.
+    // Usually API wrapper returns the JSON body.
+    return resp as { requested: number; updated: number; skipped: number }
+  }
+
   return {
     items,
     selected,
@@ -296,5 +318,7 @@ export const useMeasurementTemplatesStore = defineStore('measurement-templates',
     createVersion,
     checkDrafts,
     fetchVersions,
+    setDraft,
+    bulkUpdateStatus,
   }
 })

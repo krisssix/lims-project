@@ -57,7 +57,7 @@ const emit = defineEmits<{
 
 // Computed for showing weekend toggle
 const showWeekendToggle = computed(() =>
-  props.viewMode === 'week-work' || 
+  props.viewMode === 'week-work' ||
   props.viewMode === 'week-all' ||
   props.modelValue.preset === 'thisWeek' ||
   props.modelValue.preset === 'nextWeek'
@@ -332,7 +332,7 @@ function selectThisWeek() {
   // OR if viewMode is 'week-all', add 6 days. Else add 4 days.
   const addDays = (props.includeWeekends || props.viewMode === 'week-all') ? 6 : 4
   end.setDate(start.getDate() + addDays)
-  
+
   emit('update:modelValue', {
     field: localField.value,
     preset: 'thisWeek',
@@ -713,7 +713,7 @@ const dateToInput = computed({
       class="manual-range-section"
     >
       <div class="range-label">
-        Vlastní rozsah
+        Časové rozmezí
       </div>
       <div class="range-inputs">
         <div class="range-field">

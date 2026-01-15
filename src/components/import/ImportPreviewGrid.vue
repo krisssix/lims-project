@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /**
  * ImportPreviewGrid - displays a preview of parsed data with format badges.
- * Shows max 5 rows × 10 columns for performance.
+ * Shows max 200 rows by default (was 5).
  */
 import { computed } from 'vue'
 
@@ -15,8 +15,8 @@ const props = defineProps<{
   maxCols?: number
 }>()
 
-const maxRowsLimit = computed(() => props.maxRows ?? 5)
-const maxColsLimit = computed(() => props.maxCols ?? 10)
+const maxRowsLimit = computed(() => props.maxRows ?? 200)
+const maxColsLimit = computed(() => props.maxCols ?? 20)
 
 const displayRows = computed(() => {
   return props.rows.slice(0, maxRowsLimit.value).map(row =>
@@ -43,7 +43,7 @@ const headerLabel = computed(() => {
   if (props.usedHeaderRow === null || props.usedHeaderRow === undefined) {
     return 'Bez hlavičky'
   }
-  return `Řádek ${props.usedHeaderRow + 1}`
+  return `Řádek ${props.usedHeaderRow}`
 })
 
 const hasMoreRows = computed(() => props.rows.length > maxRowsLimit.value)
@@ -56,25 +56,31 @@ const totalRows = computed(() => props.rows.length)
 const totalCols = computed(() => {
   return Math.max(...props.rows.map(r => r.length), props.headers?.length || 0)
 })
+
+function getRowIndex(visualIndex: number): number {
+  // If we have a header row index, we assume subsequent rows follow it
+  const start = (props.usedHeaderRow ?? -1) + 1
+  return start + visualIndex
+}
 </script>
 
 <template>
   <div class="import-preview-grid">
     <!-- Format badges -->
-    <div class="preview-badges mb-2 d-flex flex-wrap ga-2">
-      <v-chip size="small" variant="tonal" color="primary">
+    <div class="preview-badges mb-2 d-flex flex-wrap ga-2 text-caption">
+      <v-chip size="x-small" variant="tonal" color="primary">
         <v-icon start size="12">mdi-format-columns</v-icon>
         {{ delimiterLabel }}
       </v-chip>
-      <v-chip size="small" variant="tonal" color="primary">
+      <v-chip size="x-small" variant="tonal" color="primary">
         <v-icon start size="12">mdi-table-row</v-icon>
-        {{ headerLabel }}
+        Hlavička: {{ props.usedHeaderRow !== undefined && props.usedHeaderRow !== null ? props.usedHeaderRow : 'Ne' }}
       </v-chip>
-      <v-chip v-if="usedDecimal" size="small" variant="tonal" color="primary">
+      <v-chip v-if="usedDecimal" size="x-small" variant="tonal" color="primary">
         <v-icon start size="12">mdi-decimal</v-icon>
         {{ usedDecimal === ',' ? 'Čárka' : 'Tečka' }}
       </v-chip>
-      <v-chip size="small" variant="outlined">
+      <v-chip size="x-small" variant="outlined">
         {{ totalRows }} řádků × {{ totalCols }} sloupců
       </v-chip>
     </div>
@@ -84,6 +90,10 @@ const totalCols = computed(() => {
       <table class="preview-table">
         <thead v-if="displayHeaders">
           <tr>
+            <!-- Row number for Header -->
+            <th class="preview-header-cell row-num-cell">
+               {{ props.usedHeaderRow ?? '#' }}
+            </th>
             <th 
               v-for="(h, i) in displayHeaders" 
               :key="'h-' + i"
@@ -98,6 +108,10 @@ const totalCols = computed(() => {
         </thead>
         <tbody>
           <tr v-for="(row, ri) in displayRows" :key="'r-' + ri">
+            <!-- Row number for Data -->
+            <td class="preview-cell row-num-cell">
+               {{ getRowIndex(ri) }}
+            </td>
             <td 
               v-for="(cell, ci) in row" 
               :key="'c-' + ci"
@@ -111,8 +125,8 @@ const totalCols = computed(() => {
             </td>
           </tr>
           <tr v-if="hasMoreRows" class="more-rows">
-            <td :colspan="(displayHeaders?.length || displayRows[0]?.length || 1) + (hasMoreCols ? 1 : 0)">
-              + {{ totalRows - maxRowsLimit }} dalších řádků...
+            <td :colspan="(displayHeaders?.length || displayRows[0]?.length || 1) + 2">
+              + {{ totalRows - maxRowsLimit }} dalších řádků... (z celkem {{ totalRows }})
             </td>
           </tr>
         </tbody>
@@ -122,7 +136,7 @@ const totalCols = computed(() => {
 </template>
 
 <script lang="ts">
-function truncateCell(value: string, maxLen = 30): string {
+function truncateCell(value: string, maxLen = 40): string {
   if (!value) return ''
   if (value.length <= maxLen) return value
   return value.slice(0, maxLen - 3) + '...'
@@ -135,7 +149,7 @@ function truncateCell(value: string, maxLen = 30): string {
 }
 
 .preview-table-wrapper {
-  max-height: 200px;
+  max-height: 400px; /* Increased height for better view */
   overflow: auto;
   border: 1px solid #e0e0e0;
   border-radius: 8px;
@@ -146,6 +160,7 @@ function truncateCell(value: string, maxLen = 30): string {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.75rem;
+  font-family: 'Roboto Mono', monospace; /* Monospace for alignment */
 }
 
 .preview-header-cell {
@@ -155,18 +170,36 @@ function truncateCell(value: string, maxLen = 30): string {
   font-weight: 600;
   border-bottom: 2px solid #e0e0e0;
   white-space: nowrap;
-  max-width: 150px;
+  max-width: 200px;
   overflow: hidden;
   text-overflow: ellipsis;
+  position: sticky;
+  top: 0;
+  z-index: 2;
 }
 
 .preview-cell {
   padding: 4px 10px;
   border-bottom: 1px solid #eee;
   white-space: nowrap;
-  max-width: 150px;
+  max-width: 200px;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.row-num-cell {
+  width: 40px;
+  min-width: 40px;
+  text-align: center;
+  color: #888;
+  border-right: 1px solid #e0e0e0;
+  background-color: #f9f9f9;
+  font-weight: bold;
+  user-select: none;
+}
+.preview-header-cell.row-num-cell {
+  background-color: #eee;
+  z-index: 3; /* Above other headers */
 }
 
 .more-indicator {
