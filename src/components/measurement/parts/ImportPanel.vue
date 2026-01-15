@@ -194,6 +194,18 @@ function analyze(): void {
           <span class="chip-filename">{{ pastedText.split('\n').length }} řádků</span>
         </div>
         
+        <!-- Analyze Button for File -->
+        <button 
+          v-if="inputMode === 'file' && props.importedFile && !props.importedStructure"
+          type="button" 
+          class="action-btn primary"
+          style="padding: 6px 12px;"
+          @click="analyze"
+        >
+          <v-icon size="14">mdi-play</v-icon>
+          Analyzovat
+        </button>
+
         <!-- Status Chip -->
         <div v-if="props.importedStructure" class="status-chip success">
           <v-icon size="14">mdi-check-circle</v-icon>
@@ -224,6 +236,17 @@ function analyze(): void {
         autofocus
         placeholder="Ctrl+V pro vložení dat..."
       />
+      <div class="d-flex justify-end mt-2">
+        <button 
+          v-if="pastedText.trim()"
+          type="button" 
+          class="action-btn primary"
+          @click="analyze"
+        >
+          <v-icon size="16">mdi-play</v-icon>
+          Analyzovat
+        </button>
+      </div>
     </div>
 
     <!-- Error message -->

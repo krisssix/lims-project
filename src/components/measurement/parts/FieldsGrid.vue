@@ -21,6 +21,8 @@ const emits = defineEmits<{
   (e: 'update-time', f: RecordField, time: string): void
   (e: 'touch', f: RecordField): void
   (e: 'open-picker', fieldName: string): void
+  (e: 'update-type', field: RecordField, newType: string): void
+  (e: 'update-required', field: RecordField, required: boolean): void
 }>()
 
 // Enter key navigation - focus next field
@@ -49,7 +51,46 @@ function focusNextField(currentIdx: number): void {
       <!-- Label -->
       <label class="field-label">
         {{ field.name }}
-        <span class="field-type-badge">{{ props.typeLabelMap[field.type] }}</span>
+        
+        <!-- Type Badge with Menu -->
+        <v-menu location="bottom start">
+          <template #activator="{ props }">
+            <span
+              v-bind="props"
+              class="field-type-badge clickable"
+              title="Změnit datový typ"
+            >
+              {{ typeLabelMap[field.type] }}
+              <v-icon size="10" class="ml-1">mdi-chevron-down</v-icon>
+            </span>
+          </template>
+          <v-list density="compact">
+            <v-list-item>
+              <div class="d-flex align-center justify-space-between" style="min-width: 120px">
+                <span class="text-caption mr-2">Povinné</span>
+                <v-switch
+                  :model-value="field.required"
+                  density="compact"
+                  color="primary"
+                  hide-details
+                  inset
+                  :ripple="false"
+                  readonly
+                  @click.stop.prevent="emits('update-required', field, !field.required)"
+                />
+              </div>
+            </v-list-item>
+            <v-divider class="my-1" />
+            <v-list-item
+              v-for="(label, type) in typeLabelMap"
+              :key="type"
+              :value="type"
+              @click.stop.prevent="emits('update-type', field, type)"
+            >
+              <v-list-item-title class="text-caption">{{ label }}</v-list-item-title>
+            </v-list-item>
+          </v-list>
+        </v-menu>
       </label>
 
       <!-- Input -->
@@ -63,7 +104,7 @@ function focusNextField(currentIdx: number): void {
           density="compact"
           data-field-input
           @focus="emits('visit', field)"
-          @update:model-value="val => emits('update', field, val)"
+          @update:model-value.stop="val => emits('update', field, val)"
           @blur="emits('touch', field)"
         />
         
@@ -209,6 +250,12 @@ function focusNextField(currentIdx: number): void {
   padding: 2px 6px;
   border-radius: 8px;
   text-transform: none;
+}
+
+.field-type-badge.clickable:hover {
+  background: #1565c0;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.2);
 }
 
 .field-input {

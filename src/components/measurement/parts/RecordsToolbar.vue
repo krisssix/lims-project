@@ -18,6 +18,7 @@ const emits = defineEmits<{
   (e: 'toggle', idx: number, multi: boolean): void
   (e: 'paste-current'): void
   (e: 'paste-multiple'): void
+  (e: 'open-grid-picker'): void
   (e: 'select', idx: number): void
 }>()
 
@@ -52,26 +53,26 @@ const canDelete = computed(() => props.records.length > 1)
       </div>
       <span class="section-title">Hodnoty záznamu</span>
     </div>
-    
+
     <div class="toolbar-spacer"></div>
-    
+
     <!-- Center: Navigation -->
     <div class="toolbar-nav">
-      <button 
-        type="button" 
+      <button
+        type="button"
         class="nav-btn"
         :disabled="!canGoPrev"
         @click="emits('prev')"
       >
         <v-icon size="20">mdi-chevron-left</v-icon>
       </button>
-      
+
       <div class="record-counter">
         <span class="record-label">{{ currentPosition }} / {{ props.records.length }}</span>
       </div>
-      
-      <button 
-        type="button" 
+
+      <button
+        type="button"
         class="nav-btn"
         :disabled="!canGoNext"
         @click="emits('next')"
@@ -79,33 +80,75 @@ const canDelete = computed(() => props.records.length > 1)
         <v-icon size="20">mdi-chevron-right</v-icon>
       </button>
     </div>
-    
+
     <!-- Right: Actions -->
     <div class="toolbar-actions">
-      <button 
-        type="button" 
+      <!-- Grid Picker Button -->
+<!--      <v-tooltip location="top" text="Vybrat hodnoty z nahrané tabulky">
+        <template #activator="{ props }">
+          <button
+            v-bind="props"
+            type="button"
+            class="action-btn tonal"
+            @click="emits('open-grid-picker')"
+          >
+            <v-icon size="16">mdi-table-search</v-icon>
+            <span class="d-none d-sm-inline">Z tabulky</span>
+          </button>
+        </template>
+      </v-tooltip>-->
+
+      <!-- Paste Menu -->
+      <v-menu location="bottom end">
+        <template #activator="{ props }">
+<!--          <button
+            v-bind="props"
+            type="button"
+            class="action-btn tonal"
+          >
+            <v-icon size="16">mdi-clipboard-text-outline</v-icon>
+            <span class="d-none d-sm-inline">Vložit</span>
+            <v-icon size="14">mdi-chevron-down</v-icon>
+          </button>-->
+        </template>
+        <v-list density="compact">
+          <v-list-item @click="emits('paste-current')">
+            <template #prepend><v-icon size="small">mdi-content-paste</v-icon></template>
+            <v-list-item-title>Vložit do aktuálního záznamu</v-list-item-title>
+          </v-list-item>
+          <v-list-item @click="emits('paste-multiple')">
+            <template #prepend><v-icon size="small">mdi-table-row-plus-after</v-icon></template>
+            <v-list-item-title>Vložit jako nové záznamy</v-list-item-title>
+          </v-list-item>
+        </v-list>
+      </v-menu>
+
+      <div class="toolbar-divider"></div>
+
+      <button
+        type="button"
         class="action-btn tonal"
         :disabled="!props.canDuplicate"
         @click="emits('duplicate')"
       >
         <v-icon size="16">mdi-content-duplicate</v-icon>
-        Duplikovat
+        <span class="d-none d-md-inline">Duplikovat</span>
       </button>
-      
-      <button 
-        type="button" 
+
+      <button
+        type="button"
         class="action-btn tonal-error"
         :disabled="!canDelete"
         @click="emits('delete')"
       >
         <v-icon size="16">mdi-delete-outline</v-icon>
-        Smazat
+        <span class="d-none d-md-inline">Smazat</span>
       </button>
-      
+
       <div class="toolbar-divider"></div>
-      
-      <button 
-        type="button" 
+
+      <button
+        type="button"
         class="action-btn primary"
         @click="emits('add')"
       >

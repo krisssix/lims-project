@@ -19,6 +19,8 @@ import { parseFileToGrid, parseTextToGrid } from '@/utils/import/excelParser'
 
 import { useDeviceStore } from '@/stores/devices'
 import { useImportStore } from '@/stores/import'
+import { useMeasurementTemplatesStore } from '@/stores/measurement-templates'
+import { useProjectStore } from '@/stores/project/project'
 import { type DeviceItem, type TemplateItem, type ValueType, type TemplateBlockRow } from '@/types/measurement-ui'
 import { type MeasurementRequest, type MeasuredValue, type MeasurementSeriesRequest } from '@/stores/measurement'
 import {
@@ -1243,6 +1245,114 @@ function removeSeries(filteredIdx: number): void {
   }
 }
 
+/* Paste handlers from Toolbar */
+async function onPasteCurrent(): Promise<void> {
+  try {
+    const text = await navigator.clipboard.readText()
+    if (!text.trim()) return
+
+    const recordsFromPaste = await parsePasteAndBuildRecords(text)
+    if (!recordsFromPaste.length) {
+      validationErrorMessage.value = 'Ve schránce nebyla nalezena žádná platná data.'
+      showValidationError.value = true
+      return
+    }
+
+    // Use the first record from paste to fill current record
+    const sourceRec = recordsFromPaste[0]
+    const targetRec = records.value.find(r => r.recordIndex === currentRecordIndex.value)
+
+    if (targetRec && sourceRec) {
+      // Update fields that have values in source
+      for (const sourceField of sourceRec.fields) {
+        if (sourceField.value !== null && sourceField.value !== '') {
+          const targetField = targetRec.fields.find(f => f.name === sourceField.name)
+          if (targetField) {
+            targetField.value = sourceField.value
+            markFieldTouched(targetField)
+          }
+        }
+      }
+      showSuccessToast.value = true
+    }
+  } catch (err) {
+    console.error('Paste failed:', err)
+    validationErrorMessage.value = 'Nepodařilo se načíst data ze schránky.'
+    showValidationError.value = true
+  }
+}
+
+async function onPasteMultiple(): Promise<void> {
+  try {
+    const text = await navigator.clipboard.readText()
+    if (!text.trim()) return
+
+    const recordsFromPaste = await parsePasteAndBuildRecords(text)
+    if (!recordsFromPaste.length) {
+      validationErrorMessage.value = 'Ve schránce nebyla nalezena žádná platná data.'
+      showValidationError.value = true
+      return
+    }
+
+    // Append as new records
+    const startIdx = records.value.length
+      ? Math.max(...records.value.map(r => r.recordIndex)) + 1
+      : 1
+
+    // Re-index pasted records
+    const newRecords = recordsFromPaste.map((r, i) => ({
+      ...r,
+      recordIndex: startIdx + i
+    }))
+
+    records.value.push(...newRecords)
+
+    // Select the first new record
+    currentRecordIndex.value = newRecords[0].recordIndex
+    currentBlockIndex.value = 0
+    selectedRecordIndexes.value.add(newRecords[0].recordIndex)
+
+    showSuccessToast.value = true
+  } catch (err) {
+    console.error('Paste failed:', err)
+    validationErrorMessage.value = 'Nepodařilo se načíst data ze schránky.'
+    showValidationError.value = true
+  }
+}
+
+// Helper to parse pasted text into records compatible with current template
+async function parsePasteAndBuildRecords(text: string): Promise<MeasurementRecord[]> {
+  const file = new File([text], 'paste.txt', { type: 'text/plain' })
+  const structure = await parseImportedMeasurementFile(file)
+
+  if (!structure || !structure.blocks.length) return []
+
+  const tmpl = buildTemplateLike()
+  if (!tmpl) return []
+
+  // Ensure parsing compatibility/mapping if possible
+  // For simple paste, we rely on header matching (case-insensitive normalization)
+  // We won't trigger the full mapping wizard here, just best-effort match
+
+  const recs = buildRecordsFromImported(tmpl, structure)
+
+  // Convert to UI format (MeasurementRecord) using existing helper
+  const uiFormat = recs.map(r => ({
+    recordIndex: r.recordIndex,
+    fields: r.fields.map((f, order) => ({
+      name: f.name,
+      type: f.type as ValueType,
+      required: f.required,
+      value: f.value,
+      blockIndex: f.blockIndex,
+      blockTitle: f.blockTitle,
+      orderIndex: order + 1
+    }))
+  }))
+
+  return normalizeImportedRecords(uiFormat)
+}
+
 /* Import helpers */
 function toggleImportPanel(): void {
   if (!selectedTemplate.value) return
@@ -1250,6 +1360,129 @@ function toggleImportPanel(): void {
 }
 function resetImport(): void {
   composableResetImport()
+}
+
+/**
+ * Manual Data Type Change
+ */
+const showTemplateUpdateDialog = ref(false)
+const pendingTemplateUpdate = ref<{ 
+  fieldName: string; 
+  changeType: 'type' | 'required'; 
+  oldValue: unknown; 
+  newValue: unknown 
+} | null>(null)
+
+function onFieldTypeUpdate(field: RecordField, newType: string): void {
+  console.log('DEBUG onFieldTypeUpdate:', field.type, newType)
+  pendingTemplateUpdate.value = {
+    fieldName: field.name,
+    changeType: 'type',
+    oldValue: field.type,
+    newValue: newType
+  }
+  // showTemplateUpdateDialog.value = true
+  // Directly apply change for this measurement only
+  applyTemplateUpdate(false)
+}
+
+function onFieldRequiredUpdate(field: RecordField, required: boolean): void {
+  pendingTemplateUpdate.value = {
+    fieldName: field.name,
+    changeType: 'required',
+    oldValue: field.required,
+    newValue: required
+  }
+  // showTemplateUpdateDialog.value = true
+  // Directly apply change for this measurement only
+  applyTemplateUpdate(false)
+}
+
+async function applyTemplateUpdate(updateTemplate: boolean): Promise<void> {
+  if (!pendingTemplateUpdate.value) return
+  showTemplateUpdateDialog.value = false
+
+  const { fieldName, changeType, newValue } = pendingTemplateUpdate.value
+
+  // 1. Update all existing records locally
+  records.value.forEach(rec => {
+    const f = rec.fields.find(f => f.name === fieldName)
+    if (f) {
+      if (changeType === 'type') {
+        const newType = newValue as ValueType
+        f.type = newType
+        f.value = convertValueForField(String(f.value), newType)
+      } else if (changeType === 'required') {
+        f.required = newValue as boolean
+      }
+    }
+  })
+
+  // 2. Also update templateFields (which affects new records)
+  const tmplField = templateFields.value.find(f => f.name === fieldName)
+  if (tmplField) {
+    if (changeType === 'type') tmplField.type = newValue as ValueType
+    else if (changeType === 'required') tmplField.required = newValue as boolean
+  }
+
+  // 3. If requested, create new template version
+  if (updateTemplate && selectedTemplate.value) {
+    try {
+      const templatesStore = useMeasurementTemplatesStore()
+      const projectStore = useProjectStore()
+      
+      // Try to find project ID from loaded templates first, fallback to store
+      const existingTpl = templatesStore.items.find(t => String(t.id) === String(selectedTemplate.value?.id))
+      const projectId = existingTpl?.projectId || projectStore.projectId
+      
+      if (!projectId) {
+        importError.value = 'Chybí ID projektu pro vytvoření šablony'
+        return
+      }
+
+      const currentTpl = selectedTemplate.value
+
+      const newBlocks = currentTpl.blocks?.map(b => ({
+        blockIndex: b.blockIndex,
+        title: b.title,
+        kind: b.kind,
+        fields: b.fields.map(f => {
+          let type = f.type
+          let required = f.required
+          
+          if (f.name === fieldName) {
+            if (changeType === 'type') type = newValue as ValueType
+            else if (changeType === 'required') required = newValue as boolean
+          }
+          
+          return {
+            name: f.name,
+            type: type,
+            required: required,
+            orderIndex: f.orderIndex
+          }
+        })
+      })) || []
+
+      const newName = `${currentTpl.name} (v${new Date().toLocaleTimeString()})`
+
+      const newTemplate = await templatesStore.create(Number(projectId), {
+        name: newName,
+        deviceCode: selectedDeviceId.value,
+        blocks: newBlocks
+      })
+
+      if (newTemplate?.id) {
+        await templatesStore.fetchByProject(Number(projectId))
+        selectedTemplateId.value = String(newTemplate.id)
+        showSuccessToast.value = true
+        console.log('Created and selected new template version:', newTemplate.id)
+      }
+    } catch (e) {
+      console.error('Failed to update template version:', e)
+      importError.value = 'Nepodařilo se vytvořit novou verzi šablony.'
+    }
+  }
 }
 
 /**
@@ -1303,51 +1536,6 @@ function openDataMappingGrid(): void {
   console.warn('[openDataMappingGrid] No data to map - no blocks and no file')
 }
 
-/**
- * Apply mappings from DataMappingGrid to records
- */
-function onMappingApply(mappings: FieldMapping[]): void {
-  if (!selectedTemplate.value || rawGridData.value.length === 0) return
-
-  // For each mapping, extract data and fill records
-  const newRecords: MeasurementRecord[] = []
-
-  // Find max data row count
-  let maxDataRows = 0
-  for (const m of mappings) {
-    if (m.dataCells.length > maxDataRows) maxDataRows = m.dataCells.length
-  }
-
-  // Create records from mapped data
-  for (let i = 0; i < Math.max(1, maxDataRows); i++) {
-    const rec = newRecordFromTemplateFields(i + 1, templateFields.value)
-
-    for (const m of mappings) {
-      const field = rec.fields.find(f => f.name === m.fieldName)
-      if (!field) continue
-
-      // Get value from grid
-      const dataCell = m.dataCells[i]
-      if (dataCell) {
-        const val = rawGridData.value[dataCell.row]?.[dataCell.col]
-        if (val !== undefined && val !== '') {
-          field.value = val
-        }
-      }
-    }
-
-    newRecords.push(rec)
-  }
-
-  if (newRecords.length > 0) {
-    records.value = newRecords
-    currentRecordIndex.value = 1
-    currentBlockIndex.value = 0
-    selectedRecordIndexes.value = new Set(newRecords.map(r => r.recordIndex))
-  }
-
-  showDataMappingGrid.value = false
-}
 
 /**
  * Apply selections from ManualHeaderPickerDialog
@@ -2106,7 +2294,7 @@ async function tryAutoApplyLearnedMappings(structure: ImportedFileStructure): Pr
         blocks: tplData.blocks.map(b => ({
           blockIndex: b.blockIndex,
           title: b.title,
-          fields: b.fields.map(f => ({ name: f.name, required: f.required, sourceIndex: f.sourceIndex }))
+          fields: b.fields.map(f => ({ name: f.name, required: f.required, sourceIndex: f.sourceIndex, type: f.type }))
         }))
       }
 
@@ -2577,6 +2765,9 @@ defineExpose({
                   @next="toNextRecord"
                   @toggle="toggleRecordSelection"
                   @select="(idx: number) => { currentRecordIndex = idx; currentBlockIndex = 0 }"
+                  @paste-current="onPasteCurrent"
+                  @paste-multiple="onPasteMultiple"
+                  @open-grid-picker="openDataMappingGrid"
                 />
 
                 <FieldsGrid
@@ -2597,6 +2788,8 @@ defineExpose({
                   @update-time="updateTimeField"
                   @touch="markFieldTouched"
                   @open-picker="openGridPicker"
+                  @update-type="onFieldTypeUpdate"
+                  @update-required="onFieldRequiredUpdate"
                 />
 
                 <v-divider class="my-4" />
@@ -2656,6 +2849,36 @@ defineExpose({
                 :record-count="records.length"
                 @apply="applyGridPickerValues"
               />
+
+              <!-- Type Change Confirmation Dialog -->
+              <!-- Template Change Confirmation Dialog -->
+               <!--
+              <v-dialog v-model="showTemplateUpdateDialog" max-width="500">
+                <v-card>
+                  <v-card-title class="d-flex align-center">
+                    <v-icon color="primary" class="mr-2">mdi-alert-circle-outline</v-icon>
+                    Úprava šablony
+                  </v-card-title>
+                  <v-card-text>
+                    <template v-if="pendingTemplateUpdate?.changeType === 'type'">
+                      Změnili jste datový typ pole <strong>{{ pendingTemplateUpdate?.fieldName }}</strong>
+                      z <code>{{ pendingTemplateUpdate?.oldValue }}</code> na <code>{{ pendingTemplateUpdate?.newValue }}</code>.
+                    </template>
+                    <template v-else-if="pendingTemplateUpdate?.changeType === 'required'">
+                      Změnili jste povinnost pole <strong>{{ pendingTemplateUpdate?.fieldName }}</strong>
+                      na <strong>{{ pendingTemplateUpdate?.newValue ? 'Povinné' : 'Nepovinné' }}</strong>.
+                    </template>
+                    <br><br>
+                    Chcete tuto změnu aplikovat jako novou verzi šablony a nastavit ji jako aktivní?
+                  </v-card-text>
+                  <v-card-actions>
+                    <v-spacer />
+                    <v-btn variant="text" @click="applyTemplateUpdate(false)">Jen pro toto měření</v-btn>
+                    <v-btn color="primary" variant="flat" @click="applyTemplateUpdate(true)">Vytvořit novou verzi</v-btn>
+                  </v-card-actions>
+                </v-card>
+              </v-dialog>
+              -->
             </div>
           </v-window-item>
 
