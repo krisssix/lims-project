@@ -14,7 +14,7 @@ const props = defineProps<{
   focusMode: boolean
 
 }>()
-/* ---------- SVG Ref & Exports ---------- */
+/* reference na svg a exporty (svg ref & exports) */
 
 const svgRef = ref<SVGSVGElement | null>(null)
 
@@ -82,9 +82,9 @@ function downloadBlob(content: string, filename: string, type: string) {
   a.click()
   URL.revokeObjectURL(url)
 }
-// Expose export methods to parent
+// zpřístupnění exportních metod rodičovské komponentě (expose methods)
 defineExpose({ exportCsv, exportSvg, exportPng })
-/* ---------- Math Helpers ---------- */
+/* matematické pomůcky (math helpers) */
 
 const allValuesFlat = computed<number[]>(() => {
   const out: number[] = []
@@ -114,8 +114,8 @@ function buildPolyline(points: number[]): string {
   if (!points.length) return ''
   return points.map((v, i) => `${mapXValue(i, points.length)},${mapYValue(v)}`).join(' ')
 }
-/* ---------- Chart Specific Logic ---------- */
-// Scatter
+/* specifická logika grafů (chart logic) */
+// bodový graf (scatter)
 const scatterSeries = computed(() => {
   const out: {
     cx: number
@@ -139,7 +139,7 @@ const scatterSeries = computed(() => {
   })
   return out
 })
-// Histogram
+// histogram
 
 
 
@@ -232,7 +232,7 @@ const meanXForHistogram = computed<number | null>(() => {
   const norm = (st.mean - mn) / range
   return Math.max(0, Math.min(100, norm * 100))
 })
-// Boxplot
+// krabicový graf (boxplot)
 
 const box = computed(() => {
   const vals = props.series[0]?.points || []
@@ -261,7 +261,7 @@ const box = computed(() => {
     yMax: mapYValue(whiskerMax)
   }
 })
-// Outliers
+// odlehlé hodnoty (outliers)
 const outlierLookup = computed<Set<number>>(() =>
   props.outliers ? new Set(props.outliers.outlierIndexes) : new Set()
 )
@@ -273,7 +273,7 @@ const outlierPoints = computed(() => {
     cy: mapYValue(props.series[0].points[i])
   }))
 })
-/* ---------- Interaction (Hover) ---------- */
+/* interakce při najetí myši (hover) */
 
 const hoverXPercent = ref<number | null>(null)
 const hoverYPercent = ref<number | null>(null)
@@ -346,16 +346,16 @@ const hoverYValueLabel = computed<string | null>(() => {
   return niceNumber(val)
 })
 
-/* ---------- ARIA ---------- */
+/* přístupnost (aria) */
 const ariaLabel = computed(() => {
   const c = props.series[0]?.points.length ?? 0
   switch (props.activeTab) {
-    case 'LINE': return `Line chart with ${c} points`
-    case 'SCATTER': return `Scatter chart with ${c} points`
-    case 'HISTOGRAM': return `Histogram of ${c} values`
-    case 'BOXPLOT': return `Boxplot of ${c} values`
+    case 'LINE': return `Čárový graf s ${c} body`
+    case 'SCATTER': return `Bodový graf s ${c} body`
+    case 'HISTOGRAM': return `Histogram s ${c} hodnotami`
+    case 'BOXPLOT': return `Boxplot s ${c} hodnotami`
   }
-  return 'Chart'
+  return 'Graf'
 })
 
 
@@ -412,7 +412,7 @@ const ariaLabel = computed(() => {
       @mousemove="activeTab === 'HISTOGRAM' ? onMouseMoveHist($event) : (activeTab === 'BOXPLOT' ? onMouseMoveBox($event) : onMouseMoveLine($event))"
       @mouseleave="activeTab === 'HISTOGRAM' ? onMouseLeaveHist() : (activeTab === 'BOXPLOT' ? onMouseLeaveBox() : onMouseLeaveLine())"
     >
-      <desc v-if="stats">Mean {{ fmt2(stats.mean) }}, min {{ fmt2(stats.min) }}, max {{ fmt2(stats.max) }}</desc>
+      <desc v-if="stats">Průměr {{ fmt2(stats.mean) }}, min {{ fmt2(stats.min) }}, max {{ fmt2(stats.max) }}</desc>
       <g class="axes">
         <line
           x1="5"

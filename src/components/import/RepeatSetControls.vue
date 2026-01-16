@@ -13,7 +13,6 @@ const emit = defineEmits<{
 }>()
 
 function toggle(v: boolean | null) {
-  // Vuetify emituje boolean | null → převeď na boolean
   emit('update:enabled', v === true)
 }
 function setCount(v: number) {

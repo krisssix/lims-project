@@ -60,12 +60,12 @@ const filteredItems = computed<TemplateOption[]>(() => {
 })
 
 
-// získání hodnoty položky na základě valuekey
+
 function getItemValue(item: TemplateOption): string {
   return valueKey.value === 'name' ? item.name : item.id
 }
 
-// filtrování podle názvu (nerozlišuje malá/velká písmena)
+
 function templateFilterFn(item: TemplateOption, queryText: string): boolean {
   const q = (queryText || '').toLowerCase()
   const name = (item.name || '').toLowerCase()
@@ -124,7 +124,7 @@ function onUpdate(val: unknown): void {
       </v-list-item>
     </template>
 
-    <!-- akce pro vytvoření nové šablony dole v seznamu -->
+
     <template #append-item>
       <v-divider class="my-1" />
       <v-list-item

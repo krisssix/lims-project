@@ -20,7 +20,7 @@ function toNumberSafe(v: unknown): number | null {
   if (typeof v === 'number') return Number.isFinite(v) ? v : null
   const s = String(v).trim()
   if (!s) return null
-  // allow comma as decimal separator
+  // povolení čárky jako oddělovače desetinných míst (allow comma)
   const normalized = s.replace(',', '.')
   const n = Number(normalized)
   return Number.isFinite(n) ? n : null
@@ -31,12 +31,12 @@ export type MultiSeriesItem = {
   label: string
   points: number[]
   color?: string
-  colorAssigned?: string // přidané pro interní logiku
+  colorAssigned?: string // přidané pro interní logiku (internal logic)
 }
 
 // Helper pro formátování
 export function fmt2(n: number | undefined): string {
-  return typeof n === 'number' && Number.isFinite(n) ? n.toFixed(2) : '—'
+  return typeof n === 'number' && Number.isFinite(n) ? n.toFixed(2) : '-'
 }
 
 export function niceNumber(x: number): string {
@@ -49,7 +49,7 @@ export function niceNumber(x: number): string {
 }
 
 
-/* -------- základní pomocné funkce, operují na čistém poli čísel -------- */
+/* základní pomocné funkce operující na poli čísel (math helpers) */
 export function mean(values: number[]): number {
   if (!values.length) return NaN
   const sum = values.reduce((acc, x) => acc + x, 0)
@@ -65,8 +65,8 @@ export function median(values: number[]): number {
 }
 
 /**
- * Sample standard deviation (dělíme n-1 pokud n>1).
- * Pokud values.length <= 1 vrací 0 (bez rozptylu).
+ * výběrová směrodatná odchylka (sample standard deviation, dělíme n-1 pokud n > 1).
+ * pokud je délka pole 1 nebo méně, vrací 0 (nulový rozptyl).
  */
 export function std(values: number[]): number {
   if (values.length <= 1) return 0
@@ -76,10 +76,11 @@ export function std(values: number[]): number {
 }
 
 /**
- * Hlavní utilka: přijme libovolné seznamy hodnot (může obsahovat stringy) a vrátí StatsObj.
- * - převádí pomocí toNumberSafe
- * - filtruje nully
- * - pokud nejsou žádná čísla, vrací count=0 a numeric fields = NaN (kromě count)
+ * hlavní funkce pro výpočet statistik: přijme seznam hodnot (může obsahovat i řetězce), 
+ * převede je na čísla a vrátí objekt statistik (statsobj).
+ * - převádí pomocí tonumbersafe
+ * - filtruje neplatné hodnoty (null)
+ * - pokud nejsou žádná čísla, vrací count=0 a číselná pole jako nan
  */
 export function computeBasicStats(rawValues: Array<number | string | null | undefined>): StatsObj {
   const nums: number[] = rawValues

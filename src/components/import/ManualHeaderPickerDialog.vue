@@ -12,24 +12,24 @@ const emits = defineEmits<{
   (e: 'apply', result: { tableHeaders: string[], seriesHeaders: string[], headerRowIndex: number | null }): void
 }>()
 
-// Selection mode: 'cell' | 'row' | 'column'
+// režim výběru: 'cell' | 'row' | 'column'
 type SelectionMode = 'cell' | 'row' | 'column'
 const selectionMode = ref<SelectionMode>('cell')
 
-// Selected cells as Set of "row,col" strings
+// vybrané buňky jako Set řetězců ve formátu „řádek,sloupec“
 const selectedCells = ref<Set<string>>(new Set())
 
-// Last clicked cell for shift-click range selection
+// poslední kliknutá buňka (pro výběr rozsahu pomocí shift + klik)
 const lastClickedCell = ref<{ row: number; col: number } | null>(null)
 
-// Assignment: which cells go to table headers, which to series
+// přiřazení: které buňky jdou do hlaviček tabulky a které do sérií
 const tableCells = ref<Set<string>>(new Set())
 const seriesCells = ref<Set<string>>(new Set())
 
-// Scroll container ref
+// reference na kontejner pro posun (scroll container)
 const gridContainerRef = ref<HTMLElement | null>(null)
 
-// Reset on dialog open
+// reset při otevření dialogu
 watch(() => props.modelValue, (open) => {
   if (open) {
     selectedCells.value = new Set()
@@ -42,7 +42,7 @@ watch(() => props.modelValue, (open) => {
   }
 })
 
-// No Header Mode state
+// stav režimu bez hlavičky (no header mode)
 const noHeaderMode = ref(false)
 const renamedHeaders = ref<Map<number, string>>(new Map())
 const showRenameDialog = ref(false)
@@ -58,24 +58,24 @@ function openRenameDialog(colIdx: number) {
 function saveColumnName() {
   if (columnToRename.value !== null && tempRenameValue.value.trim()) {
     renamedHeaders.value.set(columnToRename.value, tempRenameValue.value.trim())
-    // Trigger reactivity
+    // vynucení reaktivity
     renamedHeaders.value = new Map(renamedHeaders.value)
   }
   showRenameDialog.value = false
 }
 
-// Get max columns
+// získání maximálního počtu sloupců
 const maxCols = computed(() => {
   if (!props.rawGrid.length) return 0
   return Math.max(...props.rawGrid.map(r => r.length))
 })
 
-// Handle cell click with shift support
+// obsluha kliknutí na buňku s podporou shiftu (shift-click)
 function handleCellClick(rowIdx: number, colIdx: number, event: MouseEvent): void {
   const cellKey = `${rowIdx},${colIdx}`
   
   if (event.shiftKey && lastClickedCell.value) {
-    // Range selection
+    // výběr rozsahu (range selection)
     const startRow = Math.min(lastClickedCell.value.row, rowIdx)
     const endRow = Math.max(lastClickedCell.value.row, rowIdx)
     const startCol = Math.min(lastClickedCell.value.col, colIdx)
@@ -88,7 +88,7 @@ function handleCellClick(rowIdx: number, colIdx: number, event: MouseEvent): voi
     }
     selectedCells.value = new Set(selectedCells.value)
   } else if (event.ctrlKey || event.metaKey) {
-    // Toggle single cell (add to selection)
+    // přepnutí jedné buňky (přidání do výběru)
     if (selectedCells.value.has(cellKey)) {
       selectedCells.value.delete(cellKey)
     } else {
@@ -96,14 +96,14 @@ function handleCellClick(rowIdx: number, colIdx: number, event: MouseEvent): voi
     }
     selectedCells.value = new Set(selectedCells.value)
   } else {
-    // Replace selection with single cell
+    // nahrazení výběru jedinou buňkou
     selectedCells.value = new Set([cellKey])
   }
   
   lastClickedCell.value = { row: rowIdx, col: colIdx }
 }
 
-// Handle row header click - select entire row
+// obsluha kliknutí na hlavičku řádku: výběr celého řádku
 function handleRowClick(rowIdx: number, event: MouseEvent): void {
   const row = props.rawGrid[rowIdx]
   if (!row) return
@@ -120,12 +120,12 @@ function handleRowClick(rowIdx: number, event: MouseEvent): void {
       }
     }
   } else if (event.ctrlKey || event.metaKey) {
-    // Add row to selection
+    // přidání řádku do výběru
     for (let c = 0; c < row.length; c++) {
       selectedCells.value.add(`${rowIdx},${c}`)
     }
   } else {
-    // Replace selection with row
+    // nahrazení výběru řádkem
     selectedCells.value = new Set()
     for (let c = 0; c < row.length; c++) {
       selectedCells.value.add(`${rowIdx},${c}`)
@@ -136,7 +136,7 @@ function handleRowClick(rowIdx: number, event: MouseEvent): void {
   lastClickedCell.value = { row: rowIdx, col: 0 }
 }
 
-// Handle column header click - select entire column
+// obsluha kliknutí na hlavičku sloupce: výběr celého sloupce
 function handleColClick(colIdx: number, event: MouseEvent): void {
   if (event.shiftKey && lastClickedCell.value) {
     const startCol = Math.min(lastClickedCell.value.col, colIdx)
@@ -149,14 +149,14 @@ function handleColClick(colIdx: number, event: MouseEvent): void {
       }
     }
   } else if (event.ctrlKey || event.metaKey) {
-    // Add column to selection
+    // přidání sloupce do výběru
     for (let r = 0; r < props.rawGrid.length; r++) {
       if (props.rawGrid[r] && colIdx < props.rawGrid[r].length) {
         selectedCells.value.add(`${r},${colIdx}`)
       }
     }
   } else {
-    // Replace selection with column
+    // nahrazení výběru sloupcem
     selectedCells.value = new Set()
     for (let r = 0; r < props.rawGrid.length; r++) {
       if (props.rawGrid[r] && colIdx < props.rawGrid[r].length) {
@@ -169,38 +169,38 @@ function handleColClick(colIdx: number, event: MouseEvent): void {
   selectedCells.value = new Set(selectedCells.value)
   lastClickedCell.value = { row: 0, col: colIdx }
 
-  // In No Header mode, clicking a column header allows renaming ONLY IF it's a simple click (no shift/ctrl)
-  // and we want to offer rename functionality immediately or via double click?
-  // Let's stick to a specific action or maybe double click.
-  // Actually, let's just use the click to select, and provide a Rename button in toolbar?
-  // User said: "v teto komponente prosim dej funkcionalitu... Navic budu moct pojmenovat... tak se mi objevi moznost"
-  // Let's open rename dialog if No Header Mode is active and user clicks the header of an already selected column?
-  // Or just always open on click?
-  // Better: Add an edit icon or simple dialog trigger.
+  // v režimu bez hlavičky (no header mode) umožňuje kliknutí na hlavičku sloupce přejmenování POUZE POKUD jde o jednoduché kliknutí (bez shift/ctrl)
+  // zajímá nás, zda nabídnout funkci přejmenování okamžitě nebo přes dvojklik?
+  // zůstaňme u konkrétní akce nebo možná dvojkliku.
+  // vlastně: použijme kliknutí pro výběr a tlačítko přejmenovat v panelu nástrojů?
+  // uživatel řekl: „v teto komponente prosim dej funkcionalitu... Navic budu moct pojmenovat... tak se mi objevi moznost“
+  // otevřeme dialog přejmenování, pokud je aktivní režim bez hlavičky a uživatel klikne na hlavičku již vybraného sloupce?
+  // nebo prostě vždy otevřít při kliknutí?
+  // lépe: přidat ikonu úprav nebo jednoduché spuštění dialogu.
 }
 
 function handleHeaderCellClick(colIdx: number, event: MouseEvent) {
   if (noHeaderMode.value) {
-    // If no header mode, we are selecting the column conceptually. 
-    // Let's select it first.
+    // pokud je režim bez hlavičky (no header mode), vybíráme sloupec koncepčně.
+    // nejdříve ho vybereme.
     handleColClick(colIdx, event)
     
-    // Check if we should open rename dialog: only if single column selected?
-    // Let's use a explicit "Rename" button or icon in the header cell.
+    // kontrola, zda otevřít dialog přejmenování: pouze při výběru jednoho sloupce?
+    // použijme explicitní tlačítko „Přejmenovat“ nebo ikonu v buňce hlavičky.
     return
   }
-  // Normal mode
+  // normální režim
   handleColClick(colIdx, event)
 }
 
-// Get cell value
+// získání hodnoty buňky
 function getCellValue(rowIdx: number, colIdx: number): string {
   const cell = props.rawGrid[rowIdx]?.[colIdx]
   if (cell === undefined || cell === null) return ''
   return String(cell)
 }
 
-// Get selected values as array of strings
+// získání vybraných hodnot jako pole řetězců
 const selectedValues = computed(() => {
   const values: string[] = []
   selectedCells.value.forEach(key => {
@@ -208,10 +208,10 @@ const selectedValues = computed(() => {
     const val = getCellValue(r, c)
     if (val.trim()) values.push(val.trim())
   })
-  return [...new Set(values)] // Deduplicate
+  return [...new Set(values)] // odstranění duplicit
 })
 
-// Assign selected to table
+// přiřazení vybraných buněk do tabulky
 function assignSelectedToTable(): void {
   selectedCells.value.forEach(key => {
     seriesCells.value.delete(key)
@@ -221,7 +221,7 @@ function assignSelectedToTable(): void {
   seriesCells.value = new Set(seriesCells.value)
 }
 
-// Assign selected to series
+// přiřazení vybraných buněk do série
 function assignSelectedToSeries(): void {
   selectedCells.value.forEach(key => {
     tableCells.value.delete(key)
@@ -231,25 +231,25 @@ function assignSelectedToSeries(): void {
   seriesCells.value = new Set(seriesCells.value)
 }
 
-// Clear selection
+// zrušení výběru (clear selection)
 function clearSelection(): void {
   selectedCells.value = new Set()
   lastClickedCell.value = null
 }
 
-// Remove from table
+// odstranění z tabulky
 function removeFromTable(key: string): void {
   tableCells.value.delete(key)
   tableCells.value = new Set(tableCells.value)
 }
 
-// Remove from series
+// odstranění ze série
 function removeFromSeries(key: string): void {
   seriesCells.value.delete(key)
   seriesCells.value = new Set(seriesCells.value)
 }
 
-// Get assigned headers
+// získání přiřazených hlaviček
 const tableHeaders = computed(() => {
   if (noHeaderMode.value) {
     const cols = new Set<number>()
@@ -282,20 +282,20 @@ const seriesHeaders = computed(() => {
   return [...new Set(headers)]
 })
 
-// Can apply?
+// lze použít mapování? (can apply?)
 const canApply = computed(() => tableHeaders.value.length > 0 || seriesHeaders.value.length > 0)
 
-// Apply selection
+// použití výběru
 function applySelection(): void {
   emits('apply', {
     tableHeaders: tableHeaders.value,
     seriesHeaders: seriesHeaders.value,
-    headerRowIndex: null // In No Header mode (and current mixed mode), we don't pick a specific header row idx to return
+    headerRowIndex: null // v režimu bez hlavičky (a aktuálním smíšeném režimu) nevracíme index konkrétního řádku hlavičky
   })
   emits('update:modelValue', false)
 }
 
-// Check if cell is selected/assigned
+// kontrola, zda je buňka vybrána/přiřazena
 function isCellSelected(r: number, c: number): boolean {
   return selectedCells.value.has(`${r},${c}`)
 }
@@ -308,7 +308,7 @@ function isCellSeries(r: number, c: number): boolean {
   return seriesCells.value.has(`${r},${c}`)
 }
 
-// Column letters A, B, C...
+// písmena sloupců: a, b, c... (col letter)
 function colLetter(idx: number): string {
   let result = ''
   let n = idx
@@ -351,7 +351,7 @@ function colLetter(idx: number): string {
 
     <template #content>
       <div class="picker-layout">
-        <!-- Toolbar -->
+        <!-- panel nástrojů (toolbar) -->
         <div class="selection-toolbar">
           <div class="d-flex align-center" style="gap: 8px;">
             <v-btn
@@ -375,7 +375,7 @@ function colLetter(idx: number): string {
               → Datová série
             </v-btn>
             
-             <!-- Rename button for No Header mode -->
+             <!-- tlačítko přejmenovat pro režim bez hlavičky -->
              <v-btn
               v-if="noHeaderMode && selectedCells.size > 0"
               size="small"
@@ -383,7 +383,7 @@ function colLetter(idx: number): string {
               color="secondary"
               prepend-icon="mdi-pencil"
               @click="() => {
-                 // Find the first selected column to rename
+                 // najít první vybraný sloupec pro přejmenování
                  const firstKey = selectedCells.values().next().value
                  if(firstKey) {
                    const c = Number(firstKey.split(',')[1])
@@ -415,7 +415,7 @@ function colLetter(idx: number): string {
           </div>
         </div>
 
-        <!-- Alert for No Header Mode -->
+        <!-- upozornění pro režim bez hlavičky (no header mode) -->
         <v-alert
           v-if="noHeaderMode"
           type="warning"
@@ -429,7 +429,7 @@ function colLetter(idx: number): string {
           Názvy sloupců (A, B...) můžete přejmenovat.
         </v-alert>
 
-        <!-- Grid container -->
+        <!-- kontejner mřížky (grid container) -->
         <div ref="gridContainerRef" class="grid-container">
           <table class="data-grid">
             <thead>
@@ -477,9 +477,9 @@ function colLetter(idx: number): string {
           </table>
         </div>
 
-        <!-- Assignment panels -->
+        <!-- panely přiřazení (assignment panels) -->
         <div class="assignment-panels">
-          <!-- Table headers -->
+          <!-- hlavičky tabulky -->
           <div class="assignment-panel table-panel">
             <div class="panel-header">
               <v-icon size="18" color="primary" class="mr-1">mdi-table</v-icon>
@@ -510,7 +510,7 @@ function colLetter(idx: number): string {
           </div>
 
 
-        <!-- Rename Dialog -->
+        <!-- dialog přejmenování (rename dialog) -->
         <v-dialog v-model="showRenameDialog" max-width="400">
           <v-card>
             <v-card-title class="text-h6">Přejmenovat sloupec</v-card-title>
@@ -531,7 +531,7 @@ function colLetter(idx: number): string {
           </v-card>
         </v-dialog>
 
-          <!-- Series headers -->
+          <!-- hlavičky sérií -->
           <div class="assignment-panel series-panel">
             <div class="panel-header">
               <v-icon size="18" color="success" class="mr-1">mdi-chart-line</v-icon>
@@ -540,7 +540,7 @@ function colLetter(idx: number): string {
                 <template #activator="{ props }">
                   <v-icon v-bind="props" size="small" class="ml-2" color="success">mdi-information</v-icon>
                 </template>
-                Datové série jsou obvykle číselné (float). Systém se pokusí typ detekovat.
+                Datové série jsou obvykle číselné. systém se pokusí typ detekovat.
               </v-tooltip>
             </div>
             <div class="panel-content">

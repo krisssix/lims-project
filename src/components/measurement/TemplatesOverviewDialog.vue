@@ -5,7 +5,7 @@ import { type TemplateItem } from '@/types/measurement-ui'
 import { contrastText } from '@/utils/colorContrast'
 import { getRelativeTime, formatVersion } from '@/utils/versioning'
 
-// Generate light background color from device color
+// generování světlé barvy ze zadaného odstínu
 function lightBg(color: string | undefined | null): string {
   if (!color) return '#f9fafb'
   const hex = color.replace('#', '')
@@ -20,7 +20,7 @@ function lightBg(color: string | undefined | null): string {
   return `rgb(${lr}, ${lg}, ${lb})`
 }
 
-// Format ISO timestamp to localized date string
+// formátování iso timestampu na lokální datum
 function formatDate(isoString: string | undefined): string {
   if (!isoString) return '—'
   const d = new Date(isoString)
@@ -56,15 +56,15 @@ const search = ref<string>('')
 const sortKey = ref<'device' | 'name'>('device')
 const sortDir = ref<'asc' | 'desc'>('asc')
 
-// Delete confirmation dialog
+
 const showDeleteDialog = ref(false)
 const deleteTarget = ref<TemplateItem | null>(null)
 
-// Bulk delete state
+
 const selection = ref<Set<string>>(new Set())
 const showBulkDeleteDialog = ref(false)
 
-// Notification state
+
 const notification = ref<{
   show: boolean
   type: 'success' | 'error' | 'warning'
@@ -80,7 +80,7 @@ function toggleSort(key: 'device' | 'name'): void {
   }
 }
 
-// Filter and search
+
 const filtered = computed<TemplateItem[]>(() => {
   const q = search.value.trim().toLowerCase()
   return q
@@ -94,18 +94,18 @@ const filtered = computed<TemplateItem[]>(() => {
 
 const includeDrafts = ref(false)
 
-// Filter to show active templates (or all if drafts included)
+// zobrazení aktivních šablon (nebo všech pokud jsou zahrnuty koncepty)
 const activeTemplates = computed<TemplateItem[]>(() => {
   const mult = sortDir.value === 'asc' ? 1 : -1
 
   let result = filtered.value
 
-  // If NOT including drafts, filter only ACTIVE
+  // filtrování pouze aktivních
   if (!includeDrafts.value) {
     result = result.filter(t => !t.status || t.status === 'ACTIVE')
   }
 
-  // Sort by device/name
+  // řazení podle zařízení/názvu
   return result.sort((a, b) => {
     if (sortKey.value === 'device') {
       const cmp = a.deviceId.localeCompare(b.deviceId, 'cs')
@@ -119,7 +119,7 @@ const activeTemplates = computed<TemplateItem[]>(() => {
   })
 })
 
-/* Selection Logic */
+
 const selectedCount = computed(() => selection.value.size)
 const allSelected = computed(() => activeTemplates.value.length > 0 && selection.value.size === activeTemplates.value.length)
 const someSelected = computed(() => selection.value.size > 0)
@@ -131,7 +131,7 @@ const selectedItems = computed(() =>
 const canSetToActive = computed(() => {
   if (selection.value.size === 0) return false
   return selectedItems.value.some(t => { 
-    // Is NOT Active? (Active = explicitly ACTIVE or undefined/null)
+    // je neaktivní? (aktivní = explicitly ACTIVE nebo undefined/null)
     const isActive = !t.status || t.status === 'ACTIVE'
     return !isActive
   })
@@ -273,7 +273,7 @@ watch(() => props.selectedTemplateId, () => {
   if (props.modelValue) void focusSelected()
 })
 watch(() => props.templates, () => {
-  // Prune selection of items that no longer exist
+  // odstranění neexistujících položek z výběru
   const existingIds = new Set(props.templates.map(t => t.id))
   for (const id of selection.value) {
     if (!existingIds.has(id)) {
@@ -293,7 +293,7 @@ watch(() => props.templates, () => {
     @update:model-value="v => emits('update:modelValue', v)"
   >
     <div class="templates-dialog-card">
-      <!-- Notification Snackbar -->
+
       <v-snackbar
         v-if="notification"
         v-model="notification.show"
@@ -344,7 +344,7 @@ watch(() => props.templates, () => {
         </div>
       </div>
 
-      <!-- Toolbar -->
+
       <div class="templates-toolbar">
          <v-progress-linear
             v-if="loading"
@@ -361,7 +361,7 @@ watch(() => props.templates, () => {
           style="flex: 1; max-width: 500px"
         />
         <div class="toolbar-actions">
-           <!-- DRAFT TOGGLE -->
+
            <div class="filter-toggle">
               <v-switch
                 v-model="includeDrafts"
@@ -410,7 +410,7 @@ watch(() => props.templates, () => {
         </div>
       </div>
 
-      <!-- HEADER ACTIONS (Bulk Operations) -->
+
       <div class="header-actions" v-if="selectedCount > 0">
          <div class="selected-count">
            Vybráno {{ selectedCount }}
@@ -456,7 +456,7 @@ watch(() => props.templates, () => {
          </div>
       </div>
 
-      <!-- TABLE HEADER -->
+
       <div class="table-header-row">
         <div class="th-col col-check">
            <v-checkbox 
@@ -487,7 +487,7 @@ watch(() => props.templates, () => {
         </div>
       </div>
 
-      <!-- TABLE BODY -->
+
       <div class="templates-content">
         <div
           v-for="tpl in activeTemplates"
@@ -497,7 +497,7 @@ watch(() => props.templates, () => {
           :class="{ 'row-selected': selection.has(tpl.id) }"
           @click="triggerEdit(tpl)"
         >
-           <!-- CHECKBOX -->
+
            <div class="td-col col-check" @click.stop>
               <v-checkbox 
                 :model-value="selection.has(tpl.id)"
@@ -507,7 +507,7 @@ watch(() => props.templates, () => {
               />
            </div>
 
-           <!-- NAME -->
+
            <div class="td-col col-name">
               <div 
                 class="template-icon-box mr-3"
@@ -525,7 +525,7 @@ watch(() => props.templates, () => {
               </span>
            </div>
 
-           <!-- DEVICE -->
+
            <div class="td-col col-device">
               <div 
                 class="device-badge"
@@ -538,7 +538,7 @@ watch(() => props.templates, () => {
               </div>
            </div>
 
-           <!-- UPDATED -->
+
            <div class="td-col col-updated">
                <div class="d-flex align-center">
                  <v-chip
@@ -555,7 +555,7 @@ watch(() => props.templates, () => {
                </div>
            </div>
 
-           <!-- ACTIONS -->
+
            <div class="td-col col-actions" @click.stop>
               <v-btn 
                 icon 
@@ -570,7 +570,7 @@ watch(() => props.templates, () => {
 
         </div>
 
-        <!-- Empty State -->
+
         <div
           v-if="activeTemplates.length === 0"
           class="empty-state"
@@ -590,7 +590,7 @@ watch(() => props.templates, () => {
         </div>
       </div>
 
-      <!-- Footer -->
+
       <div class="templates-footer">
         <button
           type="button"
@@ -615,7 +615,7 @@ watch(() => props.templates, () => {
       </div>
     </div>
 
-    <!-- Delete Confirmation Dialog -->
+
     <v-dialog
       v-model="showDeleteDialog"
       max-width="400px"
@@ -648,7 +648,7 @@ watch(() => props.templates, () => {
       </v-card>
     </v-dialog>
 
-    <!-- BULK DELETE DIALOG -->
+
     <v-dialog
       v-model="showBulkDeleteDialog"
       max-width="400px"

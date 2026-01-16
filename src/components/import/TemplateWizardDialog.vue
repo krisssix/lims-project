@@ -10,7 +10,7 @@
     <template #content>
       <div class="pa-4">
 
-        <!-- Version Info Alert (Edit Mode Only) -->
+        <!-- upozornění na informace o verzi (pouze v režimu úprav) -->
         <v-alert
           v-if="versionInfoText"
           type="info"
@@ -27,7 +27,7 @@
         </v-alert>
         <!-- Název + Přístroj -->
         <div class="d-flex align-start ga-3 mb-4">
-          <!-- prázdný stav: bez selection slotu -->
+          <!-- prázdný stav: bez výběrového slotu (selection slot) -->
           <DeviceSelect
             v-if="!deviceCode"
             v-model="deviceCode"
@@ -38,7 +38,7 @@
             class="flex-shrink-0"
             style="min-width: 180px;"
           />
-          <!-- vybraný stav: se selection slotem (chip) -->
+          <!-- vybraný stav: s výběrovým slotem (chip) -->
           <DeviceSelect
             v-else
             v-model="deviceCode"
@@ -64,7 +64,7 @@
           />
         </div>
 
-        <!-- Tab Navigation -->
+        <!-- navigace v záložkách (tab navigation) -->
         <div class="main-tabs mb-4">
           <button
             type="button"
@@ -111,14 +111,14 @@
           </button>
         </div>
 
-        <!-- Tab Content: Struktura šablony -->
+        <!-- obsah záložky: struktura šablony -->
         <div v-show="mainTab === 'structure'">
-          <!-- Import Section -->
+          <!-- sekce importu -->
           <div class="import-section mb-4">
             <div class="text-subtitle-2 mb-2">
               Import
             </div>
-            <!-- ALWAYS VISIBLE TOOLBAR -->
+            <!-- panel nástrojů (neustále viditelný) -->
             <div class="import-toolbar d-flex ga-2 mb-2">
               <v-btn
                 size="small"
@@ -149,7 +149,7 @@
               </v-btn>
             </div>
 
-            <!-- DROPZONE (for drag & drop) -->
+            <!-- zóna pro přetažení (dropzone pro drag & drop) -->
             <div
               class="dropzone"
               :class="{ 'dropzone-active': isDragging, 'dropzone-compact': rawText.trim() }"
@@ -158,7 +158,7 @@
               @dragleave="isDragging = false"
               @paste="onPasteText"
             >
-              <!-- Empty state -->
+              <!-- prázdný stav -->
               <div
                 v-if="!rawText.trim() && !showTextareaInput"
                 class="dropzone-content"
@@ -173,7 +173,7 @@
                   Přetáhni soubor nebo vlož data (Ctrl+V)
                 </div>
               </div>
-              <!-- Textarea for manual paste -->
+              <!-- textová oblast pro manuální vložení -->
               <div
                 v-if="showTextareaInput && !rawText.trim()"
                 class="pa-2 w-100"
@@ -207,14 +207,14 @@
                 </div>
               </div>
               <!-- ═══════════════════════════════════════════════════════════════ -->
-              <!-- THREE-LAYER IMPORT ARCHITECTURE                                 -->
-              <!-- L1: Raw Data | L2: Proposals | L3: Template (user authority)    -->
+              <!-- třívrstvá importní architektura (three-layer import architecture) -->
+              <!-- vrstva 1: surová data | vrstva 2: návrhy | vrstva 3: šablona (autorita uživatele) -->
               <!-- ═══════════════════════════════════════════════════════════════ -->
               <div
                 v-if="rawText.trim()"
                 class="import-result-box"
               >
-                <!-- 1️⃣ STATUS BAR: "Návrh připraven" not "Rozpoznáno" -->
+                <!-- 1: stavový řádek: „návrh připraven“, nikoliv „rozpoznáno“ -->
                 <div
                   class="parse-status-bar"
                   :class="parseStatusClass"
@@ -241,7 +241,7 @@
                   </div>
                 </div>
 
-                <!-- 2️⃣ MAIN ACTIONS (always visible) -->
+                <!-- 2: hlavní akce (vždy viditelné) -->
                 <div class="action-bar d-flex flex-wrap ga-2 py-3">
                   <v-btn
                     size="small"
@@ -307,7 +307,7 @@
                   </v-btn-group>
                 </div>
 
-                <!-- 3️⃣ TABS: Blocks / Raw / Preview -->
+                <!-- 3: záložky: bloky / surová data (raw) / náhled (preview) -->
                 <v-window
                   v-model="activeTab"
                   class="mt-2"
@@ -341,7 +341,7 @@
                   <!-- PARSED PREVIEW TAB -->
                   <v-window-item value="preview">
                     <div class="preview-panel">
-                      <!-- Header with row designation toolbar -->
+                      <!-- hlavička s panelem nástrojů pro určení řádků -->
                       <div class="preview-header d-flex align-center flex-wrap ga-2 mb-2">
                         <span class="text-subtitle-2">Náhled interpretace</span>
                         <v-chip
@@ -351,7 +351,7 @@
                           {{ rawDataRows.length }} řádků × {{ mainHeader.length }} sloupců
                         </v-chip>
                         <v-spacer />
-                        <!-- Row designation buttons -->
+                        <!-- tlačítka pro určení typu řádku -->
                         <v-btn-group
                           variant="outlined"
                           density="compact"
@@ -413,7 +413,7 @@
                           Reset
                         </v-btn>
                       </div>
-                      <!-- Selection mode hint -->
+                      <!-- nápověda k režimu výběru -->
                       <v-alert
                         v-if="rowDesignationMode"
                         type="info"
@@ -424,7 +424,7 @@
                         Klikni na řádek pro označení jako
                         <strong>{{ rowDesignationMode === 'header' ? 'hlavička' : rowDesignationMode === 'units' ? 'jednotky' : 'začátek dat' }}</strong>
                       </v-alert>
-                      <!-- Preview table with row numbers -->
+                      <!-- tabulka náhledu s čísly řádků -->
                       <div class="preview-table-container">
                         <table class="preview-table">
                           <thead>
@@ -475,7 +475,7 @@
                   </v-window-item>
                 </v-window>
 
-                <!-- 4️⃣ PARSE SUMMARY (collapsible) -->
+                <!-- 4: shrnutí parsování (rozbalovací) -->
                 <details class="parse-summary-details mt-3">
                   <summary class="text-caption text-medium-emphasis cursor-pointer">
                     <v-icon size="12">
@@ -542,7 +542,7 @@
 
           <!-- Learned Mappings Section (Edit Mode Only) -->
 
-          <!-- Blocks Section -->
+          <!-- sekce bloků (blocks section) -->
           <div class="blocks-section">
             <div
               class="d-flex align-center mb-2"
@@ -601,7 +601,7 @@
             >
               Zatím žádné sady hodnot. Přidej první sadu hodnot tlačítkem „Nová tabulka".
             </div>
-            <!-- Block editor -->
+            <!-- editor bloku -->
             <div
               v-for="(pb, pbi) in pickedBlocks"
               v-show="pbi === currentBlockIndex"
@@ -738,8 +738,8 @@
               </div>
             </div>
           </div>
-          <!-- Note: Series block is rendered in the main blocks section above (line 374-381) -->
-          <!-- OLD IMPORT MODE - disabled, can be deleted -->
+          <!-- poznámka: blok série se vykresluje v hlavní sekci bloků výše -->
+          <!-- starý režim importu: vypnutý, lze smazat -->
           <div v-if="false">
             <div class="d-flex align-center ga-3 mb-3">
               <v-btn
@@ -786,7 +786,7 @@
             >
               Importuj data výběrem souboru výše, nebo je vlož přímo do textového pole.
             </v-alert>
-            <!-- ANALYZOVAT button (shown when data pasted but not yet parsed) -->
+            <!-- tlačítko analyzovat (zobrazí se při vložení dat, ale před parsováním) -->
             <v-btn
               v-if="rawText.trim() && !mainHeader.length"
               color="primary"
@@ -879,7 +879,7 @@
                 VYTVOŘIT BLOKY
               </v-btn>
             </div>
-            <!-- Picked blocks after creation -->
+            <!-- vybrané bloky po vytvoření -->
             <div
               v-if="pickedBlocks.length"
               class="mb-3"
@@ -1038,7 +1038,7 @@
               </div>
             </div>
           </div>
-          <!-- Series Block (editable table like main blocks) -->
+          <!-- blok série (editovatelná tabulka jako hlavní bloky) -->
           <div
             v-if="seriesFieldRows.length && pickedBlocks.length"
             class="series-block mt-4"
@@ -1190,9 +1190,9 @@
               </div>
             </div>
           </div>
-        </div><!-- End of structure tab -->
+        </div><!-- konec záložky struktura (structure tab) -->
 
-        <!-- Tab Content: Přehled verzí -->
+        <!-- obsah záložky: přehled verzí -->
         <div
           v-show="mainTab === 'versions'"
           class="versions-tab"
@@ -1237,7 +1237,7 @@
             </v-btn>
           </div>
 
-          <!-- Loading state -->
+          <!-- stav načítání -->
           <div
             v-if="versionHistoryLoading"
             class="d-flex align-center justify-center pa-8"
@@ -1249,7 +1249,7 @@
             <span class="ml-3 text-medium-emphasis">Načítání verzí...</span>
           </div>
 
-          <!-- Version list -->
+          <!-- seznam verzí -->
           <div
             v-else-if="versionHistory.length > 0"
             class="versions-list"
@@ -1347,7 +1347,7 @@
             </div>
           </div>
 
-          <!-- Empty state -->
+          <!-- prázdný stav -->
           <div
             v-else
             class="versions-empty"
@@ -1366,14 +1366,14 @@
               Tato šablona zatím nemá žádné předchozí verze.
             </div>
           </div>
-        </div><!-- End of versions tab -->
+        </div><!-- konec záložky verze (versions tab) -->
 
-        <!-- Tab Content: Naučená mapování -->
+        <!-- obsah záložky: naučená mapování -->
         <div
           v-show="mainTab === 'mappings'"
           style="padding: 24px;"
         >
-          <!-- Header -->
+          <!-- hlavička -->
           <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;">
             <div>
               <div style="font-size: 16px; font-weight: 600; color: #374151; display: flex; align-items: center; gap: 10px;">
@@ -1397,7 +1397,7 @@
             </button>
           </div>
 
-          <!-- Stats -->
+          <!-- statistiky -->
           <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px;">
             <div style="background: #f5f3ff; border: 1px solid #ddd6fe; border-radius: 10px; padding: 14px 16px;">
               <div style="font-size: 24px; font-weight: 700; color: #7c3aed;">{{ learnedMappings.length }}</div>
@@ -1413,13 +1413,13 @@
             </div>
           </div>
 
-          <!-- Mappings grouped by target field -->
+          <!-- mapování seskupená podle cílového pole -->
           <div
             v-if="groupedMappings.length > 0"
             style="border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden;"
           >
             <template v-for="(group, gIdx) in groupedMappings" :key="group.targetField">
-              <!-- Group header -->
+              <!-- hlavička skupiny -->
               <div style="background: #f9fafb; padding: 10px 16px; border-bottom: 1px solid #e5e7eb; display: flex; align-items: center; justify-content: space-between;">
                 <div style="display: flex; align-items: center; gap: 10px;">
                   <div class="d-flex align-center justify-center" :style="{ width: '28px', height: '28px', background: getGroupColor(gIdx), borderRadius: '6px' }">
@@ -1450,7 +1450,7 @@
                 </div>
               </div>
 
-              <!-- Mapping rows -->
+              <!-- řádky mapování -->
               <div style="background: white;">
                 <div
                   v-for="mapping in group.mappings"
@@ -1480,7 +1480,7 @@
                   </div>
                 </div>
 
-                <!-- Add Alias Inline Row -->
+                <!-- vložený řádek pro přidání aliasu (add alias inline row) -->
                 <div
                   v-if="addingAliasFor === group.targetField"
                   style="padding: 10px 16px; border-bottom: 1px solid #f3f4f6; display: flex; align-items: center; gap: 12px;"
@@ -1515,7 +1515,7 @@
             </template>
           </div>
 
-          <!-- Empty state / Info -->
+          <!-- prázdný stav / informace -->
           <div
              v-if="learnedMappings.length === 0"
              style="margin-top: 20px; text-align: center; padding: 40px; background: white; border: 1px solid #e5e7eb; border-radius: 12px;"
@@ -1538,7 +1538,7 @@
 
         </div>
 
-        <!-- Delete mapping confirmation dialog -->
+        <!-- potvrzovací dialog pro smazání mapování -->
         <v-dialog
           v-model="confirmDeleteMapping"
           width="400"
@@ -1567,7 +1567,7 @@
           </v-card>
         </v-dialog>
 
-        <!-- Clear all confirmation dialog -->
+        <!-- potvrzovací dialog pro vymazání všeho (clear all) -->
         <v-dialog
           v-model="confirmClearAll"
           width="400"
@@ -1596,7 +1596,7 @@
           </v-card>
         </v-dialog>
 
-        <!-- Add alias dialog -->
+        <!-- dialog pro přidání aliasu -->
         <v-dialog
           v-model="showAddMappingDialog"
           width="450"
@@ -1636,7 +1636,7 @@
           </v-card>
         </v-dialog>
 
-        <!-- Version Preview Dialog (Readonly) -->
+        <!-- dialog náhledu verze (pouze pro čtení – readonly) -->
         <v-dialog
           v-model="showVersionPreviewDialog"
           max-width="600px"
@@ -1683,7 +1683,7 @@
                 Toto je pouze náhled. Pro úpravu vytvořte novou verzi.
               </v-alert>
 
-              <!-- Preview Content -->
+              <!-- obsah náhledu (preview content) -->
               <div v-if="selectedVersionPreview?.blocks?.length" class="mt-4">
                 <div v-for="block in selectedVersionPreview.blocks" :key="block.id" class="mb-4">
                   <div class="text-subtitle-1 font-weight-bold mb-2">{{ block.title || `Blok ${block.blockIndex}` }}</div>
@@ -1702,7 +1702,7 @@
                 Žádná data k zobrazení
               </div>
 
-              <!-- Preview Content -->
+              <!-- obsah náhledu (preview content) -->
               <div v-if="selectedVersionPreview?.blocks?.length" class="mt-4">
                 <div v-for="block in selectedVersionPreview.blocks" :key="block.id" class="mb-4">
                   <div class="text-subtitle-1 font-weight-bold mb-2">{{ block.title || `Blok ${block.blockIndex}` }}</div>
@@ -1733,7 +1733,7 @@
           </v-card>
         </v-dialog>
 
-        <!-- Rollback Dialog -->
+        <!-- dialog pro návrat k verzi (rollback) -->
         <v-dialog v-model="showRollbackDialog" max-width="450px">
           <v-card>
             <v-card-title>Nastavit jako aktivní?</v-card-title>
@@ -1750,7 +1750,7 @@
           </v-card>
         </v-dialog>
 
-        <!-- Bulk Delete Dialog -->
+        <!-- dialog pro hromadné smazání (bulk delete) -->
         <v-dialog v-model="showBulkDeleteDialog" max-width="450px">
           <v-card>
             <v-card-title class="text-error">Smazat vybrané verze?</v-card-title>
@@ -1768,7 +1768,7 @@
           </v-card>
         </v-dialog>
 
-        <!-- Save Version Dialog -->
+        <!-- dialog pro uložení verze (save version) -->
         <v-dialog v-model="showSaveVersionDialog" max-width="550px">
           <v-card>
             <v-card-title>
@@ -1812,7 +1812,7 @@
           </v-card>
         </v-dialog>
 
-        <!-- Footer -->
+        <!-- patička (footer) -->
         <div class="d-flex justify-end ga-2 mt-4">
           <v-btn
             v-if="canDelete"
@@ -1852,7 +1852,7 @@
     </template>
   </Dialog>
 
-  <!-- Manual Header Picker Dialog -->
+  <!-- dialog pro manuální výběr hlavičky (manual header picker) -->
   <ManualHeaderPickerDialog
     v-model="showManualHeaderPicker"
     :raw-grid="rawDataRows"
@@ -1875,8 +1875,8 @@ import { isVectorCell, detectVectorColumns, findPairedVectors, hasVectorCells as
 import { buildProposal } from '@/utils/import/blockDetection'
 import type { DetectedBlock, BlockAction, ParseProposal } from '@/types/import-blocks'
 import * as XLSX from 'xlsx'
-// 3-layer architecture: Raw Data → Parser Proposals → Template (user authority)
-/* ===== Types ===== */
+// třívrstvá architektura (3-layer architecture): surová data → návrhy parsování → šablona (autorita uživatele)
+/* typy (types) */
 type DeviceItem = { id: string; name: string; color?: string }
 type FieldType = 'float' | 'int' | 'text' | 'file' | 'bool' | 'date'
 type FieldRow = { id: string; orderIndex: number; type: FieldType; required: boolean; name: string }
@@ -1898,7 +1898,7 @@ interface InitialTemplate {
   version?: string
   updatedAt?: string
 }
-/* ===== Props & Emits ===== */
+/* vlastnosti a události (props a emits) */
 const props = defineProps<{
   modelValue: boolean
   devices: DeviceItem[]
@@ -1907,11 +1907,11 @@ const props = defineProps<{
   operation?: 'create' | 'edit'
   initialTemplate?: InitialTemplate | null
   startMode?: 'empty' | 'import'
-  /** Template to derive from - pre-fills form but creates NEW template */
+  /** šablona pro odvození: předvyplní formulář, ale vytvoří novou šablonu (derive from) */
   deriveFrom?: InitialTemplate | null
-  /** Lock device selection - user cannot change it */
+  /** uzamčení výběru zařízení (lock device): uživatel jej nemůže změnit */
   lockDevice?: boolean
-  /** Pre-select device when opening the wizard */
+  /** předvýběr zařízení při otevření průvodce (pre-select device) */
   preselectedDevice?: string | null
 }>()
 const emit = defineEmits<{
@@ -1921,15 +1921,15 @@ const emit = defineEmits<{
   (e: 'deriveFromTemplate', templateId: string): void
 }>()
 
-/* ===== Learned Mappings Logic ===== */
+/* logika pro naučená mapování (learned mappings) */
 const importStore = useImportStore()
 const templatesStore = useMeasurementTemplatesStore()
 const learnedMappings = ref<LearnedMapping[]>([])
 
-// Main tab navigation: 'structure' | 'versions' | 'mappings'
+// hlavní navigace v záložkách (main tab navigation): 'structure' | 'versions' | 'mappings'
 const mainTab = ref<'structure' | 'versions' | 'mappings'>('structure')
 
-/* ===== Version History Logic ===== */
+/* logika pro historii verzí (version history logic) */
 type VersionHistoryItem = {
   id: string
   version: string
@@ -1947,7 +1947,7 @@ const showVersionPreviewDialog = ref(false)
 const showRollbackDialog = ref(false)
 const rollbackTarget = ref<VersionHistoryItem | null>(null)
 
-// Bulk delete state
+// stav hromadného mazání (bulk delete state)
 const selectedVersionIds = ref<Set<string>>(new Set())
 const showBulkDeleteDialog = ref(false)
 const bulkDeleteLoading = ref(false)
@@ -2023,7 +2023,7 @@ async function loadVersionHistory() {
   }
 }
 
-// Reset history when dialog opens
+// resetování historie při otevření dialogu
 watch(() => props.modelValue, (isOpen) => {
   if (isOpen) {
     versionHistoryLoaded.value = false
@@ -2058,7 +2058,7 @@ async function confirmRollback() {
   if (!rollbackTarget.value) return
 
   try {
-    loading.value = true // Use main loading indicator
+    loading.value = true // použít hlavní indikátor načítání (main loading indicator)
     await templatesStore.publish(Number(rollbackTarget.value.id))
 
     // Refresh history
@@ -2079,7 +2079,7 @@ async function confirmRollback() {
   }
 }
 
-// Bulk delete helpers
+// pomocné funkce pro hromadné mazání (bulk delete helpers)
 const selectableVersions = computed(() =>
   versionHistory.value.filter(v => v.status !== 'ACTIVE')
 )
@@ -2197,7 +2197,7 @@ const totalUsageCount = computed(() =>
   learnedMappings.value.reduce((sum, m) => sum + m.useCount, 0)
 )
 
-// Version info for edit mode
+// informace o verzi pro režim úprav (version info for edit mode)
 const versionInfoText = computed(() => {
   if (props.operation !== 'edit' || !props.initialTemplate) return null
 
@@ -2222,13 +2222,13 @@ const versionInfoText = computed(() => {
   }
 })
 
-// Colors for group icons
+// barvy pro ikony skupin (group colors)
 const groupColors = ['#7c3aed', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#84cc16']
 function getGroupColor(index: number): string {
   return groupColors[index % groupColors.length]
 }
 
-// Track which groups are expanded (kept for compatibility but not used now)
+// sledování rozbalených skupin (ponecháno pro kompatibilitu, momentálně nepoužito) (track expanded groups)
 const expandedGroups = ref<Set<string>>(new Set())
 function toggleGroup(targetField: string): void {
   if (expandedGroups.value.has(targetField)) {
@@ -2238,7 +2238,7 @@ function toggleGroup(targetField: string): void {
   }
 }
 
-// Delete confirmation
+// potvrzení smazání (delete confirmation)
 const confirmDeleteMapping = ref(false)
 const mappingToDelete = ref<LearnedMapping | null>(null)
 const confirmClearAll = ref(false)
@@ -2261,7 +2261,7 @@ async function confirmClearAllAction(): Promise<void> {
   confirmClearAll.value = false
 }
 
-// Inline add alias
+// vkládání aliasu do řádku (inline add alias)
 const addingAliasFor = ref<string | null>(null)
 const newAliasInput = ref('')
 
@@ -2296,12 +2296,12 @@ async function submitNewAlias(targetField: string): Promise<void> {
   }
 }
 
-// Legacy (for compatibility)
+// zastaralé (pro kompatibilitu) (legacy)
 const showAddMappingDialog = ref(false)
 const newMappingSource = ref('')
 const newMappingTarget = ref<string | null>(null)
 
-// Get available target fields from template fields
+// získání dostupných cílových polí z polí šablony (available target fields)
 const availableTargetFields = computed(() => {
   const fields: string[] = []
   for (const block of pickedBlocks.value) {
@@ -2318,7 +2318,7 @@ const availableTargetFields = computed(() => {
 async function addMappingManually(): Promise<void> {
   if (!newMappingSource.value.trim() || !newMappingTarget.value || !props.initialTemplate?.templateId) return
   try {
-    // saveMappings expects a Record<sourceColumn, targetField>
+    // savemappings očekává objekt record s dvojicemi (sourcecolumn, targetfield)
     const mapping: Record<string, string> = {
       [newMappingSource.value.trim()]: newMappingTarget.value
     }
@@ -2336,7 +2336,7 @@ async function addMappingManually(): Promise<void> {
   }
 }
 
-// Load mappings on mount if dialog is open (handles direct open or refresh scenarios)
+// načtení mapování při připojení komponenty (mount), pokud je dialog otevřený (pro přímé otevření nebo obnovení)
 onMounted(() => {
   if (props.modelValue && props.operation === 'edit') {
     console.log('[TemplateWizardDialog] Mounted open in edit mode, loading mappings...')
@@ -2351,23 +2351,23 @@ watch(() => props.modelValue, (isOpen) => {
     console.log('[TemplateWizardDialog] initialTemplate:', props.initialTemplate)
     console.log('[TemplateWizardDialog] devices:', props.devices)
     loadLearnedMappings()
-    // Pre-select device if provided and no initial template
+    // předvýběr zařízení, pokud bylo zadáno a neexistuje úvodní šablona
     if (props.preselectedDevice && !props.initialTemplate) {
       console.log('[TemplateWizardDialog] Setting deviceCode to:', props.preselectedDevice)
-      // Use nextTick to ensure the value is set after component renders
+      // použít nexttick k zajištění nastavení hodnoty po vykreslení komponenty
       nextTick(() => {
         deviceCode.value = props.preselectedDevice
         console.log('[TemplateWizardDialog] deviceCode after set:', deviceCode.value)
       })
     }
-    // Focus template name input with scroll animation
+    // zaměření vstupu pro název šablony s animací posunu
     nextTick(() => {
       setTimeout(() => {
         const input = document.querySelector('[data-template-name-input] input') as HTMLInputElement | null
         if (input) {
           input.scrollIntoView({ behavior: 'smooth', block: 'center' })
           input.focus()
-          // Add focus animation class
+          // přidání třídy pro animaci zaměření (focus animation class)
           input.classList.add('focus-highlight-animation')
           setTimeout(() => input.classList.remove('focus-highlight-animation'), 600)
         }
@@ -2376,24 +2376,24 @@ watch(() => props.modelValue, (isOpen) => {
   }
 })
 
-/* ===== Computed v-model ===== */
+/* výpočtová vlastnost (computed) v-model */
 const open = computed({
   get: () => props.modelValue,
   set: (v: boolean) => emit('update:modelValue', v),
 })
 
-// Can delete only in edit mode with valid template ID
+// smazání je možné pouze v režimu úprav s platným id šablony
 
-// Cancel editing (close dialog)
+// zrušení úprav (zavření dialogu) (cancel editing)
 function cancel(): void {
   open.value = false
 }
 
-// Request template deletion
+// požadavek na smazání šablony (request template deletion)
 function askDelete(): void {
   emit('delete')
 }
-/* ===== State ===== */
+/* stav (state) */
 const templateStore = useMeasurementTemplatesStore()
 const deviceCode = ref<string | null>(null)
 const templateName = ref<string>('')

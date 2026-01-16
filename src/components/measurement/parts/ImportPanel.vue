@@ -47,8 +47,20 @@ watch(() => props.rowOffset, (val) => {
 function updateRowOffset(newOffset: number) {
   const maxOffset = totalRowCount.value - 1
   const clampedOffset = Math.max(0, Math.min(newOffset, maxOffset))
-  localRowOffset.value = clampedOffset
   emits('update:rowOffset', clampedOffset)
+}
+
+const highlightMappingBtn = ref(false)
+
+function handleApply() {
+  // Check compatibility
+  if (props.importCompatibility && !props.importCompatibility.compatible) {
+    // Not compatible -> highlight mapping button
+    highlightMappingBtn.value = true
+    setTimeout(() => { highlightMappingBtn.value = false }, 2000)
+    return
+  }
+  emits('apply')
 }
 
 // Total row count before offset
@@ -147,7 +159,7 @@ function analyze(): void {
         <!-- Změnit soubor / Soubor button -->
         <button 
           type="button" 
-          :class="['toolbar-btn', 'btn-primary', { 'btn-secondary': props.importedFile }]"
+          :class="['btn-primary', { 'btn-secondary': props.importedFile }]"
           @click="switchToFileMode"
         >
           <v-icon size="16">mdi-file-upload-outline</v-icon>
@@ -157,7 +169,7 @@ function analyze(): void {
         <!-- Vložit text button -->
         <button 
           type="button" 
-          :class="['toolbar-btn', 'btn-outlined', { active: inputMode === 'text' }]"
+          :class="['btn-outlined', { active: inputMode === 'text' }]"
           @click="switchToTextMode"
         >
           <v-icon size="16">mdi-content-paste</v-icon>
@@ -169,7 +181,7 @@ function analyze(): void {
         <!-- Vyčistit vše button -->
         <button 
           type="button" 
-          class="toolbar-btn btn-tonal"
+          class="btn-secondary"
           @click="emits('clear-all')"
         >
           <v-icon size="16">mdi-broom</v-icon>
@@ -198,8 +210,8 @@ function analyze(): void {
         <button 
           v-if="inputMode === 'file' && props.importedFile && !props.importedStructure"
           type="button" 
-          class="action-btn primary"
-          style="padding: 6px 12px;"
+          class="btn-primary"
+          style="padding: 6px 12px; height: 32px;"
           @click="analyze"
         >
           <v-icon size="14">mdi-play</v-icon>
@@ -240,7 +252,7 @@ function analyze(): void {
         <button 
           v-if="pastedText.trim()"
           type="button" 
-          class="action-btn primary"
+          class="btn-primary"
           @click="analyze"
         >
           <v-icon size="16">mdi-play</v-icon>
@@ -281,17 +293,21 @@ function analyze(): void {
         
         <div class="section-spacer"></div>
         
-        <!-- Action Buttons -->
         <div class="section-actions" @click.stop>
-          <button type="button" class="action-btn outlined" @click="emits('open-mapping')">
+          <button 
+            type="button" 
+            class="btn-outlined" 
+            :class="{ 'btn-pulse': highlightMappingBtn }"
+            @click="emits('open-mapping')"
+          >
             <v-icon size="16">mdi-table-cog</v-icon>
             Upravit mapování
           </button>
           <button 
             v-if="props.importedStructure"
             type="button" 
-            :class="['action-btn', props.dataApplied ? 'tonal' : 'primary']"
-            @click="emits('apply')"
+            :class="[props.dataApplied ? 'btn-secondary' : 'btn-primary']"
+            @click="handleApply"
           >
             <v-icon size="16">mdi-check</v-icon>
             {{ props.dataApplied ? 'Znovu použít' : 'Použít data' }}
@@ -395,47 +411,8 @@ function analyze(): void {
   gap: 8px;
 }
 
-.toolbar-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 14px;
-  border-radius: 8px;
-  font-size: 0.8125rem;
-  font-weight: 500;
-  cursor: pointer;
-  border: none;
-  transition: all 0.15s ease;
-}
+/* Button styles removed to use global system from src/styles/global.scss */
 
-.toolbar-btn.btn-primary {
-  background: #009688;
-  color: white;
-}
-
-.toolbar-btn.btn-secondary {
-  background: #009688;
-  color: white;
-}
-
-.toolbar-btn.btn-outlined {
-  background: white;
-  color: #1976d2;
-  border: 1px solid #1976d2;
-}
-
-.toolbar-btn.btn-outlined.active {
-  background: #e3f2fd;
-}
-
-.toolbar-btn.btn-tonal {
-  background: #f1f5f9;
-  color: #64748b;
-}
-
-.toolbar-btn:hover {
-  filter: brightness(0.95);
-}
 
 .toolbar-divider {
   width: 1px;
@@ -642,37 +619,20 @@ function analyze(): void {
   gap: 8px;
 }
 
-.action-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 14px;
-  border-radius: 8px;
-  font-size: 0.8125rem;
-  font-weight: 500;
-  cursor: pointer;
-  border: none;
-  transition: all 0.15s ease;
+/* .action-btn classes removed */
+
+
+.btn-pulse {
+  animation: pulse-orange 1s ease-in-out infinite;
+  border-color: #f59e0b !important;
+  color: #d97706 !important;
+  font-weight: 700;
 }
 
-.action-btn.outlined {
-  background: white;
-  color: #1976d2;
-  border: 1px solid #1976d2;
-}
-
-.action-btn.primary {
-  background: #1976d2;
-  color: white;
-}
-
-.action-btn.tonal {
-  background: #e3f2fd;
-  color: #1976d2;
-}
-
-.action-btn:hover {
-  filter: brightness(0.95);
+@keyframes pulse-orange {
+  0% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.4); transform: scale(1); }
+  50% { box-shadow: 0 0 0 6px rgba(245, 158, 11, 0); transform: scale(1.05); }
+  100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); transform: scale(1); }
 }
 
 /* Preview Content */

@@ -1,9 +1,9 @@
 <script setup lang="ts">
 /**
- * MarkdownEditor - WYSIWYG markdown editor component
- * Using md-editor-v3 for Vue 3
+ * markdowneditor : wysiwyg markdown editor komponenta (markdown editor)
+ * používá md-editor-v3 pro vue 3
  * 
- * Can be used in edit or preview-only mode
+ * lze použít v režimu úprav nebo pouze pro náhled (readonly)
  */
 import { computed } from 'vue'
 import { MdEditor, MdPreview } from 'md-editor-v3'
@@ -25,7 +25,7 @@ const content = computed({
   set: (v: string) => emits('update:modelValue', v)
 })
 
-// Czech language labels for toolbar
+// popisky pro lištu nástrojů (toolbar)
 const toolbars = [
   'bold',
   'underline',
@@ -49,12 +49,12 @@ const toolbars = [
   '=',
   'preview',
   'htmlPreview'
-] as const
+]
 </script>
 
 <template>
   <div class="markdown-editor-wrapper">
-    <!-- Read-only mode: just render markdown -->
+    <!-- režim pouze pro čtení: pouze vykreslí markdown (readonly mode) -->
     <MdPreview
       v-if="readonly"
       :model-value="content"
@@ -63,7 +63,7 @@ const toolbars = [
       class="md-preview-readonly"
     />
     
-    <!-- Edit mode: full editor with live preview -->
+    <!-- režim úprav: plný editor s živým náhledem (edit mode) -->
     <MdEditor
       v-else
       v-model="content"
@@ -96,7 +96,7 @@ const toolbars = [
   padding: 12px;
 }
 
-/* Dark mode support */
+/* podpora tmavého režimu (dark mode support) */
 :deep(.md-editor-dark) {
   --md-bk-color: #1e1e1e;
 }

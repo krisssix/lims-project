@@ -20,12 +20,12 @@ const open = computed({
   set: (v) => emits('update:modelValue', v)
 })
 
-// Export options
+// možnosti exportu (export options)
 const selectedFormat = ref<ExportFormat>('xlsx')
 const columns = ref<ExportColumn[]>([])
 const customFilename = ref('')
 
-// Initialize columns when dialog opens
+// inicializace sloupců při otevření dialogu (initialize columns)
 watch(() => props.modelValue, (isOpen) => {
   if (isOpen) {
     columns.value = DEFAULT_EXPORT_COLUMNS.map(c => ({ ...c }))
@@ -40,11 +40,11 @@ const formatOptions = [
   { value: 'json', title: 'JSON', icon: 'mdi-code-json', description: 'Strukturovaná data' }
 ]
 
-// Stats
+// statistiky (stats)
 const measurementCount = computed(() => props.measurements.length)
 const enabledColumnsCount = computed(() => columns.value.filter(c => c.enabled).length)
 
-// Select/deselect all
+// vybrat nebo odznačit vše (select / deselect all)
 const allSelected = computed({
   get: () => columns.value.every(c => c.enabled),
   set: (v) => columns.value.forEach(c => c.enabled = v)
@@ -54,14 +54,14 @@ function toggleAll(): void {
   allSelected.value = !allSelected.value
 }
 
-// Export
+// export (export)
 function handleExport(): void {
   if (!props.measurements.length || enabledColumnsCount.value === 0) return
   
   const filename = customFilename.value.trim() || 
     `mereni_export_${new Date().toISOString().slice(0, 10)}`
   
-  // Map MeasurementResponse to ExportMeasurement
+  // mapování measurementresponse na exportmeasurement (mapping data)
   const exportData = props.measurements.map(m => ({
     id: m.id,
     type: m.type,
@@ -96,12 +96,12 @@ function cancel(): void {
       </v-card-title>
 
       <v-card-text class="dialog-content">
-        <!-- Stats -->
+        <!-- statistiky (stats) -->
         <v-alert type="info" variant="tonal" density="compact" class="mb-4">
           <strong>{{ measurementCount }}</strong> měření bude exportováno
         </v-alert>
 
-        <!-- Format selection -->
+        <!-- výběr formátu (format selection) -->
         <div class="text-subtitle-2 mb-2">Formát exportu</div>
         <v-select
           v-model="selectedFormat"
@@ -129,7 +129,7 @@ function cancel(): void {
           </template>
         </v-select>
 
-        <!-- Filename -->
+        <!-- název souboru (filename) -->
         <v-text-field
           v-model="customFilename"
           label="Název souboru"
@@ -141,7 +141,7 @@ function cancel(): void {
           class="mb-4"
         />
 
-        <!-- Column selection -->
+        <!-- výběr sloupců (column selection) -->
         <div class="columns-section">
           <div class="d-flex align-center justify-space-between mb-2">
             <span class="text-subtitle-2">Sloupce k exportu</span>

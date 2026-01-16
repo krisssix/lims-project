@@ -11,14 +11,21 @@ type TableRow = {
   type: string
   device: string
   user?: string
-  date: string | number        // Datum měření
-  createdAt?: string | number  // Datum vložení (systémový čas)
-  updatedAt?: string | number  // Datum změny
+  date: string | number        // datum měření
+  createdAt?: string | number  // datum vložení (systémový čas)
+  updatedAt?: string | number  // datum změny
   count: number
   note?: string | null
   status?: 'DRAFT' | 'PUBLISHED'
-  zenodoDoi?: string | null  // Zenodo DOI if published
+  zenodoDoi?: string | null  // zenodo doi pokud je publikováno
   _raw?: unknown
+}
+
+type DateFilter = {
+  field: 'date' | 'createdAt' | 'updatedAt'
+  preset: string | null
+  from: Date | null
+  to: Date | null
 }
 const props = defineProps<{
   headers: TableHeader[]
@@ -26,24 +33,24 @@ const props = defineProps<{
   devicesById: Map<string, DeviceItem>
   highlightedRowId?: number | null
   activeDateField?: 'date' | 'createdAt' | 'updatedAt'
-  // Filter data
+
   devices?: Array<{ id: string; name: string; color?: string }>
   templates?: Array<{ id: string; name: string }>
   members?: string[]
 }>()
 
-// Selected items for bulk operations
+
 const selected = defineModel<TableRow[]>('selected', { default: () => [] })
 
-// Search functionality
+
 const search = ref<string>('')
 
-// Filter state
+
 const pickedDevices = ref<string[]>([])
 const pickedTemplates = ref<string[]>([])
 const pickedMembers = ref<string[]>([])
 
-// Date filter state
+
 const dateFilter = ref<DateFilter>({
   field: 'date',
   preset: null,
@@ -53,7 +60,7 @@ const dateFilter = ref<DateFilter>({
 
 const deviceItems = computed(() => {
   if (props.devices?.length) return props.devices
-  // Extract unique devices from items and get colors from devicesById
+  // extrakce unikátních zařízení z položek a získání barev z devicesById
   const unique = [...new Set(props.items.map(i => i.device).filter(Boolean))]
   return unique.map(code => {
     const device = props.devicesById.get(code)
@@ -62,13 +69,13 @@ const deviceItems = computed(() => {
 })
 const templateItems = computed(() => {
   if (props.templates?.length) return props.templates
-  // Extract unique templates from items
+  // extrakce unikátních šablon z položek
   const unique = [...new Set(props.items.map(i => i.type))]
   return unique.map(t => ({ id: t, name: t }))
 })
 const memberItems = computed(() => {
   if (props.members?.length) return props.members.map(m => ({ id: m, name: m }))
-  // Extract unique users from items
+  // extrakce unikátních uživatelů z položek
   const unique = [...new Set(props.items.map(i => i.user).filter(Boolean) as string[])]
   return unique.map(m => ({ id: m, name: m }))
 })
@@ -93,7 +100,7 @@ const filteredItems = computed<TableRow[]>(() => {
 
   // Apply date filter
   if (dateFilter.value.from && dateFilter.value.to) {
-    const field = dateFilter.value.field
+    const field = dateFilter.value.field as keyof TableRow
     const from = dateFilter.value.from.getTime()
     const to = dateFilter.value.to.getTime()
     result = result.filter(item => {
@@ -106,7 +113,7 @@ const filteredItems = computed<TableRow[]>(() => {
     })
   }
 
-  // Apply text search
+  // textové vyhledávání
   const q = search.value.trim().toLowerCase()
   if (q) {
     result = result.filter(item =>
@@ -120,14 +127,14 @@ const filteredItems = computed<TableRow[]>(() => {
   return result
 })
 
-// Track highlighted row for animation
+
 const animatingRowId = ref<number | null>(null)
 
-// When highlightedRowId changes, trigger animation
+
 watch(() => props.highlightedRowId, (newId) => {
   if (newId != null) {
     animatingRowId.value = newId
-    // Clear animation after it completes
+    // ukončení animace po dokončení
     setTimeout(() => {
       animatingRowId.value = null
     }, 2500)
@@ -141,7 +148,7 @@ const emits = defineEmits<{
   (e: 'publish-zenodo', ids: number[]): void
 }>()
 
-// Bulk action handlers
+
 function deleteSelected(): void {
   const ids = selected.value.map(r => r.id)
   if (ids.length) emits('delete-selected', ids)
@@ -172,22 +179,22 @@ function initials(u?: string | null): string {
 const hasNotes = computed<boolean>(() =>
   props.items.some(i => typeof i.note === 'string' && i.note.trim().length > 0)
 )
-// Helper: získat barvu zařízení s fallback
+// získání barvy zařízení s fallbackem
 function deviceColor(deviceId: string): string {
   return props.devicesById.get(deviceId)?.color || '#9E9E9E'
 }
 
 // Helper: get correct Zenodo URL (sandbox vs production)
 function getZenodoUrl(doi: string): string {
-  // Sandbox DOIs have prefix 10.5072/zenodo.{id}
+  // sandbox doi mají prefix 10.5072/zenodo.{id}
   if (doi.startsWith('10.5072/')) {
     const recordId = doi.replace('10.5072/zenodo.', '')
     return `https://sandbox.zenodo.org/records/${recordId}`
   }
-  // Production DOIs work with doi.org
+  // produkční doi fungují s doi.org
   return `https://doi.org/${doi}`
 }
-// Helper: formátovat datum čitelněji
+// formátování data
 function formatDate(dateInput: string | number): { date: string; time: string } {
   try {
     let ms: number
@@ -196,7 +203,7 @@ function formatDate(dateInput: string | number): { date: string; time: string } 
       // Timestamps less than 10 billion are likely in seconds
       ms = dateInput < 10000000000 ? dateInput * 1000 : dateInput
     } else {
-      // Parse string date
+      // parsování textového data
       ms = Date.parse(dateInput)
     }
 
@@ -254,7 +261,7 @@ function formatDate(dateInput: string | number): { date: string; time: string } 
       </div>-->
     </div>
 
-    <!-- Bulk Actions Toolbar -->
+
     <Transition name="slide-fade">
       <div v-if="selected.length > 0" class="bulk-actions-toolbar">
         <div class="bulk-info">
@@ -317,7 +324,7 @@ function formatDate(dateInput: string | number): { date: string; time: string } 
       })"
       @click:row="onRowClick"
     >
-      <!-- Type column - clean text with subtle badge -->
+
       <template #[`item.type`]="{ item }">
         <div class="type-cell">
           <span class="type-label">{{ item.type }}</span>
@@ -345,7 +352,7 @@ function formatDate(dateInput: string | number): { date: string; time: string } 
           </v-chip>
         </div>
       </template>
-      <!-- Device - minimal pill design -->
+
       <template #[`item.device`]="{ item }">
         <div
           class="device-pill"
@@ -354,7 +361,7 @@ function formatDate(dateInput: string | number): { date: string; time: string } 
           {{ item.device || '—' }}
         </div>
       </template>
-      <!-- User - clean avatar + name -->
+
       <template #[`item.user`]="{ item }">
         <div class="user-cell">
           <div class="user-avatar">
@@ -363,14 +370,14 @@ function formatDate(dateInput: string | number): { date: string; time: string } 
           <span class="user-name">{{ item.user || '—' }}</span>
         </div>
       </template>
-      <!-- Date - Datum měření -->
+
       <template #[`item.date`]="{ item }">
         <div :class="['date-cell', { 'date-cell-active': activeDateField === 'date' }]">
           <span class="date-primary">{{ formatDate(item.date).date }}</span>
           <span class="date-secondary">{{ formatDate(item.date).time }}</span>
         </div>
       </template>
-      <!-- CreatedAt - Datum vložení -->
+
       <template #[`item.createdAt`]="{ item }">
         <div v-if="item.createdAt" :class="['date-cell', { 'date-cell-active': activeDateField === 'createdAt' }]">
           <span class="date-primary">{{ formatDate(item.createdAt).date }}</span>
@@ -378,7 +385,7 @@ function formatDate(dateInput: string | number): { date: string; time: string } 
         </div>
         <span v-else class="text-medium-emphasis">—</span>
       </template>
-      <!-- UpdatedAt - Datum změny -->
+
       <template #[`item.updatedAt`]="{ item }">
         <div v-if="item.updatedAt" :class="['date-cell', { 'date-cell-active': activeDateField === 'updatedAt' }]">
           <span class="date-primary">{{ formatDate(item.updatedAt).date }}</span>
@@ -386,13 +393,13 @@ function formatDate(dateInput: string | number): { date: string; time: string } 
         </div>
         <span v-else class="text-medium-emphasis">—</span>
       </template>
-      <!-- Count - minimal number badge -->
+
       <template #[`item.count`]="{ item }">
         <div class="count-badge">
           {{ item.count }}
         </div>
       </template>
-      <!-- Expanded note row -->
+
       <template #expanded-row="{ columns, item }">
         <tr class="expanded-note-row">
           <td
@@ -442,7 +449,7 @@ function formatDate(dateInput: string | number): { date: string; time: string } 
           </td>
         </tr>
       </template>
-      <!-- Empty state -->
+
       <template #no-data>
         <div class="empty-state">
           <div class="empty-icon">
@@ -470,7 +477,7 @@ function formatDate(dateInput: string | number): { date: string; time: string } 
           </v-btn>
         </div>
       </template>
-      <!-- Custom expand toggle -->
+
       <template #[`item.data-table-expand`]="{ item, internalItem, toggleExpand, isExpanded }">
         <button
           v-if="item.note && item.note.trim().length"

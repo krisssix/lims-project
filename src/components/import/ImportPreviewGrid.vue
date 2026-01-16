@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /**
- * ImportPreviewGrid - displays a preview of parsed data with format badges.
- * Shows max 200 rows by default (was 5).
+ * importpreviewgrid: zobrazuje náhled parsovaných dat s odznaky formátu.
+ * zobrazuje standardně maximálně 200 řádků (dříve 5).
  */
 import { computed } from 'vue'
 
@@ -58,7 +58,7 @@ const totalCols = computed(() => {
 })
 
 function getRowIndex(visualIndex: number): number {
-  // If we have a header row index, we assume subsequent rows follow it
+  // pokud máme index řádku hlavičky, předpokládáme, že následující řádky ho následují
   const start = (props.usedHeaderRow ?? -1) + 1
   return start + visualIndex
 }
@@ -66,7 +66,7 @@ function getRowIndex(visualIndex: number): number {
 
 <template>
   <div class="import-preview-grid">
-    <!-- Format badges -->
+    <!-- odznaky formátu (format badges) -->
     <div class="preview-badges mb-2 d-flex flex-wrap ga-2 text-caption">
       <v-chip size="x-small" variant="tonal" color="primary">
         <v-icon start size="12">mdi-format-columns</v-icon>
@@ -85,12 +85,12 @@ function getRowIndex(visualIndex: number): number {
       </v-chip>
     </div>
 
-    <!-- Preview table -->
+    <!-- tabulka náhledu (preview table) -->
     <div class="preview-table-wrapper">
       <table class="preview-table">
         <thead v-if="displayHeaders">
           <tr>
-            <!-- Row number for Header -->
+            <!-- číslo řádku pro hlavičku -->
             <th class="preview-header-cell row-num-cell">
                {{ props.usedHeaderRow ?? '#' }}
             </th>
@@ -108,7 +108,7 @@ function getRowIndex(visualIndex: number): number {
         </thead>
         <tbody>
           <tr v-for="(row, ri) in displayRows" :key="'r-' + ri">
-            <!-- Row number for Data -->
+            <!-- číslo řádku pro data -->
             <td class="preview-cell row-num-cell">
                {{ getRowIndex(ri) }}
             </td>
@@ -149,7 +149,7 @@ function truncateCell(value: string, maxLen = 40): string {
 }
 
 .preview-table-wrapper {
-  max-height: 400px; /* Increased height for better view */
+  max-height: 400px; /* zvýšená výška pro lepší zobrazení */
   overflow: auto;
   border: 1px solid #e0e0e0;
   border-radius: 8px;
@@ -160,7 +160,7 @@ function truncateCell(value: string, maxLen = 40): string {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.75rem;
-  font-family: 'Roboto Mono', monospace; /* Monospace for alignment */
+  font-family: 'Roboto Mono', monospace; /* neproporcionální písmo pro zarovnání */
 }
 
 .preview-header-cell {
@@ -199,7 +199,7 @@ function truncateCell(value: string, maxLen = 40): string {
 }
 .preview-header-cell.row-num-cell {
   background-color: #eee;
-  z-index: 3; /* Above other headers */
+  z-index: 3; /* nad ostatními hlavičkami */
 }
 
 .more-indicator {

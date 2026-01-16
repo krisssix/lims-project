@@ -26,7 +26,7 @@ import { config } from '@/config'
 import { contrastText } from '@/utils/colorContrast'
 import { type FileAttachment } from '@/composables/useAttachments'
 
-/* ---------- Props / Emits ---------- */
+
 const props = defineProps<{
   modelValue: boolean
   item: MeasurementResponse | null
@@ -53,7 +53,7 @@ const emits = defineEmits<{
   (e: 'next'): void
 }>()
 
-/* ---------- Typové štítky ---------- */
+
 const TYPE_LABEL: Record<ValueType, string> = {
   float: 'Float',
   int: 'Integer',
@@ -63,7 +63,7 @@ const TYPE_LABEL: Record<ValueType, string> = {
   date: 'Datum'
 }
 
-// Helper: get correct Zenodo URL (sandbox vs production)
+// pomocná funkce: získání správné zenodo url (sandbox vs produkce)
 function getZenodoUrl(doi: string): string {
   if (doi.startsWith('10.5072/')) {
     const recordId = doi.replace('10.5072/zenodo.', '')
@@ -72,13 +72,13 @@ function getZenodoUrl(doi: string): string {
   return `https://doi.org/${doi}`
 }
 
-/* ---------- Meta stav ---------- */
+
 const selectedTemplateName = ref<string>('')
 const selectedDeviceId = ref<string>('')
 const selectedUsername = ref<string | null>(null)
 const noteText = ref<string>('')
 
-/* ---------- Timestamp ---------- */
+
 const dateYmd = ref<string>('')
 const timeHM = ref<string>('')
 
@@ -99,7 +99,7 @@ function setHM(base: Date, hm: string): Date {
   return d
 }
 
-/* ---------- CreatedAt (read-only) ---------- */
+
 const createdAtFormatted = computed(() => {
   const raw = props.item?.createdAt
   if (!raw || typeof raw !== 'number') return { date: '', time: '' }
@@ -111,7 +111,7 @@ const createdAtFormatted = computed(() => {
   }
 })
 
-/* ---------- UpdatedAt (read-only) ---------- */
+
 const updatedAtFormatted = computed(() => {
   const raw = props.item?.updatedAt
   if (!raw || typeof raw !== 'number') return { date: '', time: '' }
@@ -123,15 +123,15 @@ const updatedAtFormatted = computed(() => {
   }
 })
 
-/* ---------- Records ---------- */
+
 const records = ref<MeasurementRecord[]>([])
 const currentRecordIndex = ref<number>(1)
 const selectedRecordIndexes = ref<Set<number>>(new Set())
 
-/* ---------- Block navigation ---------- */
+
 const currentBlockIndex = ref<number>(0)
 
-/* ---------- Data Series ---------- */
+
 const selectedSeriesIdx = ref<number>(0)
 const selectedSeries = computed(() => {
   if (!props.item?.series?.length) return null
@@ -144,25 +144,25 @@ function ensureCurrentRecordExists(): void {
   if (idx === -1) currentRecordIndex.value = records.value[0]!.recordIndex
 }
 
-/* ---------- Selected template ---------- */
+
 const selectedTemplate = computed<TemplateItem | null>(() =>
     props.templates.find(t => t.name === selectedTemplateName.value) ?? null
 )
 
-/* ---------- Filtered templates by device ---------- */
+
 const filteredTemplates = computed<TemplateItem[]>(() => {
   if (!selectedDeviceId.value) return []
   return props.templates.filter(t => t.deviceId === selectedDeviceId.value)
 })
 
-/* ---------- Template blocks ---------- */
+
 const templateBlocks = computed<TemplateBlockRow[]>(() => {
   const tpl = selectedTemplate.value
 
   if (tpl && tpl.blocks && tpl.blocks.length > 0) {
-    // Filter out series blocks - they are displayed in a separate section
+    // odfiltrovat bloky sérií - ty jsou zobrazeny v samostatné sekci
     return tpl.blocks.filter(b => {
-      const isSeries = b.kind === 'series' || 
+      const isSeries = b.kind === 'series' ||
         (b.title?.toLowerCase().includes('série')) ||
         (b.title?.toLowerCase().includes('series'))
       return !isSeries
@@ -225,7 +225,7 @@ const currentBlock = computed<TemplateBlockRow | null>(() =>
     templateBlocks.value[currentBlockIndex.value] ?? null
 )
 
-/* ---------- Fields for current block ---------- */
+
 const currentBlockFields = computed<RecordField[]>(() => {
   if (!currentRecord.value) return []
   if (templateBlocks.value.length <= 1) return currentRecord.value.fields
@@ -235,7 +235,7 @@ const currentBlockFields = computed<RecordField[]>(() => {
   return currentRecord.value.fields.filter(f => (f.blockIndex ?? 1) === blockIdx)
 })
 
-/** Helper type for template fields */
+
 type TemplateFieldInput = {
   name: string
   type: ValueType
@@ -282,7 +282,7 @@ function templateFieldsForCurrent(): TemplateFieldInput[] {
   }))
 }
 
-/* ---------- Block navigation ---------- */
+
 function prevBlock(): void {
   if (currentBlockIndex.value > 0) currentBlockIndex.value--
 }
@@ -290,7 +290,7 @@ function nextBlock(): void {
   if (currentBlockIndex.value < templateBlocks.value.length - 1) currentBlockIndex.value++
 }
 
-/* ---------- Build z MeasurementResponse ---------- */
+
 function buildFrom(item: MeasurementResponse | null): void {
   records.value = []
   currentBlockIndex.value = 0
@@ -312,7 +312,7 @@ function buildFrom(item: MeasurementResponse | null): void {
 
   const vals = item.values ?? []
   console.log('[MeasurementDetailDialog] Loading values:', vals)
-  // Debug: Log file fields specifically
+
   vals.filter(v => v.type === 'file').forEach(v => {
     console.log('[MeasurementDetailDialog] File field:', v.name, 'fileUrl:', v.fileUrl, 'raw value:', v)
   })
@@ -342,12 +342,12 @@ function buildFrom(item: MeasurementResponse | null): void {
 }
 watch(() => props.item, v => buildFrom(v), { immediate: true })
 
-/* ---------- Derived ---------- */
+
 const currentRecord = computed<MeasurementRecord | null>(() =>
     records.value.find(r => r.recordIndex === currentRecordIndex.value) ?? null
 )
 
-/* ---------- Record navigation (dropdown) ---------- */
+
 const recordItems = computed(() =>
   records.value.map(r => ({
     title: `Záznam ${r.recordIndex}`,
@@ -407,7 +407,7 @@ const numericFieldNames = computed<string[]>(() => {
 
 const selectedField = ref<string | null>(null)
 
-/* ---------- Validace ---------- */
+
 function validateAll(): number {
   let invalid = 0
   records.value.forEach(r =>
@@ -424,7 +424,7 @@ function rebuildDerived(): void {
   }
 }
 
-/* ---------- Record operations ---------- */
+
 function addNewRecord(): void {
   const nextIndex = (records.value.length
       ? Math.max(...records.value.map(r => r.recordIndex)) + 1
@@ -477,7 +477,7 @@ function toggleRecordSelection(rIndex: number, multi: boolean): void {
   rebuildDerived()
 }
 
-/* ---------- Field value editing ---------- */
+
 function parseNumber(raw: unknown, integer = false): number | null {
   if (raw == null || raw === '') return null
   const s = String(raw).replace(',', '.').trim()
@@ -526,7 +526,7 @@ function updateField(field: RecordField, raw: unknown): void {
   invalidCount.value = validateAll()
 }
 
-/* ---------- Helpers pro template (bez unionů) ---------- */
+
 function textModel(field: RecordField): string | number | null | undefined {
   return (field.value ?? null) as string | number | null | undefined
 }
@@ -537,8 +537,8 @@ function dateModel(field: RecordField): string | null {
 }
 
 function fileModel(field: RecordField): File | null | undefined {
-  // Only return File objects, not URL strings
-  // Handle Vue reactivity wrapping File objects
+  // vracet pouze file objekty, ne url řetězce
+  // obsluha vue reaktivity pro file objekty
   const val = toRaw(field.value)
   if (val instanceof File) return val
   return null
@@ -548,46 +548,36 @@ function hasExistingFileUrl(field: RecordField): boolean {
   return typeof field.value === 'string' && field.value.length > 0
 }
 
-/**
- * Get the full URL for displaying/downloading an existing file
- */
+
 function getFileDisplayUrl(field: RecordField): string {
   if (typeof field.value !== 'string') return ''
-  // If it's already a full URL, return as-is
+  // pokud je to absolutní url, vrátit ji
   if (field.value.startsWith('http://') || field.value.startsWith('https://')) {
     return field.value
   }
-  // Otherwise prepend the server URL (remove trailing slash if present)
-  const baseUrl = config.serverUrl.endsWith('/') 
-    ? config.serverUrl.slice(0, -1) 
+  // jinak přidat url serveru (odstranit koncové lomítko, pokud existuje)
+  const baseUrl = config.serverUrl.endsWith('/')
+    ? config.serverUrl.slice(0, -1)
     : config.serverUrl
-  // Handle leading slash in the file path
+  // ošetření lomítka na začátku cesty k souboru
   const filePath = field.value.startsWith('/') ? field.value : `/${field.value}`
   return `${baseUrl}${filePath}`
 }
 
-/**
- * Get the filename from a file URL for display
- */
 function getFileNameFromUrl(field: RecordField): string {
   if (typeof field.value !== 'string') return ''
-  // Extract filename from path like "files/abc123-uuid.jpg"
   const parts = field.value.split('/')
   return parts[parts.length - 1] || field.value
 }
 
-/**
- * Check if the file is an image based on extension
- */
+
 function isImageFile(field: RecordField): boolean {
   if (typeof field.value !== 'string') return false
   const ext = field.value.split('.').pop()?.toLowerCase() || ''
   return ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'].includes(ext)
 }
 
-/**
- * Clear the existing file and allow new upload
- */
+
 function clearExistingFile(field: RecordField): void {
   field.value = null
 }
@@ -596,7 +586,7 @@ function fieldError(field: RecordField): string | null {
   return validateField(field)
 }
 
-/* ---------- Sekce collapsible ---------- */
+
 const metaCollapsed = ref(false)
 const valuesCollapsed = ref(false)
 const statsCollapsed = ref(false)
@@ -607,15 +597,15 @@ function toggleValues(): void { valuesCollapsed.value = !valuesCollapsed.value }
 function toggleStats(): void { statsCollapsed.value = !statsCollapsed.value }
 function toggleAttachments(): void { attachmentsCollapsed.value = !attachmentsCollapsed.value }
 
-/* ---------- Attachments ---------- */
+
 const attachmentListRef = ref<InstanceType<typeof AttachmentList> | null>(null)
 function onAttachmentUploaded(file: FileAttachment): void {
-  // Refresh attachment list after upload
+  // obnovit seznam příloh po nahrání
   attachmentListRef.value?.refresh()
 }
 function toggleSeries(): void { seriesCollapsed.value = !seriesCollapsed.value }
 
-/* ---------- Datové série ---------- */
+
 const measurementSeries = computed<MeasurementSeriesResponse[]>(() => {
   return props.item?.series ?? []
 })
@@ -625,7 +615,7 @@ const currentSeries = computed<MeasurementSeriesResponse | null>(() =>
   measurementSeries.value[selectedSeriesIndex.value] ?? null
 )
 
-/* ---------- Statistiky & graf ---------- */
+
 const chartPoints = computed<number[]>(() => {
   if (!selectedField.value) return []
   const subset = selectedRecordIndexes.value.size
@@ -643,7 +633,7 @@ const statsSummary = computed<string[]>(() => {
   return [`N=${s.count}`, `μ=${s.mean.toFixed(2)}`, `σ=${s.stdDev.toFixed(2)}`]
 })
 
-/* ---------- Uložení ---------- */
+
 const isSaving = ref(false)
 const canSaveMeta = computed(() =>
     !!selectedTemplateName.value.trim() &&
@@ -655,29 +645,23 @@ async function onSave(): Promise<void> {
   if (!props.item || !canSaveMeta.value) return
   isSaving.value = true
   try {
-    // Step 1: Upload all file fields first
-    // Unwrap records to ensure File objects are correctly detected by the service
     const rawRecords = records.value.map(r => toRaw(r))
     const filesToUpload = extractFilesFromRecords(rawRecords)
     if (filesToUpload.length > 0) {
-      // Upload files and store their URLs back into records
       for (const fileInfo of filesToUpload) {
         const result = await uploadFile(fileInfo.file)
         if (result.success) {
-          // Find the record and field, update the value with the server URL
           const record = records.value.find(r => r.recordIndex === fileInfo.recordIndex)
           if (record) {
             const field = record.fields.find(
               f => f.name === fileInfo.fieldName && (f.blockIndex ?? 1) === fileInfo.blockIndex
             )
             if (field) {
-              // Replace File object with the server URL
               field.value = result.fileUrl
             }
           }
         } else {
           console.error(`Failed to upload file ${fileInfo.file.name}:`, result.error)
-          // Keep the filename as fallback if upload fails
           const record = records.value.find(r => r.recordIndex === fileInfo.recordIndex)
           if (record) {
             const field = record.fields.find(
@@ -717,7 +701,7 @@ async function onSave(): Promise<void> {
   }
 }
 
-/* ---------- Export CSV ---------- */
+
 function exportSelectedCsv(): void {
   if (!selectedField.value) return
   const subset = selectedRecordIndexes.value.size
@@ -746,7 +730,7 @@ function exportSelectedCsv(): void {
   URL.revokeObjectURL(url)
 }
 
-/* ---------- Keyboard shortcuts ---------- */
+
 let lastFocusedFieldIndex = -1
 function focusFirstFieldSoon(): void {
   nextTick(() => {
@@ -796,7 +780,7 @@ watch(() => props.modelValue, v => {
 onMounted(() => { if (props.modelValue) window.addEventListener('keydown', handleKey) })
 onBeforeUnmount(() => window.removeEventListener('keydown', handleKey))
 
-/* ---------- Live status ---------- */
+
 const liveStatus = computed<string>(() => {
   const errs = invalidCount.value
   if (errs > 0) return `Formulář obsahuje ${errs} neplatných hodnot. Nelze uložit.`
@@ -907,7 +891,6 @@ const liveStatus = computed<string>(() => {
       aria-live="polite"
       :aria-label="liveStatus"
     >
-      <!-- Meta -->
       <section
         id="section-meta"
         class="meta-section mb-4"
@@ -937,7 +920,6 @@ const liveStatus = computed<string>(() => {
           </v-btn>
         </div>
         <div v-show="!metaCollapsed" class="meta-content">
-          <!-- ZÁKLADNÍ INFORMACE -->
           <div class="subsection-label">ZÁKLADNÍ INFORMACE</div>
           <v-row class="mb-4">
             <v-col cols="12" md="4">
@@ -992,7 +974,8 @@ const liveStatus = computed<string>(() => {
             </v-col>
           </v-row>
 
-          <!-- DATUM A ČAS MĚŘENÍ -->
+
+
           <div class="subsection-label">DATUM A ČAS MĚŘENÍ</div>
           <v-row class="mb-4">
             <v-col cols="12" md="6">
@@ -1017,7 +1000,8 @@ const liveStatus = computed<string>(() => {
             </v-col>
           </v-row>
 
-          <!-- DATUM A ČAS VLOŽENÍ -->
+
+
           <div v-if="createdAtFormatted.date" class="subsection-label">DATUM A ČAS VLOŽENÍ</div>
           <v-row v-if="createdAtFormatted.date" class="mb-4">
             <v-col cols="12" md="6">
@@ -1046,7 +1030,8 @@ const liveStatus = computed<string>(() => {
             </v-col>
           </v-row>
 
-          <!-- DATUM A ČAS ZMĚNY -->
+
+
           <div v-if="updatedAtFormatted.date" class="subsection-label">DATUM A ČAS ZMĚNY</div>
           <v-row v-if="updatedAtFormatted.date" class="mb-4">
             <v-col cols="12" md="6">
@@ -1075,7 +1060,8 @@ const liveStatus = computed<string>(() => {
             </v-col>
           </v-row>
 
-          <!-- Poznámky -->
+
+
           <div class="subsection-label d-flex align-center" style="gap: 6px;">
             <v-icon size="16">mdi-notebook-outline</v-icon>
             Poznámky
@@ -1086,12 +1072,13 @@ const liveStatus = computed<string>(() => {
             placeholder="Pište poznámky v markdown formátu..."
           />
 
-          <!-- Zenodo sekce -->
+
+
           <div v-if="item?.zenodoDoi" class="subsection-label d-flex align-center mt-4" style="gap: 6px;">
             <v-icon size="16" color="deep-purple">mdi-cloud-check</v-icon>
             Zenodo publikace
           </div>
-          <v-alert 
+          <v-alert
             v-if="item?.zenodoDoi"
             type="info"
             variant="tonal"
@@ -1102,8 +1089,8 @@ const liveStatus = computed<string>(() => {
             <div class="d-flex align-center justify-space-between flex-wrap" style="gap: 8px;">
               <div>
                 <strong>DOI:</strong>
-                <a 
-                  :href="getZenodoUrl(item.zenodoDoi)" 
+                <a
+                  :href="getZenodoUrl(item.zenodoDoi)"
                   target="_blank"
                   class="text-decoration-none ml-2"
                   style="font-family: monospace;"
@@ -1126,7 +1113,6 @@ const liveStatus = computed<string>(() => {
         </div>
       </section>
 
-      <!-- Hodnoty -->
       <section
         id="section-values"
         class="values-section mb-4"
@@ -1149,7 +1135,6 @@ const liveStatus = computed<string>(() => {
         </div>
 
         <div v-show="!valuesCollapsed">
-        <!-- Records toolbar -->
         <div
           class="records-toolbar d-flex align-center justify-space-between mb-3 flex-wrap mt-3"
           style="gap: 12px;"
@@ -1263,7 +1248,6 @@ const liveStatus = computed<string>(() => {
         </div>
 
         <div v-show="!valuesCollapsed">
-          <!-- Block navigation -->
           <div
             v-if="templateBlocks.length > 1"
             class="block-navigation mb-3"
@@ -1332,7 +1316,6 @@ const liveStatus = computed<string>(() => {
             </div>
           </div>
 
-          <!-- Fields grid (bez Poř. kolony) -->
           <div class="grid header-row">
             <div class="cell muted">
               Název + Typ
@@ -1356,7 +1339,6 @@ const liveStatus = computed<string>(() => {
               :class="{'has-error': !!fieldError(field)}"
               :aria-label="`Field ${idx+1}: ${field.name} (${TYPE_LABEL[field.type]})`"
             >
-              <!-- Název + typ -->
               <div class="cell name name-with-chip">
                 <div
                   class="d-flex align-center"
@@ -1374,7 +1356,6 @@ const liveStatus = computed<string>(() => {
                 </div>
               </div>
 
-              <!-- Hodnota -->
               <div class="cell value">
                 <v-switch
                   v-if="field.type === 'bool'"
@@ -1420,7 +1401,6 @@ const liveStatus = computed<string>(() => {
                   data-field-input
                   @update:model-value="val => updateField(field, val)"
                 />
-                <!-- File field: show existing file or upload input -->
                 <div v-else-if="field.type === 'file'" class="file-field-container">
                   <!-- Show existing uploaded file -->
                   <div v-if="hasExistingFileUrl(field)" class="existing-file d-flex align-center ga-2">
@@ -1433,9 +1413,9 @@ const liveStatus = computed<string>(() => {
                       cover
                     />
                     <v-icon v-else size="24" color="grey">mdi-file-document-outline</v-icon>
-                    <a 
-                      :href="getFileDisplayUrl(field)" 
-                      target="_blank" 
+                    <a
+                      :href="getFileDisplayUrl(field)"
+                      target="_blank"
                       class="text-primary text-decoration-none"
                     >
                       {{ getFileNameFromUrl(field) }}
@@ -1449,7 +1429,6 @@ const liveStatus = computed<string>(() => {
                       @click="clearExistingFile(field)"
                     />
                   </div>
-                  <!-- Show file input for new upload -->
                   <v-file-input
                     v-else
                     :model-value="fileModel(field)"
@@ -1475,7 +1454,6 @@ const liveStatus = computed<string>(() => {
                 />
               </div>
 
-              <!-- Stav -->
               <div class="cell right">
                 <v-tooltip
                   v-if="fieldError(field)"
@@ -1504,7 +1482,6 @@ const liveStatus = computed<string>(() => {
         </div>
       </section>
 
-      <!-- Statistika -->
       <section
         id="section-stats"
         class="stats-section"
@@ -1606,7 +1583,6 @@ const liveStatus = computed<string>(() => {
         </v-sheet>
       </section>
 
-      <!-- Datové série -->
       <section
         v-if="hasSeries"
         id="section-series"
@@ -1641,7 +1617,6 @@ const liveStatus = computed<string>(() => {
           rounded="lg"
           color="grey-lighten-5"
         >
-          <!-- Series selector -->
           <div
             v-if="measurementSeries.length > 1"
             class="mb-3"
@@ -1663,7 +1638,6 @@ const liveStatus = computed<string>(() => {
             </div>
           </div>
 
-          <!-- Current series info -->
           <div
             v-if="currentSeries"
             class="series-info"
@@ -1688,7 +1662,6 @@ const liveStatus = computed<string>(() => {
               </v-chip>
             </div>
 
-            <!-- Units -->
             <div
               v-if="currentSeries.xUnit || currentSeries.yUnit"
               class="text-caption text-medium-emphasis mb-2"
@@ -1696,7 +1669,6 @@ const liveStatus = computed<string>(() => {
               X: {{ currentSeries.xUnit || '—' }} | Y: {{ currentSeries.yUnit || '—' }}
             </div>
 
-            <!-- Data preview -->
             <div
               class="series-data-preview"
               style="max-height: 400px; overflow-y: auto;"
@@ -1732,7 +1704,8 @@ const liveStatus = computed<string>(() => {
         </v-sheet>
       </section>
 
-      <!-- Přílohy / Attachments -->
+
+
       <section
         id="section-attachments"
         class="mt-4"
@@ -1753,7 +1726,6 @@ const liveStatus = computed<string>(() => {
           </v-btn>
         </div>
         <div v-show="!attachmentsCollapsed" class="attachments-content">
-          <!-- File Uploader -->
           <FileUploader
             v-if="item?.id"
             :measurement-id="item.id"
@@ -1770,7 +1742,6 @@ const liveStatus = computed<string>(() => {
             Uložte měření pro možnost přidávat přílohy.
           </v-alert>
 
-          <!-- Attachment List -->
           <AttachmentList
             v-if="item?.id"
             ref="attachmentListRef"
@@ -1818,7 +1789,6 @@ const liveStatus = computed<string>(() => {
 </template>
 
 <style scoped>
-/* ===== Section Cards - Unified Visual Separator ===== */
 .section-card {
   background: #fafbfc;
   border: 1px solid #e8eaed;
@@ -1846,7 +1816,6 @@ const liveStatus = computed<string>(() => {
   color: #6366f1;
 }
 
-/* ===== Section Header Row - Unified ===== */
 .section-header-row {
   display: flex;
   align-items: center;
@@ -1862,7 +1831,6 @@ const liveStatus = computed<string>(() => {
   color: #1f2937;
 }
 
-/* ===== Grid Layout ===== */
 .grid {
   display: grid;
   grid-template-columns: 1fr minmax(240px, 1.5fr) 72px;
@@ -1886,29 +1854,26 @@ const liveStatus = computed<string>(() => {
   border: 1px solid transparent;
 }
 
-.data-row:hover { 
-  background: #f3f4f6; 
+.data-row:hover {
+  background: #f3f4f6;
   border-color: #e5e7eb;
 }
 
-.data-row.has-error { 
-  background: #fef2f2; 
+.data-row.has-error {
+  background: #fef2f2;
   border-color: #fecaca;
 }
 
 .cell.muted { font-size: .75rem; color: #6b7280; }
 .cell.right { text-align: right; }
 
-/* ===== Name and Type Chips ===== */
 .name-with-chip { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .name-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; color: #1f2937; }
 .type-chip { font-weight: 600; letter-spacing: .02em; text-transform: none; }
 
-/* ===== Utilities ===== */
 .rot-180 { transform: rotate(180deg); }
 .detail-scroll { box-sizing: border-box; }
 
-/* ===== Sticky Toolbar ===== */
 .sticky-toolbar {
   position: sticky;
   top: 0;
@@ -1918,7 +1883,6 @@ const liveStatus = computed<string>(() => {
   border-bottom: 1px solid #e5e7eb;
 }
 
-/* ===== Focus Styles ===== */
 [data-field-input]:focus-visible {
   outline: 2px solid var(--v-theme-primary);
   outline-offset: 2px;
@@ -1927,7 +1891,6 @@ const liveStatus = computed<string>(() => {
 
 .section-heading { font-weight: 600; letter-spacing: .02em; }
 
-/* ===== Block Navigation ===== */
 .block-navigation {
   background: #f1f5f9;
   border-radius: 10px;
@@ -1948,7 +1911,6 @@ const liveStatus = computed<string>(() => {
   border: 1px solid #e2e8f0;
 }
 
-/* ===== Record Navigation ===== */
 .record-select {
   min-width: 180px;
   max-width: 220px;
@@ -1978,14 +1940,12 @@ const liveStatus = computed<string>(() => {
   border: 1px solid #e0e7ff;
 }
 
-/* ===== Responsive ===== */
 @media (max-width: 1040px) {
   .grid {
     grid-template-columns: 1fr minmax(180px, 1.2fr) 56px;
   }
 }
 
-/* ===== Series Section ===== */
 .series-section {
   background: linear-gradient(135deg, #faf5ff 0%, #f0f9ff 100%);
   border: 1px solid #e9d5ff;
@@ -2032,7 +1992,6 @@ const liveStatus = computed<string>(() => {
   border-bottom: none;
 }
 
-/* ===== File Field Styles ===== */
 .file-field-container {
   min-height: 40px;
 }
@@ -2054,7 +2013,6 @@ const liveStatus = computed<string>(() => {
   text-decoration: underline !important;
 }
 
-/* ===== Stats Section ===== */
 .stats-section {
   background: linear-gradient(135deg, #f0fdf4 0%, #f0f9ff 100%);
   border: 1px solid #bbf7d0;
@@ -2062,7 +2020,6 @@ const liveStatus = computed<string>(() => {
   padding: 16px 20px;
 }
 
-/* ===== Meta Section ===== */
 .meta-section {
   background: #fafbfc;
   border: 1px solid #e5e7eb;
@@ -2070,7 +2027,6 @@ const liveStatus = computed<string>(() => {
   padding: 16px 20px;
 }
 
-/* ===== Values Section ===== */
 .values-section {
   background: white;
   border: 1px solid #e5e7eb;
@@ -2078,7 +2034,6 @@ const liveStatus = computed<string>(() => {
   padding: 16px 20px;
 }
 
-/* ===== Metadata Content ===== */
 .meta-content {
   margin-top: 8px;
 }

@@ -3,7 +3,7 @@ import { type StatsObj, type OutliersMeta, fmt2 } from './types'
 defineProps<{
   stats: StatsObj | null
   outliers?: OutliersMeta | null
-  /** Compact mode for sidebar display */
+  /** kompaktní režim pro zobrazení v postranním panelu (compact mode) */
   compact?: boolean
 }>()
 </script>
@@ -37,7 +37,7 @@ defineProps<{
             >
               mdi-chart-bell-curve
             </v-icon>
-            Mean
+            Průměr
           </div>
           <div class="stat-value text-blue">
             {{ fmt2(stats.mean) }}
@@ -51,7 +51,7 @@ defineProps<{
             >
               mdi-counter
             </v-icon>
-            Median
+            Medián
           </div>
           <div class="stat-value">
             {{ fmt2(stats.median) }}
@@ -65,7 +65,7 @@ defineProps<{
             >
               mdi-sigma
             </v-icon>
-            Std Dev
+            Směr. odchylka
           </div>
           <div class="stat-value">
             {{ fmt2(stats.stdDev) }}
@@ -114,7 +114,7 @@ defineProps<{
           </div>
         </div>
       </div>
-      <!-- Outliers Alert -->
+      <!-- upozornění na odlehlé hodnoty (outliers alert) -->
       <v-expand-transition>
         <div
           v-if="outliers && outliers.outlierIndexes.length"
@@ -164,7 +164,7 @@ defineProps<{
   </section>
 </template>
 <style scoped>
-/* Modern Section - Blue Card Style */
+/* moderní sekce: styl modré karty (blue card style) */
 .modern-section {
   background: #F4F7FB;
   border: 1px solid rgba(0, 0, 0, 0.08);
@@ -196,7 +196,7 @@ defineProps<{
 .stats-content {
   background: white;
 }
-/* Stats Grid */
+/* mřížka statistik (stats grid) */
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -215,11 +215,11 @@ defineProps<{
 .stat-item:hover {
   background-color: #fafafa;
 }
-/* Remove right border for last column */
+/* odstranění pravého ohraničení pro poslední sloupec */
 .stat-item:nth-child(3n) {
   border-right: none;
 }
-/* Remove bottom border for last row */
+/* odstranění spodního ohraničení pro poslední řádek */
 .stat-item:nth-last-child(-n+3) {
   border-bottom: none;
 }
@@ -243,7 +243,7 @@ defineProps<{
 .text-blue {
   color: #1976D2 !important;
 }
-/* Outliers Alert */
+/* upozornění na odlehlé hodnoty (outliers alert) */
 .outliers-alert {
   padding: 16px;
   background: #fff8e1;
@@ -277,7 +277,7 @@ defineProps<{
 .detail-value {
   font-family: ui-monospace, monospace;
 }
-/* Empty State */
+/* prázdný stav (empty state) */
 .empty-state {
   display: flex;
   flex-direction: column;
@@ -291,12 +291,12 @@ defineProps<{
   color: rgba(0, 0, 0, 0.5);
   margin-top: 8px;
 }
-/* Responsive */
+/* responzivita (responsive) */
 @media (max-width: 768px) {
   .stats-grid {
     grid-template-columns: repeat(2, 1fr);
   }
-  /* Reset borders for 2 columns */
+  /* reset ohraničení pro 2 sloupce */
   .stat-item:nth-child(3n) {
     border-right: 1px solid rgba(0, 0, 0, 0.06);
   }
@@ -318,7 +318,7 @@ defineProps<{
   }
 }
 
-/* Compact Mode for Sidebar */
+/* kompaktní režim pro postranní panel (compact mode) */
 .stats-compact {
   background: transparent;
   border: none;

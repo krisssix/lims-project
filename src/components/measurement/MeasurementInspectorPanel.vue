@@ -21,10 +21,10 @@ import { uploadFile, extractFilesFromRecords } from '@/services/api/file-upload'
 import { config } from '@/config'
 import { contrastText } from '@/utils/colorContrast'
 
-/* ---------- Types ---------- */
+
 type PanelMode = 'docked' | 'wide' | 'fullscreen'
 
-/* ---------- Props / Emits ---------- */
+
 const props = defineProps<{
   modelValue: boolean
   mode?: PanelMode
@@ -54,7 +54,6 @@ const emits = defineEmits<{
   (e: 'next'): void
 }>()
 
-/* ---------- Copy Link & Duplicate ---------- */
 
 /*
 const linkCopied = ref(false)
@@ -75,11 +74,11 @@ function duplicateMeasurement(): void {
   emits('duplicate')
 }
 
-/* ---------- Panel mode ---------- */
+
 const panelMode = ref<PanelMode>(props.mode || 'docked')
 watch(() => props.mode, v => { if (v) panelMode.value = v })
 
-/* ---------- Resizable panel ---------- */
+
 const customWidth = ref<number | null>(null)
 const isResizing = ref(false)
 const MIN_WIDTH = 320
@@ -136,10 +135,10 @@ function toggleFullscreen(): void {
   emits('update:mode', panelMode.value)
 }
 
-/* ---------- Tabs ---------- */
+
 const activeTab = ref<'meta' | 'values' | 'stats'>('meta')
 
-/* ---------- Typové štítky ---------- */
+
 const TYPE_LABEL: Record<ValueType, string> = {
   float: 'Float',
   int: 'Integer',
@@ -149,13 +148,13 @@ const TYPE_LABEL: Record<ValueType, string> = {
   date: 'Datum'
 }
 
-/* ---------- Meta stav ---------- */
+
 const selectedTemplateName = ref<string>('')
 const selectedDeviceId = ref<string>('')
 const selectedUsername = ref<string | null>(null)
 const noteText = ref<string>('')
 
-/* ---------- Original values for dirty detection ---------- */
+
 const originalData = ref<{
   templateName: string
   deviceId: string
@@ -407,12 +406,12 @@ function buildFrom(item: MeasurementResponse | null): void {
     note: noteText.value,
     dateYmd: dateYmd.value,
     timeHM: timeHM.value,
+    // json stringified: originalData.value.records
     records: JSON.stringify(records.value)
   }
 }
 watch(() => props.item, v => buildFrom(v), { immediate: true })
 
-/* ---------- Dirty state detection ---------- */
 const isDirty = computed(() => {
   if (!originalData.value) return false
   return (
@@ -426,7 +425,7 @@ const isDirty = computed(() => {
   )
 })
 
-/* ---------- Confirm dialog ---------- */
+/* potvrzovací dialog */
 const showConfirmDialog = ref(false)
 const confirmAction = ref<'close' | 'switch' | null>(null)
 
@@ -456,12 +455,12 @@ function confirmCancel(): void {
   confirmAction.value = null
 }
 
-/* ---------- Derived ---------- */
+
 const currentRecord = computed<MeasurementRecord | null>(() =>
     records.value.find(r => r.recordIndex === currentRecordIndex.value) ?? null
 )
 
-/* ---------- Record navigation (dropdown) ---------- */
+
 const recordItems = computed(() =>
   records.value.map(r => ({
     title: `Záznam ${r.recordIndex}`,
@@ -521,7 +520,7 @@ const numericFieldNames = computed<string[]>(() => {
 
 const selectedField = ref<string | null>(null)
 
-/* ---------- Validace ---------- */
+
 function validateAll(): number {
   let invalid = 0
   records.value.forEach(r =>
@@ -538,7 +537,7 @@ function rebuildDerived(): void {
   }
 }
 
-/* ---------- Record operations ---------- */
+
 function addNewRecord(): void {
   const nextIndex = (records.value.length
       ? Math.max(...records.value.map(r => r.recordIndex)) + 1
@@ -579,7 +578,7 @@ function deleteCurrentRecord(): void {
   rebuildDerived()
 }
 
-/* ---------- Field value editing ---------- */
+
 function parseNumber(raw: unknown, integer = false): number | null {
   if (raw == null || raw === '') return null
   const s = String(raw).replace(',', '.').trim()
@@ -628,7 +627,7 @@ function updateField(field: RecordField, raw: unknown): void {
   invalidCount.value = validateAll()
 }
 
-/* ---------- Helpers pro template (bez unionů) ---------- */
+
 function textModel(field: RecordField): string | number | null | undefined {
   return (field.value ?? null) as string | number | null | undefined
 }
@@ -678,7 +677,7 @@ function fieldError(field: RecordField): string | null {
   return validateField(field)
 }
 
-/* ---------- Datové série ---------- */
+
 const measurementSeries = computed<MeasurementSeriesResponse[]>(() => {
   return props.item?.series ?? []
 })
@@ -688,7 +687,7 @@ const currentSeries = computed<MeasurementSeriesResponse | null>(() =>
   measurementSeries.value[selectedSeriesIndex.value] ?? null
 )
 
-/* ---------- Statistiky & graf ---------- */
+
 const chartPoints = computed<number[]>(() => {
   if (!selectedField.value) return []
   const subset = selectedRecordIndexes.value.size
@@ -700,7 +699,7 @@ const chartPoints = computed<number[]>(() => {
 const statsObj = computed(() => computeBasicStats(chartPoints.value))
 const outliers = computed(() => detectOutliersIqr(chartPoints.value))
 
-/* ---------- Uložení ---------- */
+
 const isSaving = ref(false)
 const canSaveMeta = computed(() =>
     !!selectedTemplateName.value.trim() &&
@@ -810,7 +809,7 @@ function handleKey(e: KeyboardEvent): void {
   const key = e.key.toLowerCase()
   const ctrl = e.ctrlKey || e.metaKey
 
-  // Esc in fullscreen returns to wide
+  // esc ve fullscreenu se vrací do wide režimu
   if (key === 'escape') {
     e.preventDefault()
     if (panelMode.value === 'fullscreen') {
@@ -841,19 +840,19 @@ watch(() => props.modelValue, v => {
 onMounted(() => { if (props.modelValue) window.addEventListener('keydown', handleKey) })
 onBeforeUnmount(() => window.removeEventListener('keydown', handleKey))
 
-/* ---------- Close panel ---------- */
+
 function closePanel(): void {
   emits('update:modelValue', false)
 }
 
-/* ---------- Panel title ---------- */
+
 const panelTitle = computed(() => {
   if (!props.item) return 'Detail měření'
   const template = selectedTemplateName.value || 'Měření'
   return template
 })
 
-/* ---------- Device chip ---------- */
+
 const selectedDevice = computed(() => 
   props.devices.find(d => d.id === selectedDeviceId.value)
 )
@@ -862,7 +861,7 @@ const selectedDevice = computed(() =>
 <template>
   <Teleport v-if="panelMode === 'fullscreen'" to="body">
     <div class="inspector-overlay" @click.self="requestClose">
-      <!-- Fullscreen panel content (same as below) -->
+      <!-- obsah panelu -->
     </div>
   </Teleport>
   
@@ -877,7 +876,7 @@ const selectedDevice = computed(() =>
     }"
     :style="{ width: panelWidth }"
   >
-    <!-- Resize Handle -->
+
     <div 
       v-if="panelMode !== 'fullscreen'"
       class="resize-handle" 
@@ -889,7 +888,7 @@ const selectedDevice = computed(() =>
       </div>
     </div>
     
-    <!-- Sticky Header -->
+
     <header class="inspector-header">
       <div class="header-main">
         <div class="header-title">
@@ -914,7 +913,7 @@ const selectedDevice = computed(() =>
         </div>
         
         <div class="header-actions">
-          <!-- Navigation -->
+
           <v-btn
             icon="mdi-chevron-left"
             variant="text"
@@ -934,7 +933,7 @@ const selectedDevice = computed(() =>
           
           <v-divider vertical class="mx-1" style="height: 20px;" />
           
-          <!-- Mode toggles -->
+
           <v-btn
             :icon="panelMode === 'wide' ? 'mdi-arrow-collapse-horizontal' : 'mdi-arrow-expand-horizontal'"
             variant="text"
@@ -952,7 +951,7 @@ const selectedDevice = computed(() =>
             @click="toggleFullscreen"
           />
           
-          <!-- Overflow menu -->
+
           <v-menu>
             <template #activator="{ props: menuProps }">
               <v-btn
@@ -982,7 +981,7 @@ const selectedDevice = computed(() =>
             </v-list>
           </v-menu>
           
-          <!-- Close -->
+
           <v-btn
             icon="mdi-close"
             variant="text"
@@ -994,7 +993,7 @@ const selectedDevice = computed(() =>
       </div>
     </header>
 
-    <!-- Tabs with better visual selection -->
+
     <nav class="inspector-tabs">
       <button 
         class="tab-btn" 
@@ -1023,9 +1022,9 @@ const selectedDevice = computed(() =>
       </button>
     </nav>
 
-    <!-- Scrollable Content -->
+
     <div class="inspector-content">
-      <!-- Meta Tab -->
+
       <div v-if="activeTab === 'meta'" class="tab-content pa-4">
         <v-row dense>
           <v-col cols="12">
@@ -1072,7 +1071,7 @@ const selectedDevice = computed(() =>
             />
           </v-col>
           
-          <!-- Dates with clear labels -->
+
           <v-col cols="12">
             <div class="date-section">
               <div class="date-row">
@@ -1117,9 +1116,9 @@ const selectedDevice = computed(() =>
         </v-row>
       </div>
 
-      <!-- Values Tab -->
+
       <div v-else-if="activeTab === 'values'" class="tab-content pa-4">
-        <!-- Records toolbar -->
+
         <div class="records-toolbar d-flex align-center justify-space-between mb-3 flex-wrap" style="gap: 8px;">
           <div class="d-flex align-center" style="gap: 6px;">
             <v-btn
@@ -1169,7 +1168,7 @@ const selectedDevice = computed(() =>
           </div>
         </div>
 
-        <!-- Block navigation -->
+
         <div v-if="templateBlocks.length > 1" class="block-tabs mb-3">
           <v-chip
             v-for="(block, idx) in templateBlocks"
@@ -1184,7 +1183,7 @@ const selectedDevice = computed(() =>
           </v-chip>
         </div>
 
-        <!-- Fields -->
+
         <div class="fields-list">
           <div
             v-for="field in currentBlockFields"
@@ -1403,7 +1402,7 @@ const selectedDevice = computed(() =>
       </div>
     </div>
 
-    <!-- Sticky Footer -->
+
     <footer class="inspector-footer">
       <v-btn
         variant="text"
@@ -1423,7 +1422,7 @@ const selectedDevice = computed(() =>
       </v-btn>
     </footer>
     
-    <!-- Confirm Dialog -->
+
     <v-dialog v-model="showConfirmDialog" max-width="400" persistent>
       <v-card>
         <v-card-title>Neuložené změny</v-card-title>

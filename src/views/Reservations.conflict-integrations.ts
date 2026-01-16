@@ -9,7 +9,7 @@ export const conflictRequested = ref<{ start: Date; end: Date }>({ start: new Da
 export const conflictProposals = ref<Array<{ slot: { start: Date; end: Date }; label: string }>>([])
 export const conflictFallbackNext = ref<{ day: Date; slot: { start: Date; end: Date } } | null>(null)
 
-// pomocné funkce pro rodiče
+// pomocné funkce pro parent file
 export function makeConflictFor(
   deviceId: string,
   deviceName: string,

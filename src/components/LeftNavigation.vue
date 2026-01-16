@@ -32,7 +32,6 @@ const links: Array<{ title: string; componentName: ProjectRouteName; icon: strin
 ]
 
 function isActive(componentName: ProjectRouteName) {
-  // route.name can be RouteRecordName | null | undefined. Compare string values safely.
   return String(route.name ?? '') === String(componentName)
 }
 

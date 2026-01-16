@@ -23,13 +23,13 @@ const open = computed({
   set: (v: boolean) => emit('update:modelValue', v)
 })
 
-// Form state
+// stav formuláře (form state)
 const formName = ref('')
 const formColor = ref('#3f51b5')
 const saving = ref(false)
 const errorText = ref<string | null>(null)
 
-// Computed helpers
+// vypočtené pomocné vlastnosti (computed helpers)
 const isActive = computed(() => props.device?.active ??  false)
 const hasChanges = computed(() => {
   if (! props.device) return false
@@ -37,7 +37,7 @@ const hasChanges = computed(() => {
     formColor.value !== (props.device.color || '#3f51b5')
 })
 
-// Initialize form when device changes or dialog opens
+// inicializace formuláře při změně přístroje nebo otevření dialogu (initialize form)
 watch([() => props.modelValue, () => props.device], ([isOpen, dev]) => {
   if (isOpen && dev) {
     formName.value = dev.name
@@ -49,7 +49,7 @@ watch([() => props.modelValue, () => props.device], ([isOpen, dev]) => {
   }
 }, { immediate: true })
 
-// Actions
+// akce (actions)
 async function saveChanges(): Promise<void> {
   if (!props.device || saving.value || !hasChanges.value) return
 
@@ -116,7 +116,7 @@ function close(): void {
   open.value = false
 }
 
-// Hotkeys
+// klávesové zkratky (hotkeys)
 function onKeydown(e: KeyboardEvent): void {
   if (! open.value) return
   const key = e.key.toLowerCase()
@@ -144,7 +144,7 @@ function onKeydown(e: KeyboardEvent): void {
   >
     <template #content>
       <div class="pa-4">
-        <!-- Header -->
+        <!-- záhlaví (header) -->
         <div class="d-flex align-center mb-4">
           <div
             class="d-flex align-center"
@@ -181,7 +181,7 @@ function onKeydown(e: KeyboardEvent): void {
           </v-chip>
         </div>
 
-        <!-- Error alert -->
+        <!-- upozornění na chybu (error alert) -->
         <v-alert
           v-if="errorText"
           type="error"
@@ -194,9 +194,9 @@ function onKeydown(e: KeyboardEvent): void {
           {{ errorText }}
         </v-alert>
 
-        <!-- Form -->
+        <!-- formulář (form) -->
         <div class="form-grid">
-          <!-- Name -->
+          <!-- název (name) -->
           <div class="form-field">
             <label class="field-label">
               <v-icon
@@ -225,7 +225,7 @@ function onKeydown(e: KeyboardEvent): void {
             </v-text-field>
           </div>
 
-          <!-- Color -->
+          <!-- barva (color) -->
           <div class="form-field">
             <ColorPickerInput
               v-model="formColor"
@@ -234,7 +234,7 @@ function onKeydown(e: KeyboardEvent): void {
             />
           </div>
 
-          <!-- Device info (read-only) -->
+          <!-- informace o přístroji: pouze pro čtení (device info readonly) -->
           <v-card
             variant="tonal"
             color="grey-lighten-4"
@@ -288,7 +288,7 @@ function onKeydown(e: KeyboardEvent): void {
             </v-card-text>
           </v-card>
 
-          <!-- Preview -->
+          <!-- náhled (preview) -->
           <v-card
             v-if="formName || formColor"
             variant="outlined"
@@ -319,14 +319,14 @@ function onKeydown(e: KeyboardEvent): void {
           </v-card>
         </div>
 
-        <!-- Actions -->
+        <!-- akce (actions) -->
         <v-divider class="my-4" />
 
         <div
           class="d-flex align-center"
           style="gap: 12px;"
         >
-          <!-- Deactivate / Reactivate -->
+          <!-- deaktivovat / reaktivovat (deactivate / reactivate) -->
           <v-btn
             v-if="isActive"
             variant="tonal"

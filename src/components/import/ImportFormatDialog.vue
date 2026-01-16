@@ -1,8 +1,8 @@
 <script setup lang="ts">
 /**
- * ImportFormatDialog - modal for manual format configuration.
- * Allows user to set delimiter, decimal, header row, and skip empty lines.
- * Shows live preview of parsed data.
+ * importformatdialog: modální okno pro manuální konfiguraci formátu.
+ * umožňuje uživateli nastavit oddělovač, desetinnou čárku, řádek hlavičky a přeskočení prázdných řádků.
+ * zobrazuje živý náhled parsovaných dat.
  */
 import { ref, computed, watch } from 'vue'
 import Dialog from '@/components/Dialog.vue'
@@ -20,17 +20,17 @@ const emits = defineEmits<{
   (e: 'apply-format', opts: ParseOptions, result: ParseResult): void
 }>()
 
-// Local options state
+// stav lokálních voleb (local options state)
 const localOptions = ref<ParseOptions>({ ...DEFAULT_PARSE_OPTIONS })
 
-// Debounced preview result
+// výsledek náhledu s opožděním (debounced preview result)
 const previewResult = ref<ParseResult | null>(null)
 const parseError = ref<string | null>(null)
 
-// Confirm dialog for overwriting fields
+// potvrzovací dialog pro přepsání polí
 const showConfirmOverwrite = ref(false)
 
-// Delimiter options
+// možnosti oddělovače
 const delimiterOptions = [
   { title: 'Auto', value: 'auto' },
   { title: 'Čárka (,)', value: ',' },
@@ -39,14 +39,14 @@ const delimiterOptions = [
   { title: 'Pipe (|)', value: '|' },
 ]
 
-// Decimal options
+// možnosti desetinného oddělovače
 const decimalOptions = [
   { title: 'Auto', value: 'auto' },
   { title: 'Tečka (.)', value: '.' },
   { title: 'Čárka (,)', value: ',' },
 ]
 
-// Header options
+// možnosti hlavičky
 const headerOptions = [
   { title: 'Auto', value: 'auto' },
   { title: 'Bez hlavičky', value: 'no_header' },
@@ -62,7 +62,7 @@ const effectiveHeaderOption = computed(() => {
   return localOptions.value.header
 })
 
-// Watch for changes and re-parse with debounce
+// sledování změn a opětovné parsování s opožděním (debounce)
 let debounceTimer: ReturnType<typeof setTimeout> | null = null
 
 function debouncedParse(): void {
@@ -92,12 +92,12 @@ function runPreviewParse(): void {
   }
 }
 
-// Re-parse when options change
+// opětovné parsování při změně voleb
 watch([localOptions, useCustomHeaderRow, headerRowNumber], () => {
   debouncedParse()
 }, { deep: true })
 
-// Parse on dialog open
+// parsování při otevření dialogu
 watch(() => props.modelValue, (open) => {
   if (open) {
     localOptions.value = { ...DEFAULT_PARSE_OPTIONS }
@@ -107,7 +107,7 @@ watch(() => props.modelValue, (open) => {
   }
 })
 
-// Apply button handler
+// obsluha tlačítka použít (apply)
 function handleApply(): void {
   if (props.hasUserEditedFields) {
     showConfirmOverwrite.value = true
@@ -150,7 +150,7 @@ function close(): void {
 
     <template #content>
       <div class="pa-4">
-        <!-- Format options -->
+        <!-- volby formátu -->
         <v-row class="mb-4">
           <v-col cols="12" sm="6" md="3">
             <v-select
@@ -203,7 +203,7 @@ function close(): void {
           </v-col>
         </v-row>
 
-        <!-- Custom header row -->
+        <!-- vlastní řádek hlavičky -->
         <v-row class="mb-4">
           <v-col cols="12" class="d-flex align-center ga-3">
             <v-checkbox
@@ -228,7 +228,7 @@ function close(): void {
 
         <v-divider class="mb-4" />
 
-        <!-- Parse error -->
+        <!-- chyba parsování (parse error) -->
         <v-alert
           v-if="parseError"
           type="error"
@@ -239,7 +239,7 @@ function close(): void {
           {{ parseError }}
         </v-alert>
 
-        <!-- Parse status -->
+        <!-- stav parsování (parse status) -->
         <v-alert
           v-else-if="previewResult"
           :type="previewResult.status === 'SUCCESS' ? 'success' : 'warning'"
@@ -261,7 +261,7 @@ function close(): void {
           </div>
         </v-alert>
 
-        <!-- Preview grid -->
+        <!-- mřížka náhledu (preview grid) -->
         <ImportPreviewGrid
           v-if="previewResult"
           :rows="previewResult.rows"
@@ -271,7 +271,7 @@ function close(): void {
           :used-header-row="previewResult.usedHeaderRow"
         />
 
-        <!-- Footer buttons -->
+        <!-- tlačítka v patičce -->
         <div class="d-flex justify-end ga-2 mt-4">
           <v-btn variant="text" @click="close">
             Zrušit
@@ -289,7 +289,7 @@ function close(): void {
     </template>
   </Dialog>
 
-  <!-- Confirm overwrite dialog -->
+  <!-- dialog pro potvrzení přepsání -->
   <v-dialog v-model="showConfirmOverwrite" max-width="450">
     <v-card>
       <v-card-title class="text-h6">
@@ -312,5 +312,5 @@ function close(): void {
 </template>
 
 <style scoped>
-/* Dialog styling handled by Dialog component */
+/* stylování dialogu je řešeno v komponentě Dialog */
 </style>

@@ -38,18 +38,18 @@ const open = computed({
   set: (v) => emits('update:modelValue', v)
 })
 
-// Wizard steps
+
 const currentStep = ref(1)
 const totalSteps = 4
 
-// Step 1: Authentication
+
 const accessToken = ref('')
 const tokenValid = ref<boolean | null>(null)
 const tokenValidating = ref(false)
 const useSandbox = ref(false)  // Production by default
 const tokenSaved = ref(false)
 
-// Step 2: Metadata
+
 const title = ref('')
 const description = ref('')
 const creators = ref<ZenodoCreator[]>([{ name: '', affiliation: '' }])
@@ -58,21 +58,21 @@ const keywordInput = ref('')
 const license = ref('cc-by-4.0')
 const community = ref('')  // Zenodo community identifier
 
-// Step 3: Export settings  
+
 const columns = ref<ExportColumn[]>(getDefaultColumns())
 const includeSeries = ref(true)
 
-// Step 4: Publishing
+
 const isPublishing = ref(false)
 const publishProgress = ref(0)
 const publishStatus = ref('')
 const publishedDeposition = ref<ZenodoDeposition | null>(null)
 const publishError = ref<string | null>(null)
 
-// Versioning
-const isUpdateMode = ref(false) // true = update existing, false = new publication
 
-// Check if any measurement already has Zenodo ID
+const isUpdateMode = ref(false) // true = aktualizace existujícího, false = nová publikace
+
+// kontrola, zda některé měření již má zenodo id
 const existingZenodoId = computed<number | null>(() => {
   for (const m of props.measurements) {
     if (m.zenodoRecordId) return m.zenodoRecordId
@@ -96,32 +96,32 @@ const canProceedStep2 = computed(() =>
 )
 const canProceedStep3 = computed(() => columns.value.some(c => c.enabled))
 
-// Initialize
+
 function onDialogOpen(): void {
   currentStep.value = 1
   publishedDeposition.value = null
   publishError.value = null
   publishProgress.value = 0
   
-  // Load saved token
+  // načtení uloženého tokenu
   const savedToken = loadZenodoToken()
   if (savedToken) {
     accessToken.value = savedToken
     tokenSaved.value = true
   }
   
-  // Reset metadata
+  // reset metadat
   title.value = `Měření - Export ${new Date().toLocaleDateString('cs-CZ')}`
   description.value = ''
   creators.value = [{ name: '', affiliation: '' }]
   keywords.value = ['measurement', 'laboratory']
   columns.value = getDefaultColumns()
   
-  // Default to update mode if existing Zenodo ID
+  // přepnutí do režimu aktualizace, pokud existuje zenodo id
   isUpdateMode.value = hasExistingZenodo.value
 }
 
-// Token validation
+
 async function validateAccessToken(): Promise<void> {
   if (!accessToken.value.trim()) {
     tokenValid.value = false
@@ -155,7 +155,7 @@ function forgetToken(): void {
   tokenValid.value = null
 }
 
-// Creators management
+
 function addCreator(): void {
   creators.value.push({ name: '', affiliation: '' })
 }
@@ -166,7 +166,7 @@ function removeCreator(index: number): void {
   }
 }
 
-// Keywords management
+
 function addKeyword(): void {
   const kw = keywordInput.value.trim()
   if (kw && !keywords.value.includes(kw)) {
@@ -179,7 +179,7 @@ function removeKeyword(index: number): void {
   keywords.value.splice(index, 1)
 }
 
-// Navigation
+
 function nextStep(): void {
   if (currentStep.value < totalSteps) {
     currentStep.value++
@@ -192,7 +192,7 @@ function prevStep(): void {
   }
 }
 
-// Publishing
+
 async function doPublish(): Promise<void> {
   isPublishing.value = true
   publishError.value = null
@@ -213,7 +213,7 @@ async function doPublish(): Promise<void> {
       communities: community.value.trim() ? [{ identifier: community.value.trim() }] : undefined
     }
     
-    // Step 1: Create deposition or new version
+    // vytvoření deposition nebo nové verze
     if (isUpdateMode.value && existingZenodoId.value) {
       publishStatus.value = 'Vytvářím novou verzi...'
       publishProgress.value = 10
@@ -225,7 +225,7 @@ async function doPublish(): Promise<void> {
     }
     publishProgress.value = 30
     
-    // Step 2: Generate CSV
+    // vygenerování csv
     publishStatus.value = 'Generuji CSV soubor...'
     const csvContent = buildCSV({
       columns: columns.value,
@@ -237,17 +237,17 @@ async function doPublish(): Promise<void> {
     const filename = `${title.value.replace(/[^a-zA-Z0-9-_]/g, '_')}.csv`
     publishProgress.value = 50
     
-    // Step 3: Upload file
+    // nahrání souboru
     publishStatus.value = 'Nahrávám soubor...'
     await uploadFile(config.value, deposition.links.bucket, filename, csvBlob)
     publishProgress.value = 70
     
-    // Step 4: Update metadata
+    // aktualizace metadat
     publishStatus.value = 'Aktualizuji metadata...'
     await updateMetadata(config.value, deposition.id, metadata)
     publishProgress.value = 85
     
-    // Step 5: Publish
+    // publikování
     publishStatus.value = 'Publikuji...'
     const published = await publishDeposition(config.value, deposition.id)
     publishProgress.value = 100
@@ -255,7 +255,7 @@ async function doPublish(): Promise<void> {
     publishedDeposition.value = published
     publishStatus.value = isUpdateMode.value ? 'Nová verze publikována!' : 'Publikováno!'
     
-    // Emit with record ID so parent can save it to measurements
+    // emitování záznamu s id pro uložení do měření
     emits('published', { 
       doi: published.doi, 
       recordId: published.id,
@@ -301,7 +301,7 @@ watch(() => props.modelValue, (v) => {
         </v-chip>
       </v-card-title>
 
-      <!-- Stepper -->
+
       <div class="stepper-header">
         <div 
           v-for="step in totalSteps" 
@@ -323,7 +323,7 @@ watch(() => props.modelValue, (v) => {
       </div>
 
       <v-card-text class="dialog-content">
-        <!-- Step 1: Authentication -->
+
         <div v-if="currentStep === 1" class="step-content">
           <p class="text-body-2 text-medium-emphasis mb-4">
             Pro publikaci do Zenodo potřebujete Access Token. 
@@ -381,7 +381,7 @@ watch(() => props.modelValue, (v) => {
           </div>
         </div>
 
-        <!-- Step 2: Metadata -->
+
         <div v-if="currentStep === 2" class="step-content">
           <v-text-field
             v-model="title"
@@ -494,7 +494,7 @@ watch(() => props.modelValue, (v) => {
           />
         </div>
 
-        <!-- Step 3: Export Settings -->
+
         <div v-if="currentStep === 3" class="step-content">
           <p class="text-body-2 text-medium-emphasis mb-4">
             Vyberte, které sloupce chcete zahrnout do exportovaného CSV souboru.
@@ -526,9 +526,9 @@ watch(() => props.modelValue, (v) => {
           </v-alert>
         </div>
 
-        <!-- Step 4: Publish -->
+
         <div v-if="currentStep === 4" class="step-content">
-          <!-- Version choice when existing Zenodo ID detected -->
+          <!-- výběr verze při detekci existujícího zenodo id -->
           <v-alert 
             v-if="hasExistingZenodo && !publishedDeposition && !isPublishing" 
             type="info" 

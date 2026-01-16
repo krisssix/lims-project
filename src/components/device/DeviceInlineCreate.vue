@@ -96,8 +96,7 @@ function onKey(e: KeyboardEvent) {
     void store.refreshDevices(true)
     return
   }
-
-   */
+  */
 
 }
 
@@ -223,7 +222,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
               >
                 mdi-information-outline
               </v-icon>
-              Min.3 znaky (A-Z, 0-9, _) – automaticky převedeno na UPPERCASE
+              Min.3 znaky (A-Z, 0-9, _) : automaticky převedeno na UPPERCASE
             </div>
           </div>
 
@@ -451,7 +450,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   margin-top: -4px;
 }
 
-/* Removed old color-input and wrapper styles */
+/* odstraněny staré barvy (old color-input) */
 
 .color-preview {
   width: 24px;
@@ -460,7 +459,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   border: 2px solid rgba(0, 0, 0, 0.12);
   cursor: pointer;
   transition: transform 0.2s;
-  /* Added z-index to ensure it sits above input if needed */
+  /* zajištění z-indexu (ensure z-index) */
   z-index: 1;
 }
 
@@ -516,7 +515,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   opacity: 0.7;
 }
 
-/* Animations */
+/* animace (animations) */
 .slide-fade-enter-active {
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }

@@ -10,7 +10,7 @@
     </template>
 
     <template #content>
-      <!-- Existing drafts warning -->
+
       <template v-if="existingDrafts.length > 0">
         <v-alert type="warning" variant="tonal" class="mb-4">
           Pro šablonu "{{ templateName }}" již existuje:
@@ -58,7 +58,7 @@
         </v-radio-group>
       </template>
 
-      <!-- Normal confirmation -->
+
       <template v-else>
         <div class="mb-4">
           <div class="text-body-2 mb-2">

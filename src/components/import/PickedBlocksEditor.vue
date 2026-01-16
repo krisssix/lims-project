@@ -45,7 +45,7 @@
         />
       </div>
 
-      <!-- TABLE options + preview -->
+      <!-- volby tabulky a náhled (preview) -->
       <div
         v-if="isTable(pb)"
         class="mb-2"
@@ -101,7 +101,7 @@
         </div>
       </div>
 
-      <!-- KV preview -->
+      <!-- náhled kv (key-value) -->
       <div
         v-else-if="isKv(pb)"
         class="mb-2"
@@ -128,7 +128,7 @@
         </div>
       </div>
 
-      <!-- STATS -->
+      <!-- statistiky (stats) -->
       <div
         v-else-if="isStats(pb)"
         class="mb-2"
@@ -147,7 +147,7 @@
         </div>
       </div>
 
-      <!-- SERIES -->
+      <!-- série (series) -->
       <div
         v-else-if="isSeries(pb)"
         class="mb-2"
@@ -164,7 +164,7 @@
       </div>
 
 
-      <!-- Fields table -->
+      <!-- tabulka polí -->
       <div
         v-if="pb.fieldRows.length"
         class="mb-4"
@@ -261,14 +261,14 @@
 import { computed, ref } from 'vue'
 import { buildRepeatMetaFromHeaders, inferFieldType as inferFieldTypeFromParser, type TableBlock, type StatsBlock, type SeriesBlock, type KvBlock, type ColumnType } from '@/utils/importParsing'
 
-// type guards pro šablonu
+// typoví strážci (type guards) pro šablonu
 function blkAt(pb: PickedBlock){ return props.blocks[pb.sourceIndex] }
 function isTable(pb: PickedBlock): boolean { return blkAt(pb)?.kind === 'table' }
 function isStats(pb: PickedBlock): boolean { return blkAt(pb)?.kind === 'stats' }
 function isSeries(pb: PickedBlock): boolean { return blkAt(pb)?.kind === 'series' }
 function isKv(pb: PickedBlock): boolean { return blkAt(pb)?.kind === 'kv' }
 
-// bezpečné přístupy
+// bezpečný přístup k datům bloků (safe access)
 function tableRows(pb: PickedBlock): string[][] {
   const b = blkAt(pb)
   return b && b.kind === 'table' ? (b as TableBlock).rows : []
@@ -278,7 +278,7 @@ function statsLines(pb: PickedBlock){ const b = blkAt(pb); return b && b.kind===
 function seriesHeader(pb: PickedBlock){ const b = blkAt(pb); return b && b.kind==='series' ? (b as SeriesBlock).header : '' }
 function seriesValues(pb: PickedBlock){ const b = blkAt(pb); return b && b.kind==='series' ? (b as SeriesBlock).values : [] }
 
-// chybějící funkce – přidá KV páry jako pole
+// přidá kv páry jako pole (převod metadat na pole šablony)
 function addMetadataAsFieldsTo(id: string){
   const pb = localPicked.value.find(x => x.id === id); if (!pb) return
   const b = blkAt(pb); if (!b || b.kind !== 'kv') return
@@ -327,7 +327,7 @@ const tableHeaders = [
 ]
 const hasAnyFields = computed(()=> localPicked.value.some(pb => pb.fieldRows?.length>0))
 
-/* ----- helpers ----- */
+/* pomocné funkce (helpers) */
 function toFieldType(t: ColumnType): FieldType {
   if (t === 'float' || t === 'int' || t === 'text' || t === 'file' || t === 'bool' || t === 'date') return t
   return 'text'
@@ -398,7 +398,7 @@ function buildFieldsForBlock(blk: TableBlock | StatsBlock | SeriesBlock | KvBloc
   return headerNames.map((h,i)=>({ orderIndex:i+1, name: h || `Col ${i+1}`, required:false, type: toFieldType(inferFieldTypeFromHeader(h)) }))
 }
 
-/* ----- operations ----- */
+/* operace s vybranými bloky */
 function updatePicked(id:string){
   const pb = localPicked.value.find(x => x.id === id); if (!pb) return
   const src = props.blocks[pb.sourceIndex]; if (!src) return

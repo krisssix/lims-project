@@ -32,20 +32,20 @@ const valueKey = computed(() => props.valueKey ?? 'id')
 const density = computed(() => props.density ?? 'comfortable')
 const clearable = computed(() => props.clearable ?? true)
 const chipSelection = computed(() => props.chipSelection ?? true)
-// Filter out inactive devices unless showInactive is true
+// filtrování neaktivních přístrojů, pokud není povoleno jejich zobrazení (filter out inactive)
 const computedItems = computed<DeviceOption[]>(() => {
   const all = props.items || []
   if (props.showInactive) return all
   return all.filter(d => d.active !== false)
 })
 
-// Always produce a STRING value for item comparison to avoid id:number vs modelValue:string mismatch
+// vždy vrací řetězec pro porovnání položek, aby se předešlo neshodě typů (string value)
 function getItemValue(item: DeviceOption): string {
   const raw = valueKey.value === 'code' ? item.code : item.id
   return raw != null ? String(raw) : ''
 }
 
-// Filter by id/code and name (case-insensitive)
+// filtrování podle id/kódu a názvu: nezáleží na velikosti písmen (filter case-insensitive)
 function deviceFilterFn(item: DeviceOption, queryText: string): boolean {
   const q = (queryText || '').toLowerCase()
   const raw = valueKey.value === 'code' ? item.code : item.id
@@ -112,7 +112,7 @@ function onUpdate(val: unknown): void {
       </v-list-item>
     </template>
 
-    <!-- Create new device action at the bottom -->
+    <!-- akce pro vytvoření nového přístroje úplně dole (create item) -->
     <template #append-item>
       <v-divider class="my-1" />
       <v-list-item

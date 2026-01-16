@@ -8,18 +8,18 @@ type GroupConfig = {
   key: string
   title: string
   label?: string
-  items: Dict[]                           // array of objects
+  items: Dict[]                           // pole objektů (array of objects)
   itemTitle?: string                      // default 'name'
   itemValue?: string                      // default 'id'
-  type?: 'plain' | 'devices'              // 'devices' renders colored chips
-  colorKey?: string                       // default 'color' (for type 'devices')
-  showField?: string                      // which field to show on chip, default itemValue
+  type?: 'plain' | 'devices'              // 'devices' vykresluje barevné čipy
+  colorKey?: string                       // výchozí 'color' (pro typ 'devices') (color key)
+  showField?: string                      // které pole se má zobrazit na čipu, výchozí je itemvalue (show field)
 }
 
 const props = defineProps<{
   date: string | Date | null
   groups: GroupConfig[]
-  selection: Record<string, Value[]>       // e.g. { devices: [], templates: [] }
+  selection: Record<string, Value[]>       // např. { devices: [], templates: [] } (selection)
 }>()
 
 const emit = defineEmits<{
@@ -38,18 +38,18 @@ function toValue(x: unknown): Value | null {
 }
 
 /**
- * Update selection for a single group and emit the whole selection object.
+ * aktualizace výběru pro jednu skupinu a odeslání celého objektu výběru
  */
 function updateSelection(groupKey: string, val: Value[] | null | undefined) {
   const next = { ...props.selection, [groupKey]: Array.isArray(val) ? val : [] }
   emit('update:selection', next)
 }
 
-/* Safe getters working with unknown raw objects (avoid TS casts in template) */
+/* bezpečné gettery pracující s neznámými surovými objekty (vyhnutí se ts přetypování v šabloně) (safe getters) */
 function valueFromRaw(raw: unknown, cfg: GroupConfig): Value | null {
   if (!raw || typeof raw !== 'object') return null
   const key = cfg.itemValue || 'id'
-  // index access on a generic record
+  // přístup k indexu na obecném záznamu (generic record)
   const v = (raw as Dict)[key]
   return toValue(v)
 }
@@ -83,7 +83,7 @@ function clear(groupKey: string) {
   updateSelection(groupKey, [])
 }
 
-/* Handler used by the chip close icon in the selection slot */
+/* obsluha (handler) použitá ikonou zavření čipu v slotu výběru (selection slot) */
 function onCloseChip(cfg: GroupConfig, raw: unknown) {
   const current = props.selection[cfg.key] ?? []
   const val = valueFromRaw(raw, cfg)
@@ -160,7 +160,7 @@ defineExpose({
           class="chip-select mb-4"
           @update:model-value="val => updateSelection(cfg.key, val as Value[])"
         >
-          <!-- Colored chips for device-type groups -->
+          <!-- barevné čipy pro skupiny typu přístroje (devices) -->
           <template
             v-if="cfg.type === 'devices'"
             #selection="{ item }"
@@ -184,7 +184,7 @@ defineExpose({
 </template>
 
 <style scoped>
-/* ---------- Filter headers ---------- */
+/* hlavičky filtrů (filter headers) */
 .filter-title {
   display: flex;
   align-items: center;
@@ -213,7 +213,7 @@ defineExpose({
   text-decoration: underline;
 }
 
-/* ---------- Chip selects ---------- */
+/* výběry s čipy (chip selects) */
 .chip-select :deep(.v-field) {
   border-radius: 10px;
 }

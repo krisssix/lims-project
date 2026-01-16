@@ -1,13 +1,13 @@
 <script setup lang="ts">
 /**
- * DataMappingGrid - Interactive grid for mapping imported data columns to template fields
+ * datamappinggrid: interaktivní mřížka pro mapování sloupců importovaných dat na pole šablony.
  * 
- * Usage:
- * - Click on cells to select headers (yellow)
- * - Click + arrow keys to select data ranges (blue/green)
- * - Shift+Click for range selection
- * - Ctrl+Click to add to selection
- * - Keyboard: Shift+Ctrl+Arrow to extend selection
+ * použití:
+ * : kliknutím na buňky vyberete hlavičky (žluté)
+ * : kliknutí + šipky pro výběr rozsahů dat (modré/zelené)
+ * : shift + klik pro výběr rozsahu
+ * : ctrl + klik pro přidání do výběru
+ * : klávesnice: shift + ctrl + šipka pro rozšíření výběru
  */
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 
@@ -28,25 +28,25 @@ const emits = defineEmits<{
   (e: 'apply', mappings: FieldMapping[]): void
 }>()
 
-// Current mode: 'header' (selecting header cells) or 'data' (selecting data cells)
+// aktuální režim: 'header' (výběr buněk hlavičky) nebo 'data' (výběr buněk dat)
 type SelectMode = 'header' | 'data'
 const selectMode = ref<SelectMode>('header')
 
-// Currently selected field for mapping
+// aktuálně vybrané pole pro mapování
 const activeFieldIndex = ref<number>(0)
 
-// Mappings for each field
+// mapování pro každé pole
 const fieldMappings = ref<FieldMapping[]>([])
 
-// Selection state
+// stav výběru (selection state)
 const selectedCells = ref<Set<string>>(new Set())
 const cursorCell = ref<{ row: number; col: number } | null>(null)
 const anchorCell = ref<{ row: number; col: number } | null>(null)
 
-// Grid container ref for keyboard events
+// reference na kontejner mřížky pro události klávesnice
 const gridRef = ref<HTMLElement | null>(null)
 
-// Initialize mappings when dialog opens
+// inicializace mapování při otevření dialogu
 watch(() => props.modelValue, (open) => {
   if (open) {
     fieldMappings.value = props.templateFields.map(f => ({
@@ -62,20 +62,20 @@ watch(() => props.modelValue, (open) => {
   }
 }, { immediate: true })
 
-// Max columns
+// maximální počet sloupců
 const maxCols = computed(() => {
   if (!props.rawGrid.length) return 0
   return Math.max(...props.rawGrid.map(r => r.length))
 })
 
-// Get cell value
+// získání hodnoty buňky
 function getCellValue(row: number, col: number): string {
   const cell = props.rawGrid[row]?.[col]
   if (cell === undefined || cell === null) return ''
   return String(cell)
 }
 
-// Cell key helper
+// pomocná funkce pro klíč buňky
 function cellKey(row: number, col: number): string {
   return `${row},${col}`
 }
@@ -85,24 +85,24 @@ function parseKey(key: string): { row: number; col: number } {
   return { row: r, col: c }
 }
 
-// Check cell status for current field
+// kontrola stavu buňky pro aktuální pole
 function getCellStatus(row: number, col: number): 'header' | 'data' | 'other-header' | 'other-data' | null {
   const key = cellKey(row, col)
   const activeMapping = fieldMappings.value[activeFieldIndex.value]
   
-  // Check if it's the header for active field
+  // kontrola, zda je to hlavička pro aktivní pole
   if (activeMapping?.headerCell && 
       activeMapping.headerCell.row === row && 
       activeMapping.headerCell.col === col) {
     return 'header'
   }
   
-  // Check if it's data for active field
+  // kontrola, zda jsou to data pro aktivní pole
   if (activeMapping?.dataCells.some(c => c.row === row && c.col === col)) {
     return 'data'
   }
   
-  // Check if it's mapped to another field
+  // kontrola, zda je namapováno k jinému poli
   for (let i = 0; i < fieldMappings.value.length; i++) {
     if (i === activeFieldIndex.value) continue
     const m = fieldMappings.value[i]
@@ -117,7 +117,7 @@ function getCellStatus(row: number, col: number): 'header' | 'data' | 'other-hea
   return null
 }
 
-// Handle cell click
+// obsluha kliknutí na buňku
 function handleCellClick(row: number, col: number, event: MouseEvent): void {
   event.preventDefault()
   event.stopPropagation()
@@ -126,10 +126,10 @@ function handleCellClick(row: number, col: number, event: MouseEvent): void {
   const key = cellKey(row, col)
   
   if (event.shiftKey && anchorCell.value) {
-    // Range selection from anchor to current
+    // výběr rozsahu od kotvy k aktuální pozici
     selectRange(anchorCell.value.row, anchorCell.value.col, row, col)
   } else if (event.ctrlKey || event.metaKey) {
-    // Toggle cell in selection
+    // přepnutí buňky ve výběru
     if (selectedCells.value.has(key)) {
       selectedCells.value.delete(key)
     } else {
@@ -137,7 +137,7 @@ function handleCellClick(row: number, col: number, event: MouseEvent): void {
     }
     selectedCells.value = new Set(selectedCells.value)
   } else {
-    // Single selection
+    // výběr jedné buňky
     selectedCells.value = new Set([key])
     anchorCell.value = { row, col }
   }
@@ -148,7 +148,7 @@ function handleCellClick(row: number, col: number, event: MouseEvent): void {
 }
 
 
-// Select range helper
+// pomocná funkce pro výběr rozsahu
 function selectRange(r1: number, c1: number, r2: number, c2: number): void {
   const startRow = Math.min(r1, r2)
   const endRow = Math.max(r1, r2)
@@ -163,7 +163,7 @@ function selectRange(r1: number, c1: number, r2: number, c2: number): void {
   selectedCells.value = new Set(selectedCells.value)
 }
 
-// Keyboard handler
+// obsluha událostí klávesnice
 function handleKeydown(event: KeyboardEvent): void {
   if (!cursorCell.value) return
   
@@ -185,12 +185,12 @@ function handleKeydown(event: KeyboardEvent): void {
       newCol = Math.min(maxCols.value - 1, col + 1)
       break
     case 'Enter':
-      // Apply selection to current field
+      // použití výběru pro aktuální pole
       applySelectionToField()
       return
     case 'Tab':
       event.preventDefault()
-      // Move to next field
+      // přesun na další pole
       if (event.shiftKey) {
         activeFieldIndex.value = Math.max(0, activeFieldIndex.value - 1)
       } else {
@@ -204,7 +204,7 @@ function handleKeydown(event: KeyboardEvent): void {
   event.preventDefault()
   
   if (event.shiftKey && event.ctrlKey) {
-    // Extend selection to edge
+    // rozšíření výběru k okraji
     if (event.key === 'ArrowRight') {
       newCol = maxCols.value - 1
     } else if (event.key === 'ArrowLeft') {
@@ -216,12 +216,12 @@ function handleKeydown(event: KeyboardEvent): void {
     }
     selectRange(anchorCell.value?.row ?? row, anchorCell.value?.col ?? col, newRow, newCol)
   } else if (event.shiftKey) {
-    // Extend selection
+    // rozšíření výběru
     selectRange(anchorCell.value?.row ?? row, anchorCell.value?.col ?? col, newRow, newCol)
   } else if (event.ctrlKey) {
-    // Move cursor without changing selection
+    // přesun kurzoru bez změny výběru
   } else {
-    // Move cursor and reset selection
+    // přesun kurzoru a resetování výběru
     selectedCells.value = new Set([cellKey(newRow, newCol)])
     anchorCell.value = { row: newRow, col: newCol }
   }
@@ -229,7 +229,7 @@ function handleKeydown(event: KeyboardEvent): void {
   cursorCell.value = { row: newRow, col: newCol }
 }
 
-// Apply current selection to active field
+// použití aktuálního výběru pro aktivní pole
 function applySelectionToField(): void {
   if (selectedCells.value.size === 0) return
   
@@ -237,21 +237,21 @@ function applySelectionToField(): void {
   if (!mapping) return
   
   if (selectMode.value === 'header') {
-    // Use first selected cell as header
+    // použití první vybrané buňky jako hlavičky
     const firstKey = Array.from(selectedCells.value)[0]
     const { row, col } = parseKey(firstKey)
     mapping.headerCell = { row, col }
-    // Auto-switch to data mode
+    // automatické přepnutí do režimu dat (data mode)
     selectMode.value = 'data'
     selectedCells.value = new Set()
   } else {
-    // Add all selected cells as data
+    // přidání všech vybraných buněk jako dat
     mapping.dataCells = []
     selectedCells.value.forEach(key => {
       const { row, col } = parseKey(key)
       mapping.dataCells.push({ row, col })
     })
-    // Move to next field
+    // přesun na další pole
     if (activeFieldIndex.value < fieldMappings.value.length - 1) {
       activeFieldIndex.value++
       selectMode.value = 'header'
@@ -260,7 +260,7 @@ function applySelectionToField(): void {
   }
 }
 
-// Clear mapping for active field
+// vymazání mapování pro aktivní pole
 function clearActiveMapping(): void {
   const mapping = fieldMappings.value[activeFieldIndex.value]
   if (mapping) {
@@ -270,9 +270,9 @@ function clearActiveMapping(): void {
   selectMode.value = 'header'
 }
 
-// Auto-map columns (detect header row and map sequentially)
+// automatické mapování sloupců (detekce řádku hlavičky a postupné mapování)
 function autoMapColumns(): void {
-  // Find first row with text (likely headers)
+  // nalezení prvního řádku s textem (pravděpodobně hlavičky)
   let headerRow = 0
   for (let r = 0; r < props.rawGrid.length; r++) {
     const row = props.rawGrid[r]
@@ -282,7 +282,7 @@ function autoMapColumns(): void {
     }
   }
   
-  // Map each field to a column
+  // namapování každého pole na sloupec
   for (let i = 0; i < fieldMappings.value.length && i < maxCols.value; i++) {
     const mapping = fieldMappings.value[i]
     mapping.headerCell = { row: headerRow, col: i }
@@ -295,18 +295,18 @@ function autoMapColumns(): void {
   }
 }
 
-// Check if can apply
+// kontrola, zda lze použít mapování
 const canApply = computed(() => {
   return fieldMappings.value.some(m => m.headerCell || m.dataCells.length > 0)
 })
 
-// Apply all mappings
+// použití všech mapování
 function applyMappings(): void {
   emits('apply', fieldMappings.value)
   emits('update:modelValue', false)
 }
 
-// Column letter
+// písmeno sloupce (dle indexu)
 function colLetter(idx: number): string {
   let result = ''
   let n = idx
@@ -317,10 +317,10 @@ function colLetter(idx: number): string {
   return result
 }
 
-// Active field
+// aktivní pole
 const activeField = computed(() => props.templateFields[activeFieldIndex.value])
 
-// Selected cells info
+// informace o vybraných buňkách
 const selectionInfo = computed(() => {
   if (selectedCells.value.size === 0) return ''
   if (selectedCells.value.size === 1) {
@@ -331,13 +331,13 @@ const selectionInfo = computed(() => {
   return `${selectedCells.value.size} buněk`
 })
 
-// Keyboard event listeners
+// posluchače událostí klávesnice
 onMounted(() => {
-  // Focus grid when mounted
+  // zaměření (focus) mřížky při připojení komponenty
 })
 
 onBeforeUnmount(() => {
-  // Cleanup if needed
+  // vyčištění, pokud je potřeba
 })
 </script>
 

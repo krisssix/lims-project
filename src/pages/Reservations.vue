@@ -242,6 +242,23 @@ const devicesToShow = computed(() =>
     : allDevices.value
 )
 
+const devicesForFilter = computed(() => {
+  if (viewMode.value === 'daily-list' && dailyListRef.value?.usedDeviceCodes) {
+    const codes = new Set(dailyListRef.value.usedDeviceCodes)
+    // If list is loaded, filter available devices to only those present in the list
+    return allDevices.value.filter(d => codes.has(d.id))
+  }
+  return allDevices.value
+})
+
+const membersForFilter = computed(() => {
+  if (viewMode.value === 'daily-list' && dailyListRef.value?.usedUsernames) {
+    const users = new Set(dailyListRef.value.usedUsernames)
+    return membersList.value.filter(u => users.has(u))
+  }
+  return membersList.value
+})
+
 
 // function arraysEqual(a: string[], b: string[]) {
 //   if (a.length !== b.length) return false
@@ -264,6 +281,15 @@ const conflictDeviceName = ref<string>('')
 const conflictRequested = ref<{ start: Date; end: Date }>({ start: new Date(), end: new Date() })
 const conflictProposals = ref<Array<{ slot: { start: Date; end: Date }; label: string }>>([])
 const conflictFallbackNext = ref<{ day: Date; slot: { start: Date; end: Date } } | null>(null)
+
+interface ConflictItem {
+  id: number
+  title: string
+  start: Date
+  end: Date
+  username: string | null
+}
+
 const conflictAllReservations = ref<ConflictItem[]>([])
 
 
@@ -344,6 +370,7 @@ function wouldConflict(id: number, deviceId: string, start: Date, end: Date, day
 
 /* View Mode */
 const viewMode = ref<ViewMode>('daily-machines')
+const listIncludeWeekends = ref(true) // Defaultně true pro seznamový pohled
 const viewLabel = computed(() => {
   switch (viewMode.value) {
     case 'daily-machines': return 'DENNÍ – STROJE'
@@ -517,6 +544,8 @@ type DailyListViewExposed = {
   addReservation?: (item: { id: number; title: string; deviceCode: string; startTime: number; endTime: number; username: string | null; projectId: number; note: string | null }) => void
   updateReservation?: (id: number, updates: Partial<{ title: string; deviceCode: string; startTime: number; endTime: number; username: string | null; note: string | null }>) => void
   removeReservation?: (id: number) => void
+  usedDeviceCodes?: string[]
+  usedUsernames?: string[]
 }
 const dailyListRef = ref<DailyListViewExposed | null>(null)
 const isDailyList = computed(() => viewMode.value === 'daily-list')
@@ -1581,15 +1610,20 @@ function onScopeCancel() {
 async function executeDragAction(scope: 'single' | 'following' | 'series', p: any) {
   const { id, start, end, deviceId, item, origDayKey, origDeviceId, origStart, origEnd } = p
 
-  // Optimistic update helper
+  /* Drag & Drop action execution */
+  const payload = {
+     startTime: p.start.getTime(),
+     endTime: p.end.getTime(),
+     deviceCode: p.deviceId
+  }
+
+  // Optimistic update helper (reuse logic if needed)
   const doOptimistic = () => {
-     // Remove from old
+     // ... same as before
      const sourceArr = eventsByDay.value[origDayKey] || []
      const idx = sourceArr.findIndex((r: any) => r.id === id)
      if (idx !== -1) sourceArr.splice(idx, 1)
 
-     // Add to new
-     const targetDayKey = dateKey(start) // assuming start is date object
      const targetArr = ensureDay(start)
      const newItem = {
         ...item,
@@ -1599,25 +1633,13 @@ async function executeDragAction(scope: 'single' | 'following' | 'series', p: an
      }
      targetArr.push(newItem)
      targetArr.sort((a, b) => +new Date(a.start) - +new Date(b.start))
-     return { sourceArr, targetArr, newItem }
   }
-
-  // NOTE: For 'series' or 'following', optimistic update of single item is weird if we update multiple.
-  // Ideally we should reload. But for UX, we might update the dragged one.
-  // If scope != single, maybe skip optimistic update and just await reload?
-  // Let's reload for series/following to be safe and simple.
-  // For single, we can do optimistic.
 
   if (scope === 'single') {
      doOptimistic()
   }
 
   try {
-     const payload = {
-        startTime: start.getTime(),
-        endTime: end.getTime(),
-        deviceCode: deviceId
-     }
 
      if (scope === 'single') {
         await reservations.updateReservation(id, { ...payload, seriesId: item.seriesId })
@@ -1803,7 +1825,7 @@ onBeforeUnmount(() => {
         >Denní – Stroje</button>
         <button
           :class="['view-option', { active: viewMode === 'week-work' || viewMode === 'week-all' }]"
-          @click="viewMode = viewMode === 'week-all' ? 'week-all' : 'week-work'"
+          @click="viewMode = viewMode === 'week-work' ? 'week-work' : 'week-all'"
         >Týdenní</button>
         <button
           :class="['view-option', { active: viewMode === 'daily-list' }]"
@@ -1827,14 +1849,20 @@ onBeforeUnmount(() => {
               :view-mode="viewMode"
               :header-label="viewMode === 'daily-list' ? 'Všechny rezervace' : undefined"
               :header-icon="viewMode === 'daily-list' ? 'mdi-clipboard-list-outline' : undefined"
-              :devices="allDevices"
-              :members="membersList"
+              :devices="devicesForFilter"
+              :members="membersForFilter"
               :picked-devices="pickedDevices"
               :picked-members="pickedMembers"
-              :include-weekends="viewMode === 'week-all'"
+              :include-weekends="(viewMode === 'daily-list' ? listIncludeWeekends : viewMode === 'week-all')"
               @update:picked-devices="v => pickedDevices = v"
               @update:picked-members="v => pickedMembers = v"
-              @update:include-weekends="v => viewMode = v ? 'week-all' : 'week-work'"
+              @update:include-weekends="v => {
+                if (viewMode === 'daily-list') {
+                   listIncludeWeekends = v
+                } else {
+                   viewMode = v ? 'week-all' : 'week-work'
+                }
+              }"
             />
           </div>
         </v-col>
@@ -1876,6 +1904,7 @@ onBeforeUnmount(() => {
                 ref="dailyListRef"
                 :project-id="projectId"
                 :device-codes="pickedDevices"
+                :member-usernames="pickedMembers"
                 :on-dblclick-row="onDailyListRowDblClick"
                 :open-edit="openEditFromDto"
                 :ask-delete="askDeleteFromDto"

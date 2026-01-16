@@ -1,8 +1,8 @@
 <script setup lang="ts">
 /**
- * MeasurementImportDialog – import CSV/TXT/Excel + detekce HEADERS, BLOKY, jednotky, statistika.
- * - Připravuje draft šablony a preview záznamů.
- * - Klávesové zkratky: Ctrl+Enter (parsovat), Alt+D (delimiter), Alt+U (unit řádek), Alt+T (vytvořit šablonu), Alt+S (import).
+ * measurementimportdialog: import csv/txt/excel + detekce headers, bloky, jednotky, statistika.
+ * připravuje draft šablony a preview záznamů.
+ * klávesové zkratky: ctrl+enter (parsovat), alt+d (delimiter), alt+u (unit řádek), alt+t (vytvořit šablonu), alt+s (import).
  */
 
 import { ref, computed, watch, nextTick } from 'vue'
@@ -101,7 +101,7 @@ function focusPrimary(): void {
   el?.focus()
 }
 
-/* Hotkeys */
+
 function handleKey(e: KeyboardEvent): void {
   if (!props.modelValue) return
   const key = e.key.toLowerCase()
@@ -153,7 +153,7 @@ watch(() => props.modelValue, v => {
     </template>
 
     <template #content>
-      <!-- STEP 1: File / Clipboard input -->
+      
       <div v-if="step === 1">
         <div class="text-subtitle-2 mb-2">
           Zdroj dat
@@ -244,7 +244,7 @@ watch(() => props.modelValue, v => {
         </v-alert>
       </div>
 
-      <!-- STEP 2: Preview blocks & template -->
+      
       <div v-else-if="step === 2">
         <div class="text-subtitle-2 mb-2">
           Náhled dat (bloky: {{ parseResult?.blocks.length || 0 }})

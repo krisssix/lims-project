@@ -11,22 +11,22 @@ const emit = defineEmits<{
   (e: 'update:modelValue', value: string): void
 }>()
 
-// Stav pro otevření/zavření menu
+// stav pro otevření nebo zavření menu
 const menuOpen = ref(false)
 
-// Dočasná barva během výběru (před potvrzením)
+// dočasná barva během výběru (před potvrzením) (temporary color)
 const tempColor = ref(props.modelValue)
 
-// Původní barva před otevřením pickeru (pro možnost zrušení)
+// původní barva před otevřením výběru barvy (pro možnost zrušení) (original color)
 const originalColor = ref(props.modelValue)
 
-// Computed property pro obousměrný binding (v-model wrapper)
+// vypočtená vlastnost pro obousměrnou vazbu (v-model wrapper) (computed)
 const internalColor = computed({
   get: () => props.modelValue,
   set: (val) => emit('update:modelValue', val)
 })
 
-// Když se otevře menu, uložíme původní barvu
+// při otevření menu uložíme původní barvu
 watch(menuOpen, (isOpen) => {
   if (isOpen) {
     originalColor.value = props.modelValue
@@ -34,19 +34,19 @@ watch(menuOpen, (isOpen) => {
   }
 })
 
-// Potvrdit výběr barvy
+// potvrdit výběr barvy (confirm color)
 function confirmColor(): void {
   internalColor.value = tempColor.value
   menuOpen.value = false
 }
 
-// Zrušit výběr a vrátit původní barvu
+// zrušit výběr a vrátit původní barvu (cancel color)
 function cancelColor(): void {
   tempColor.value = originalColor.value
   menuOpen.value = false
 }
 
-// Hotkey handler
+// obsluha klávesových zkratek (hotkey handler)
 function onKeydown(e: KeyboardEvent): void {
   if (! menuOpen.value) return
 
@@ -108,7 +108,7 @@ function onKeydown(e: KeyboardEvent): void {
         min-width="300"
         class="pa-2"
       >
-        <!-- Porovnání barev: původní vs.  nová (vedle sebe) -->
+        <!-- porovnání barev: původní proti nové (vedle sebe) (color comparison) -->
         <div class="color-comparison">
           <div class="comparison-item">
             <span class="comparison-label">Původní</span>
@@ -139,7 +139,7 @@ function onKeydown(e: KeyboardEvent): void {
           elevation="0"
         />
 
-        <!-- Potvrzovací tlačítka -->
+        <!-- potvrzovací tlačítka (confirm buttons) -->
         <v-divider class="my-2" />
         <div class="d-flex justify-end pa-2 pt-0">
           <v-btn
@@ -189,7 +189,7 @@ function onKeydown(e: KeyboardEvent): void {
   box-shadow: 0 0 0 2px rgba(var(--v-theme-primary), 0.2);
 }
 
-/* Porovnání barev - horizontální layout */
+/* porovnání barev: vodorovné uspořádání (horizontal layout) */
 .color-comparison {
   display: flex;
   align-items: center;

@@ -7,7 +7,7 @@ const props = defineProps<{
     hideFooter?: boolean,
     maxHeight?: string | number,
     
-    // New aesthetic props
+    // nové vzhledové vlastnosti (aesthetic props)
     title?: string,
     subtitle?: string,
     icon?: string
@@ -34,7 +34,7 @@ function close() {
   >
     <div class="dialog-card" :style="{ maxHeight: props.maxHeight || '90vh' }">
       
-      <!-- HEADER -->
+      <!-- záhlaví (header) -->
       <div class="dialog-header text-left" v-if="title || $slots.header || icon">
         <slot name="header">
            <div class="header-row">
@@ -56,13 +56,13 @@ function close() {
         </slot>
       </div>
 
-      <!-- CONTENT -->
+      <!-- obsah (content) -->
       <div class="dialog-content text-left">
         <slot name="content"></slot>
         <slot></slot>
       </div>
 
-      <!-- FOOTER -->
+      <!-- patička (footer) -->
       <div class="dialog-footer" v-if="!hideFooter || $slots.footer">
         <slot name="footer"></slot>
       </div>
@@ -72,7 +72,7 @@ function close() {
 </template>
 
 <style scoped>
-/* Copied styles from ReservationEditorDialog, renamed .res-* to .dialog-* */
+/* styly zkopírované z reservationeditordialog, přejmenováno .res-* na .dialog-* */
 .dialog-card {
   border-radius: 16px;
   overflow: hidden;
@@ -80,10 +80,10 @@ function close() {
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
   display: flex;
   flex-direction: column;
-  /* Max height handled by style binding */
+  /* maximální výška se ovládá vazbou na styl (style binding) */
 }
 
-/* Header */
+/* záhlaví (header) */
 .dialog-header {
   background: #1976d2;
   padding: 20px 24px;
@@ -150,14 +150,14 @@ function close() {
   background: rgba(255, 255, 255, 0.25);
 }
 
-/* Content */
+/* obsah (content) */
 .dialog-content {
   padding: 20px 24px;
   overflow-y: auto;
   flex: 1;
 }
 
-/* Footer */
+/* patička (footer) */
 .dialog-footer {
   padding: 16px 24px;
   background: #f9fafb;

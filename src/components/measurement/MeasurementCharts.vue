@@ -44,7 +44,7 @@ function renderChart(): void {
   if (!ctx) return
   if (chart) chart.destroy()
 
-  // Histogram a boxplot zatím zobrazíme jako scatter/line (viz budoucí rozšíření)
+  // histogram a boxplot zatím zobrazíme jako scatter/line: viz budoucí rozšíření (future extensions)
   const baseType = chartType.value === 'line' ? 'line' : 'scatter'
 
   chart = new Chart(ctx, {
@@ -143,7 +143,7 @@ watch([() => props.series, chartType, selectedFields], () => renderChart(), { de
         />
       </div>
 
-      <!-- PascalCase zlepší typovou inferenci (a potlačí unknown tag lint) -->
+      <!-- pascalcase zlepší typovou inferenci: potlačí unknown tag lint (type inference) -->
       <VSegmentedButton
         v-model="chartType"
         class="ml-4"

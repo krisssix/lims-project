@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
-import { get, patch, remove } from '@/services/api/api-requests'
+import { get, patch, del } from '@/services/api/api-requests'
 import ReservationEditorDialog from '@/components/reservations/ReservationEditorDialog.vue'
 
 type StatusType = 'plan' | 'running' | 'done'
@@ -72,6 +72,7 @@ const listLoading = ref(false)
 const listError = ref<string | null>(null)
 const listRaw = ref<ReservationDto[]>([])
 const devices = ref<DeviceResponse[]>([])
+const members = ref<string[]>([])
 
 
 
@@ -83,6 +84,14 @@ const deviceColorByCode = computed<Map<string, string>>(() => {
     map.set(d.code, c || '#9E9E9E')
   }
   return map
+})
+
+const devicesForDialog = computed(() => {
+  return devices.value.map(d => ({
+    id: d.code,
+    name: d.name,
+    color: d.color
+  }))
 })
 
 const nowMs = ref<number>(Date.now())
@@ -672,7 +681,24 @@ function removeReservation(id: number) {
 
 /* Expose for parent */
 /* Expose for parent */
-defineExpose({ loadListRange, loadAll, addReservation, updateReservation, removeReservation, selectedIds })
+const usedDeviceCodes = computed<string[]>(() => {
+  const s = new Set<string>()
+  // Use listFiltered instead of listRaw to reflect client-size filters (member filter)
+  for (const r of listFiltered.value) {
+    if (r.deviceCode) s.add(r.deviceCode)
+  }
+  return Array.from(s)
+})
+
+const usedUsernames = computed<string[]>(() => {
+  const s = new Set<string>()
+  for (const r of listFiltered.value) {
+    if (r.username) s.add(r.username)
+  }
+  return Array.from(s)
+})
+
+defineExpose({ loadListRange, loadAll, addReservation, updateReservation, removeReservation, selectedIds, usedDeviceCodes, usedUsernames })
 </script>
 
 <template>

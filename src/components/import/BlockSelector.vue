@@ -1,8 +1,8 @@
 <script setup lang="ts">
 /**
- * BlockSelector - Shows detected blocks with checkboxes for multi-select.
- * Layer 2 of the 3-layer import architecture.
- * User can include/exclude any block independently.
+ * blockselector: zobrazuje detekované bloky se zaškrtávacími políčky pro vícenásobný výběr.
+ * vrstva 2 třívrstvé importní architektury.
+ * uživatel může zahrnout/vyloučit libovolný blok nezávisle na ostatních.
  */
 import { computed } from 'vue'
 import type { DetectedBlock, BlockAction } from '@/types/import-blocks'
@@ -11,7 +11,7 @@ import { getBlockTypeLabel } from '@/types/import-blocks'
 const props = defineProps<{
   blocks: DetectedBlock[]
   selectedBlockId?: string | null
-  includedBlockIds: string[] // Blocks that are included/checked
+  includedBlockIds: string[] // bloky, které jsou zahrnuty/zaškrtnuty
 }>()
 
 const emit = defineEmits<{
@@ -23,7 +23,7 @@ const emit = defineEmits<{
   (e: 'confirm-blocks'): void
 }>()
 
-// Type options for dropdown
+// možnosti typu pro rozbalovací seznam
 const typeOptions = [
   { value: 'table', label: 'Tabulka hodnot', icon: 'mdi-table', color: 'primary' },
   { value: 'series', label: 'Datová série', icon: 'mdi-chart-line', color: 'success' }
@@ -128,7 +128,7 @@ function truncate(text: string, maxLen: number): string {
         @click="emit('select', block.id)"
       >
         <div class="block-main d-flex align-center">
-          <!-- Checkbox for include/exclude -->
+          <!-- zaškrtávací políčko pro zahrnutí/vyloučení -->
           <v-checkbox
             :model-value="isBlockIncluded(block.id)"
             hide-details
@@ -138,7 +138,7 @@ function truncate(text: string, maxLen: number): string {
             @click.stop
           />
           
-          <!-- Block icon and info -->
+          <!-- ikona a informace o bloku -->
           <v-icon :color="getBlockColor(block.type)" size="20" class="mr-2">
             {{ getBlockIcon(block.type) }}
           </v-icon>
@@ -155,7 +155,7 @@ function truncate(text: string, maxLen: number): string {
           
           <v-spacer />
           
-          <!-- Confidence -->
+          <!-- spolehlivost (confidence) -->
           <span 
             class="confidence text-caption"
             :style="{ color: `rgb(var(--v-theme-${getConfidenceColor(block.confidence)}))` }"
@@ -164,7 +164,7 @@ function truncate(text: string, maxLen: number): string {
             {{ getConfidenceLabel(block.confidence) }}
           </span>
           
-          <!-- Type dropdown (editable) -->
+          <!-- výběr typu (editovatelný) -->
           <v-select
             :model-value="block.type === 'table' || block.type === 'series' ? block.type : 'table'"
             :items="typeOptions"
@@ -192,7 +192,7 @@ function truncate(text: string, maxLen: number): string {
           </v-select>
         </div>
         
-        <!-- Editable description when selected -->
+        <!-- upravitelný popis při výběru -->
         <div v-if="selectedBlockId === block.id && isBlockIncluded(block.id)" class="block-edit-row mt-2">
           <v-text-field
             :model-value="block.description"
@@ -207,7 +207,7 @@ function truncate(text: string, maxLen: number): string {
         </div>
 
         
-        <!-- BLOCK PREVIEW (expandable) -->
+        <!-- náhled bloku (rozbalitelný) -->
         <v-expand-transition>
           <div v-show="selectedBlockId === block.id" class="block-preview mt-2">
             <div class="preview-table-wrap">
@@ -301,7 +301,7 @@ function truncate(text: string, maxLen: number): string {
   letter-spacing: 1px;
 }
 
-/* Block preview styles */
+/* styly náhledu bloku */
 .block-preview {
   padding-top: 12px;
   border-top: 1px solid #eee;

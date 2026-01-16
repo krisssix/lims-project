@@ -6,20 +6,16 @@ type Mode = 'create' | 'edit'
 
 const props = withDefaults(defineProps<{
   isOpen: boolean
-  width?: string | null
-  maxHeight?: string | null
-  entityLabel: string            // e.g. "rezervace"
-  mode: Mode                     // 'create' | 'edit'
-  saving?: boolean               // show loading on Save
-  deletable?: boolean            // show Delete button (usually only in edit mode)
-  titleExtra?: string | null         // volition text za titulem
-
+  width?: string
+  maxHeight?: string
+  entityLabel: string            // např. "rezervace" (entity label)
+  mode: Mode                     // 'create' | 'edit' (režim: vytvořit nebo upravit)
+  saving?: boolean               // zobrazit indikátor načítání při ukládání (saving)
+  deletable?: boolean            // zobrazit tlačítko smazat (obvykle jen v režimu úprav) (deletable)
+  titleExtra?: string            // doplňkový text za titulkem (volition text)
 }>(), {
-  width: null,
-  maxHeight: null,
   saving: false,
   deletable: false,
-  titleExtra: null,                  //
 })
 
 const emit = defineEmits<{
@@ -42,10 +38,10 @@ function del() {
   emit('delete')
 }
 
-// Keyboard shortcuts inside the dialog:
-// - Ctrl/Cmd+S → Save
-// - Esc → Cancel/Close
-// - Del (only in edit mode and deletable) → Delete
+// klávesové zkratky uvnitř dialogu:
+// - ctrl/cmd + s: uložit (save)
+// - esc: zrušit nebo zavřít (cancel/close)
+// - del: smazat (pouze v režimu úprav a pokud je smazání povoleno) (delete)
 function onKeydown(e: KeyboardEvent) {
   const key = e.key.toLowerCase()
 
@@ -61,7 +57,7 @@ function onKeydown(e: KeyboardEvent) {
     return
   }
 
-  // Note: Enter key no longer triggers save to allow multi-line input in text areas
+  // poznámka: klávesa enter již nespouští uložení, aby bylo možné víceřádkové zadávání v textových polích (text areas)
 
   if (key === 'delete' && props.mode === 'edit' && props.deletable) {
     e.preventDefault()
@@ -85,10 +81,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
       <div class="d-flex align-center justify-space-between w-100">
         <div class="text-h6">
           {{ mode === 'create' ? `Vytvořit ${entityLabel}` : `Upravit ${entityLabel}` }}
-          <span v-if="titleExtra" class="ml-2 text-medium-emphasis">· {{ titleExtra }}</span> <!-- ← PŘIDÁNO -->
+          <span v-if="titleExtra" class="ml-2 text-medium-emphasis">· {{ titleExtra }}</span>
         </div>
         <div class="d-flex align-center" style="gap: 6px;">
-          <!-- Optional right-side header slot (e.g., prev/next buttons) -->
+          <!-- volitelný slot pro pravou část záhlaví (např. tlačítka zpět a vpřed) (header-right) -->
           <slot name="header-right" />
           <v-btn
             icon="mdi-close"

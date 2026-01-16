@@ -13,7 +13,7 @@
           Vložení šablony ze schránky
         </div>
 
-        <!-- Header row: name + device + actions -->
+        <!-- řádek záhlaví: název, přístroj a akce (header row) -->
         <div class="d-flex align-center ga-3 mb-3">
           <v-text-field
             v-model="templateName"
@@ -98,7 +98,7 @@
 
 
 
-        <!-- Raw input -->
+        <!-- surový vstup (raw input) -->
         <v-textarea
           v-model="rawText"
           data-clipboard-input
@@ -111,7 +111,7 @@
           class="mb-3 clipboard-textarea"
         />
 
-        <!-- Info -->
+        <!-- informace -->
         <v-alert
           v-if="!blocks.length"
           type="info"
@@ -122,7 +122,6 @@
           Vlož hlavičky (případně i s daty) a klikni “ANALYZOVAT” nebo stiskni Ctrl+Enter.
         </v-alert>
 
-        <!-- Found blocks & add -->
         <div
           v-else
           class="mb-3"
@@ -198,7 +197,7 @@
         </div>
 
 
-        <!-- Picked blocks (the template stack) -->
+        <!-- vybrané bloky: zásobník šablony (picked blocks - template stack) -->
         <div
           v-if="pickedBlocks.length"
           class="mb-3"
@@ -248,7 +247,7 @@
               />
             </div>
 
-            <!-- Block-specific options + preview -->
+            <!-- volby specifické pro blok a náhled (options & preview) -->
             <div
               v-if="blocks[pb.sourceIndex]?.kind === 'table'"
               class="mb-2"
@@ -304,7 +303,7 @@
               </div>
             </div>
 
-            <!-- KV preview -->
+            <!-- náhled kv (key-value) -->
             <div
               v-else-if="blocks[pb.sourceIndex]?.kind === 'kv'"
               class="mb-2"
@@ -333,7 +332,7 @@
               </div>
             </div>
 
-            <!-- Stats / Series preview -->
+            <!-- náhled statistik a sérií (stats & series) -->
             <div
               v-else-if="blocks[pb.sourceIndex]?.kind === 'stats'"
               class="mb-2"
@@ -366,7 +365,7 @@
               </div>
             </div>
 
-            <!-- Field table per picked block -->
+            <!-- tabulka polí pro každý vybraný blok (field table) -->
             <div class="d-flex align-center ga-2 mb-2">
               <v-btn
                 size="small"
@@ -453,7 +452,7 @@
           </div>
         </div>
 
-        <!-- Footer actions -->
+        <!-- akce v patičce (footer actions) -->
         <div class="d-flex justify-end ga-2">
           <v-btn
             variant="text"
@@ -475,7 +474,7 @@
     </template>
   </Dialog>
 
-  <!-- Delimiter picker modal -->
+  <!-- modální okno pro výběr oddělovače (delimiter picker) -->
   <Dialog
     v-model:is-open="showDelimiterModal"
     width="720px"
@@ -578,7 +577,7 @@ type PickedBlock = {
   fieldRows: FieldRow[]
 }
 
-/** Nový payload (kompatibilní – obsahuje i flattened `fields`) */
+/** nový payload: kompatibilní, obsahuje i zploštělá pole (flattened fields) */
 type TemplateBlockPayload = {
   kind: PickedBlock['kind']
   title: string
@@ -588,11 +587,11 @@ type TemplatePayload = {
   deviceCode: string
   templateName: string
   blocks: TemplateBlockPayload[]
-  /** backward-compat: všechna pole napříč bloky, v pořadí bloků */
+  /** zpětná kompatibilita (backward-compat): všechna pole napříč bloky, v pořadí bloků */
   fields: FieldRow[]
 }
 
-/** Delimiter override model + items (fixes missing refs) */
+/** model přepisu oddělovače a položky (delimiter override model) */
 type DelimiterOverride = 'auto' | 'tab' | 'semicolon' | 'comma' | 'pipe' | 'spaces'
 const delimiterOverrideModel = ref<DelimiterOverride>('auto')
 const delimiterSelectItems: Array<{ label: string; value: DelimiterOverride }> = [
@@ -615,7 +614,7 @@ const emit = defineEmits<{
   (e: 'confirm', payload: TemplatePayload): void
 }>()
 
-/* --------------------- state --------------------- */
+/* stav (state) */
 const open = computed({
   get: () => props.modelValue,
   set: (v: boolean) => emit('update:modelValue', v)
@@ -631,7 +630,7 @@ const pickedBlocks = ref<PickedBlock[]>([]) // nové
 const fileInput = ref<HTMLInputElement | null>(null)
 const loading = ref(false)
 
-/* --------------------- options for table rendering --------------------- */
+/* volby pro vykreslování tabulky (options for table rendering) */
 const typeOptions: Array<{ label: string; value: FieldType }> = [
   { label: 'Float', value: 'float' },
   { label: 'Integer', value: 'int' },
@@ -649,7 +648,7 @@ const tableHeaders = [
   { title: '', key: 'actions', sortable: false, width: 112 }
 ]
 
-/* --------------------- lifecycle --------------------- */
+/* životní cyklus (lifecycle) */
 watch(open, async (v) => {
   if (v) {
     deviceCode.value = props.devices[0]?.id ?? ''
@@ -667,7 +666,7 @@ watch(delimiterOverrideModel, () => {
   if (rawText.value.trim().length > 0) runAnalysis()
 })
 
-/* --------------------- actions --------------------- */
+/* akce (actions) */
 async function pasteFromClipboard(): Promise<void> {
   try {
     const txt = await navigator.clipboard.readText()
@@ -679,7 +678,7 @@ async function pasteFromClipboard(): Promise<void> {
 }
 
 function normalizeNewlines(s: string): string {
-  // odstraň BOM, sjednoť CRLF a NBSP → mezera
+  // odstraň bom, sjednoť crlf a nbsp: mezera
   return s.replace(/\uFEFF/g, '').replace(/\r\n?/g, '\n').replace(/\u00A0/g, ' ')
 }
 function countReplacementChars(s: string): number {
@@ -709,7 +708,7 @@ async function readFileSmart(file: File): Promise<string> {
     return normalizeNewlines(new TextDecoder('utf-8').decode(buf))
   }
 
-  // hodně nulových bajtů → UTF-16LE bez BOM (typické pro CSV z Excelu)
+  // hodně nulových bajtů: utf-16le bez bom (typické pro csv z excelu) (zero ratio)
   const zeroRatio = buf.filter(b => b === 0).length / Math.max(1, buf.length)
   if (zeroRatio > 0.1) {
     return normalizeNewlines(new TextDecoder('utf-16le').decode(buf))
@@ -727,18 +726,18 @@ async function readFileSmart(file: File): Promise<string> {
       if (score < best.score) best = { text, score }
       if (score === 0) break
     } catch {
-      // prohlížeč nemusí dané kódování podporovat – přeskoč
+      // prohlížeč nemusí dané kódování podporovat: přeskoč (skip)
     }
   }
 
-  // Fallback – aspoň něco (default 'utf-8')
+  // nouzové řešení: aspoň něco (default 'utf-8') (fallback)
   return best.text || normalizeNewlines(new TextDecoder().decode(buf))
 }
 
 
-/* ===== Delimiter select modal – state ===== */
+/* stav modálního okna pro výběr oddělovače (delimiter select modal) */
   const showDelimiterModal = ref(false)
-  const uploadBufferText = ref<string>('')        // text CSV čekající na potvrzení
+  const uploadBufferText = ref<string>('')        // text csv čekající na potvrzení
   const modalDelimiter = ref<DelimiterOverride>('auto')
   const previewRows = ref<string[][]>([])
   const previewMaxRows = 8

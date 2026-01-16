@@ -26,14 +26,14 @@ const showUnmatchedOnly = ref<boolean>(false)
 const validationErrors = ref<string[]>([])
 const lastFocusedFieldPos = ref<number>(-1)
 
-// Field selection state - track which fields are enabled for import
+// stav výběru polí: sleduje, která pole jsou povolena pro import (field selection state)
 const enabledFields = ref<Set<string>>(new Set())
 const lastClickedFieldId = ref<string | null>(null)
 
-// Initialize enabled fields when mapping model changes
+// inicializace povolených polí při změně modelu mapování
 watch(() => props.mappingModel, () => {
   if (props.mappingModel) {
-    // By default, all fields are enabled
+    // standardně jsou všechna pole povolena
     const allIds = new Set<string>()
     for (const b of props.mappingModel.blocks) {
       for (const f of b.fields) {
@@ -48,7 +48,7 @@ function toggleFieldEnabled(fieldId: string, event?: MouseEvent): void {
   const isShift = event?.shiftKey ?? false
   
   if (isShift && lastClickedFieldId.value && props.mappingModel) {
-    // Shift+click: toggle range
+    // shift + klik: přepnutí rozsahu (toggle range)
     const allFieldIds: string[] = []
     for (const b of props.mappingModel.blocks) {
       for (const f of b.fields) {
@@ -61,8 +61,8 @@ function toggleFieldEnabled(fieldId: string, event?: MouseEvent): void {
     if (startIdx >= 0 && endIdx >= 0) {
       const [from, to] = startIdx < endIdx ? [startIdx, endIdx] : [endIdx, startIdx]
       // Determine target state based on the clicked item's NEW state (inverse of current)
-      // Actually standard shift-select usually syncs to the clicked item's target state.
-      // If we are clicking fieldId, we invert it.
+      // standardní shift-select se obvykle synchronizuje s cílovým stavem kliknuté položky.
+      // při kliknutí na fieldid stav invertujeme.
       const targetState = !enabledFields.value.has(fieldId)
       
       for (let i = from; i <= to; i++) {
@@ -75,7 +75,7 @@ function toggleFieldEnabled(fieldId: string, event?: MouseEvent): void {
       }
     }
   } else {
-    // Regular click: toggle single field
+    // běžné kliknutí: přepnutí jednoho pole
     if (enabledFields.value.has(fieldId)) {
       enabledFields.value.delete(fieldId)
     } else {
@@ -84,7 +84,7 @@ function toggleFieldEnabled(fieldId: string, event?: MouseEvent): void {
   }
   
   lastClickedFieldId.value = fieldId
-  // Force reactivity update for Set
+  // vynucení aktualizace reaktivity pro set (set reactivity update)
   enabledFields.value = new Set(enabledFields.value)
   recomputeValidation()
 }
@@ -109,12 +109,12 @@ const totalFieldsCount = computed(() => {
   return props.mappingModel.blocks.reduce((sum, b) => sum + b.fields.length, 0)
 })
 
-// Detect extra columns in imported data that aren't mapped to any template field or series
+// detekce extra sloupců v importovaných datech, které nejsou namapovány k žádnému poli šablony ani k sérii
 const extraColumns = computed<Array<{ blockIndex: number; headerIndex: number; headerName: string }>>(() => {
   if (!props.mappingModel) return []
   const extras: Array<{ blockIndex: number; headerIndex: number; headerName: string }> = []
   
-  // Collect all indices used by fields
+  // sběr všech indexů použitých v polích (fields)
   const fieldUsedIndices = new Set<number>()
   for (const block of props.mappingModel.blocks) {
     for (const f of block.fields) {
@@ -124,7 +124,7 @@ const extraColumns = computed<Array<{ blockIndex: number; headerIndex: number; h
     }
   }
   
-  // Collect all indices used by series
+  // sběr všech indexů použitých v sériích (series)
   const seriesUsedIndices = new Set<number>()
   if (props.mappingModel.seriesBlocks) {
     for (const series of props.mappingModel.seriesBlocks) {
@@ -136,11 +136,11 @@ const extraColumns = computed<Array<{ blockIndex: number; headerIndex: number; h
     }
   }
   
-  // Known series column name patterns to exclude (case-insensitive)
+  // známé vzory názvů sloupců sérií k vyloučení (case-insensitive)
   const seriesPatterns = [
     /^sizes?$/i, /^intensit/i, /^volumes?$/i, /^numbers?$/i,
     /\bsize\b/i, /\bintensity\b/i, /\bvolume\b/i, /\bnumber\b/i,
-    /^x$/i, /^y$/i, /^c$/i, /^d$/i, // Common series axis names
+    /^x$/i, /^y$/i, /^c$/i, /^d$/i, // běžné názvy os sérií
     /percent/i, /\%/
   ]
   
@@ -168,7 +168,7 @@ const extraColumns = computed<Array<{ blockIndex: number; headerIndex: number; h
   return extras
 })
 
-// Emit derive template request - parent will open TemplateWizardDialog with these extra columns
+// odeslání požadavku na odvození šablony (derive template): rodič otevře templatewizarddialog s těmito extra sloupci
 function emitDeriveTemplate(): void {
   const cols = extraColumns.value.map(c => ({ 
     name: c.headerName, 
@@ -176,7 +176,7 @@ function emitDeriveTemplate(): void {
   }))
   
   emits('deriveTemplate', {
-    newTemplateName: '', // Parent will generate name using TemplateWizardDialog's generateDerivedName
+    newTemplateName: '', // rodič vygeneruje název pomocí generateDerivedName v TemplateWizardDialog
     extraColumns: cols
   })
 }
@@ -277,7 +277,7 @@ function autoFillByName(): void {
   const usedIndices = new Set<number>()
   for (const b of props.mappingModel.blocks) {
     b.fields.forEach((f) => {
-      // Fuzzy matching: strip units and trailing numbers
+      // fuzzy matching: odstranění jednotek a koncových čísel
       const normField = normalizeForMatch(f.fieldName)
       for (let i = 0; i < b.headers.length; i++) {
         if (usedIndices.has(i)) continue
@@ -304,19 +304,19 @@ function normalizeForMatch(s: string): string {
 }
 
 /**
- * Compute numbered items for dropdown - duplicate headers get numbers
+ * výpočet očíslovaných položek pro rozbalovací seznam: duplicitní hlavičky dostanou čísla
  */
 function computeNumberedHeaderItems(headers: string[]): Array<{ title: string; value: number }> {
   const counts = new Map<string, number>()
   const baseCount = new Map<string, number>()
   
-  // First pass: count occurrences of each base name
+  // první průchod: spočítání výskytů každého základního názvu (base name)
   for (const h of headers) {
     const base = h.trim()
     baseCount.set(base, (baseCount.get(base) ?? 0) + 1)
   }
   
-  // Second pass: generate numbered titles
+  // druhý průchod: generování očíslovaných názvů
   return headers.map((h, i) => {
     const base = h.trim()
     const hasDupes = (baseCount.get(base) ?? 0) > 1
@@ -329,7 +329,7 @@ function computeNumberedHeaderItems(headers: string[]): Array<{ title: string; v
   })
 }
 
-/* Hotkeys */
+/* klávesové zkratky (hotkeys) */
 
 /*
 function handleKey(e: KeyboardEvent): void {
@@ -454,7 +454,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKey))
         </div>
 
         <div v-else>
-          <!-- Block tabs -->
+          <!-- záložky bloků (block tabs) -->
           <div
             v-if="mappingModel.blocks.length > 1"
             class="d-flex flex-wrap mb-3"
@@ -534,7 +534,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKey))
                       {{ fi + 1 }}
                     </v-chip>
                     <span class="field-label">{{ f.fieldName }}</span>
-                    <!-- Match source badge -->
+                    <!-- odznak zdroje shody (match source badge) -->
                     <v-chip
                       v-if="f.matchSource === 'LEARNED'"
                       size="small"
@@ -619,7 +619,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKey))
             </transition-group>
           </div>
           
-          <!-- Series Mapping Section -->
+          <!-- sekce mapování sérií (series mapping section) -->
           <div
             v-if="mappingModel.seriesBlocks && mappingModel.seriesBlocks.length"
             class="series-section mt-4"
@@ -698,7 +698,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKey))
             </div>
           </div>
 
-          <!-- Extra Columns Section (not mapped to any template field) -->
+          <!-- sekce extra sloupců: nejsou namapovány k žádnému poli šablony (extra columns section) -->
           <div v-if="extraColumns.length > 0" class="extra-section mt-4">
             <v-divider class="mb-4" />
             <div class="d-flex align-center mb-2" style="gap:8px;">

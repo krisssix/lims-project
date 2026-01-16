@@ -109,7 +109,7 @@ function close():void {
   emit('update:modelValue', false)
 }
 
-// Reset form when dialog opens
+// reset formuláře při otevření dialogu (reset form)
 watch(() => props.modelValue, (isOpen) => {
   if (isOpen) {
     reset()
@@ -117,7 +117,7 @@ watch(() => props.modelValue, (isOpen) => {
   }
 })
 
-// Keyboard shortcuts
+// klávesové zkratky (keyboard shortcuts)
 function onKeydown(e:KeyboardEvent):void {
   if (!props.modelValue) return
 
@@ -136,7 +136,7 @@ function onKeydown(e:KeyboardEvent):void {
 onMounted(() => window.addEventListener('keydown', onKeydown))
 onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 
-// Auto-mark as touched when user starts typing
+// automatické označení jako "touched", když uživatel začne psát (auto-mark touched)
 watch(formCode, () => {
   if (formCode.value && !touched.value) touched.value = true
 })
@@ -155,7 +155,7 @@ watch(formName, () => {
   >
     <div class="device-editor-card">
 
-      <!-- ===== HEADER ===== -->
+      <!-- záhlaví (header) -->
       <div class="device-header">
         <div class="header-row">
           <div class="header-left">
@@ -176,10 +176,10 @@ watch(formName, () => {
         </div>
       </div>
 
-      <!-- ===== FORM CONTENT ===== -->
+      <!-- obsah formuláře (form content) -->
       <div class="device-content">
 
-        <!-- ERROR ALERT -->
+        <!-- upozornění na chybu (error alert) -->
         <v-alert
           v-if="errorText"
           type="error"
@@ -192,11 +192,11 @@ watch(formName, () => {
           {{ errorText }}
         </v-alert>
 
-        <!-- KÓD PŘÍSTROJE -->
+        <!-- kód přístroje (device code) -->
         <div class="form-group">
           <label class="form-label" :class="{ 'label-error':codeError }">
             Kód přístroje
-            <span v-if="codeError" class="label-error-text">— {{ codeErrorMessage }}</span>
+            <span v-if="codeError" class="label-error-text">: {{ codeErrorMessage }}</span>
           </label>
           <div class="input-wrapper">
             <v-icon size="18" class="input-icon" :class="{ 'icon-error':codeError, 'icon-success':codeIsValid }">
@@ -213,15 +213,15 @@ watch(formName, () => {
           </div>
           <div class="field-hint">
             <v-icon size="14" class="mr-1">mdi-information-outline</v-icon>
-            Min. 3 znaky (A-Z, 0-9, _) – automaticky převedeno na UPPERCASE
+            Min. 3 znaky (A-Z, 0-9, _) : automaticky převedeno na UPPERCASE
           </div>
         </div>
 
-        <!-- NÁZEV PŘÍSTROJE -->
+        <!-- název přístroje (device name) -->
         <div class="form-group">
           <label class="form-label" :class="{ 'label-error':nameError }">
             Název přístroje
-            <span v-if="nameError" class="label-error-text">— minimálně 3 znaky</span>
+            <span v-if="nameError" class="label-error-text">: minimálně 3 znaky</span>
           </label>
           <div class="input-wrapper">
             <v-icon size="18" class="input-icon" :class="{ 'icon-error':nameError, 'icon-success':nameIsValid }">
@@ -242,10 +242,10 @@ watch(formName, () => {
           </div>
         </div>
 
-        <!-- BARVA + STAV -->
+        <!-- barva a stav (color & status) -->
         <div class="form-row-2">
 
-          <!-- BARVA -->
+          <!-- barva (color) -->
           <div class="form-group">
             <label class="form-label">
               <v-icon size="16" class="mr-1">mdi-palette</v-icon>
@@ -257,7 +257,7 @@ watch(formName, () => {
             />
           </div>
 
-          <!-- STAV -->
+          <!-- stav (status) -->
           <div class="form-group">
             <label class="form-label">
               <v-icon size="16" class="mr-1">mdi-power</v-icon>
@@ -280,7 +280,7 @@ watch(formName, () => {
 
         </div>
 
-        <!-- PREVIEW -->
+        <!-- náhled (preview) -->
         <v-expand-transition>
           <div v-if="normalizedCode || formName" class="preview-section">
             <div class="preview-header">
@@ -308,7 +308,7 @@ watch(formName, () => {
 
       </div>
 
-      <!-- ===== FOOTER ===== -->
+      <!-- patička (footer) -->
       <div class="device-footer">
         <div style="flex:1;"></div>
 
@@ -333,7 +333,7 @@ watch(formName, () => {
 </template>
 
 <style scoped>
-/* Card */
+/* karta (card) */
 .device-editor-card {
   border-radius:16px;
   overflow:hidden;
@@ -341,7 +341,7 @@ watch(formName, () => {
   box-shadow:0 12px 40px rgba(0, 0, 0, 0.15);
 }
 
-/* Header */
+/* záhlaví (header) */
 .device-header {
   background:linear-gradient(135deg, #1976d2 0%, #1565c0 100%);
   padding:20px 24px;
@@ -406,7 +406,7 @@ watch(formName, () => {
   background: rgba(255, 255, 255, 0.25);
 }
 
-/* Content */
+/* obsah (content) */
 .device-content {
   padding:20px 24px;
 }
@@ -432,7 +432,7 @@ watch(formName, () => {
   text-transform:none;
 }
 
-/* Inputs */
+/* vstupy (inputs) */
 .input-wrapper {
   position:relative;
 }
@@ -479,7 +479,7 @@ watch(formName, () => {
   box-shadow:0 0 0 3px rgba(34, 197, 94, 0.1) !important;
 }
 
-/* Field hint */
+/* nápověda pole (field hint) */
 .field-hint {
   display:flex;
   align-items:center;
@@ -488,7 +488,7 @@ watch(formName, () => {
   margin-top:4px;
 }
 
-/* Two column layout */
+/* dvou sloupcové rozložení (two column layout) */
 .form-row-2 {
   display:grid;
   grid-template-columns:1fr 1fr;
@@ -496,7 +496,7 @@ watch(formName, () => {
   margin-bottom:16px;
 }
 
-/* Status toggle */
+/* přepínač stavu (status toggle) */
 .status-toggle {
   height:44px;
   display:flex;
@@ -531,7 +531,7 @@ watch(formName, () => {
   color:#16a34a;
 }
 
-/* Preview section */
+/* sekce náhledu (preview section) */
 .preview-section {
   margin-top:16px;
   padding:12px;
@@ -599,7 +599,7 @@ watch(formName, () => {
   color:#6b7280;
 }
 
-/* Footer */
+/* patička (footer) */
 .device-footer {
   padding: 16px 24px;
   background:#f9fafb;
@@ -651,7 +651,7 @@ watch(formName, () => {
   box-shadow:0 4px 12px rgba(25, 118, 210, 0.2);
 }
 
-/* Error states */
+/* chybové stavy (error states) */
 .label-error {
   color:#dc2626;
 }
@@ -676,7 +676,7 @@ watch(formName, () => {
   box-shadow:0 0 0 3px rgba(220, 38, 38, 0.15) !important;
 }
 
-/* Responsive */
+/* responzivita (responsive) */
 @media (max-width:600px) {
   .form-row-2 {
     grid-template-columns:1fr;

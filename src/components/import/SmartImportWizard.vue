@@ -1,15 +1,15 @@
 
 <script setup lang="ts">
 /**
- * SmartImportWizard - vylepšený import workflow
+ * smartimportwizard: vylepšený proces (workflow) importu
  *
- * Flow:
- * 1.Upload souboru / vložení ze schránky
- * 2.Detekce struktury (bloky, hlavičky, oddělovač)
- * 3.Výběr/úprava hlaviček (jasný UI pro každý sloupec)
- * 4.  Mapping na šablonu (pokud existuje) nebo vytvoření nové
- * 5.Preview dat
- * 6.Import
+ * kroky (flow):
+ * 1. nahrání souboru / vložení ze schránky
+ * 2. detekce struktury (bloky, hlavičky, oddělovač)
+ * 3. výběr/úprava hlaviček (jasné ui pro každý sloupec)
+ * 4. mapování na šablonu (pokud existuje) nebo vytvoření nové
+ * 5. náhled dat (preview)
+ * 6. import
  */
 
 import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
@@ -32,7 +32,7 @@ const emits = defineEmits<{
   (e: 'createTemplate', draft: TemplateDraft): void
 }>()
 
-// === State ===
+// stav (state)
 const currentStep = ref<WizardStep>('upload')
 const rawFile = ref<File | null>(null)
 const clipboardText = ref('')
@@ -43,20 +43,20 @@ const deviceId = ref<string>(props.defaultDeviceId || props.deviceOptions[0]?.id
 const loading = ref(false)
 const errorMessage = ref<string | null>(null)
 
-// Parse options
+// volby parsování (parse options)
 const delimiterOverride = ref<string | null>(null)
 const useSecondLineUnits = ref(true)
 const headerRowIndex = ref<number>(0)
 
-// Header editing state
+// stav úpravy hlaviček (header editing state)
 const editingHeaders = ref<string[]>([])
 const selectedDataSection = ref<number>(0)
 
-// Mapping state
+// stav mapování (mapping state)
 const useExistingTemplate = ref(false)
 const selectedTemplateId = ref<string | null>(null)
 
-// === Computed ===
+// vypočtené vlastnosti (computed)
 const steps: { key: WizardStep; label: string; icon: string }[] = [
   { key: 'upload', label: 'Nahrát', icon: 'mdi-upload' },
   { key: 'structure', label: 'Struktura', icon: 'mdi-table-eye' },
@@ -104,7 +104,7 @@ const availableHeaderRows = computed(() => {
   }))
 })
 
-// === Methods ===
+// metody (methods)
 function resetAll(): void {
   currentStep.value = 'upload'
   rawFile.value = null
@@ -144,7 +144,7 @@ async function parseFile(): Promise<void> {
     })
     parseResult.value = result
 
-    // Initialize editing headers from first block
+    // inicializace hlaviček k úpravě z prvního bloku
     if (result.blocks.length > 0) {
       const firstBlock = result.blocks[0]
       editingHeaders.value = [... firstBlock.header]
@@ -226,7 +226,7 @@ function goBack(): void {
 function buildPreview(): void {
   if (!parseResult.value) return
 
-  // Update parse result with edited headers
+  // aktualizace výsledku parsování upravenými hlavičkami
   const updatedResult = { ...parseResult.value }
   if (updatedResult.blocks[selectedDataSection.value]) {
     updatedResult.blocks[selectedDataSection.value].header = [... editingHeaders.value]
@@ -251,14 +251,14 @@ function createTemplate(): void {
   emits('createTemplate', templateDraft.value)
 }
 
-// === Hotkeys ===
+// klávesové zkratky (hotkeys)
 function handleKey(e: KeyboardEvent): void {
   if (! props.modelValue) return
   const key = e.key.toLowerCase()
   const ctrl = e.ctrlKey || e.metaKey
   const alt = e.altKey
 
-  // Skip if in input
+  // přeskočit, pokud je aktivní vstupní pole (input)
   const target = e.target as HTMLElement
   if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
     if (key === 'escape') {
@@ -312,7 +312,7 @@ onBeforeUnmount(() => {
   >
     <template #content>
       <div class="wizard-container">
-        <!-- Progress Steps -->
+        <!-- kroky postupu (progress steps) -->
         <div class="wizard-steps">
           <button
             v-for="(step, i) in steps"
@@ -344,7 +344,7 @@ onBeforeUnmount(() => {
           </button>
         </div>
 
-        <!-- Error Alert -->
+        <!-- upozornění na chybu (error alert) -->
         <v-alert
           v-if="errorMessage"
           type="error"
@@ -356,9 +356,9 @@ onBeforeUnmount(() => {
           {{ errorMessage }}
         </v-alert>
 
-        <!-- Step Content -->
+        <!-- obsah kroku -->
         <div class="wizard-content">
-          <!-- STEP 1: Upload -->
+          <!-- krok 1: nahrát (upload) -->
           <div
             v-if="currentStep === 'upload'"
             class="step-content"
@@ -382,7 +382,7 @@ onBeforeUnmount(() => {
             </div>
 
             <div class="upload-grid">
-              <!-- File Upload -->
+              <!-- nahrání souboru -->
               <div class="upload-card">
                 <div class="upload-card-header">
                   <v-icon
@@ -411,7 +411,7 @@ onBeforeUnmount(() => {
                 </div>
               </div>
 
-              <!-- Clipboard -->
+              <!-- schránka (clipboard) -->
               <div class="upload-card">
                 <div class="upload-card-header">
                   <v-icon
@@ -443,7 +443,7 @@ onBeforeUnmount(() => {
               </div>
             </div>
 
-            <!-- Parse Options -->
+            <!-- volby parsování (parse options) -->
             <div class="parse-options">
               <div class="option-group">
                 <span class="option-label">Přístroj</span>
@@ -488,7 +488,7 @@ onBeforeUnmount(() => {
             </div>
           </div>
 
-          <!-- STEP 2: Structure -->
+          <!-- krok 2: struktura (structure) -->
           <div
             v-else-if="currentStep === 'structure'"
             class="step-content"
@@ -511,7 +511,7 @@ onBeforeUnmount(() => {
               </div>
             </div>
 
-            <!-- Warnings -->
+            <!-- varování (warnings) -->
             <v-alert
               v-if="parseResult?.warnings?.length"
               type="warning"
@@ -526,7 +526,7 @@ onBeforeUnmount(() => {
               </div>
             </v-alert>
 
-            <!-- Data Sections Tabs -->
+            <!-- záložky datových sekcí -->
             <div
               v-if="parseResult && parseResult.blocks.length > 1"
               class="section-tabs mb-4"
@@ -555,7 +555,7 @@ onBeforeUnmount(() => {
               </v-chip>
             </div>
 
-            <!-- Data Preview -->
+            <!-- náhled dat -->
             <div
               v-if="currentDataSection"
               class="data-preview"
@@ -595,7 +595,7 @@ onBeforeUnmount(() => {
               </div>
             </div>
 
-            <!-- Stats if available -->
+            <!-- statistiky, jsou-li k dispozici -->
             <div
               v-if="currentDataSection?.stats"
               class="section-stats mt-4"
@@ -624,7 +624,7 @@ onBeforeUnmount(() => {
             </div>
           </div>
 
-          <!-- STEP 3: Headers -->
+          <!-- krok 3: hlavičky (headers) -->
           <div
             v-else-if="currentStep === 'headers'"
             class="step-content"
@@ -647,7 +647,7 @@ onBeforeUnmount(() => {
               </div>
             </div>
 
-            <!-- Header Row Selection -->
+            <!-- výběr řádku s hlavičkou -->
             <div class="header-source mb-4">
               <div class="source-label">
                 Zdroj hlaviček:
@@ -684,7 +684,7 @@ onBeforeUnmount(() => {
               </v-btn>
             </div>
 
-            <!-- Header Editor -->
+            <!-- editor hlaviček -->
             <div class="headers-editor">
               <div
                 v-for="(header, i) in editingHeaders"
@@ -709,7 +709,7 @@ onBeforeUnmount(() => {
             </div>
           </div>
 
-          <!-- STEP 4: Mapping -->
+          <!-- krok 4: mapování (mapping) -->
           <div
             v-else-if="currentStep === 'mapping'"
             class="step-content"
@@ -787,7 +787,7 @@ onBeforeUnmount(() => {
                 </v-radio>
               </v-radio-group>
 
-              <!-- Template selector -->
+              <!-- výběr šablony -->
               <v-expand-transition>
                 <div
                   v-if="useExistingTemplate && existingTemplates?.length"

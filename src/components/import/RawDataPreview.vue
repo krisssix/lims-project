@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /**
- * RawDataPreview - Shows unchanged raw data with scroll-to-block support.
- * Layer 1 of the 3-layer import architecture.
+ * rawdatapreview: zobrazuje nezměněná surová data s podporou posunu na konkrétní blok.
+ * vrstva 1 třívrstvé importní architektury.
  */
 import { ref, computed, watch, nextTick } from 'vue'
 import type { DetectedBlock } from '@/types/import-blocks'
@@ -47,7 +47,7 @@ const visibleRows = computed(() => {
 
 const hasMore = computed(() => displayRows.value.length > (props.maxVisibleRows || 15))
 
-// Check if row is in a block
+// kontrola, zda je řádek součástí bloku (row in block)
 function getRowBlock(rowIndex: number): DetectedBlock | undefined {
   return props.blocks.find(b => rowIndex >= b.startRow && rowIndex <= b.endRow)
 }
@@ -61,7 +61,7 @@ function isRowHighlighted(rowIndex: number): boolean {
 function getRowBlockBadge(rowIndex: number): { label: string; color: string } | null {
   const block = getRowBlock(rowIndex)
   if (!block) return null
-  if (rowIndex !== block.startRow) return null // Only show badge on first row
+  if (rowIndex !== block.startRow) return null // odznak zobrazit pouze na prvním řádku
   
   const colors: Record<string, string> = {
     kv: 'deep-purple',
@@ -77,7 +77,7 @@ function getRowBlockBadge(rowIndex: number): { label: string; color: string } | 
   }
 }
 
-// Scroll to block when selectedBlockId changes
+// posun (scroll) na blok při změně vybraného bloku (selectedBlockId)
 watch(() => props.selectedBlockId, async (blockId) => {
   if (!blockId || !containerRef.value) return
   

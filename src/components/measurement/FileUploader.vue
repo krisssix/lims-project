@@ -1,6 +1,6 @@
 <template>
   <div class="file-uploader">
-    <!-- Drop Zone -->
+    <!-- oblast pro nahrávání (drop zone) -->
     <div
       class="drop-zone"
       :class="{ 'drop-zone--active': isDragging, 'drop-zone--disabled': disabled }"
@@ -35,7 +35,7 @@
       </div>
     </div>
 
-    <!-- Upload Progress -->
+    <!-- průběh nahrávání (upload progress) -->
     <div v-if="isUploading" class="upload-progress mt-3">
       <div class="d-flex align-center gap-2 mb-1">
         <v-icon size="20" color="primary">mdi-file-upload</v-icon>
@@ -51,7 +51,7 @@
       />
     </div>
 
-    <!-- Error Message -->
+    <!-- chybová zpráva (error message) -->
     <v-alert
       v-if="errorMessage"
       type="error"
@@ -132,7 +132,7 @@ function onFileSelect(e: Event) {
   if (input.files && input.files.length > 0) {
     handleFiles(input.files)
   }
-  // Reset input so the same file can be selected again
+  // reset vstupu, aby bylo možné vybrat stejný soubor znovu (reset input)
   input.value = ''
 }
 
@@ -145,7 +145,7 @@ async function handleFiles(files: FileList) {
 }
 
 async function uploadSingleFile(file: File) {
-  // Client-side validation
+  // validace na straně klienta (client-side validation)
   if (!ALLOWED_MIME_TYPES.includes(file.type)) {
     errorMessage.value = `Nepodporovaný typ souboru: ${file.name}. Povolené typy: PDF, PNG, JPG, XLSX, CSV, TXT`
     emit('error', errorMessage.value)

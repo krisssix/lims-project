@@ -1,8 +1,8 @@
-<!-- ChartPanel.vue -->
+<!-- chartpanel.vue -->
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { type StatsObj, type OutliersMeta, type MultiSeriesItem, fmt2 } from './types'
-// Import sub-components
+// import podkomponent
 import ChartStats from './ChartStats.vue'
 import ChartVisualizer from './ChartVisualizer.vue'
 
@@ -18,7 +18,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'select-field', field: string): void
 }>()
-/* ---------- State ---------- */
+/* stav (state) */
 const tabs = ['LINE', 'SCATTER', 'HISTOGRAM', 'BOXPLOT'] as const
 type TabKind = typeof tabs[number]
 
@@ -61,7 +61,7 @@ const showMean = ref(true)
 const showHover = ref(true)
 const focusMode = ref(false)
 
-/* ---------- Data Prep ---------- */
+/* příprava dat (data prep) */
 const palette = ['#1e88e5','#8e24aa','#43a047','#fb8c00','#5d4037','#3949ab','#f4511e','#00897b','#6d4c41','#7cb342']
 const singleSeriesPoints = computed<number[]>(() =>
   (props.multiSeries && props.multiSeries.length ? [] : (props.chartPoints || []))
@@ -78,21 +78,21 @@ const seriesEnhanced = computed<MultiSeriesItem[]>(() => {
   }))
 })
 
-/* ---------- Actions ---------- */
+/* akce (actions) */
 function onSelectField(f: string): void { emit('select-field', f) }
-// Ref to Visualizer to trigger exports
+// odkaz na vizualizátor pro spuštění exportů (trigger exports)
 
 const visualizerRef = ref<InstanceType<typeof ChartVisualizer> | null>(null)
 function triggerCsv() { visualizerRef.value?.exportCsv() }
 function triggerSvg() { visualizerRef.value?.exportSvg() }
 function triggerPng() { visualizerRef.value?.exportPng() }
-/* ---------- Watchers & Hooks ---------- */
+/* watchery a hooky (watchers & hooks) */
 
 watch(() => props.fields, (fList) => {
   if (!props.selectedField && fList.length) nextTick(() => onSelectField(fList[0]!))
 })
 
-/* ---------- Hotkeys ---------- */
+/* klávesové zkratky (hotkeys) */
 function handleKey(e: KeyboardEvent): void {
   const key = e.key.toLowerCase()
   const ctrl = e.ctrlKey || e.metaKey
@@ -122,11 +122,11 @@ function handleKey(e: KeyboardEvent): void {
 onMounted(() => window.addEventListener('keydown', handleKey))
 onBeforeUnmount(() => window.removeEventListener('keydown', handleKey))
 
-/* ---------- A11Y ---------- */
+/* přístupnost (a11y) */
 const liveStatus = computed<string>(() => {
   if (!seriesEnhanced.value.length) return 'Graf nemá žádná data.'
   const parts: string[] = []
-  if (props.stats) parts.push(`Mean ${fmt2(props.stats.mean)}, Count ${props.stats.count}`)
+  if (props.stats) parts.push(`Průměr ${fmt2(props.stats.mean)}, počet ${props.stats.count}`)
   if (focusMode.value) parts.push(`Fokus mód aktivní`)
 
   return parts.join('. ')
@@ -139,7 +139,7 @@ const liveStatus = computed<string>(() => {
     :aria-label="liveStatus"
     aria-live="polite"
   >
-    <!-- HODNOTY -->
+    <!-- hodnoty -->
     <section class="modern-section mb-4">
       <div class="section-header">
         <v-icon
@@ -253,11 +253,11 @@ const liveStatus = computed<string>(() => {
     </section>
 
 
-    <!-- Chart + Stats Horizontal Layout -->
+    <!-- horizontální rozložení grafu a statistik (chart + stats row) -->
     <div class="chart-stats-row">
-      <!-- Chart with Integrated Controls -->
+      <!-- graf s integrovaným ovládáním (integrated controls) -->
       <section class="modern-section chart-section chart-section-flex">
-      <!-- Chart Type Selector Bar -->
+      <!-- lišta pro výběr typu grafu (chart type selector) -->
       <div class="chart-type-bar">
         <v-icon
           size="18"
@@ -299,9 +299,9 @@ const liveStatus = computed<string>(() => {
 
 
       </div>
-      <!-- Main Chart Layout -->
+      <!-- hlavní rozložení grafu (main chart layout) -->
       <div class="chart-main-layout">
-        <!-- Chart Visualizer -->
+        <!-- vizualizátor grafu (chart visualizer) -->
         <div class="chart-visualizer-wrapper">
           <ChartVisualizer
             ref="visualizerRef"
@@ -317,9 +317,9 @@ const liveStatus = computed<string>(() => {
 
           />
         </div>
-        <!-- Controls Sidebar -->
+        <!-- postranní panel ovládání (controls sidebar) -->
         <div class="chart-controls-sidebar">
-          <!-- Display Options -->
+          <!-- možnosti zobrazení (display options) -->
           <div class="control-group">
             <div class="control-label">
               <v-icon size="14">
@@ -373,7 +373,7 @@ const liveStatus = computed<string>(() => {
             </v-btn>
           </div>
           <div class="control-divider" />
-          <!-- Export Options -->
+          <!-- možnosti exportu (export options) -->
           <div class="control-group">
             <div class="control-label">
               <v-icon size="14">
@@ -439,14 +439,14 @@ const liveStatus = computed<string>(() => {
         </div>
       </div>
     </section>
-    <!-- Stats Component (beside chart) -->
+    <!-- komponenta statistik vedle grafu (stats beside chart) -->
     <ChartStats
       :stats="stats"
       :outliers="outliers"
       class="stats-beside-chart"
     />
     </div><!-- end chart-stats-row -->
-    <!-- Series Legend -->
+    <!-- legenda sérií (series legend) -->
     <v-expand-transition>
       <section
         v-if="seriesEnhanced.length > 1"
@@ -496,7 +496,7 @@ const liveStatus = computed<string>(() => {
   display: flex;
   flex-direction: column;
 }
-/* Modern Section - Blue Card Style */
+/* moderní sekce: styl modré karty (blue card style) */
 .modern-section {
   background: #F4F7FB;
   border: 1px solid rgba(0, 0, 0, 0.08);
@@ -528,7 +528,7 @@ const liveStatus = computed<string>(() => {
 .section-content {
   padding: 16px;
 }
-/* Field Chips */
+/* čipy polí (field chips) */
 .field-chips {
   display: flex;
   flex-wrap: wrap;
@@ -545,7 +545,7 @@ const liveStatus = computed<string>(() => {
   font-family: ui-monospace, monospace;
   font-size: 0.7rem;
 }
-/* Chart + Stats Horizontal Layout */
+/* horizontální rozložení grafu a statistik (chart + stats layout) */
 .chart-stats-row {
   display: flex;
   gap: 16px;
@@ -578,7 +578,7 @@ const liveStatus = computed<string>(() => {
 .stats-beside-chart :deep(.stat-item:nth-last-child(-n+2)) {
   border-bottom: none;
 }
-/* Chart Section Specific */
+/* specifické pro sekci grafu (chart section specific) */
 .chart-section {
   padding: 0;
 }
@@ -604,7 +604,7 @@ const liveStatus = computed<string>(() => {
   flex: 1;
   font-weight: 600;
 }
-/* Main Chart Layout */
+/* hlavní rozložení grafu (main chart layout) */
 .chart-main-layout {
   display: flex;
   min-height: 280px;
@@ -647,7 +647,7 @@ const liveStatus = computed<string>(() => {
   background: rgba(0, 0, 0, 0.06);
   margin: 12px 0;
 }
-/* Series Legend */
+/* legenda sérií (series legend) */
 .series-legend {
   display: flex;
   flex-wrap: wrap;
@@ -657,7 +657,7 @@ const liveStatus = computed<string>(() => {
   font-weight: 600;
   letter-spacing: 0.02em;
 }
-/* Responsive */
+/* responzivita (responsive) */
 @media (max-width: 960px) {
   .chart-main-layout {
     flex-direction: column;

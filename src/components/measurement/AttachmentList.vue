@@ -1,17 +1,17 @@
 <template>
   <div class="attachment-list">
-    <!-- Empty State -->
+    <!-- prázdný stav (empty state) -->
     <div v-if="!loading && attachments.length === 0" class="empty-state">
       <v-icon size="48" color="grey-lighten-1">mdi-paperclip</v-icon>
       <p class="text-grey mt-2">Žádné přílohy</p>
     </div>
 
-    <!-- Loading State -->
+    <!-- stav načítání (loading state) -->
     <div v-else-if="loading" class="d-flex justify-center py-4">
       <v-progress-circular indeterminate color="primary" size="32" />
     </div>
 
-    <!-- Attachment Items -->
+    <!-- položky příloh (attachment items) -->
     <div v-else class="attachment-items">
       <div
         v-for="attachment in attachments"
@@ -19,7 +19,7 @@
         class="attachment-item"
         @click="viewFile(attachment)"
       >
-        <!-- Preview / Icon -->
+        <!-- náhled nebo ikona (preview / icon) -->
         <div class="attachment-item__preview">
           <img
             v-if="isImage(attachment.contentType)"
@@ -35,7 +35,7 @@
           />
         </div>
 
-        <!-- Info -->
+        <!-- informace (info) -->
         <div class="attachment-item__info">
           <p class="attachment-item__name text-truncate">{{ attachment.originalName }}</p>
           <p class="attachment-item__meta text-grey">
@@ -45,7 +45,7 @@
           </p>
         </div>
 
-        <!-- Actions -->
+        <!-- akce (actions) -->
         <div class="attachment-item__actions" @click.stop>
           <v-btn
             icon="mdi-download"
@@ -69,7 +69,7 @@
       </div>
     </div>
 
-    <!-- Delete Confirmation Dialog -->
+    <!-- dialog pro potvrzení smazání (delete confirmation) -->
     <v-dialog v-model="deleteDialog" max-width="400">
       <v-card>
         <v-card-title>Smazat přílohu?</v-card-title>
@@ -119,7 +119,7 @@ const deleteDialog = ref(false)
 const attachmentToDelete = ref<FileAttachment | null>(null)
 const deletingId = ref<number | null>(null)
 
-// Fetch on mount and when measurementId changes
+// načtení při připojení a při změně id měření (fetch on mount)
 onMounted(() => {
   if (props.measurementId) {
     fetchAttachments(props.measurementId)
@@ -197,7 +197,7 @@ async function doDelete() {
 }
 
 /**
- * Refresh attachments list (can be called externally after upload).
+ * obnovení seznamu příloh (může být voláno externě po nahrání).
  */
 function refresh() {
   if (props.measurementId) {

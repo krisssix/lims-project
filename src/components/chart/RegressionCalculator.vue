@@ -8,13 +8,12 @@ import {
 } from '@/utils/regression'
 
 const props = defineProps<{
-  /** Initial X values */
+  /** výchozí x hodnoty (initial x values) */
   xValues?: number[]
-  /** Initial Y values */
+  /** výchozí y hodnoty (initial y values) */
   yValues?: number[]
-  /** Read-only mode - just display results */
-  readonly?: boolean
-  /** Chart title */
+  /** režim pouze pro čtení: zobrazí pouze výsledky (readonly) */
+  /** titulek grafu (chart title) */
   title?: string
 }>()
 
@@ -22,19 +21,19 @@ const emits = defineEmits<{
   (e: 'result', result: RegressionResult | null): void
 }>()
 
-// Data input
+// vstup dat (data input)
 const xInput = ref('')
 const yInput = ref('')
 
-// Regression type
+// typ regrese (regression type)
 type RegressionType = 'linear' | 'logarithmic' | 'auto'
 const regressionType = ref<RegressionType>('linear')
 
-// Results
+// výsledky (results)
 const result = ref<RegressionResult | null>(null)
 const error = ref<string | null>(null)
 
-// Initialize from props
+// inicializace z props (initialize from props)
 watch([() => props.xValues, () => props.yValues], ([x, y]) => {
   if (x?.length && y?.length) {
     xInput.value = x.join('\n')
@@ -43,7 +42,7 @@ watch([() => props.xValues, () => props.yValues], ([x, y]) => {
   }
 }, { immediate: true })
 
-// Parse input to numbers
+// parsování vstupu na čísla (parse input)
 function parseInput(text: string): number[] {
   return text
     .split(/[\n,;\s]+/)
@@ -53,7 +52,7 @@ function parseInput(text: string): number[] {
     .filter(n => !isNaN(n))
 }
 
-// Get data points
+// získání datových bodů (data points)
 const dataPoints = computed<DataPoint[]>(() => {
   const xVals = parseInput(xInput.value)
   const yVals = parseInput(yInput.value)
@@ -65,7 +64,7 @@ const dataPoints = computed<DataPoint[]>(() => {
   return points
 })
 
-// Calculate regression
+// výpočet regrese (calculate regression)
 function calculate() {
   error.value = null
   result.value = null
@@ -83,7 +82,7 @@ function calculate() {
     } else if (regressionType.value === 'logarithmic') {
       result.value = logarithmicRegression(points)
     } else {
-      // Auto: try both, pick better R²
+      // auto: zkusit obojí, vybrat lepší koeficient determinace (r na druhou)
       const lin = linearRegression(points)
       try {
         const log = logarithmicRegression(points)
@@ -99,19 +98,19 @@ function calculate() {
   }
 }
 
-// Watch for changes and auto-calculate
+// sledování změn a automatický výpočet (watch for changes)
 watch([xInput, yInput, regressionType], () => {
   if (dataPoints.value.length >= 2) {
     calculate()
   }
 })
 
-// SVG Chart dimensions
+// rozměry svg grafu (svg chart dimensions)
 const CHART_WIDTH = 300
 const CHART_HEIGHT = 200
 const PADDING = 30
 
-// Chart scaling
+// škálování grafu (chart scaling)
 const chartBounds = computed(() => {
   const pts = dataPoints.value
   if (pts.length === 0) {
@@ -124,7 +123,7 @@ const chartBounds = computed(() => {
   let yMin = Math.min(...yVals)
   let yMax = Math.max(...yVals)
   
-  // Add padding
+  // přidání odsazení (padding)
   const xPad = (xMax - xMin) * 0.1 || 1
   const yPad = (yMax - yMin) * 0.1 || 1
   xMin -= xPad
@@ -145,7 +144,7 @@ function mapY(y: number): number {
   return CHART_HEIGHT - PADDING - ((y - yMin) / (yMax - yMin)) * (CHART_HEIGHT - PADDING * 2)
 }
 
-// Regression line points for SVG
+// body regresní čáry pro svg (regression line path)
 const regressionLinePath = computed(() => {
   if (!result.value) return ''
   const { xMin, xMax } = chartBounds.value
@@ -171,7 +170,7 @@ const regressionLinePath = computed(() => {
   return path.join(' ')
 })
 
-// Format number for display
+// formátování čísla pro zobrazení (format number)
 function fmt(n: number, decimals = 4): string {
   if (Math.abs(n) < 0.0001 && n !== 0) {
     return n.toExponential(2)
@@ -179,15 +178,15 @@ function fmt(n: number, decimals = 4): string {
   return n.toFixed(decimals).replace(/\.?0+$/, '')
 }
 
-// Copy results to clipboard
+// kopírovat výsledky do schránky (copy to clipboard)
 function copyResults() {
   if (!result.value) return
   const r = result.value
   const text = `Typ: ${r.type === 'linear' ? 'Lineární' : 'Logaritmická'}
 Rovnice: ${r.equation}
-Slope (a): ${fmt(r.slope)}
-Intercept (b): ${fmt(r.intercept)}
-R²: ${fmt(r.rSquared)}
+Sklon (a): ${fmt(r.slope)}
+Průsečík (b): ${fmt(r.intercept)}
+r na druhou: ${fmt(r.rSquared)}
 Korelace: ${fmt(r.correlation)}`
   navigator.clipboard.writeText(text)
 }
@@ -195,13 +194,13 @@ Korelace: ${fmt(r.correlation)}`
 
 <template>
   <div class="regression-calculator">
-    <!-- Header -->
+    <!-- záhlaví (header) -->
     <div class="d-flex align-center mb-3">
       <v-icon size="20" color="primary" class="mr-2">mdi-chart-scatter-plot</v-icon>
       <span class="text-subtitle-1 font-weight-medium">{{ title || 'Regresní kalkulátor' }}</span>
     </div>
 
-    <!-- Input Section (if not readonly) -->
+    <!-- sekce vstupu: pokud není pouze pro čtení (input section) -->
     <div v-if="!readonly" class="input-section mb-4">
       <div class="d-flex ga-3">
         <v-textarea
@@ -253,21 +252,21 @@ Korelace: ${fmt(r.correlation)}`
       </div>
     </div>
 
-    <!-- Error -->
+    <!-- chyba (error) -->
     <v-alert v-if="error" type="error" density="compact" class="mb-3">
       {{ error }}
     </v-alert>
 
-    <!-- Results -->
+    <!-- výsledky (results) -->
     <div v-if="result" class="results-section">
-      <!-- Chart -->
+      <!-- graf (chart) -->
       <div class="chart-container mb-4">
         <svg 
           :width="CHART_WIDTH" 
           :height="CHART_HEIGHT"
           class="regression-chart"
         >
-          <!-- Grid lines -->
+          <!-- mřížka (grid lines) -->
           <g class="grid">
             <line 
               :x1="PADDING" 
@@ -285,7 +284,7 @@ Korelace: ${fmt(r.correlation)}`
             />
           </g>
           
-          <!-- Regression line -->
+          <!-- regresní čára (regression line) -->
           <path
             v-if="regressionLinePath"
             :d="regressionLinePath"
@@ -295,7 +294,7 @@ Korelace: ${fmt(r.correlation)}`
             stroke-dasharray="5,3"
           />
           
-          <!-- Data points -->
+          <!-- datové body (data points) -->
           <g class="points">
             <circle
               v-for="(pt, i) in dataPoints"
@@ -311,7 +310,7 @@ Korelace: ${fmt(r.correlation)}`
             </circle>
           </g>
           
-          <!-- Axis labels -->
+          <!-- popisky os (axis labels) -->
           <text 
             :x="CHART_WIDTH / 2" 
             :y="CHART_HEIGHT - 5" 
@@ -330,7 +329,7 @@ Korelace: ${fmt(r.correlation)}`
         </svg>
       </div>
       
-      <!-- Results table -->
+      <!-- tabulka výsledků (results table) -->
       <div class="results-grid">
         <div class="result-row">
           <span class="result-label">Typ regrese:</span>
@@ -347,17 +346,17 @@ Korelace: ${fmt(r.correlation)}`
         </div>
         
         <div class="result-row">
-          <span class="result-label">Slope (a):</span>
+          <span class="result-label">Sklon (a):</span>
           <span class="result-value">{{ fmt(result.slope) }}</span>
         </div>
         
         <div class="result-row">
-          <span class="result-label">Intercept (b):</span>
+          <span class="result-label">Průsečík (b):</span>
           <span class="result-value">{{ fmt(result.intercept) }}</span>
         </div>
         
         <div class="result-row highlight">
-          <span class="result-label">R² (koeficient determinace):</span>
+          <span class="result-label">r na druhou (koeficient determinace):</span>
           <span class="result-value">
             <strong>{{ fmt(result.rSquared) }}</strong>
             <v-icon 
@@ -380,7 +379,7 @@ Korelace: ${fmt(r.correlation)}`
         </div>
       </div>
       
-      <!-- Actions -->
+      <!-- akce (actions) -->
       <div class="d-flex justify-end mt-3">
         <v-btn size="small" variant="text" @click="copyResults">
           <v-icon start size="16">mdi-content-copy</v-icon>
@@ -389,7 +388,7 @@ Korelace: ${fmt(r.correlation)}`
       </div>
     </div>
     
-    <!-- Empty state -->
+    <!-- prázdný stav (empty state) -->
     <div v-else-if="!error && dataPoints.length < 2" class="empty-state text-center py-6 text-medium-emphasis">
       <v-icon size="48" class="mb-2">mdi-chart-bell-curve-cumulative</v-icon>
       <div>Zadejte X a Y hodnoty pro výpočet regrese</div>
