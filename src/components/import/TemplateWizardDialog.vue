@@ -1823,14 +1823,14 @@
           >
             Smazat šablonu
           </v-btn>
-          <v-btn
+<!--          <v-btn
             v-if="canDelete"
             variant="tonal"
             prepend-icon="mdi-content-copy"
             @click="deriveFromThis"
           >
             Odvodit novou šablonu
-          </v-btn>
+          </v-btn>-->
           <v-spacer />
           <v-btn
             variant="text"

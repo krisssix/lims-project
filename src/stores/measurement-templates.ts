@@ -148,7 +148,7 @@ export const useMeasurementTemplatesStore = defineStore('measurement-templates',
         : rawIndex + 1
 
       const titleRaw = (b.title ?? `Tabulka hodnot ${blockIndex}`).toString().trim()
-      const title = titleRaw.length ? titleRaw : `Tabulka hodnot ${blockIndex}`
+      const title = titleRaw.length ? titleRaw : ('Tabulka hodnot ' + blockIndex)
 
       const rawFields = Array.isArray(b.fields) ? b.fields : []
       const seen = new Set<string>()
@@ -300,7 +300,7 @@ export const useMeasurementTemplatesStore = defineStore('measurement-templates',
     // The previous code casts resp. Let's assume resp IS the response object or contains data.
     // The Controller returns BulkStatusUpdateResponse directly.
     // Usually API wrapper returns the JSON body.
-    return resp as { requested: number; updated: number; skipped: number }
+    return resp?.data as { requested: number; updated: number; skipped: number }
   }
 
   return {

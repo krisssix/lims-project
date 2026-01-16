@@ -72,8 +72,8 @@ function updateTemplate(v: unknown): void {
             <span class="text-subtitle-1 font-weight-medium text-high-emphasis">Výběr přístroje</span>
          </div>
       </div>
-      
-      <div 
+
+      <div
         class="selection-area"
         :class="{ 'highlight-pulse': deviceCardHighlight }"
         @click.capture="triggerDeviceHighlight"
@@ -100,7 +100,7 @@ function updateTemplate(v: unknown): void {
             <span class="text-subtitle-1 font-weight-medium text-high-emphasis">Šablona měření</span>
          </div>
          <!-- Keep only the Derive button -->
-         <v-btn
+<!--         <v-btn
            v-if="props.selectedTemplateId"
            size="small"
            variant="tonal"
@@ -109,7 +109,7 @@ function updateTemplate(v: unknown): void {
            @click="$emit('deriveTemplate', props.selectedTemplateId!)"
          >
            Odvodit novou z této šablony
-         </v-btn>
+         </v-btn>-->
       </div>
 
       <TemplateSelect

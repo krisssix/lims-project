@@ -17,10 +17,11 @@ export interface MappingField {
   originalIndexGuess: number | null
   mappedSourceIndex: number | null
   headerMatched: boolean
-  /** Zdroj mapování - pro zobrazení badge v UI */
   matchSource?: MatchSource
   /** Confidence score z BE (0-1) */
   confidence?: number
+  /** Data type of the field (text, float, int, etc.) */
+  type?: string
 }
 
 export interface MappingBlock {
@@ -99,7 +100,7 @@ export function buildMappingModel(
   template: {
     name: string
     deviceId: string
-    blocks: Array<{ blockIndex: number; title: string; fields: Array<{ name: string; required: boolean; sourceIndex?: number }> }>
+    blocks: Array<{ blockIndex: number; title: string; fields: Array<{ name: string; required: boolean; sourceIndex?: number; type?: string }> }>
   },
   imported: {
     fileName: string
@@ -149,7 +150,8 @@ export function buildMappingModel(
         required: f.required,
         originalIndexGuess: guessIdx,
         mappedSourceIndex: mapped,
-        headerMatched: matched
+        headerMatched: matched,
+        type: f.type
       })
     }
 
@@ -185,7 +187,10 @@ export function validateMapping(model: MappingModel, enabledFields?: Set<string>
       if (enabledFields && !enabledFields.has(f.id)) continue
 
       if (f.required && f.mappedSourceIndex === null) {
-        errors.push(`Tabulka hodnot ${block.blockIndex}: pole '${f.fieldName}' není namapováno`)
+        // Skip validation for required text fields as per user request (allows empty text columns)
+        if (f.type !== 'text') {
+          errors.push(`Tabulka hodnot ${block.blockIndex}: pole '${f.fieldName}' není namapováno`)
+        }
       }
       if (f.mappedSourceIndex != null) {
         if (used.has(f.mappedSourceIndex)) {

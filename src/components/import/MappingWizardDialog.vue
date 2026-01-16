@@ -508,7 +508,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKey))
                 :key="f.id"
                 class="mapping-grid data-row"
                 :class="{
-                  'row-invalid': f.required && f.mappedSourceIndex === null,
+                  'row-invalid': f.required && f.mappedSourceIndex === null && f.type !== 'text',
                   'row-disabled': !enabledFields.has(f.id)
                 }"
               >
@@ -601,7 +601,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKey))
 
                 <div class="cell status-cell">
                   <v-icon
-                    v-if="f.required && f.mappedSourceIndex === null"
+                    v-if="f.required && f.mappedSourceIndex === null && f.type !== 'text'"
                     size="18"
                     color="error"
                   >
