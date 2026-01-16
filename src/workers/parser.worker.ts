@@ -3,12 +3,12 @@
 import type { ParserOptions } from '@/utils/importParsing'
 import { analyzeClipboard } from '@/utils/importParsing'
 
-// Pomocné typy pro zprávy
+// pomocné typy pro zprávy
 type ParseRequest = { id: number; text: string; opts: ParserOptions }
 type ParseSuccess = { id: number; result: ReturnType<typeof analyzeClipboard> }
 type ParseError = { id: number; error: string }
 
-// `self` je v workeru DedicatedWorkerGlobalScope
+// `self` je v workeru dedicatedworkerglobalscope
 const ctx = self as DedicatedWorkerGlobalScope
 
 ctx.onmessage = (ev: MessageEvent<ParseRequest>) => {
@@ -18,10 +18,10 @@ ctx.onmessage = (ev: MessageEvent<ParseRequest>) => {
     const msg: ParseSuccess = { id, result }
     ctx.postMessage(msg)
   } catch (e) {
-    const msg: ParseError = { id, error: (e as Error)?.message ?? 'parse failed' }
+    const msg: ParseError = { id, error: (e as Error)?.message ?? 'parsování selhalo' }
     ctx.postMessage(msg)
   }
 }
 
-// označ jako modul (umlčí „Vue: Cannot find name…“ ve Volaru)
-export {}
+// označ jako modul (umlčí „vue: cannot find name…“ ve volaru)
+export { }

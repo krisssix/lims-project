@@ -1,10 +1,10 @@
 /**
- * Helper struktury a funkce pro práci s vícero záznamy (records) v jednom měření.
- * Record = opakování stejné sady polí (definované šablonou).
- * Block = logické seskupení polí v rámci šablony (např."Základní měření", "Pokročilé parametry").
+ * helper struktury a funkce pro práci s vícero záznamy (records) v jednom měření.
+ * record = opakování stejné sady polí (definované šablonou).
+ * block = logické seskupení polí v rámci šablony (např. "základní měření", "pokročilé parametry").
  *
- * Backend reprezentace: MeasurementValue s recordIndex a blockIndex.
- * Frontend: MeasurementRecord = { recordIndex; fields[] } kde fields odpovídají template fieldům.
+ * backend reprezentace: measurementvalue s recordindex a blockindex.
+ * frontend: measurementrecord = { recordindex; fields[] } kde fields odpovídají template fieldům.
  */
 
 import { parseCzechDate } from '@/utils/czechDateParser'
@@ -39,7 +39,7 @@ export interface MeasuredValue {
   fileUrl?: string | null
 }
 
-/* ---------- Block Types ---------- */
+/* ---------- typy bloků ---------- */
 
 export interface TemplateBlockField {
   orderIndex: number
@@ -65,15 +65,15 @@ export interface BlockedRecord {
   }>
 }
 
-/* ---------- Converters ---------- */
+/* ---------- převodníky ---------- */
 
 /**
- * Převod matrix records -> plochý seznam MeasuredValue pro API.
- * Nyní zahrnuje blockIndex pro každou hodnotu.
+ * převod matrix records -> plochý seznam measuredvalue pro api.
+ * nyní zahrnuje blockindex pro každou hodnotu.
  */
 /**
- * Převod matrix records -> plochý seznam MeasuredValue pro API.
- * DŮLEŽITÉ: Nyní správně zahrnuje blockIndex pro každou hodnotu.
+ * převod matrix records -> plochý seznam measuredvalue pro api.
+ * důležité: nyní správně zahrnuje blockindex pro každou hodnotu.
  */
 export function flattenRecords(records: MeasurementRecord[]): MeasuredValue[] {
   const out: MeasuredValue[] = []
@@ -140,8 +140,8 @@ export function groupValuesToRecords(values: MeasuredValue[]): MeasurementRecord
       type: v.type,
       required: true,
       blockIndex: v.blockIndex ?? 1,
-      blockTitle: null, // Backend neposílá blockTitle, ale blockIndex stačí
-      orderIndex: v.orderIndex, // Preserve original order from API
+      blockTitle: null, // backend neposílá blocktitle, ale blockindex stačí
+      orderIndex: v.orderIndex, // zachování původního pořadí z api
       value:
         v.type === 'float' || v.type === 'int'
           ? v.numberValue
@@ -155,13 +155,13 @@ export function groupValuesToRecords(values: MeasuredValue[]): MeasurementRecord
     })
   }
 
-  // Seřadit pole uvnitř recordu podle blockIndex a pak orderIndex
+  // seřadit pole uvnitř recordu podle blockindex a pak orderindex
   const records = [...map.values()]
   records.forEach(r => {
     r.fields.sort((a, b) => {
       const blockDiff = (a.blockIndex ?? 1) - (b.blockIndex ?? 1)
       if (blockDiff !== 0) return blockDiff
-      // Use orderIndex to preserve original upload order
+      // použij orderindex pro zachování původního pořadí nahrání
       return (a.orderIndex ?? 0) - (b.orderIndex ?? 0)
     })
   })
@@ -170,7 +170,7 @@ export function groupValuesToRecords(values: MeasuredValue[]): MeasurementRecord
 }
 
 /**
- * Seskupí record fields podle bloků pro zobrazení v UI.
+ * seskupí record fields podle bloků pro zobrazení v ui.
  */
 export function groupRecordByBlocks(
   record: MeasurementRecord,
@@ -178,24 +178,24 @@ export function groupRecordByBlocks(
 ): BlockedRecord {
   const blocksMap = new Map<number, { blockIndex: number; blockTitle: string; fields: RecordField[] }>()
 
-  // Inicializovat bloky ze šablony
+  // inicializovat bloky ze šablony
   for (const block of templateBlocks) {
     blocksMap.set(block.blockIndex, {
       blockIndex: block.blockIndex,
-      blockTitle: block.title || `Tabulka hodnot ${block.blockIndex}`,
+      blockTitle: block.title || `tabulka hodnot ${block.blockIndex}`,
       fields: []
     })
   }
 
-  // Přiřadit pole do bloků
+  // přiřadit pole do bloků
   for (const field of record.fields) {
     const blockIdx = field.blockIndex ?? 1
 
     if (!blocksMap.has(blockIdx)) {
-      // Fallback Tabulka hodnot pokud neexistuje v šabloně
+      // fallback tabulka hodnot pokud neexistuje v šabloně
       blocksMap.set(blockIdx, {
         blockIndex: blockIdx,
-        blockTitle: `Tabulka hodnot ${blockIdx}`,
+        blockTitle: `tabulka hodnot ${blockIdx}`,
         fields: []
       })
     }
@@ -210,17 +210,17 @@ export function groupRecordByBlocks(
 }
 
 /**
- * Vrátí pole pouze pro konkrétní Tabulka hodnot.
+ * vrátí pole pouze pro konkrétní tabulku hodnot.
  */
 export function getFieldsForBlock(record: MeasurementRecord, blockIndex: number): RecordField[] {
   return record.fields.filter(f => (f.blockIndex ?? 1) === blockIndex)
 }
 
-/* ---------- Field factory ---------- */
+/* ---------- továrna na pole ---------- */
 
 /**
- * Vytvoří nový prázdný record podle template field definic.
- * Nyní podporuje bloky - přiřadí blockIndex každému poli.
+ * vytvoří nový prázdný record podle template field definic.
+ * nyní podporuje bloky - přiřadí blockindex každému poli.
  */
 export function newRecordFromTemplateFields(
   recordIndex: number,
@@ -240,7 +240,7 @@ export function newRecordFromTemplateFields(
 }
 
 /**
- * Vytvoří nový record z bloků šablony.
+ * vytvoří nový record z bloků šablony.
  */
 export function newRecordFromBlocks(
   recordIndex: number,
@@ -265,7 +265,7 @@ export function newRecordFromBlocks(
 }
 
 /**
- * Flatten bloků do pole template fields (pro kompatibilitu se starším kódem).
+ * flatten bloků do pole template fields (pro kompatibilitu se starším kódem).
  */
 export function flattenBlocksToFields(
   blocks: TemplateBlock[]
@@ -287,7 +287,7 @@ export function flattenBlocksToFields(
   return fields
 }
 
-/* ---------- Value utilities ---------- */
+/* ---------- pomocné utility pro hodnoty ---------- */
 
 function initialValueForType(t: ValueType): unknown {
   switch (t) {
@@ -329,23 +329,23 @@ export function toDateMs(raw: unknown): number | null {
   if (typeof raw === 'number') return Number.isFinite(raw) ? raw : null
   if (raw instanceof Date) return raw.getTime()
   if (typeof raw === 'string') {
-    // Try Czech date parser first (handles "4. října 2022 16:58:51")
+    // nejdříve zkusíme český date parser (zvládá "4. října 2022 16:58:51")
     try {
       const parsed = parseCzechDate(raw)
       if (parsed.success && parsed.date) {
         return parsed.date.getTime()
       }
     } catch {
-      // Fallback if parser fails
+      // fallback pokud parser selže
     }
-    // Fallback to standard Date.parse
+    // fallback na standardní date.parse
     const ms = Date.parse(raw)
     return Number.isFinite(ms) ? ms : null
   }
   return null
 }
 
-/* ---------- Stats & Outliers ---------- */
+/* ---------- statistiky a odlehlé hodnoty ---------- */
 
 export interface BasicStats {
   mean: number
@@ -419,7 +419,7 @@ export function detectOutliersIqr(values: number[]): IqrOutliers {
   return { outlierIndexes, lowerFence, upperFence, q1, q3 }
 }
 
-/* ---------- Series extraction ---------- */
+/* ---------- extrakce řad ---------- */
 
 /**
  * Vrátí hodnoty jednoho pole napříč všemi recordy.
@@ -444,7 +444,7 @@ export function extractSeries(records: MeasurementRecord[], fieldName: string): 
 }
 
 /**
- * Vrátí hodnoty pole z konkrétního bloku napříč všemi recordy.
+ * vrátí hodnoty pole z konkrétního bloku napříč všemi recordy.
  */
 export function extractSeriesFromBlock(
   records: MeasurementRecord[],
@@ -469,7 +469,7 @@ export function extractSeriesFromBlock(
 }
 
 /**
- * Odstraní recordy, které nemají žádný numeric value pro dané pole (volitelné).
+ * odstraní recordy, které nemají žádnou číselnou hodnotu pro dané pole (volitelné).
  */
 export function filterRecordsWithNumericField(records: MeasurementRecord[], fieldName: string): MeasurementRecord[] {
   return records.filter(r => {
@@ -485,7 +485,7 @@ export function filterRecordsWithNumericField(records: MeasurementRecord[], fiel
   })
 }
 
-/* ---------- Editable operations ---------- */
+/* ---------- editovatelné operace ---------- */
 
 export function duplicateRecord(source: MeasurementRecord, newIndex: number): MeasurementRecord {
   return {
@@ -507,14 +507,14 @@ function cloneValue(v: unknown): unknown {
   if (typeof v === 'object') {
     // File nebo Blob nepřekopírováváme – necháme null (ochrana)
     if (v instanceof File || v instanceof Blob) return null
-    // Prostý object → shallow clone
+    // prostý objekt -> mělká kopie
     return { ...(v as Record<string, unknown>) }
   }
   return v
 }
 
 /**
- * Aktualizace hodnoty jednoho fieldu v recordu (immutable friendly pokud bys chtěl).
+ * aktualizace hodnoty jednoho pole v recordu (immutable friendly pokud bys chtěl).
  */
 export function setFieldValue(
   record: MeasurementRecord,
@@ -530,7 +530,7 @@ export function setFieldValue(
 }
 
 /**
- * Aktualizace hodnoty fieldu v konkrétním bloku.
+ * aktualizace hodnoty pole v konkrétním bloku.
  */
 export function setFieldValueInBlock(
   record: MeasurementRecord,
@@ -549,7 +549,7 @@ export function setFieldValueInBlock(
 }
 
 /**
- * Validace jednoho fieldu podle jeho typu + required.
+ * validace jednoho pole podle jeho typu + required.
  */
 export function validateField(field: RecordField): string | null {
   if (!field.required) return null
@@ -577,7 +577,7 @@ export function validateField(field: RecordField): string | null {
 }
 
 /**
- * Validace celého recordu.
+ * validace celého recordu.
  */
 export function validateRecord(record: MeasurementRecord): { errors: Record<string, string>; valid: boolean } {
   const errors: Record<string, string> = {}
@@ -589,7 +589,7 @@ export function validateRecord(record: MeasurementRecord): { errors: Record<stri
 }
 
 /**
- * Validace polí v konkrétním bloku.
+ * validace polí v konkrétním bloku.
  */
 export function validateBlock(record: MeasurementRecord, blockIndex: number): { errors: Record<string, string>; valid: boolean } {
   const errors: Record<string, string> = {}
@@ -604,7 +604,7 @@ export function validateBlock(record: MeasurementRecord, blockIndex: number): { 
 }
 
 /**
- * Bulk validace všech záznamů.
+ * hromadná validace všech záznamů.
  */
 export function validateAllRecords(records: MeasurementRecord[]): {
   perRecord: Array<{ recordIndex: number; errors: Record<string, string>; valid: boolean }>
@@ -632,7 +632,7 @@ export function countFilledFieldsInBlock(record: MeasurementRecord, blockIndex: 
 }
 
 /**
- * Získá unikátní bloky z recordu.
+ * získá unikátní bloky z recordu.
  */
 export function getUniqueBlocks(record: MeasurementRecord): Array<{ blockIndex: number; blockTitle: string | null }> {
   const seen = new Map<number, string | null>()

@@ -1,4 +1,4 @@
-import { detectDelimiter } from './detectDelimiter'
+import { detectDelimiter } from './detectDelimeter'
 import { isProbableUnitRow } from './detectUnitRow'
 import { extractKeyValueMeta } from './kvMeta'
 import { splitIntoBlocks } from './splitBlocks'
@@ -15,7 +15,8 @@ import type {
   InferredColumn,
   TemplateDraft,
   MeasurementRecordDraft,
-  MeasurementImportPreview
+  MeasurementImportPreview,
+  InferredValueType
 } from '@/types/import'
 
 function classifyKind(fileName: string): RawFileKind {
@@ -57,7 +58,7 @@ export async function parseMeasurementFile(input: File | string, opts: ParseOpti
   const linesForMeta = rawText.split(/\r?\n/)
   const { meta, remaining } = extractKeyValueMeta(linesForMeta)
 
-  // Rozdělit do bloků na základě remaining
+  // rozdělit do bloků na základě zbývajícího obsahu (remaining)
   const blocksRaw = splitIntoBlocks(remaining)
   const warnings: string[] = []
   const errors: string[] = []
@@ -85,7 +86,7 @@ export async function parseMeasurementFile(input: File | string, opts: ParseOpti
 
     const dataRows = splitted.slice(dataStartIndex).filter(r => r.some(c => c.trim().length))
 
-    // Stats
+    // statistiky
     const numericCandidateColumns = headerCells.map((h, i) => ({
       name: h.trim(),
       samples: dataRows.slice(0, 50).map(r => r[i] ?? '').filter(s => s.trim().length)
@@ -113,7 +114,7 @@ export async function parseMeasurementFile(input: File | string, opts: ParseOpti
     globalBlockIndex++
   }
 
-  // Header confidence (jednoduchá heuristika: počet sloupců >1 a žádná čistě numerická hlavička)
+  // spolehlivost hlavičky (jednoduchá heuristika: počet sloupců > 1 a žádná čistě číselná hlavička)
   const headerConfidence = parsedBlocks.length
     ? Math.min(
       1,
@@ -182,7 +183,7 @@ export function buildTemplateDraft(result: FileParseResult, proposedName: string
 export function buildMeasurementPreview(result: FileParseResult, templateDraft: TemplateDraft): MeasurementImportPreview {
   const records: MeasurementRecordDraft[] = []
 
-  // Vytvořit recordy z bloků – každý řádek = jeden record (může se sloučit později podle více bloků)
+  // vytvořit záznamy z bloků: každý řádek: jeden záznam (může se sloučit později podle více bloků)
   for (const block of result.blocks) {
     block.rows.forEach((row, rowIdx) => {
       const recordIndex = rowIdx + 1
@@ -235,11 +236,11 @@ function convertValue(raw: string, type: InferredValueType | undefined): unknown
       return null
     }
     case 'date': {
-      // Try Czech date parser first (handles "4. října 2022 16:58:51")
+      // nejdříve zkusit český parser data (zvládá např. „4. října 2022 16:58:51“)
       const czechMs = czechDateToEpoch(trimmed)
       if (czechMs !== null) return czechMs
 
-      // Fallback to standard Date.parse
+      // pád zpět na standardní date.parse
       const ms = Date.parse(trimmed)
       return Number.isFinite(ms) ? ms : trimmed
     }

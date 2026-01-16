@@ -7,20 +7,20 @@ export type CalEvent = {
 export type EventLayout = Record<number, { left: number; width: number }>
 
 /**
- * Stabilní layout překryvů: události ve stejných "clusterch" (překrývajících se v čase)
+ * stabilní layout překryvů: události ve stejných "shlucích" (překrývajících se v čase)
  * rozdělí do sloupců tak, aby se nekryly.
- * - Seřadí eventy podle start, tie-break end.
- * - Staví sloupce greedily: event jde do prvního sloupce, kde nekoliduje.
- * - left/width vypočítá z celkového počtu sloupců v clusteru.
- * - Nepoužívá žádnou normalizaci pozic (žádný “návrat” pro kolize).
+ * - seřadí události podle začátku, tie-break podle konce.
+ * - staví sloupce nenasytně (greedily): událost jde do prvního sloupce, kde nekoliduje.
+ * - left/width vypočítá z celkového počtu sloupců v daném shluku.
+ * - nepoužívá žádnou normalizaci pozic (žádný „návrat“ pro kolize).
  */
 export function computeOverlapLayout(events: CalEvent[]): EventLayout {
-  // Normalize and sort
+  // normalizace a řazení
   const evs = [...events].sort((a, b) =>
     a.startMs === b.startMs ? a.endMs - b.endMs : a.startMs - b.startMs
   )
 
-  // Cluster builder: group overlapping events into clusters
+  // sestavení shluků (clusters): seskupení překrývajících se událostí do shluků
   type Cluster = CalEvent[]
   const clusters: Cluster[] = []
   let current: Cluster = []
@@ -36,10 +36,10 @@ export function computeOverlapLayout(events: CalEvent[]): EventLayout {
     }
     const lastEnd = Math.max(...current.map(x => x.endMs))
     if (e.startMs < lastEnd) {
-      // still overlapping cluster
+      // stále se překrývající shluk
       current.push(e)
     } else {
-      // close previous cluster and start new
+      // uzavření předchozího shluku a start nového
       clusters.push(current)
       current = [e]
     }
@@ -48,9 +48,9 @@ export function computeOverlapLayout(events: CalEvent[]): EventLayout {
 
   const layout: EventLayout = {}
 
-  // Within each cluster, assign columns
+  // v rámci každého shluku přiřadit sloupce
   for (const c of clusters) {
-    // columns[i] = last event in that column (to test overlap)
+    // columns[i] = poslední událost v daném sloupci (pro testování překryvu)
     const columns: CalEvent[][] = []
 
     for (const e of c) {

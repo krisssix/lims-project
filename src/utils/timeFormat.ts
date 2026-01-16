@@ -1,6 +1,6 @@
 /**
- * Převod libovolné hodnoty (number|string|Date) na millisekundy.
- * Vrací NaN pokud není možné převést.
+ * převod libovolné hodnoty (number|string|date) na milisekundy.
+ * vrací nan pokud není možné převést.
  */
 function toMillis(src: number | string | Date): number {
   if (typeof src === 'number') return src
@@ -8,7 +8,7 @@ function toMillis(src: number | string | Date): number {
   if (typeof src === 'string') {
     const trimmed = src.trim()
     if (!trimmed) return NaN
-    // Podpora ISO nebo pouze číslo (už je v ms)
+    // podpora iso nebo pouze číslo (už je v ms)
     const asNumber = Number(trimmed)
     if (!Number.isNaN(asNumber)) return asNumber
     const parsed = Date.parse(trimmed)
@@ -37,8 +37,8 @@ export function formatTimeFromTimestamp(timestamp: number | string | Date): stri
 }
 
 /**
- * Formátuje dobu (ms) na HH:MM:SS.
- * Vrací prázdný řetězec pro záporné nebo NaN.
+ * formátuje dobu (ms) na hh:mm:ss.
+ * vrací prázdný řetězec pro záporné nebo nan.
  */
 export function formatMs(durationMs: number): string {
   if (!Number.isFinite(durationMs) || durationMs < 0) return ''
@@ -50,7 +50,7 @@ export function formatMs(durationMs: number): string {
 }
 
 /**
- * Zkrácený formát trvání pro UI (např. 1h 05m, 05m 07s).
+ * zkrácený formát trvání pro ui (např. 1h 05m, 05m 07s).
  */
 export function formatDurationBrief(durationMs: number): string {
   if (!Number.isFinite(durationMs) || durationMs < 0) return ''
@@ -64,7 +64,7 @@ export function formatDurationBrief(durationMs: number): string {
 }
 
 /**
- * ISO-like bezpečný formát (YYYY-MM-DD) – vhodný pro exporty.
+ * iso-like bezpečný formát (yyyy-mm-dd) – vhodný pro exporty.
  */
 export function formatYmd(timestamp: number | string | Date): string {
   const ms = toMillis(timestamp)
@@ -75,7 +75,7 @@ export function formatYmd(timestamp: number | string | Date): string {
 }
 
 /**
- * Kombinace datum + čas (YYYY-MM-DD HH:MM) – vhodné pro logování.
+ * kombinace datum + čas (yyyy-mm-dd hh:mm) – vhodné pro logování.
  */
 export function formatYmdHm(timestamp: number | string | Date): string {
   const ms = toMillis(timestamp)

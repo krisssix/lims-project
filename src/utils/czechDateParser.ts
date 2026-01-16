@@ -1,21 +1,21 @@
 /**
- * Parser pro české datumy typu "4. října 2022 16:58:51" nebo "pátek 19. září 2025 12:18:32"
+ * parser pro česká data typu "4. října 2022 16:58:51" nebo "pátek 19. září 2025 12:18:32"
  */
 
-// Slovník českých měsíců (všechny varianty)
+// slovník českých měsíců (všechny varianty)
 const CZECH_MONTHS: Record<string, number> = {
-    // Genitiv (nejčastější v datech)
+    // genitiv (nejčastější v datech)
     'ledna': 1, 'února': 2, 'března': 3, 'dubna': 4, 'května': 5, 'června': 6,
     'července': 7, 'srpna': 8, 'září': 9, 'října': 10, 'listopadu': 11, 'prosince': 12,
-    // Nominativ
+    // nominativ
     'leden': 1, 'únor': 2, 'březen': 3, 'duben': 4, 'květen': 5, 'červen': 6,
     'červenec': 7, 'srpen': 8, 'zaří': 9, 'říjen': 10, 'listopad': 11, 'prosinec': 12,
-    // Zkratky
+    // zkratky
     'led': 1, 'úno': 2, 'bře': 3, 'dub': 4, 'kvě': 5, 'čvn': 6,
     'čvc': 7, 'srp': 8, 'zář': 9, 'říj': 10, 'lis': 11, 'pro': 12,
 }
 
-// České dny v týdnu (pro odstranění z řetězce)
+// české dny v týdnu (pro odstranění z řetězce)
 const CZECH_DAYS = ['pondělí', 'úterý', 'středa', 'čtvrtek', 'pátek', 'sobota', 'neděle']
 
 export interface ParsedCzechDate {
@@ -31,8 +31,8 @@ export interface ParsedCzechDate {
 }
 
 /**
- * Parsuje český datum string do Date objektu
- * Podporované formáty:
+ * parsuje český datumový řetězec do date objektu
+ * podporované formáty:
  * - "4. října 2022 16:58:51"
  * - "pátek 19. září 2025 12:18:32"
  * - "19/09/2025 12:18:32" (fallback na standardní formát)
@@ -54,13 +54,13 @@ export function parseCzechDate(input: string): ParsedCzechDate {
 
     if (!original) return result
 
-    // Odstranit den v týdnu (pokud přítomen)
+    // odstranit den v týdnu (pokud je přítomen)
     let cleaned = original.toLowerCase()
     for (const day of CZECH_DAYS) {
         cleaned = cleaned.replace(day, '').trim()
     }
 
-    // Pokus 1: Český formát "D. měsíc YYYY HH:MM:SS"
+    // pokus 1: český formát "d. měsíc yyyy hh:mm:ss"
     const czechPattern = /(\d{1,2})\.\s*([a-záíéúůýčřšžňďť]+)\s+(\d{2,4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/i
     const czechMatch = cleaned.match(czechPattern)
 
@@ -88,7 +88,7 @@ export function parseCzechDate(input: string): ParsedCzechDate {
         }
     }
 
-    // Pokus 2: Formát "D/M/YYYY HH:MM:SS" nebo "D/M/YY HH:MM:SS"
+    // pokus 2: formát "d/m/yyyy hh:mm:ss" nebo "d/m/yy hh:mm:ss"
     const slashPattern = /(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/
     const slashMatch = cleaned.match(slashPattern)
 
@@ -113,7 +113,7 @@ export function parseCzechDate(input: string): ParsedCzechDate {
         return result
     }
 
-    // Pokus 3: ISO formát jako fallback
+    // pokus 3: iso formát jako fallback
     const iso = Date.parse(original)
     if (!isNaN(iso)) {
         result.date = new Date(iso)
@@ -138,7 +138,7 @@ export function czechDateToEpoch(input: string): number | null {
 }
 
 /**
- * Formátuje Date na český formát "D. M. YYYY HH:MM"
+ * formátuje date na český formát "d. m. yyyy hh:mm"
  */
 export function formatCzechDate(date: Date | number | null, includeTime = true): string {
     if (!date) return ''

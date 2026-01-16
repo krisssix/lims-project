@@ -1,5 +1,5 @@
 /**
- * Utilities for exporting measurements to CSV
+ * nástroje pro export měření do csv
  */
 import { type MeasurementResponse, type MeasuredValue } from '@/stores/measurement'
 
@@ -16,7 +16,7 @@ export interface ExportOptions {
     filename?: string
 }
 
-// Default available columns
+// výchozí dostupné sloupce
 export function getDefaultColumns(): ExportColumn[] {
     return [
         { key: 'id', label: 'ID', enabled: true },
@@ -31,7 +31,7 @@ export function getDefaultColumns(): ExportColumn[] {
     ]
 }
 
-// Format timestamp to readable date string
+// formátování časového razítka na čitelný řetězec data
 function formatTimestamp(ts: number | string | undefined): string {
     if (!ts) return ''
     const ms = typeof ts === 'number' ? ts : Date.parse(String(ts))
@@ -46,18 +46,18 @@ function formatTimestamp(ts: number | string | undefined): string {
     })
 }
 
-// Escape CSV value (handle quotes and commas)
+// ošetření csv hodnoty (uvozovky a čárky)
 function escapeCSV(value: unknown): string {
     if (value === null || value === undefined) return ''
     const str = String(value)
-    // If contains comma, newline or quote, wrap in quotes and escape inner quotes
+    // pokud obsahuje čárku, nový řádek nebo uvozovku, obalit do uvozovek a zdvojit vnitřní uvozovky
     if (str.includes(',') || str.includes('\n') || str.includes('"')) {
         return `"${str.replace(/"/g, '""')}"`
     }
     return str
 }
 
-// Get unique field names from all measurements
+// získání unikátních názvů polí ze všech měření
 function getUniqueFieldNames(measurements: MeasurementResponse[]): string[] {
     const fieldNames = new Set<string>()
     for (const m of measurements) {
@@ -68,7 +68,7 @@ function getUniqueFieldNames(measurements: MeasurementResponse[]): string[] {
     return Array.from(fieldNames).sort()
 }
 
-// Get value from MeasuredValue
+// získání zobrazení hodnoty z measuredvalue
 function getValueDisplay(v: MeasuredValue): string {
     if (v.numberValue !== null && v.numberValue !== undefined) return String(v.numberValue)
     if (v.textValue !== null && v.textValue !== undefined) return v.textValue
@@ -78,32 +78,32 @@ function getValueDisplay(v: MeasuredValue): string {
     return ''
 }
 
-// Build CSV content from measurements
+// sestavení obsahu csv z měření
 export function buildCSV(options: ExportOptions): string {
     const { columns, measurements, includeSeries } = options
     const enabledColumns = columns.filter(c => c.enabled)
 
-    // Get unique field names for dynamic value columns
+    // získání unikátních názvů polí pro dynamické sloupce hodnot
     const fieldNames = enabledColumns.some(c => c.key === 'values')
         ? getUniqueFieldNames(measurements)
         : []
 
-    // Build header row
+    // sestavení řádku hlavičky
     const headers: string[] = []
     for (const col of enabledColumns) {
         if (col.key === 'values') {
-            // Add each field name as a separate column
+            // přidat každý název pole jako samostatný sloupec
             headers.push(...fieldNames)
         } else {
             headers.push(col.label)
         }
     }
 
-    // Build data rows (one row per record)
+    // sestavení datových řádků (jeden řádek na záznam)
     const rows: string[][] = []
 
     for (const m of measurements) {
-        // Group values by recordIndex
+        // seskupení hodnot podle recordindex
         const recordsMap = new Map<number, MeasuredValue[]>()
         for (const v of m.values ?? []) {
             const ri = v.recordIndex ?? 1
@@ -111,12 +111,12 @@ export function buildCSV(options: ExportOptions): string {
             recordsMap.get(ri)!.push(v)
         }
 
-        // If no values, create one row anyway
+        // pokud nejsou žádné hodnoty, i tak vytvořit jeden řádek
         if (recordsMap.size === 0) {
             recordsMap.set(1, [])
         }
 
-        // Create a row for each record
+        // vytvoření řádku pro každý záznam
         const recordIndexes = Array.from(recordsMap.keys()).sort((a, b) => a - b)
         for (const recordIndex of recordIndexes) {
             const recordValues = recordsMap.get(recordIndex) ?? []
@@ -149,7 +149,7 @@ export function buildCSV(options: ExportOptions): string {
                         row.push(escapeCSV(recordsMap.size))
                         break
                     case 'values':
-                        // Add value for each field name
+                        // přidat hodnotu pro každý název pole
                         for (const fieldName of fieldNames) {
                             const val = recordValues.find(v => v.name === fieldName)
                             row.push(escapeCSV(val ? getValueDisplay(val) : ''))
@@ -164,13 +164,13 @@ export function buildCSV(options: ExportOptions): string {
         }
     }
 
-    // If includeSeries and there are series, add them (separate section)
+    // pokud jsou zahrnuty série a existují, přidat je (oddělená sekce)
     if (includeSeries) {
         const seriesData = measurements.filter(m => m.series && m.series.length > 0)
         if (seriesData.length > 0) {
-            rows.push([]) // Empty row separator
-            rows.push(['📊 DATOVÉ SÉRIE'])
-            rows.push(['Measurement ID', 'Series Type', 'Series Name', 'X Values', 'Y Values'])
+            rows.push([]) // prázdný řádek jako oddělovač
+            rows.push(['📊 datové série'])
+            rows.push(['id měření', 'typ série', 'název série', 'hodnoty x', 'hodnoty y'])
 
             for (const m of seriesData) {
                 for (const s of m.series ?? []) {
@@ -186,14 +186,14 @@ export function buildCSV(options: ExportOptions): string {
         }
     }
 
-    // Combine headers and rows
+    // spojení hlaviček a řádků
     const lines = [headers.map(escapeCSV).join(','), ...rows.map(r => r.join(','))]
 
-    // Add UTF-8 BOM for Excel compatibility
+    // přidání utf-8 bom pro kompatibilitu s excelem
     return '\uFEFF' + lines.join('\r\n')
 }
 
-// Download CSV file
+// stažení csv souboru
 export function downloadCSV(content: string, filename: string): void {
     const blob = new Blob([content], { type: 'text/csv;charset=utf-8' })
     const url = URL.createObjectURL(blob)
@@ -206,7 +206,7 @@ export function downloadCSV(content: string, filename: string): void {
     URL.revokeObjectURL(url)
 }
 
-// Export measurements to CSV file
+// export měření do csv souboru
 export function exportMeasurementsToCSV(options: ExportOptions): void {
     const csv = buildCSV(options)
     const filename = options.filename || `mereni_export_${new Date().toISOString().slice(0, 10)}.csv`

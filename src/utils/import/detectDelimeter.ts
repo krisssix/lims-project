@@ -21,7 +21,7 @@ export function detectDelimiter(lines: string[], hint?: string): DelimiterDetect
     }
     scores[d] = consistency / Math.max(1, sample.length - 1)
   }
-  // Pokud tab dosáhne aspoň 0.6 preferuj ho; jinak max
+  // pokud tabulátor dosáhne aspoň 0.6, preferuj ho: jinak maximum
   const bestDelimiter = Object.entries(scores).sort((a, b) => b[1] - a[1])[0]?.[0] ?? ','
   return { delimiter: bestDelimiter, scoreMap: scores }
 }

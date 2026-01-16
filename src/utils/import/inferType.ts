@@ -1,11 +1,11 @@
 export type PrimitiveType = 'int' | 'float' | 'bool' | 'date' | 'file' | 'text'
 
-const BOOL_VALUES_TRUE = new Set(['true','1','yes','y','ano','a','t'])
-const BOOL_VALUES_FALSE = new Set(['false','0','no','n','ne','f'])
+const BOOL_VALUES_TRUE = new Set(['true', '1', 'yes', 'y', 'ano', 'a', 't'])
+const BOOL_VALUES_FALSE = new Set(['false', '0', 'no', 'n', 'ne', 'f'])
 
 const DATE_PATTERNS = [
   /^\d{4}-\d{2}-\d{2}$/, // YYYY-MM-DD
-  /^\d{4}-\d{2}-\d{2}[\sT]\d{2}:\d{2}(:\d{2})?$/ // with time
+  /^\d{4}-\d{2}-\d{2}[\sT]\d{2}:\d{2}(:\d{2})?$/ // s časem
 ]
 
 const FILE_HINTS = /\.(png|jpe?g|tiff?|gif|bmp|csv|xlsx?|pdf|txt)$/i

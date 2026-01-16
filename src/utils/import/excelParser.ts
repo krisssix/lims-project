@@ -1,6 +1,6 @@
 /**
- * Excel file parser using SheetJS (xlsx)
- * Converts .xlsx/.xls files to 2D string arrays for import
+ * parsování excel souborů pomocí sheetjs (xlsx)
+ * převádí soubory .xlsx/.xls na 2d pole řetězců pro import
  */
 import * as XLSX from 'xlsx'
 
@@ -14,7 +14,7 @@ export interface ExcelParseResult {
 }
 
 /**
- * Parse Excel file (.xlsx, .xls) to grid data
+ * zparsování excel souboru (.xlsx, .xls) na data mřížky
  */
 export async function parseExcelFile(file: File): Promise<ExcelParseResult> {
     try {
@@ -27,11 +27,11 @@ export async function parseExcelFile(file: File): Promise<ExcelParseResult> {
                 return { name: sheetName, grid: [] as (string | number)[][] }
             }
 
-            // Convert to 2D array
+            // převod na 2d pole
             const grid = XLSX.utils.sheet_to_json<(string | number)[]>(worksheet, {
-                header: 1, // Return array of arrays
-                defval: '', // Default value for empty cells
-                blankrows: true // Include blank rows
+                header: 1, // vrátit pole polí
+                defval: '', // výchozí hodnota pro prázdné buňky
+                blankrows: true // zahrnout prázdné řádky
             }) as (string | number)[][]
 
             return { name: sheetName, grid }
@@ -48,7 +48,7 @@ export async function parseExcelFile(file: File): Promise<ExcelParseResult> {
 }
 
 /**
- * Check if file is Excel format
+ * kontrola, zda má soubor formát excelu
  */
 export function isExcelFile(file: File): boolean {
     const excelExtensions = ['.xlsx', '.xls', '.xlsm', '.xlsb']
@@ -67,7 +67,7 @@ export function isExcelFile(file: File): boolean {
 }
 
 /**
- * Parse any supported file (CSV, TSV, TXT, Excel) to grid
+ * zparsování libovolného podporovaného souboru (csv, tsv, txt, excel) na mřížku
  */
 export async function parseFileToGrid(file: File): Promise<{
     success: boolean
@@ -80,7 +80,7 @@ export async function parseFileToGrid(file: File): Promise<{
         if (!result.success) {
             return { success: false, grid: [], error: result.error }
         }
-        // Return first sheet by default
+        // vrátit první list (sheet) jako výchozí
         const firstSheet = result.sheets[0]
         return {
             success: true,
@@ -89,7 +89,7 @@ export async function parseFileToGrid(file: File): Promise<{
         }
     }
 
-    // For text files, use simple parsing
+    // pro textové soubory použít jednoduché parsování
     try {
         const text = await file.text()
         const grid = parseTextToGrid(text)
@@ -104,14 +104,14 @@ export async function parseFileToGrid(file: File): Promise<{
 }
 
 /**
- * Parse text (CSV/TSV/TXT) to grid
+ * zparsování textu (csv/tsv/txt) na mřížku
  */
 export function parseTextToGrid(text: string): (string | number)[][] {
     const lines = text.split(/\r?\n/)
     const grid: (string | number)[][] = []
 
     for (const line of lines) {
-        // Detect delimiter
+        // detekce oddělovače
         const tabCount = (line.match(/\t/g) || []).length
         const commaCount = (line.match(/,/g) || []).length
         const semicolonCount = (line.match(/;/g) || []).length
@@ -122,7 +122,7 @@ export function parseTextToGrid(text: string): (string | number)[][] {
 
         const cells = line.split(delimiter).map(cell => {
             const trimmed = cell.trim()
-            // Try to convert to number
+            // pokus o převod na číslo
             const num = parseFloat(trimmed.replace(',', '.'))
             if (!isNaN(num) && trimmed !== '') return num
             return trimmed

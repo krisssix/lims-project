@@ -37,7 +37,7 @@ export interface MeasurementTemplateResponse {
   parentVersionId?: number
 }
 
-/* ===== Request DTO ===== */
+/* ===== dto požadavků (request dto) ===== */
 
 export interface TemplateFieldRequest {
   orderIndex: number
@@ -60,7 +60,7 @@ export interface MeasurementTemplateRequest {
   changeDescription?: string
 }
 
-/* ===== Wizard payload ===== */
+/* ===== data průvodce (wizard payload) ===== */
 
 export interface WizardBlockPayload {
   blockIndex?: number
@@ -80,7 +80,7 @@ export interface WizardTemplatePayload {
   createVersionType?: 'minor' | 'major'
 }
 
-/* API wrappers */
+/* obaly api (api wrappers) */
 interface ApiList<T> { items: T[] }
 interface ApiObject<T> { content: T }
 interface ApiResponse<T> { data: T }
@@ -294,12 +294,12 @@ export const useMeasurementTemplatesStore = defineStore('measurement-templates',
 
   async function bulkUpdateStatus(ids: number[], status: 'ACTIVE' | 'DRAFT' | 'DEPRECATED'): Promise<{ requested: number; updated: number; skipped: number }> {
     const payload = { templateIds: ids, targetStatus: status }
-    // Note: API wrapper structure might differ, checking usage above generally 'post' returns unknown or typed response.
-    // Based on create: post(...) returns response.
+    // poznámka: struktura obalu api se může lišit, kontrola použití výše: post vrací neznámou nebo typovou odpověď.
+    // na základě metody create: post(...) vrací odpověď.
     const resp = await post('measurement-templates/status', payload, undefined)
-    // The previous code casts resp. Let's assume resp IS the response object or contains data.
-    // The Controller returns BulkStatusUpdateResponse directly.
-    // Usually API wrapper returns the JSON body.
+    // předchozí kód přetypovává resp. předpokládejme, že resp je objekt odpovědi nebo obsahuje data.
+    // řadič (controller) vrací přímo bulkstatusupdateresponse.
+    // obvykle obal api vrací tělo json.
     return resp?.data as { requested: number; updated: number; skipped: number }
   }
 

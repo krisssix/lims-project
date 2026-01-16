@@ -1,17 +1,17 @@
 /**
- * Color contrast utilities for ensuring text readability on colored backgrounds.
- * Use these functions to determine whether to use white or black text based on
- * the background color.
+ * nástroje pro kontrast barev zajišťující čitelnost textu na barevném pozadí.
+ * tyto funkce slouží k určení, zda použít bílý nebo černý text na základě
+ * barvy pozadí.
  */
 
 /**
- * Parse a color string (hex or rgb) to RGB components.
- * Falls back to a default blue color if parsing fails.
+ * rozklad řetězce barvy (hex nebo rgb) na rgb komponenty.
+ * v případě chyby parsování se použije výchozí modrá barva.
  */
 export function parseColorToRGB(color: string): { r: number; g: number; b: number } {
     const c = color.trim()
 
-    // Handle hex colors
+    // zpracování barev v hex formátu
     if (c.startsWith('#')) {
         const hex = c.slice(1)
         const full = hex.length === 3 ? hex.split('').map(h => h + h).join('') : hex
@@ -21,17 +21,17 @@ export function parseColorToRGB(color: string): { r: number; g: number; b: numbe
         return { r, g, b }
     }
 
-    // Handle rgb() format
+    // zpracování formátu rgb()
     const m = c.match(/rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)/i)
     if (m) return { r: Number(m[1]), g: Number(m[2]), b: Number(m[3]) }
 
-    // Default fallback - primary blue
+    // výchozí stav - základní modrá
     return { r: 30, g: 136, b: 229 }
 }
 
 /**
- * Calculate relative luminance of a color (WCAG formula).
- * Returns a value between 0 (black) and 1 (white).
+ * výpočet relativní svítivosti barvy (wcag vzorec).
+ * vrací hodnotu mezi 0 (černá) a 1 (bílá).
  */
 export function luminance({ r, g, b }: { r: number; g: number; b: number }): number {
     const srgb = [r, g, b].map(v => {
@@ -42,8 +42,8 @@ export function luminance({ r, g, b }: { r: number; g: number; b: number }): num
 }
 
 /**
- * Determine whether to use black or white text on a given background color.
- * Returns 'black' for light backgrounds and 'white' for dark backgrounds.
+ * rozhodnutí, zda použít černý nebo bílý text na daném pozadí.
+ * vrací 'black' pro světlá pozadí a 'white' pro tmavá pozadí.
  */
 export function contrastText(color: string): 'black' | 'white' {
     const lum = luminance(parseColorToRGB(color))
@@ -51,9 +51,9 @@ export function contrastText(color: string): 'black' | 'white' {
 }
 
 /**
- * Get the appropriate text color for a background, returning the actual CSS color value.
- * @param bgColor - Background color in hex or rgb format
- * @returns '#000000' or '#ffffff'
+ * získání vhodné barvy textu pro pozadí, vrací skutečnou css hodnotu barvy.
+ * @param bgcolor - barva pozadí v hex nebo rgb formátu
+ * @returns '#000000' nebo '#ffffff'
  */
 export function getContrastTextColor(bgColor: string): string {
     return contrastText(bgColor) === 'black' ? '#000000' : '#ffffff'

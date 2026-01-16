@@ -17,12 +17,12 @@ export interface MeasuredValue {
   fileUrl?: string | null
 }
 
-/* ===== MeasurementSeries ===== */
+/* ===== série měření (measurementseries) ===== */
 
 export interface MeasurementSeriesRequest {
   seriesType: string  // 'X_INTENSITY', 'SIZE_DISTRIBUTION', 'VOLUME_DISTRIBUTION'
   seriesName?: string
-  seriesScope?: 'record' | 'summary'  // 'record' = linked to specific record, 'summary' = measurement-level average
+  seriesScope?: 'record' | 'summary'  // 'record': propojeno s konkrétním záznamem, 'summary': průměr na úrovni měření
   linkedRecordIndex?: number | null
   linkedRecordDescription?: string | null
   xValues: number[]
@@ -44,7 +44,7 @@ export interface MeasurementSeriesResponse {
   yUnit?: string | null
 }
 
-/* ===== Measurement Request/Response ===== */
+/* ===== měření: požadavek/odpověď (request/response) ===== */
 
 export interface MeasurementRequest {
   value: number
@@ -74,12 +74,12 @@ export interface MeasurementResponse {
   measuredByUsername?: string | null
   values: MeasuredValue[]
   series?: MeasurementSeriesResponse[]
-  createdAt?: number | null  // Epoch ms when measurement was created
-  updatedAt?: number | null  // Epoch ms when measurement was last modified
+  createdAt?: number | null  // epoch ms: kdy bylo měření vytvořeno
+  updatedAt?: number | null  // epoch ms: kdy bylo měření naposledy upraveno
   status?: 'DRAFT' | 'PUBLISHED'
-  zenodoRecordId?: number | null  // Zenodo record ID for versioning
-  zenodoDoi?: string | null  // DOI from Zenodo
-  dataHash?: string | null  // SHA-256 hash for data integrity verification
+  zenodoRecordId?: number | null  // id záznamu zenodo pro verzování
+  zenodoDoi?: string | null  // doi ve službě zenodo
+  dataHash?: string | null  // hash sha-256 pro ověření integrity dat
 }
 
 type ApiList<T> = { items: T[] }
@@ -101,8 +101,8 @@ type MeasurementPatch = Partial<
 >
 
 function normalizeResp(m: MeasurementResponse): MeasurementResponse {
-  // Helper to normalize series - backend may return xvalues/yvalues (lowercase)
-  // but frontend expects xValues/yValues (camelCase)
+  // pomocník pro normalizaci sérií: backend může vracet xvalues/yvalues (malá písmena)
+  // ale frontend očekává xValues/yValues (camelCase)
   const normalizeSeries = (s: MeasurementSeriesResponse & {
     xvalues?: number[] | null
     yvalues?: number[] | null
@@ -116,17 +116,17 @@ function normalizeResp(m: MeasurementResponse): MeasurementResponse {
     seriesScope: (s.seriesScope ?? s.seriesscope ?? 'record') as 'record' | 'summary' | null,
     linkedRecordIndex: s.linkedRecordIndex ?? null,
     linkedRecordDescription: s.linkedRecordDescription ?? null,
-    // Handle both naming conventions from backend
+    // ošetření obou konvencí pojmenování z backendu
     xValues: s.xValues ?? s.xvalues ?? [],
     yValues: s.yValues ?? s.yvalues ?? [],
     xUnit: s.xUnit ?? s.xunit ?? null,
     yUnit: s.yUnit ?? s.yunit ?? null
   })
 
-  // Helper to normalize measured values - backend may use different casing
+  // pomocník pro normalizaci naměřených hodnot: backend může používat různé styly zápisu
   type BackendValue = MeasuredValue & {
-    fileurl?: string | null  // Backend might send lowercase
-    file_url?: string | null // Or snake_case
+    fileurl?: string | null  // backend může poslat malá písmena
+    file_url?: string | null // nebo snake_case
   }
 
   return {
@@ -138,10 +138,10 @@ function normalizeResp(m: MeasurementResponse): MeasurementResponse {
     values: Array.isArray(m.values)
       ? m.values.map((v: BackendValue) => ({
         ...v,
-        orderIndex: v.orderIndex ?? 999,  // Preserve orderIndex from backend
+        orderIndex: v.orderIndex ?? 999,  // zachovat orderindex z backendu
         recordIndex: v.recordIndex ?? 1,
         blockIndex: v.blockIndex ?? 1,
-        // Normalize fileUrl - handle different casing from backend
+        // normalizace fileurl: ošetření různých stylů zápisu z backendu
         fileUrl: v.fileUrl ?? v.fileurl ?? v.file_url ?? null
       }))
       : [],
@@ -238,7 +238,7 @@ export const useMeasurementStore = defineStore('measurement', () => {
   }
 
   async function deleteMeasurementsBulk(ids: number[]): Promise<void> {
-    // Use POST for bulk delete - backend endpoint is /measurements/bulk-delete
+    // použít post pro hromadné smazání: koncový bod backendu je /measurements/bulk-delete
     await post('measurements/bulk-delete', ids, undefined)
     const idSet = new Set(ids)
     allMeasurements.value = allMeasurements.value.filter(m => !idSet.has(m.id))

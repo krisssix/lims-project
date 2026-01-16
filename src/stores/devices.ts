@@ -38,9 +38,9 @@ function normalizeCode(raw: string): string {
 }
 
 export const useDeviceStore = defineStore('devices', () => {
-  // Aktuálně používaný aktivní seznam (pro výběry v měření apod.)
+  // aktuálně používaný aktivní seznam (pro výběry v měření apod.)
   const devices = ref<Device[]>([])
-  // Úplný seznam (aktivní i neaktivní) – pro stránku Přístroje
+  // úplný seznam (aktivní i neaktivní): pro stránku přístroje
   const allDevices = ref<Device[]>([])
 
   const loading = ref(false)
@@ -67,15 +67,15 @@ export const useDeviceStore = defineStore('devices', () => {
   }
 
   async function fetchDevices(): Promise<Device[]> {
-    // Načti jen aktivní ze /devices
+    // načti jen aktivní ze /devices
     loading.value = true
     errorText.value = null
     try {
       const resp = await get('devices', undefined)
       const data = resp?.data
       const items = isApiList<Device>(data) ? data.items : []
-      setDevicesActive(items) // devices = aktivní
-      // pokud allDevices zatím není naplněný, synchronizuj aspoň aktivní
+      setDevicesActive(items) // devices : aktivní
+      // pokud alldevices zatím není naplněný, synchronizuj aspoň aktivní
       if (!allDevices.value.length) setAllDevices(items)
       lastLoadedAt.value = Date.now()
       return devices.value
@@ -88,7 +88,7 @@ export const useDeviceStore = defineStore('devices', () => {
   }
 
   async function fetchAll(): Promise<Device[]> {
-    // Načti všechny ze /devices/all
+    // načti všechny ze /devices/all
     loading.value = true
     errorText.value = null
     try {
@@ -96,7 +96,7 @@ export const useDeviceStore = defineStore('devices', () => {
       const data = resp?.data
       const items = isApiList<Device>(data) ? data.items : []
       setAllDevices(items)
-      setDevicesActive(items) // devices = aktivní subset
+      setDevicesActive(items) // devices : aktivní subset
       lastLoadedAt.value = Date.now()
       return allDevices.value
     } catch (e: unknown) {
@@ -135,7 +135,7 @@ export const useDeviceStore = defineStore('devices', () => {
 
       if (!dev) throw new Error('Neplatná odpověď při vytváření zařízení')
 
-      // upsert do allDevices vždy
+      // upsert do alldevices vždy
       setAllDevices(upsertInto(allDevices.value, dev))
       // do devices pouze aktivní
       if (dev.active) setDevicesActive(upsertInto(allDevices.value, dev))
@@ -172,7 +172,7 @@ export const useDeviceStore = defineStore('devices', () => {
     errorText.value = null
     try {
       await del(`devices/${id}`, undefined)
-      // Uprav lokální stav: v allDevices nastav active=false, v devices odstraň
+      // uprav lokální stav: v alldevices nastav active=false, v devices odstraň
       const idxAll = allDevices.value.findIndex(d => d.id === id)
       if (idxAll >= 0) {
         const dev = { ...allDevices.value[idxAll]!, active: false }

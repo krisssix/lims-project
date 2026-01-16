@@ -1,11 +1,11 @@
 /**
- * Versioning utilities for template management
- * Supports semantic versioning (major.minor.patch)
+ * nástroje pro správu verzí šablon
+ * podporuje sémantické verzování (major.minor.patch)
  */
 
 import { type TemplateItem } from '@/types/measurement-ui'
 
-// Types
+// typy
 export type VersionType = 'major' | 'minor' | 'patch'
 export type VersionStatus = 'DRAFT' | 'ACTIVE' | 'DEPRECATED'
 
@@ -19,7 +19,7 @@ export interface VersionGroup {
     latestVersion: TemplateItem
 }
 
-// Version Lifecycle constants
+// konstanty životního cyklu verzí
 export const VersionLifecycle = {
     DRAFT: 'DRAFT',
     ACTIVE: 'ACTIVE',
@@ -27,7 +27,7 @@ export const VersionLifecycle = {
 } as const
 
 /**
- * Parse version string to components
+ * rozdělení řetězce verze na komponenty
  */
 export function parseVersion(version: string): { major: number; minor: number; patch: number } {
     const parts = version.replace(/^v/, '').split('.').map(Number)
@@ -39,7 +39,7 @@ export function parseVersion(version: string): { major: number; minor: number; p
 }
 
 /**
- * Format version to string
+ * formátování verze do řetězce
  */
 export function formatVersion(version: string | undefined): string {
     if (!version) return 'v1.0'
@@ -51,7 +51,7 @@ export function formatVersion(version: string | undefined): string {
 }
 
 /**
- * Get the next version based on version type
+ * získání další verze na základě typu verze
  */
 export function getNextVersion(currentVersion: string, type: VersionType): string {
     const { major, minor, patch } = parseVersion(currentVersion)
@@ -69,8 +69,8 @@ export function getNextVersion(currentVersion: string, type: VersionType): strin
 }
 
 /**
- * Compare two versions
- * Returns: -1 if a < b, 0 if a === b, 1 if a > b
+ * porovnání dvou verzí
+ * vrací: -1 pokud a < b, 0 pokud a === b, 1 pokud a > b
  */
 export function compareVersions(a: string, b: string): number {
     const av = parseVersion(a)
@@ -82,7 +82,7 @@ export function compareVersions(a: string, b: string): number {
 }
 
 /**
- * Get status color for template status
+ * získání barvy stavu pro stav šablony
  */
 export function getStatusColor(status: string | undefined): string {
     switch (status) {
@@ -98,7 +98,7 @@ export function getStatusColor(status: string | undefined): string {
 }
 
 /**
- * Get status icon for template status
+ * získání ikony stavu pro stav šablony
  */
 export function getStatusIcon(status: string | undefined): string {
     switch (status) {
@@ -114,7 +114,7 @@ export function getStatusIcon(status: string | undefined): string {
 }
 
 /**
- * Get version type label and metadata
+ * získání popisku a metadat pro typ verze
  */
 export function getVersionTypeLabel(type: VersionType): {
     label: string
@@ -155,7 +155,7 @@ export function getVersionTypeLabel(type: VersionType): {
 }
 
 /**
- * Get relative time string (e.g., "před 2 dny", "před hodinou")
+ * získání relativního časového řetězce (např. "před 2 dny", "před hodinou")
  */
 export function getRelativeTime(isoString: string): string {
     const date = new Date(isoString)
@@ -179,13 +179,13 @@ export function getRelativeTime(isoString: string): string {
 }
 
 /**
- * Group templates by base name (without version suffix)
+ * seskupení šablon podle základního názvu (bez přípony verze)
  */
 export function groupTemplatesByName(templates: TemplateItem[]): VersionGroup[] {
     const groups = new Map<string, VersionGroup>()
 
     for (const template of templates) {
-        // Extract base name (remove version suffix if present)
+        // extrakce základního názvu (odstranění přípony verze, pokud je přítomna)
         const baseName = template.name.replace(/\s*v?\d+(\.\d+)*\s*$/, '').trim() || template.name
         const key = `${template.deviceId}:${baseName}`
 
@@ -204,18 +204,18 @@ export function groupTemplatesByName(templates: TemplateItem[]): VersionGroup[] 
         const group = groups.get(key)!
         group.versions.push(template)
 
-        // Track active version
+        // sledování aktivní verze
         if (template.status === 'ACTIVE') {
             group.activeVersion = template
         }
 
-        // Track latest version
+        // sledování nejnovější verze
         if (compareVersions(template.version || '1.0', group.latestVersion.version || '1.0') > 0) {
             group.latestVersion = template
         }
     }
 
-    // Sort versions within each group (newest first)
+    // seřazení verzí v každé skupině (nejnovější první)
     for (const group of groups.values()) {
         group.versions.sort((a, b) => compareVersions(b.version || '1.0', a.version || '1.0'))
     }
@@ -224,17 +224,17 @@ export function groupTemplatesByName(templates: TemplateItem[]): VersionGroup[] 
 }
 
 /**
- * Versioning rules and validation
+ * pravidla verzování a validace
  */
 export const VersioningRules = {
     /**
-     * Check if a new version can be created
+     * kontrola, zda lze vytvořit novou verzi
      */
     canCreateVersion(
         existingVersions: TemplateItem[],
         newVersion: string
     ): { valid: boolean; error?: string } {
-        // Check if version already exists
+        // kontrola, zda verze již existuje
         const exists = existingVersions.some(
             v => parseVersion(v.version || '1.0').major === parseVersion(newVersion).major &&
                 parseVersion(v.version || '1.0').minor === parseVersion(newVersion).minor &&
@@ -245,7 +245,7 @@ export const VersioningRules = {
             return { valid: false, error: `Verze ${formatVersion(newVersion)} již existuje` }
         }
 
-        // Check if there's a higher version
+        // kontrola, zda existuje vyšší verze
         const hasHigher = existingVersions.some(
             v => compareVersions(v.version || '1.0', newVersion) > 0
         )
@@ -258,7 +258,7 @@ export const VersioningRules = {
     },
 
     /**
-     * Check if a version can be published
+     * kontrola, zda lze verzi publikovat
      */
     canPublish(
         template: TemplateItem,
@@ -268,7 +268,7 @@ export const VersioningRules = {
             return { valid: false, error: 'Pouze draft verze mohou být publikovány' }
         }
 
-        // Check if there's already an active version with higher version number
+        // kontrola, zda již existuje aktivní verze s vyšším číslem verze
         const activeHigher = allVersions.find(
             v => v.status === 'ACTIVE' &&
                 compareVersions(v.version || '1.0', template.version || '1.0') > 0
@@ -285,7 +285,7 @@ export const VersioningRules = {
     },
 
     /**
-     * Check if a version can be deprecated
+     * kontrola, zda lze verzi označit jako deprecated
      */
     canDeprecate(
         template: TemplateItem,
@@ -295,13 +295,13 @@ export const VersioningRules = {
             return { valid: false, error: 'Pouze aktivní verze mohou být označeny jako deprecated' }
         }
 
-        // Check if there's another active version
+        // kontrola, zda existuje jiná aktivní verze
         const otherActive = allVersions.find(
             v => v.id !== template.id && v.status === 'ACTIVE'
         )
 
         if (!otherActive) {
-            // Check if there are draft versions that could be published
+            // kontrola, zda existují verze typu draft, které by mohly být publikovány
             const hasDraft = allVersions.some(v => v.status === 'DRAFT')
             if (!hasDraft) {
                 return {
@@ -315,7 +315,7 @@ export const VersioningRules = {
     },
 
     /**
-     * Check if a version can be deleted
+     * kontrola, zda lze verzi smazat
      */
     canDelete(
         template: TemplateItem,
@@ -325,7 +325,7 @@ export const VersioningRules = {
             return { valid: false, error: 'Aktivní verze nemůže být smazána. Nejdříve jí označte jako deprecated.' }
         }
 
-        // Check if this is the last version
+        // kontrola, zda jde o poslední verzi
         if (allVersions.length <= 1) {
             return { valid: false, error: 'Nelze smazat poslední verzi šablony' }
         }

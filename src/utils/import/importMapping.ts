@@ -1,8 +1,8 @@
 /**
- * Mapping utilita pro přiřazení sloupců (headers) k fieldům šablony.
- * - Strict mode: každý field musí mít unikátní sourceIndex.
- * - Validace: žádné duplicitní indexy, žádné nevyplněné povinné.
- * - Bez 'any'.
+ * mapping utilita pro přiřazení sloupců (headers) k polím šablony.
+ * : striktní režim: každé pole musí mít unikátní sourceindex.
+ * : validace: žádné duplicitní indexy, žádné nevyplněné povinné údaje.
+ * : bez 'any'.
  */
 
 import type { SuggestedMapping } from '@/stores/import'
@@ -18,9 +18,8 @@ export interface MappingField {
   mappedSourceIndex: number | null
   headerMatched: boolean
   matchSource?: MatchSource
-  /** Confidence score z BE (0-1) */
   confidence?: number
-  /** Data type of the field (text, float, int, etc.) */
+  /** datový typ pole (text, float, int atd.) */
   type?: string
 }
 
@@ -31,7 +30,7 @@ export interface MappingBlock {
   fields: MappingField[]
 }
 
-/** Series column mapping for data series (X, Y, C, D etc.) */
+/** mapování sloupců sérií pro datové série (x, y, c, d atd.) */
 export interface SeriesMappingField {
   id: string
   columnName: string
@@ -59,10 +58,10 @@ export interface MappingModel {
 
 
 /**
- * Normalize a header/field name for fuzzy comparison:
- * - Strip unit suffix like " (°C)", " (d.nm)", " (Percent)"
- * - Strip trailing numbers like " 1", " 2"
- * - Lowercase and trim
+ * normalizace názvu hlavičky/pole pro přibližné porovnání:
+ * : odstranění přípony jednotky typu „ (°c)“, „ (d.nm)“, „ (percent)“
+ * : odstranění koncových čísel typu „ 1“, „ 2“
+ * : převod na malá písmena a ořezání mezer
  */
 function normalizeForMatch(s: string): string {
   return s
@@ -70,31 +69,31 @@ function normalizeForMatch(s: string): string {
     .replace(/\s+\d+$/u, '')            // Remove trailing number
     .trim()
     .toLowerCase()
-    .replace(/\s+/g, ' ')               // Collapse multiple spaces
+    .replace(/\s+/g, ' ')               // sloučení více mezer do jedné
 }
 
 /**
- * Check if two names match (fuzzy):
- * - Exact match after normalization
- * - Or one is a prefix of the other (for "Size Peak" matching "Size Peak (d.nm)")
+ * kontrola, zda se dva názvy shodují (přibližně):
+ * : přesná shoda po normalizaci
+ * : nebo je jeden předponou druhého (pro shodu „size peak“ s „size peak (d.nm)“)
  */
 function namesMatch(fieldName: string, headerName: string): boolean {
   const normField = normalizeForMatch(fieldName)
   const normHeader = normalizeForMatch(headerName)
 
-  // Exact match
+  // přesná shoda
   if (normField === normHeader) return true
 
-  // Prefix match (field is prefix of header or vice versa)
+  // shoda předpony (pole je předponou hlavičky nebo naopak)
   if (normHeader.startsWith(normField) || normField.startsWith(normHeader)) return true
 
   return false
 }
 
 /**
- * Vytvoří mapping model z template-like + imported structure.
- * originalIndexGuess = pokud jméno odpovídá header na stejné pozici (case-insensitive),
- * nebo pokud header nalezen jinde -> nastaven mappedSourceIndex (auto-match).
+ * vytvoří mapping model ze šablony a importované struktury.
+ * originalindexguess: pokud název odpovídá hlavičce na stejné pozici (bez ohledu na velikost písmen),
+ * nebo pokud je hlavička nalezena jinde: nastaví se mappedsourceindex (automatická shoda).
  */
 export function buildMappingModel(
   template: {
@@ -122,7 +121,7 @@ export function buildMappingModel(
       let mapped: number | null = null
       let matched = false
 
-      // Try position-based match first (if available and names match)
+      // nejdříve zkusit shodu na základě pozice (pokud je dostupná a názvy souhlasí)
       if (guessIdx >= 0 && guessIdx < headers.length && !usedIndices.has(guessIdx)) {
         if (namesMatch(f.name, headers[guessIdx])) {
           mapped = guessIdx
@@ -131,7 +130,7 @@ export function buildMappingModel(
         }
       }
 
-      // If no position match, search all headers
+      // pokud není shoda podle pozice, prohledat všechny hlavičky
       if (!matched) {
         for (let hi = 0; hi < headers.length; hi++) {
           if (!usedIndices.has(hi) && namesMatch(f.name, headers[hi])) {
@@ -171,23 +170,23 @@ export function buildMappingModel(
 }
 
 /**
- * Validace mappingu:
- * - Všechny required fields mají mappedSourceIndex !== null
- * - Žádné duplicitní sourceIndex v rámci stejného blocku
- * Vrací chyby (pokud prázdné pole = validní).
+ * validace mapování:
+ * : všechna povinná pole mají mappedsourceindex !== null
+ * : žádné duplicitní sourceindexy v rámci stejného bloku
+ * vrací chyby (pokud je pole prázdné: je platné).
  * 
- * @param enabledFields Pokud je definováno, validují se jen pole, jejichž ID je v setu.
+ * @param enabledFields pokud je definováno, validují se jen pole, jejichž id je v množině.
  */
 export function validateMapping(model: MappingModel, enabledFields?: Set<string>): string[] {
   const errors: string[] = []
   for (const block of model.blocks) {
     const used = new Set<number>()
     for (const f of block.fields) {
-      // Skip if filtering is active and field is disabled
+      // přeskočit, pokud je aktivní filtrování a pole je zakázáno
       if (enabledFields && !enabledFields.has(f.id)) continue
 
       if (f.required && f.mappedSourceIndex === null) {
-        // Skip validation for required text fields as per user request (allows empty text columns)
+        // přeskočení validace pro povinná textová pole na žádost uživatele (umožňuje prázdné textové sloupce)
         if (f.type !== 'text') {
           errors.push(`Tabulka hodnot ${block.blockIndex}: pole '${f.fieldName}' není namapováno`)
         }
@@ -200,7 +199,7 @@ export function validateMapping(model: MappingModel, enabledFields?: Set<string>
         }
       }
     }
-    // Kapacitní kontrola – nepřesahovat počet sloupců
+    // kapacitní kontrola: nepřesahovat počet sloupců
     const maxIdx = Math.max(-1, ...Array.from(used.values()))
     if (maxIdx >= block.headers.length) {
       errors.push(`Tabulka hodnot ${block.blockIndex}: index mimo rozsah (>${block.headers.length})`)
@@ -210,11 +209,11 @@ export function validateMapping(model: MappingModel, enabledFields?: Set<string>
 }
 
 /**
- * Export výsledného mappingu do objektu pro apply.
- * Každý Tabulka hodnot -> { fieldName, sourceIndex }.
- * Série -> { columnName, sourceIndex }.
+ * export výsledného mapování do objektu pro aplikaci (apply).
+ * každá tabulka hodnot -> { fieldname, sourceindex }.
+ * série -> { columnname, sourceindex }.
  * 
- * @param enabledFields Pokud je definováno, exportují se jen pole v setu.
+ * @param enabledFields pokud je definováno, exportují se jen pole v množině.
  */
 export function exportMapping(
   model: MappingModel,
@@ -244,7 +243,7 @@ export function exportMapping(
     seriesName: s.seriesName,
     seriesType: s.seriesType,
     columnMappings: s.columns
-      .filter(c => c.mappedSourceIndex != null) // Series columns don't have separate enable IDs yet in this model, or they do?
+      .filter(c => c.mappedSourceIndex != null) // sloupce sérií zatím nemají samostatná id pro povolení v tomto modelu, nebo mají?
       .map(c => ({
         columnName: c.columnName,
         sourceIndex: c.mappedSourceIndex as number
@@ -255,17 +254,17 @@ export function exportMapping(
 }
 
 /**
- * Aplikuje naučená mapování z backendu na mapping model.
+ * aplikuje naučená mapování z backendu na mapping model.
  * 
- * Priorita:
- * 1. LEARNED (95% confidence) - z DB
- * 2. EXACT_MATCH (90%) - přesná shoda názvu
- * 3. PARTIAL_MATCH (70%) - částečná shoda
- * 4. POSITION (50%) - pozice sloupce
+ * priorita:
+ * 1. learned (95% spolehlivost) : z databáze
+ * 2. exact_match (90%) : přesná shoda názvu
+ * 3. partial_match (70%) : částečná shoda
+ * 4. position (50%) : pozice sloupce
  * 
- * @param model Aktuální mapping model
- * @param suggestions Návrhy z backendu (header -> SuggestedMapping)
- * @returns Nový model s aplikovanými návrhy
+ * @param model aktuální mapping model
+ * @param suggestions návrhy z backendu (header -> suggestedmapping)
+ * @returns nový model s aplikovanými návrhy
  */
 export function applyLearnedSuggestions(
   model: MappingModel,
@@ -279,7 +278,7 @@ export function applyLearnedSuggestions(
     const usedIndices = new Set<number>()
 
     const newFields = block.fields.map(field => {
-      // Najdi header, který odpovídá tomuto poli
+      // najdi hlavičku, která odpovídá tomuto poli
       for (let headerIdx = 0; headerIdx < block.headers.length; headerIdx++) {
         const header = block.headers[headerIdx]
         const suggestion = suggestions[header]
@@ -307,8 +306,8 @@ export function applyLearnedSuggestions(
 }
 
 /**
- * Normalizuje header pro porovnání (same as backend).
- * Slouží pro client-side fallback matching.
+ * normalizuje hlavičku pro porovnání (stejně jako na backendu).
+ * slouží pro záložní porovnávání na straně klienta (fallback matching).
  */
 export function normalizeHeader(raw: string): string {
   if (!raw) return ''

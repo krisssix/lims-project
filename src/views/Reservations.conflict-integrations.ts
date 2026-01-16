@@ -2,14 +2,14 @@ import { ref } from 'vue'
 import ConflictDialog from '@/components/reservations/ConflictDialog.vue'
 import { buildDayGaps, proposeSlotsAround, firstGapNextDays, type ResItem } from '@/utils/calendar/calendarSlotHelpers'
 
-// Stav pro konflikt dialog
+// stav pro konflikt dialog
 export const conflictOpen = ref(false)
 export const conflictDeviceName = ref<string>('Zařízení')
 export const conflictRequested = ref<{ start: Date; end: Date }>({ start: new Date(), end: new Date() })
 export const conflictProposals = ref<Array<{ slot: { start: Date; end: Date }; label: string }>>([])
 export const conflictFallbackNext = ref<{ day: Date; slot: { start: Date; end: Date } } | null>(null)
 
-// Pomocné funkce pro rodiče
+// pomocné funkce pro rodiče
 export function makeConflictFor(
   deviceId: string,
   deviceName: string,

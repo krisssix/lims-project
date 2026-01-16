@@ -1,10 +1,10 @@
 /**
- * Client-side CSV/TSV parser with robust fallback handling.
- * Uses PapaParse for tokenization + custom heuristics for status determination.
+ * csv/tsv parser na straně klienta s robustním ošetřením chyb.
+ * používá papaparse pro tokenizaci a vlastní heuristiku pro určení stavu.
  */
 import Papa from 'papaparse'
 
-// ============ TYPES ============
+// ============ typy ============
 
 export type ParseStatus = 'SUCCESS' | 'PARTIAL' | 'FAIL'
 
@@ -36,20 +36,20 @@ export interface ParseResult {
 
 export type InferredType = 'int' | 'float' | 'bool' | 'date' | 'text'
 
-// ============ CONSTANTS ============
+// ============ konstanty ============
 
 const DELIMITER_CANDIDATES = ['\t', ';', ',', '|'] as const
 const MAX_SAMPLE_ROWS = 50
 const MAX_COLS = 200
 const MAX_CELL_LENGTH = 20000
 
-// ============ DELIMITER SCORING ============
+// ============ hodnocení oddělovačů (scoring) ============
 
 interface DelimiterScore {
     delimiter: string
     avgCols: number
-    consistency: number // 0-1, how consistent column counts are
-    singleColumnRate: number // 0-1, rate of single-column rows
+    consistency: number // 0:1, jak konzistentní jsou počty sloupců
+    singleColumnRate: number // 0:1, podíl řádků s jedním sloupcem
     score: number
 }
 
@@ -63,7 +63,7 @@ function scoreDelimiter(lines: string[], delimiter: string): DelimiterScore {
     let singleColCount = 0
 
     for (const line of sampleLines) {
-        // Use Papa for proper quoted field handling
+        // použít papa pro správné ošetření polí v uvozovkách
         const result = Papa.parse(line, { delimiter })
         const cols = (result.data[0] as string[]) || []
         const validCols = cols.filter(c => c !== undefined)
@@ -71,7 +71,7 @@ function scoreDelimiter(lines: string[], delimiter: string): DelimiterScore {
         if (validCols.length <= 1) singleColCount++
     }
 
-    // Calculate mode (most common column count)
+    // výpočet modu (nejčastější počet sloupců)
     const countFreq = new Map<number, number>()
     for (const c of colCounts) {
         countFreq.set(c, (countFreq.get(c) || 0) + 1)
@@ -90,7 +90,7 @@ function scoreDelimiter(lines: string[], delimiter: string): DelimiterScore {
     const consistency = consistentCount / colCounts.length
     const singleColumnRate = singleColCount / colCounts.length
 
-    // Score: prefer more columns, high consistency, low single-column rate
+    // skóre: preference více sloupců, vysoké konzistence a nízkého podílu jednoho sloupce
     const score = avgCols * consistency * (1 - singleColumnRate * 0.5)
 
     return { delimiter, avgCols, consistency, singleColumnRate, score }
@@ -105,26 +105,26 @@ function detectBestDelimiter(text: string): { delimiter: string; score: Delimite
     return { delimiter: scores[0]?.delimiter || ',', score: scores[0]! }
 }
 
-// ============ HEADER DETECTION ============
+// ============ detekce hlavičky ============
 
 function isJunkRow(cells: string[]): boolean {
-    // All empty or separator-only
+    // všechny buňky prázdné nebo obsahující pouze oddělovače
     return cells.every(c => !c || !c.trim())
 }
 
 function isNumericOrDateRow(cells: string[]): boolean {
     if (!cells.length) return false
     const validCells = cells.filter(c => c && c.trim())
-    if (!validCells.length) return true // All empty = junk, treated elsewhere
+    if (!validCells.length) return true // vše prázdné: smetí (junk), řešeno jinde
 
     let numericCount = 0
     for (const cell of validCells) {
         const trimmed = cell.trim().replace(',', '.')
-        // Check if numeric (including scientific notation)
+        // kontrola číselných hodnot (včetně vědeckého zápisu)
         if (/^[+-]?(\d+\.?\d*|\d*\.?\d+)(e[+-]?\d+)?$/i.test(trimmed)) {
             numericCount++
         }
-        // Check if date-like
+        // kontrola, zda to vypadá jako datum
         else if (/^\d{1,4}[-/.]\d{1,2}[-/.]\d{1,4}/.test(trimmed)) {
             numericCount++
         }
@@ -137,7 +137,7 @@ function detectHeaderRow(rows: string[][], option: ParseOptions['header']): numb
     if (option === 'no_header') return null
     if (typeof option === 'number') return option
 
-    // auto: find first non-junk, non-numeric row
+    // auto: najít první řádek, který není smetí ani číselný řádek
     for (let i = 0; i < Math.min(rows.length, 10); i++) {
         const row = rows[i]
         if (!row || isJunkRow(row)) continue
@@ -146,11 +146,11 @@ function detectHeaderRow(rows: string[][], option: ParseOptions['header']): numb
         }
     }
 
-    // No suitable header found
+    // nebyla nalezena žádná vhodná hlavička
     return null
 }
 
-// ============ TYPE INFERENCE ============
+// ============ odhad typů (inference) ============
 
 export function inferColumnType(samples: string[]): InferredType {
     const validSamples = samples.filter(s => s && s.trim()).slice(0, 50)
@@ -164,25 +164,25 @@ export function inferColumnType(samples: string[]): InferredType {
     for (const s of validSamples) {
         const t = s.trim()
 
-        // Date patterns
+        // vzory pro datum
         if (/^\d{4}-\d{2}-\d{2}/.test(t) || /^\d{1,2}[./-]\d{1,2}[./-]\d{2,4}/.test(t)) {
             dates++
             continue
         }
 
-        // Boolean
+        // booleovské hodnoty
         if (/^(true|false|1|0|yes|no|ano|ne)$/i.test(t)) {
             bools++
             continue
         }
 
-        // Integer
+        // celá čísla
         if (/^[+-]?\d+$/.test(t)) {
             ints++
             continue
         }
 
-        // Float (both . and , as decimal)
+        // desetinná čísla (podpora pro . i , jako oddělovač)
         const normalized = t.replace(',', '.')
         if (/^[+-]?(\d+\.?\d*|\d*\.?\d+)(e[+-]?\d+)?$/i.test(normalized)) {
             floats++
@@ -212,37 +212,37 @@ export function inferColumnTypes(rows: string[][]): InferredType[] {
     return types
 }
 
-// ============ COLUMN NAME GENERATION ============
+// ============ generování názvů sloupců ============
 
 export function generateColumnNames(count: number): string[] {
     return Array.from({ length: count }, (_, i) => `Column ${i + 1}`)
 }
 
-// ============ DECIMAL CONVERSION ============
+// ============ převod desetinných míst ============
 
 function normalizeDecimal(value: string, decimal: 'auto' | '.' | ','): string {
     if (decimal === '.') return value
     if (decimal === ',') return value.replace(',', '.')
 
-    // Auto: prefer comma as decimal if it looks like "123,45" pattern
+    // auto: preferovat čárku jako desetinný oddělovač, pokud odpovídá vzoru „123,45“
     if (/^\d+,\d+$/.test(value.trim())) {
         return value.replace(',', '.')
     }
     return value
 }
 
-// ============ MAIN PARSE FUNCTION ============
+// ============ hlavní parsovací funkce ============
 
 export function parseWithOptions(text: string, opts: ParseOptions): ParseResult {
     const reasons: string[] = []
 
-    // Normalize line endings
+    // sjednocení konců řádků
     const normalizedText = text
-        .replace(/\uFEFF/g, '') // BOM
+        .replace(/\uFEFF/g, '') // bom (byte order mark)
         .replace(/\r\n/g, '\n')
         .replace(/\r/g, '\n')
 
-    // Detect delimiter
+    // detekce oddělovače
     let usedDelimiter: string
     if (opts.delimiter === 'auto') {
         const { delimiter, score } = detectBestDelimiter(normalizedText)
@@ -257,7 +257,7 @@ export function parseWithOptions(text: string, opts: ParseOptions): ParseResult 
         usedDelimiter = opts.delimiter
     }
 
-    // Parse with PapaParse
+    // parsování pomocí papaparse
     const parseResult = Papa.parse<string[]>(normalizedText, {
         delimiter: usedDelimiter,
         skipEmptyLines: opts.skipEmptyLines,
@@ -266,21 +266,21 @@ export function parseWithOptions(text: string, opts: ParseOptions): ParseResult 
 
     let allRows = parseResult.data
 
-    // Limit columns for performance
+    // omezení počtu sloupců z důvodu výkonu
     allRows = allRows.map(row => row.slice(0, MAX_COLS).map(cell =>
         typeof cell === 'string' && cell.length > MAX_CELL_LENGTH
             ? cell.slice(0, MAX_CELL_LENGTH)
             : String(cell || '')
     ))
 
-    // Skip leading junk rows
+    // přeskočení úvodních řádků se smetím
     let startIdx = 0
     while (startIdx < allRows.length && isJunkRow(allRows[startIdx])) {
         startIdx++
     }
     allRows = allRows.slice(startIdx)
 
-    // Detect header row
+    // detekce řádku hlavičky
     const headerRowIdx = detectHeaderRow(allRows, opts.header)
     const usedHeaderRow = headerRowIdx
 
@@ -291,17 +291,17 @@ export function parseWithOptions(text: string, opts: ParseOptions): ParseResult 
         headers = allRows[headerRowIdx].map(h => (h || '').trim())
         dataRows = allRows.slice(headerRowIdx + 1)
     } else {
-        // No header - use all rows as data
+        // žádná hlavička: použít všechny řádky jako data
         dataRows = allRows
-        // Generate column names based on max columns
+        // generování názvů sloupců podle maximálního počtu sloupců
         const maxCols = Math.max(...dataRows.map(r => r.length), 0)
         headers = generateColumnNames(maxCols)
     }
 
-    // Filter empty headers
+    // odfiltrování prázdných hlaviček
     headers = headers.filter(h => h)
 
-    // Calculate metrics
+    // výpočet metrik
     const colCounts = dataRows.map(r => r.length)
     const countFreq = new Map<number, number>()
     for (const c of colCounts) {
@@ -329,7 +329,7 @@ export function parseWithOptions(text: string, opts: ParseOptions): ParseResult 
         totalCols: headers.length
     }
 
-    // Determine status
+    // určení stavu (status)
     let status: ParseStatus = 'SUCCESS'
 
     if (headers.length === 0) {
@@ -349,14 +349,14 @@ export function parseWithOptions(text: string, opts: ParseOptions): ParseResult 
         }
     }
 
-    // Decimal handling
+    // zpracování desetinných míst
     const usedDecimal = opts.decimal === 'auto' ? '.' : opts.decimal
 
     return {
         status,
         reasons,
         headers,
-        rows: dataRows.slice(0, MAX_SAMPLE_ROWS), // Limit for preview
+        rows: dataRows.slice(0, MAX_SAMPLE_ROWS), // limit pro náhled
         usedDelimiter,
         usedHeaderRow,
         usedDecimal,
@@ -364,7 +364,7 @@ export function parseWithOptions(text: string, opts: ParseOptions): ParseResult 
     }
 }
 
-// ============ DEFAULT OPTIONS ============
+// ============ výchozí nastavení ============
 
 export const DEFAULT_PARSE_OPTIONS: ParseOptions = {
     delimiter: 'auto',

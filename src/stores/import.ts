@@ -16,7 +16,7 @@ export type SuggestMappingRequest = {
   threshold?: number
 }
 
-/* -------- Learned mapping suggestions (from DB) -------- */
+/* -------- návrhy naučených mapování (z db) -------- */
 export type SuggestedMapping = {
   targetFieldName: string
   matchType: 'LEARNED' | 'EXACT_MATCH' | 'PARTIAL_MATCH'
@@ -30,7 +30,7 @@ export type SuggestedSeriesMapping = {
 export type LearnedMappingSuggestions = Record<string, SuggestedMapping>
 export type LearnedSeriesSuggestions = Record<string, SuggestedSeriesMapping>
 
-/* -------- Learned mapping management DTO -------- */
+/* -------- správa naučených mapování dto -------- */
 export type LearnedMapping = {
   id: number
   sourceColumnRaw: string
@@ -40,7 +40,7 @@ export type LearnedMapping = {
   lastUsed: number
 }
 
-/* -------- Import preview/commit DTOs (v souladu s BE) -------- */
+/* -------- dto pro náhled a potvrzení importu (v souladu s be) -------- */
 export type ImportStartRequest = {
   sourceType: 'text' | 'csv' | 'xlsx'
   rawText?: string
@@ -60,7 +60,7 @@ export type ImportPreviewResponse = {
   state: string
 }
 export type ImportCommitRequest = {
-  mapping: Record<string, string> // header -> templateFieldName
+  mapping: Record<string, string> // hlavička: název pole v šabloně
   templateId: number
   selectedRowIndexes: number[]
 }
@@ -72,7 +72,7 @@ export type ImportCommitResponse = {
   state: string
 }
 
-/* -------- FE-only návrh šablony (zpětná kompatibilita) -------- */
+/* -------- návrh šablony pouze na fe (zpětná kompatibilita) -------- */
 export type ColumnSuggestion = {
   index: number
   headerRaw: string
@@ -89,16 +89,16 @@ export type TemplateSuggestionResponse = {
   repeatMap: Record<string, number[]>
 }
 
-/* Helpers */
+/* pomocné funkce */
 function toColumnType(t: FieldType): ColumnType { return t }
 
-/** Base název bez trailing čísla, např. "Size Peak 3" -> "Size Peak" */
+/** základní název bez koncového čísla, např. "size peak 3" -> "size peak" */
 function baseNameForRepeat(headerRaw: string): string {
   if (!headerRaw) return ''
   return headerRaw.trim().replace(/\s+\d+$/u, '')
 }
 
-/** Heuristika opakovaných sad z hlaviček */
+/** heuristika opakovaných sad z hlaviček */
 function buildRepeatMap(headers: string[]): {
   repeatMap: Record<string, number[]>
   repeatDetected: boolean
@@ -118,7 +118,7 @@ function buildRepeatMap(headers: string[]): {
   return { repeatMap: filtered, repeatDetected, replicateCount }
 }
 
-/** Type-guard na odpověď tvaru { data: { content: T } } (bez použití any) */
+/** type-guard pro odpověď ve tvaru { data: { content: t } } (bez použití any) */
 type RespWithContent<T> = { data: { content: T } }
 function hasContent<T>(r: unknown): r is RespWithContent<T> {
   if (typeof r !== 'object' || r === null) return false
@@ -129,7 +129,7 @@ function hasContent<T>(r: unknown): r is RespWithContent<T> {
 
 export const useImportStore = defineStore('import', () => {
   /**
-   * BE preview: POST /measurement-import/project/{projectId}/start
+   * náhled backendu (be preview): post /measurement-import/project/{projectid}/start
    */
   async function startImport(projectId: number, req: ImportStartRequest): Promise<ImportPreviewResponse> {
     const forceDelim = (req.sourceType === 'text' && (req.rawText ?? '').includes('\t')) ? '\t' : undefined
@@ -145,7 +145,7 @@ export const useImportStore = defineStore('import', () => {
   }
 
   /**
-   * BE commit: POST /measurement-import/{sessionId}/commit
+   * potvrzení backendu (be commit): post /measurement-import/{sessionid}/commit
    */
   async function commitImport(sessionId: number, payload: ImportCommitRequest): Promise<ImportCommitResponse> {
     const resp = await post(
@@ -160,7 +160,7 @@ export const useImportStore = defineStore('import', () => {
   }
 
   /**
-   * AI mapping: POST /measurement-import/ai/suggest-mapping
+   * ai mapování: post /measurement-import/ai/suggest-mapping
    */
   async function suggestMapping(req: SuggestMappingRequest): Promise<SuggestMappingResponse> {
     const resp = await post(
@@ -175,8 +175,8 @@ export const useImportStore = defineStore('import', () => {
   }
 
   /**
-   * Learned mappings: POST /measurement-import/template/{templateId}/suggest-mappings
-   * Vrací uložená mapování z předchozích importů.
+   * naučená mapování: post /measurement-import/template/{templateid}/suggest-mappings
+   * vrací uložená mapování z předchozích importů.
    */
   async function suggestLearnedMappings(
     templateId: number,
@@ -190,19 +190,19 @@ export const useImportStore = defineStore('import', () => {
         undefined
       )
       if (!hasContent<LearnedMappingSuggestions>(resp)) {
-        console.warn('Learned mappings: invalid response, using empty')
+        console.warn('naučená mapování: neplatná odpověď, vracím prázdný objekt')
         return {}
       }
       return resp.data.content
     } catch (e) {
-      // Fallback: pokud endpoint selže, vrátíme prázdný objekt
-      console.warn('Learned mappings API failed, using fallback:', e)
+      // fallback: pokud koncový bod selže, vrátíme prázdný objekt
+      console.warn('volání naučených mapování selhalo, používám fallback:', e)
       return {}
     }
   }
 
   /**
-   * Získá seznam naučených mapování pro správu.
+   * získá seznam naučených mapování pro správu.
    */
   async function fetchLearnedMappings(templateId: number): Promise<LearnedMapping[]> {
     const resp = await get(`measurement-import/template/${templateId}/mappings`, undefined)
@@ -211,14 +211,14 @@ export const useImportStore = defineStore('import', () => {
   }
 
   /**
-   * Smaže naučené mapování.
+   * smaže naučené mapování.
    */
   async function deleteLearnedMapping(mappingId: number): Promise<void> {
     await del(`measurement-import/mapping/${mappingId}`, undefined)
   }
 
   /**
-   * FE-only: Návrh šablony nad preview odpovědí – zpětná kompatibilita pro UI.
+   * pouze na fe: návrh šablony nad náhledem odpovědi – zpětná kompatibilita pro ui.
    */
   async function suggestTemplate(projectId: number, req: ImportStartRequest): Promise<TemplateSuggestionResponse> {
     const preview = await startImport(projectId, req)
@@ -248,8 +248,8 @@ export const useImportStore = defineStore('import', () => {
   }
 
   /**
-   * Uloží mapování sloupců pro šablonu (learning).
-   * Volat po úspěšném importu měření.
+   * uloží mapování sloupců pro šablonu (učení).
+   * volat po úspěšném importu měření.
    */
   async function saveMappings(
     templateId: number,
@@ -257,17 +257,17 @@ export const useImportStore = defineStore('import', () => {
     seriesMapping?: Record<string, string>
   ): Promise<void> {
     const url = `measurement-import/template/${templateId}/save-mappings`
-    console.log('[saveMappings] Calling:', url, 'with', mapping)
+    console.log('[savemappings] volám:', url, 's', mapping)
     try {
       await post(
         url,
         { mapping, seriesMapping: seriesMapping || {} },
         undefined
       )
-      console.log('[saveMappings] Saved', Object.keys(mapping).length, 'mappings for template', templateId)
+      console.log('[savemappings] uloženo', Object.keys(mapping).length, 'mapování pro šablonu', templateId)
     } catch (e) {
-      console.warn('[saveMappings] Failed to save mappings:', e)
-      // Neblokujeme UI při selhání - mapování je nice-to-have
+      console.warn('[savemappings] nepodařilo se uložit mapování:', e)
+      // neblokujeme ui při selhání: mapování je doplňková funkce
     }
   }
 

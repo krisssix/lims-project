@@ -30,27 +30,27 @@ const emits = defineEmits<{
 const density = computed(() => props.density ?? 'comfortable')
 const valueKey = computed(() => props.valueKey ?? 'id')
 
-// Filter templates by device if deviceId is provided
-// ONLY show ACTIVE templates (not DRAFT or DEPRECATED)
-// Deduplicate by base name to show only one version per template
+// filtrování šablon podle přístroje, pokud je zadané deviceid
+// zobrazujeme pouze aktivní šablony (ne draft nebo deprecated)
+// odstranění duplicit podle názvu, aby se pro každou šablonu zobrazila pouze jedna verze
 const filteredItems = computed<TemplateOption[]>(() => {
   const all = props.items || []
   if (!props.deviceId) return []
   
-  // Match by deviceId OR deviceCode (some templates use code, some use id)
+  // shoda podle deviceid nebo devicecode (některé šablony používají kód, některé id)
   const filtered = all.filter(t => {
     const tplDeviceId = String(t.deviceId ?? '')
     const tplDeviceCode = String((t as unknown as { deviceCode?: string }).deviceCode ?? '')
     const selectedId = String(props.deviceId)
     const matchesDevice = tplDeviceId === selectedId || tplDeviceCode === selectedId
     
-    // ONLY show ACTIVE templates (or templates without status for backward compatibility)
+    // zobrazit pouze aktivní šablony (nebo šablony bez stavu pro zpětnou kompatibilitu)
     const isActive = !t.status || t.status === 'ACTIVE'
     
     return matchesDevice && isActive
   })
   
-  // Deduplicate by id
+  // odstranění duplicit podle id
   const seen = new Set<string>()
   return filtered.filter(t => {
     if (seen.has(t.id)) return false
@@ -60,12 +60,12 @@ const filteredItems = computed<TemplateOption[]>(() => {
 })
 
 
-// Get item value based on valueKey
+// získání hodnoty položky na základě valuekey
 function getItemValue(item: TemplateOption): string {
   return valueKey.value === 'name' ? item.name : item.id
 }
 
-// Filter by name (case-insensitive)
+// filtrování podle názvu (nerozlišuje malá/velká písmena)
 function templateFilterFn(item: TemplateOption, queryText: string): boolean {
   const q = (queryText || '').toLowerCase()
   const name = (item.name || '').toLowerCase()
@@ -124,7 +124,7 @@ function onUpdate(val: unknown): void {
       </v-list-item>
     </template>
 
-    <!-- Create new template action at the bottom -->
+    <!-- akce pro vytvoření nové šablony dole v seznamu -->
     <template #append-item>
       <v-divider class="my-1" />
       <v-list-item

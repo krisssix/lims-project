@@ -14,7 +14,7 @@ export type Gap = { start: Date; end: Date }
 
 function toMs(d: Date): number { return d.getTime() }
 function fromIsoLocal(s: string): Date {
-  // s ve formátu YYYY-MM-DDTHH:mm:ss (lokální)
+  // s ve formátu rrrr-mm-ddthh:mm:ss
   return new Date(s)
 }
 
@@ -47,11 +47,11 @@ export function proposeSlotsAround(target: Slot, gaps: Gap[]): Slot[] {
   const durationMs = Math.max(0, toMs(target.end) - toMs(target.start))
   const proposals: Slot[] = []
 
-  // “Po” – první gap, jehož start >= target.start a vejde se délka
+  // „po“: první mezera, jejíž začátek >= target.start a vejde se délka
   const after = gaps.find(g => toMs(g.start) >= toMs(target.start) && (toMs(g.end) - toMs(g.start)) >= durationMs)
   if (after) proposals.push({ start: new Date(after.start), end: new Date(after.start.getTime() + durationMs) })
 
-  // “Před” – poslední gap, jehož end <= target.end a vejde se délka
+  // „před“: poslední mezera, jejíž konec <= target.end a vejde se délka
   const beforeCandidates = gaps.filter(g => toMs(g.end) <= toMs(target.end) && (toMs(g.end) - toMs(g.start)) >= durationMs)
   const before = beforeCandidates.length ? beforeCandidates[beforeCandidates.length - 1] : undefined
   if (before) proposals.push({ start: new Date(before.end.getTime() - durationMs), end: new Date(before.end) })

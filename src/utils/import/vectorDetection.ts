@@ -1,9 +1,9 @@
 /**
- * Vector cell detection for data series identification.
- * A vector cell contains multiple numeric values separated by whitespace.
+ * detekce vektorových buněk pro identifikaci datových sérií.
+ * vektorová buňka obsahuje více číselných hodnot oddělených mezerami.
  */
 
-// ============ TYPES ============
+// ============ typy ============
 
 export interface VectorColumn {
     columnIndex: number
@@ -17,39 +17,39 @@ export interface VectorParseResult {
     reason?: string
 }
 
-// ============ CONSTANTS ============
+// ============ konstanty ============
 
 const MIN_VECTOR_TOKENS = 5
 const NUMERIC_RATIO_THRESHOLD = 0.8
 const MAX_CELL_LENGTH = 20000
 const MIN_CONSISTENT_ROWS = 2
 
-// ============ NUMERIC PARSING ============
+// ============ parsování čísel ============
 
 /**
- * Parse a single numeric token, supporting:
- * - Decimal with . or ,
- * - Negative numbers
- * - Scientific notation (E+03, e-2)
- * - Thousands separators (partially)
+ * parsování jednoho číselného tokenu, s podporou pro:
+ * : desetinná čísla s . nebo ,
+ * : záporná čísla
+ * : vědecký zápis (e+03, e-2)
+ * : oddělovače tisíců (částečně)
  */
 function parseNumericToken(token: string): number | null {
     const trimmed = token.trim()
     if (!trimmed) return null
 
-    // Normalize: replace comma with dot for decimal
-    // Handle cases like "1,234" as 1.234 (not thousand separator)
+    // normalizace: nahrazení čárky tečkou pro desetinná místa
+    // ošetření případů jako „1,234“ jako 1.234 (ne oddělovač tisíců)
     let normalized = trimmed
 
-    // If both , and . exist, assume , is thousands separator
+    // pokud existuje čárka i tečka, předpokládat, že čárka je oddělovač tisíců
     if (normalized.includes(',') && normalized.includes('.')) {
         normalized = normalized.replace(/,/g, '')
     } else {
-        // Replace comma with dot
+        // nahradit čárku tečkou
         normalized = normalized.replace(',', '.')
     }
 
-    // Try parsing
+    // pokus o parsování
     const num = parseFloat(normalized)
     if (Number.isFinite(num)) {
         return num
@@ -58,14 +58,14 @@ function parseNumericToken(token: string): number | null {
     return null
 }
 
-// ============ VECTOR CELL DETECTION ============
+// ============ detekce vektorových buněk ============
 
 /**
- * Check if a cell value looks like a vector (≥5 numeric tokens).
- * Supports multiple separators: spaces, tabs, semicolons.
- * Guardrails:
- * - Max cell length for performance
- * - Numeric ratio check
+ * kontrola, zda hodnota buňky vypadá jako vektor (alespoň 5 číselných tokenů).
+ * podporuje více oddělovačů: mezery, tabulátory, středníky.
+ * omezení:
+ * : maximální délka buňky kvůli výkonu
+ * : kontrola podílu číselných hodnot
  */
 export function isVectorCell(value: string): boolean {
     if (!value || typeof value !== 'string') return false
@@ -74,8 +74,8 @@ export function isVectorCell(value: string): boolean {
     const trimmed = value.trim()
     if (!trimmed) return false
 
-    // Try multiple separators: whitespace, semicolon, tab
-    // Use the one that produces the most tokens
+    // pokus o více oddělovačů: mezery, středník, tabulátor
+    // použije se ten, který vytvoří nejvíce tokenů
     const separators = [/\s+/, /;/, /\t/]
     let bestTokens: string[] = []
 
@@ -88,7 +88,7 @@ export function isVectorCell(value: string): boolean {
 
     if (bestTokens.length < MIN_VECTOR_TOKENS) return false
 
-    // Check numeric ratio
+    // kontrola podílu číselných hodnot
     let numericCount = 0
     for (const token of bestTokens) {
         if (parseNumericToken(token) !== null) {
@@ -101,9 +101,9 @@ export function isVectorCell(value: string): boolean {
 }
 
 /**
- * Parse a vector cell into an array of numbers.
- * Supports multiple separators: spaces, tabs, semicolons.
- * Never throws - returns { ok: false, reason } on failure.
+ * parsování vektorové buňky do pole čísel.
+ * podporuje více oddělovačů: mezery, tabulátory, středníky.
+ * nikdy nevyhazuje výjimku: při selhání vrací { ok: false, reason }.
  */
 export function parseVectorCell(value: string): VectorParseResult {
     if (!value || typeof value !== 'string') {
@@ -143,7 +143,7 @@ export function parseVectorCell(value: string): VectorParseResult {
         }
     }
 
-    // Allow some tolerance for non-numeric tokens
+    // povolení určité tolerance pro nečíselné tokeny
     if (values.length < MIN_VECTOR_TOKENS) {
         return { ok: false, values: [], reason: `Too few numeric values (${values.length})` }
     }
@@ -156,11 +156,11 @@ export function parseVectorCell(value: string): VectorParseResult {
     return { ok: true, values }
 }
 
-// ============ COLUMN DETECTION ============
+// ============ detekce sloupců ============
 
 /**
- * Detect which columns contain vector data.
- * Requires consistent vector length across multiple rows.
+ * detekce, které sloupce obsahují vektorová data.
+ * vyžaduje konzistentní délku vektoru napříč více řádky.
  */
 export function detectVectorColumns(rows: string[][]): VectorColumn[] {
     if (!rows || rows.length < MIN_CONSISTENT_ROWS) return []
@@ -172,7 +172,7 @@ export function detectVectorColumns(rows: string[][]): VectorColumn[] {
         const samples: number[][] = []
         let vectorLengths: number[] = []
 
-        for (const row of rows.slice(0, 10)) { // Sample first 10 rows
+        for (const row of rows.slice(0, 10)) { // ukázka prvních 10 řádků
             const cell = row[col]
             if (!cell) continue
 
@@ -183,10 +183,10 @@ export function detectVectorColumns(rows: string[][]): VectorColumn[] {
             }
         }
 
-        // Need at least MIN_CONSISTENT_ROWS valid vectors
+        // potřeba alespoň min_consistent_rows platných vektorů
         if (samples.length < MIN_CONSISTENT_ROWS) continue
 
-        // Check length consistency
+        // kontrola konzistence délky
         const lengthMode = findMode(vectorLengths)
         const consistentCount = vectorLengths.filter(l => l === lengthMode).length
         if (consistentCount < MIN_CONSISTENT_ROWS) continue
@@ -202,13 +202,13 @@ export function detectVectorColumns(rows: string[][]): VectorColumn[] {
 }
 
 /**
- * Find paired vector columns (same vector length) for X/Y series.
- * Returns [xColumnIndex, yColumnIndex] or null if no pair found.
+ * nalezení spárovaných vektorových sloupců (stejná délka vektoru) pro x/y série.
+ * vrací [xcolumnindex, ycolumnindex] nebo null, pokud není nalezen žádný pár.
  */
 export function findPairedVectors(vectors: VectorColumn[]): [number, number] | null {
     if (vectors.length < 2) return null
 
-    // Group by vector length
+    // seskupení podle délky vektoru
     const byLength = new Map<number, VectorColumn[]>()
     for (const v of vectors) {
         const list = byLength.get(v.vectorLength) || []
@@ -216,10 +216,10 @@ export function findPairedVectors(vectors: VectorColumn[]): [number, number] | n
         byLength.set(v.vectorLength, list)
     }
 
-    // Find first group with at least 2 columns
+    // nalezení první skupiny s alespoň 2 sloupci
     for (const [, group] of byLength) {
         if (group.length >= 2) {
-            // Return first two columns as X and Y
+            // vrátit první dva sloupce jako x a y
             return [group[0].columnIndex, group[1].columnIndex]
         }
     }
@@ -227,7 +227,7 @@ export function findPairedVectors(vectors: VectorColumn[]): [number, number] | n
     return null
 }
 
-// ============ HELPERS ============
+// ============ pomocníci ============
 
 function findMode(arr: number[]): number {
     const freq = new Map<number, number>()
@@ -247,7 +247,7 @@ function findMode(arr: number[]): number {
     return mode
 }
 
-// ============ UTILITY: Check if any vectors exist in data ============
+// ============ utilita: kontrola, zda v datech existují nějaké vektory ============
 
 export function hasVectorCells(rows: string[][]): boolean {
     return detectVectorColumns(rows).length > 0

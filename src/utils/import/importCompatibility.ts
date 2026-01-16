@@ -1,24 +1,24 @@
-// Bez 'any'. Jednoduchý CSV/TSV parser + kompatibilita template vs file.
+// bez 'any'. jednoduchý csv/tsv parser a kompatibilita šablony vůči souboru.
 import { isVectorCell, parseVectorCell } from './vectorDetection'
 import * as XLSX from 'xlsx'
 
 export interface ImportedBlock {
   blockIndex: number
   headers: string[]
-  rows: string[][] // data rows (bez headeru) - may have vector placeholders
-  originalRows?: string[][] // original unmodified rows before vector placeholder replacement
+  rows: string[][] // datové řádky (bez hlavičky): mohou obsahovat vektorové zástupné symboly
+  originalRows?: string[][] // původní neupravené řádky před nahrazením vektorových symbolů
 }
 
 export interface ImportedSeriesBlock {
   seriesType: 'X_INTENSITY' | 'SIZE_DISTRIBUTION' | 'VOLUME_DISTRIBUTION' | 'OTHER'
   seriesName?: string
-  seriesScope?: 'record' | 'summary'  // 'record' = linked to existing record, 'summary' = measurement-level average
+  seriesScope?: 'record' | 'summary'  // 'record': propojeno s existujícím záznamem, 'summary': průměr na úrovni měření
   linkedRecordIndex?: number
   linkedRecordDescription?: string
   xLabel: string
   yLabel: string
   data: { x: number; y: number }[] | Record<string, number | string | null>[]
-  // Dynamic columns - if provided, data should be Record<string, ...>[]
+  // dynamické sloupce: pokud jsou zadány, data by měla být record<string, ...>[]
   columns?: { name: string; type: 'float' | 'int' | 'text'; required: boolean }[]
 }
 
@@ -26,7 +26,7 @@ export interface ImportedFileStructure {
   fileName: string
   delimiter: string
   blocks: ImportedBlock[]
-  series: ImportedSeriesBlock[]  // NEW: extracted series data
+  series: ImportedSeriesBlock[]  // nové: extrahovaná data sérií
   warnings: string[]
 }
 
@@ -36,7 +36,7 @@ export interface TemplateFieldLike {
   required: boolean
   // 0-based index sloupce ve zdroji
   sourceIndex?: number
-  // UI pořadí (1-based nebo libovolné)
+  // ui pořadí (od 1 nebo libovolné)
   orderIndex: number
 }
 
@@ -64,8 +64,8 @@ export interface CompatibilityResult {
 }
 
 /**
- * Primární funkce: detekce delimiteru z prvních ~20 řádků.
- * Využívá jednoduchou frekvenční heuristiku.
+ * primární funkce: detekce oddělovače z prvních cca 20 řádků.
+ * využívá jednoduchou frekvenční heuristiku.
  */
 function detectDelimiterFromLines(lines: string[]): string {
   const candidates = ['\t', ';', ',', '|']
@@ -83,7 +83,7 @@ function detectDelimiterFromLines(lines: string[]): string {
 }
 
 /**
- * Rozdělení textu do bloků – stejná logika jako splitBlocks, ale inline (kvůli re-use).
+ * rozdělení textu do bloků: stejná logika jako splitblocks, ale inline (kvůli re-use).
  */
 function splitIntoBlocksRaw(lines: string[]): string[][] {
   const out: string[][] = []
@@ -103,31 +103,31 @@ function splitIntoBlocksRaw(lines: string[]): string[][] {
 }
 
 /**
- * Read file with proper encoding detection.
- * Tries UTF-8 first, then Windows-1250 (common for Czech files).
+ * načtení souboru se správnou detekcí kódování.
+ * zkouší nejdříve utf-8, poté windows-1250 (běžné pro české soubory).
  */
 async function readFileWithEncoding(file: File): Promise<string> {
-  // First, try UTF-8 (browser default)
+  // nejdříve zkusit utf-8 (výchozí v prohlížeči)
   const utf8Text = await file.text()
 
-  // Check for replacement character (indicates encoding issue)
+  // kontrola na náhradní znak (indikuje problém s kódováním)
   if (!utf8Text.includes('\uFFFD') && !utf8Text.includes('�')) {
     return utf8Text
   }
 
-  // Try Windows-1250 (common for Central European / Czech files)
+  // zkusit windows-1250 (běžné pro středoevropské / české soubory)
   try {
     const buffer = await file.arrayBuffer()
     const decoder = new TextDecoder('windows-1250')
     return decoder.decode(buffer)
   } catch {
-    // Fallback to UTF-8 if windows-1250 fails
+    // pád zpět na utf-8, pokud windows-1250 selže
     return utf8Text
   }
 }
 
 /**
- * Check if file is an Excel file (XLSX/XLS)
+ * kontrola, zda je soubor typu excel (xlsx/xls)
  */
 function isExcelFile(file: File): boolean {
   const ext = file.name.split('.').pop()?.toLowerCase() || ''
@@ -135,13 +135,13 @@ function isExcelFile(file: File): boolean {
 }
 
 /**
- * Parse Excel file using XLSX library
+ * parsování excelového souboru pomocí knihovny xlsx
  */
 async function parseExcelFile(file: File): Promise<{ lines: string[]; delimiter: string }> {
   const buffer = await file.arrayBuffer()
   const workbook = XLSX.read(buffer, { type: 'array' })
 
-  // Get the first sheet
+  // získat první list
   const sheetName = workbook.SheetNames[0]
   if (!sheetName) {
     throw new Error('Excel file has no sheets')
@@ -152,14 +152,14 @@ async function parseExcelFile(file: File): Promise<{ lines: string[]; delimiter:
     throw new Error('Cannot read Excel sheet')
   }
 
-  // Convert to array of arrays
+  // převod na pole polí
   const data: string[][] = XLSX.utils.sheet_to_json(sheet, {
     header: 1,
     defval: '',
-    raw: false // Get string values
+    raw: false // získat textové hodnoty
   }) as string[][]
 
-  // Debug: Log raw cell values for vector columns (Sizes, Intensities, etc.)
+  // ladění: vypsat surové hodnoty buněk pro vektorové sloupce (velikosti, intenzity atd.)
   if (data.length > 0) {
     const headers = data[0] || []
     const vectorColIndices: number[] = []
@@ -178,7 +178,7 @@ async function parseExcelFile(file: File): Promise<{ lines: string[]; delimiter:
     }
   }
 
-  // Convert to tab-separated lines
+  // převod na řádky oddělené tabulátorem
   const lines = data
     .filter(row => row.some(cell => cell !== ''))
     .map(row => row.map(cell => String(cell || '')).join('\t'))
@@ -187,22 +187,22 @@ async function parseExcelFile(file: File): Promise<{ lines: string[]; delimiter:
 }
 
 /**
- * Načtení textového souboru do bloků s hlavičkou.
- * První řádek bloku = headers, ostatní = řádky dat.
- * Pokud  nemá aspoň 2 řádky → warning (přeskočen).
- * Special handling for X Intensity series and stats blocks.
+ * načtení textového souboru do bloků s hlavičkou.
+ * první řádek bloku: hlavičky, ostatní: řádky dat.
+ * pokud nemá alespoň 2 řádky: varování (přeskočeno).
+ * speciální ošetření pro série x intensity a bloky statistik.
  */
 export async function parseImportedMeasurementFile(file: File): Promise<ImportedFileStructure> {
   let lines: string[]
   let delimiter: string
 
-  // Handle Excel files differently
+  // odlišné zpracování pro soubory excelu
   if (isExcelFile(file)) {
     const parsed = await parseExcelFile(file)
     lines = parsed.lines
     delimiter = parsed.delimiter
   } else {
-    // Try to read with proper encoding (UTF-8 first, fallback to Windows-1250 for Czech)
+    // pokus o načtení se správným kódováním (nejdříve utf-8, poté windows-1250 pro češtinu)
     const text = await readFileWithEncoding(file)
     lines = text.split(/\r?\n/).filter(l => l.length)
     delimiter = detectDelimiterFromLines(lines)
@@ -224,32 +224,32 @@ export async function parseImportedMeasurementFile(file: File): Promise<Imported
     const firstRowParts = blk[0]!.split(delimiter).map(h => h.trim())
     const firstCell = (firstRowParts[0] || '').trim().toLowerCase()
 
-    // Detect if this is a stats-only block (Mean, Std Dev, RSD)
+    // detekce, zda jde o blok pouze se statistikami (průměr, odchylka atd.)
     const isStatsBlock = /^(mean|std\s*dev|rsd)/i.test(firstCell)
 
-    // Detect X Intensity series - "X Intensity" can be in ANY cell of the first row
-    // Format: ["", "X Intensity", "Record description", ...]
+    // detekce série x intensity: „x intensity“ může být v libovolné buňce prvního řádku
+    // formát: ["", "x intensity", "popis záznamu", ...]
     const xIntensityIndex = firstRowParts.findIndex(cell => /^x\s*intensity$/i.test(cell))
     const isXIntensitySeries = xIntensityIndex >= 0
 
-    // Note: Stats blocks are NOT skipped - they are preserved as regular blocks
+    // poznámka: bloky statistik se NEPŘESKAKUJÍ: jsou zachovány jako běžné bloky
 
     if (isXIntensitySeries) {
-      // Extract X Intensity as a SERIES block (not regular block)
-      // Get the description from the cell after "X Intensity"
+      // extrakce x intensity jako bloku série (ne běžný blok)
+      // získat popis z buňky za „x intensity“
       const description = firstRowParts[xIntensityIndex + 1] || ''
 
-      // Extract linked record index from description like "Record 33: 4/10/22..."
+      // extrakce indexu propojeného záznamu z popisu typu „record 33: 4/10/22...“
       const recordMatch = description.match(/Record\s*(\d+)/i)
       const linkedRecordIndex = recordMatch ? parseInt(recordMatch[1], 10) : undefined
 
-      // Parse data rows
+      // parsování datových řádků
       const data: { x: number; y: number }[] = []
       for (let i = 1; i < blk.length; i++) {
         const parts = blk[i]!.split(delimiter).map(c => c.trim())
         const xStr = parts[xIntensityIndex] || ''
         const yStr = parts[xIntensityIndex + 1] || ''
-        // Parse numbers (handle European decimal comma)
+        // parsování čísel (ošetření evropské desetinné čárky)
         const x = parseFloat(xStr.replace(',', '.'))
         const y = parseFloat(yStr.replace(',', '.'))
         if (!isNaN(x) && !isNaN(y)) {
@@ -271,27 +271,27 @@ export async function parseImportedMeasurementFile(file: File): Promise<Imported
         ]
       })
 
-      // Don't add to regular blocks, don't increment idx
+      // nepřidávat do běžných bloků, nezvyšovat index (idx)
       continue
     }
 
-    // Normal block - first row is headers
+    // běžný blok: první řádek jsou hlavičky
     const headers = firstRowParts.filter(h => h.length)
 
-    // Check if second row is a unit row (contains °C, d.nm, Percent, etc.)
+    // kontrola, zda je druhý řádek řádkem jednotek (obsahuje °c, d.nm, percent atd.)
     let dataStartIndex = 1
     if (blk.length > 2) {
       const secondRowParts = blk[1]!.split(delimiter).map(c => c.trim())
       const unitIndicators = ['°c', 'd.nm', 'percent', 'nm', 'kcps', 'mv', '%']
       const looksLikeUnits = secondRowParts.filter(cell => {
         const lower = cell.toLowerCase()
-        // Check if it's a unit-like value (short text, not a number, matches unit patterns)
+        // kontrola, zda to vypadá jako jednotky (krátký text, ne číslo, odpovídá vzorům jednotek)
         return cell.length > 0 && cell.length <= 12 &&
           (unitIndicators.some(u => lower.includes(u)) || /^[a-z°µ%/.\-]+$/i.test(cell))
       }).length >= Math.max(1, Math.floor(secondRowParts.filter(c => c.length).length * 0.3))
 
       if (looksLikeUnits) {
-        dataStartIndex = 2 // Skip the unit row
+        dataStartIndex = 2 // přeskočit řádek jednotek
       }
     }
 
@@ -301,17 +301,17 @@ export async function parseImportedMeasurementFile(file: File): Promise<Imported
       blockIndex: idx,
       headers,
       rows: dataRows,
-      originalRows: dataRows.map(r => [...r]) // deep copy before vector processing
+      originalRows: dataRows.map(r => [...r]) // hluboká kopie před zpracováním vektorů
     })
     idx++
   }
 
-  // NEW: Detect vector columns in blocks and convert to MULTI-COLUMN series
-  // Strategy: Find all vector columns with the same length, combine into one series per row
+  // nové: detekce vektorových sloupců v blocích a jejich převod na více-sloupcové série
+  // strategie: najít všechny vektorové sloupce se stejnou délkou, zkombinovat do jedné série na řádek
   for (const block of blocks) {
     if (block.rows.length === 0) continue
 
-    // Step 1: Find all vector columns by checking first row
+    // krok 1: najít všechny vektorové sloupce kontrolou prvního řádku
     interface VectorColInfo {
       colIdx: number
       headerName: string
@@ -350,7 +350,7 @@ export async function parseImportedMeasurementFile(file: File): Promise<Imported
     // If no vector columns or only one, skip (need at least 2 for meaningful series)
     if (vectorCols.length < 2) continue
 
-    // Step 2: Group vector columns by length (same length = can be combined)
+    // krok 2: seskupit vektorové sloupce podle délky (stejná délka: lze zkombinovat)
     const byLength = new Map<number, VectorColInfo[]>()
     for (const vc of vectorCols) {
       const list = byLength.get(vc.vectorLength) || []
@@ -358,11 +358,11 @@ export async function parseImportedMeasurementFile(file: File): Promise<Imported
       byLength.set(vc.vectorLength, list)
     }
 
-    // Process each length group - find groups with at least 2 columns
+    // zpracovat každou skupinu délek: najít skupiny s alespoň 2 sloupci
     for (const [vecLength, cols] of byLength) {
       if (cols.length < 2) continue
 
-      // Determine which column is X axis (prefer 'size', 'sizes', 'x', etc.)
+      // určit, který sloupec je osa x (preferovat 'size', 'sizes', 'x' atd.)
       const xColCandidates = cols.filter(c =>
         /size/i.test(c.headerName) ||
         /^x$/i.test(c.headerName) ||
@@ -371,19 +371,19 @@ export async function parseImportedMeasurementFile(file: File): Promise<Imported
       const xCol = xColCandidates[0] || cols[0]
       const yCols = cols.filter(c => c !== xCol)
 
-      // Step 3: Create one series per row with all columns combined
+      // krok 3: vytvořit jednu sérii na řádek se všemi zkombinovanými sloupci
       for (let rowIdx = 0; rowIdx < block.rows.length; rowIdx++) {
         const row = block.rows[rowIdx]
         if (!row) continue
 
-        // Parse X values
+        // parsování hodnot x
         const xCellValue = row[xCol.colIdx]
         if (!xCellValue) continue
         const xParsed = parseVectorCell(xCellValue)
         if (!xParsed.ok) continue
         const xValues = xParsed.values
 
-        // Parse Y values for each Y column
+        // parsování hodnot y pro každý y sloupec
         const yValuesMap = new Map<string, number[]>()
         for (const yc of yCols) {
           const yCellValue = row[yc.colIdx]
@@ -393,7 +393,7 @@ export async function parseImportedMeasurementFile(file: File): Promise<Imported
           yValuesMap.set(yc.headerName, yParsed.values)
         }
 
-        // Build multi-column data: each row = { Sizes: x, Intensities: y1, Volumes: y2, ... }
+        // sestavení více-sloupcových dat: každý řádek: { sizes: x, intensities: y1, volumes: y2, ... }
         const data: Record<string, number | string | null>[] = []
         for (let i = 0; i < xValues.length; i++) {
           const dataRow: Record<string, number | string | null> = {
@@ -405,7 +405,7 @@ export async function parseImportedMeasurementFile(file: File): Promise<Imported
           data.push(dataRow)
         }
 
-        // Find linked record number
+        // nalezení čísla propojeného záznamu
         const recNumColIdx = block.headers.findIndex(h =>
           /record[\s_-]*number/i.test(h) || h.toLowerCase() === 'rec'
         )
@@ -432,26 +432,26 @@ export async function parseImportedMeasurementFile(file: File): Promise<Imported
           columns
         })
 
-        // Clear vector placeholders from row - mark as processed
+        // vymazání vektorových zástupných symbolů z řádku: označeno jako zpracované
         for (const vc of cols) {
           if (row[vc.colIdx]) {
-            row[vc.colIdx] = '' // Clear instead of placeholder
+            row[vc.colIdx] = '' // vymazat místo zástupného symbolu
           }
         }
       }
 
-      // IMPORTANT: Remove vector columns from block headers and rows to prevent duplication
-      // Do this AFTER processing all rows, in reverse order to preserve indices
-      const colIndicesToRemove = cols.map(c => c.colIdx).sort((a, b) => b - a) // reverse order
+      // důležité: odstranění vektorových sloupců z hlaviček a řádků bloku pro zabránění duplicitám
+      // provést až po zpracování všech řádků, v opačném pořadí pro zachování indexů
+      const colIndicesToRemove = cols.map(c => c.colIdx).sort((a, b) => b - a) // v opačném pořadí
       console.log('[Vector Removal] BEFORE splice - headers:', block.headers.length, 'removing cols:', colIndicesToRemove)
       for (const colIdx of colIndicesToRemove) {
-        // Remove from headers
+        // odstranit z hlaviček
         block.headers.splice(colIdx, 1)
-        // Remove from all rows
+        // odstranit ze všech řádků
         for (const row of block.rows) {
           row.splice(colIdx, 1)
         }
-        // Remove from originalRows if exists
+        // odstranit z originalrows, pokud existují
         if (block.originalRows) {
           for (const row of block.originalRows) {
             row.splice(colIdx, 1)
@@ -462,13 +462,13 @@ export async function parseImportedMeasurementFile(file: File): Promise<Imported
     }
   }
 
-  // NEW: Detect horizontal series (transposed data like wavelength readings)
-  // Pattern: First row is X-axis (numeric values like 230, 232, 234...)
-  // Following rows have labels in first column and Y-values
+  // nové: detekce horizontálních sérií (transponovaná data typu vlnových délek)
+  // vzor: první řádek je osa x (číselné hodnoty jako 230, 232, 234...)
+  // následující řádky mají popisky v prvním sloupci a hodnoty y
   for (const block of blocks) {
     if (block.headers.length < 5) continue
 
-    // Check if headers (after first) are mostly numeric (wavelength, time, etc.)
+    // kontrola, zda jsou hlavičky (po první) převážně číselné (vlnová délka, čas atd.)
     const numericHeaders = block.headers.slice(1).filter(h => {
       const normalized = h.replace(',', '.')
       return /^[+-]?\d+([.,]\d+)?$/.test(normalized)
@@ -476,11 +476,11 @@ export async function parseImportedMeasurementFile(file: File): Promise<Imported
 
     if (numericHeaders.length < 5 || numericHeaders.length / (block.headers.length - 1) < 0.7) continue
 
-    // This looks like horizontal series data!
+    // toto vypadá jako horizontální data sérií!
     const xValues = numericHeaders.map(h => parseFloat(h.replace(',', '.')))
     const xLabel = block.headers[0] || 'Wavelength'
 
-    // Group rows by label in first column
+    // seskupení řádků podle popisku v prvním sloupci
     let currentGroupLabel = ''
     let currentGroupRows: number[][] = []
 
@@ -492,7 +492,7 @@ export async function parseImportedMeasurementFile(file: File): Promise<Imported
       const hasLabel = firstCell && !/^[+-]?\d+([.,]\d+)?$/.test(firstCell.replace(',', '.'))
 
       if (hasLabel) {
-        // Save previous group as series
+        // uložit předchozí skupinu jako sérii
         if (currentGroupLabel && currentGroupRows.length > 0) {
           for (let i = 0; i < currentGroupRows.length; i++) {
             const yValues = currentGroupRows[i] || []
@@ -519,12 +519,12 @@ export async function parseImportedMeasurementFile(file: File): Promise<Imported
           }
         }
 
-        // Start new group
+        // začít novou skupinu
         currentGroupLabel = firstCell
         currentGroupRows = []
       }
 
-      // Parse Y values from this row (skip first cell which is label or empty)
+      // parsování hodnot y z tohoto řádku (přeskočit první buňku, která je popisek nebo prázdná)
       const yValues = row.slice(1).map(cell => {
         const normalized = (cell || '').replace(',', '.')
         return parseFloat(normalized) || 0
@@ -532,7 +532,7 @@ export async function parseImportedMeasurementFile(file: File): Promise<Imported
       currentGroupRows.push(yValues)
     }
 
-    // Save last group
+    // uložit poslední skupinu
     if (currentGroupLabel && currentGroupRows.length > 0) {
       for (let i = 0; i < currentGroupRows.length; i++) {
         const yValues = currentGroupRows[i] || []
@@ -557,7 +557,7 @@ export async function parseImportedMeasurementFile(file: File): Promise<Imported
       }
     }
 
-    // Remove this block from regular blocks (it's now series data)
+    // odstranit tento blok z běžných bloků (teď jsou to data sérií)
     const blockIdx = blocks.indexOf(block)
     if (blockIdx >= 0) {
       blocks.splice(blockIdx, 1)
@@ -571,11 +571,11 @@ export async function parseImportedMeasurementFile(file: File): Promise<Imported
     blockDetails: blocks.map(b => ({ idx: b.blockIndex, headers: b.headers.slice(0, 3), rows: b.rows.length }))
   })
 
-  // ========== GENERIC SERIES SCOPE DETECTION ==========
-  // Collect all record indices that exist in main data blocks
+  // ========== obecná detekce rozsahu sérií (series scope) ==========
+  // posbírat všechny indexy záznamů, které existují v hlavních datových blocích
   const existingRecordIndices = new Set<number>()
 
-  // First, find the "Record Number" column in the first block to get actual record numbers
+  // nejdříve najít sloupec „record number“ v prvním bloku pro získání skutečných čísel záznamů
   const firstBlock = blocks.find(b => b.blockIndex === 1)
   if (firstBlock) {
     const recordNumberColIdx = firstBlock.headers.findIndex(h =>
@@ -584,29 +584,29 @@ export async function parseImportedMeasurementFile(file: File): Promise<Imported
 
     for (let rowIdx = 0; rowIdx < firstBlock.rows.length; rowIdx++) {
       if (recordNumberColIdx >= 0) {
-        // Use actual record number from column
+        // použít skutečné číslo záznamu ze sloupce
         const recNum = parseInt(firstBlock.rows[rowIdx]?.[recordNumberColIdx] ?? '', 10)
         if (!isNaN(recNum)) existingRecordIndices.add(recNum)
       } else {
-        // Use row index + 1 as record index (default behavior)
+        // použít index řádku + 1 jako index záznamu (výchozí chování)
         existingRecordIndices.add(rowIdx + 1)
       }
     }
   }
 
-  // For each series, determine if it's 'record' or 'summary' scope
+  // u každé série určit, zda má rozsah „record“ nebo „summary“
   for (const s of series) {
     if (s.linkedRecordIndex != null) {
-      // Check if this record exists in main data
+      // kontrola, zda tento záznam existuje v hlavních datech
       if (existingRecordIndices.has(s.linkedRecordIndex)) {
         s.seriesScope = 'record'
       } else {
-        // Record doesn't exist - this is a summary/average series
+        // záznam neexistuje: toto je souhrnná série (summary/average)
         s.seriesScope = 'summary'
         console.log(`[seriesScope] Series "${s.seriesName}" references non-existent Record ${s.linkedRecordIndex} - marked as 'summary'`)
       }
     } else {
-      // No linked record - default to 'record' (measurement-level but not aggregate)
+      // žádný propojený záznam: výchozí nastavení na „record“ (na úrovni měření, ale ne agregát)
       s.seriesScope = 'record'
     }
   }
@@ -621,10 +621,10 @@ export async function parseImportedMeasurementFile(file: File): Promise<Imported
 }
 
 /**
- * Kompatibilita:
- * - Pro každý block šablony musí existovat odpovídající block v souboru (NEBO automaticky namapovat)
- * - Series bloky v souboru jsou ignorovány (jsou zpracovány odděleně)
- * - File může mít VÍC bloků než šablona (extra bloky jsou ignorovány)
+ * kompatibilita:
+ *: pro každý blok šablony musí existovat odpovídající blok v souboru (nebo automaticky namapovat)
+ *: bloky sérií v souboru jsou ignorovány (jsou zpracovány odděleně)
+ *: soubor může mít více bloků než šablona (extra bloky jsou ignorovány)
  */
 export function checkTemplateCompatibility(
   tmpl: TemplateLike,
@@ -632,14 +632,14 @@ export function checkTemplateCompatibility(
 ): CompatibilityResult {
   const reasons: string[] = []
 
-  // Check if template is primarily series-based (has few or empty table blocks)
+  // kontrola, zda je šablona primárně založena na sériích (má málo nebo žádné tabulkové bloky)
   const hasTableFields = tmpl.blocks.some(b => b.fields.length > 0)
   const hasSeriesData = imported.series.length > 0
 
-  // If imported file has series data, consider it compatible
-  // (series data will be mapped to template series fields automatically)
+  // pokud importovaný soubor obsahuje data sérií, považovat jej za kompatibilní
+  // (data sérií budou automaticky namapována na pole sérií šablony)
   if (hasSeriesData && !hasTableFields) {
-    // Series-only template with series data = always compatible
+    // šablona pouze se sériemi s daty sérií: vždy kompatibilní
     return {
       compatible: true,
       reasons: [],
@@ -647,8 +647,8 @@ export function checkTemplateCompatibility(
     }
   }
 
-  // If imported has series data, that's a good sign but we still need to
-  // check block compatibility. Series will be handled separately.
+  // pokud import obsahuje data sérií, je to dobré znamení, ale stále musíme
+  // zkontrolovat kompatibilitu bloků. série budou řešeny samostatně.
   console.log('[checkTemplateCompatibility]', {
     hasTableFields,
     hasSeriesData,
@@ -656,14 +656,14 @@ export function checkTemplateCompatibility(
     templateBlocksCount: tmpl.blocks.length
   })
 
-  // If file has series data, be more lenient with block count check
-  // (series data provides alternative data source)
+  // pokud má soubor data sérií, být mírnější při kontrole počtu bloků
+  // (data sérií poskytují alternativní zdroj dat)
   if (imported.blocks.length < tmpl.blocks.length && !hasSeriesData) {
     reasons.push(`Soubor má méně bloků (${imported.blocks.length}) než šablona vyžaduje (${tmpl.blocks.length})`)
     return { compatible: false, reasons }
   }
 
-  // If we have no blocks but have series, still compatible for series import
+  // pokud nemáme žádné bloky, ale máme série, stále kompatibilní pro import sérií
   if (imported.blocks.length === 0 && hasSeriesData) {
     console.log('[checkTemplateCompatibility] No blocks but has series - compatible')
     return {
@@ -675,7 +675,7 @@ export function checkTemplateCompatibility(
 
   const mapping: Array<{ blockIndex: number; headers: string[]; fieldNames: string[]; sourceIndices: number[] }> = []
 
-  // Helper: normalize field name for fuzzy matching
+  // pomocník: normalizace názvu pole pro přibližnou shodu (fuzzy matching)
   const normalize = (s: string): string => {
     return s
       .toLowerCase()
@@ -684,13 +684,13 @@ export function checkTemplateCompatibility(
       .trim()
   }
 
-  // Helper: check if two names match (fuzzy)
+  // pomocník: kontrola, zda se dva názvy shodují (přibližně)
   const fuzzyMatch = (fieldName: string, headerName: string): boolean => {
     const nf = normalize(fieldName)
     const nh = normalize(headerName)
-    // Exact match after normalization
+    // přesná shoda po normalizaci
     if (nf === nh) return true
-    // One contains the other
+    // jeden obsahuje druhý
     if (nf.length > 2 && nh.length > 2) {
       if (nf.includes(nh) || nh.includes(nf)) return true
     }
@@ -698,13 +698,13 @@ export function checkTemplateCompatibility(
   }
 
   for (const tb of tmpl.blocks) {
-    // Try to find a matching block in the imported file
-    // First, try exact blockIndex match
+    // pokus o nalezení odpovídajícího bloku v importovaném souboru
+    // nejdříve zkusit přesnou shodu blockindexu
     let ib = imported.blocks.find(b => b.blockIndex === tb.blockIndex)
 
-    // If not found by index, try to find by header similarity
+    // pokud není nalezen podle indexu, zkusit najít podle podobnosti hlaviček
     if (!ib && imported.blocks.length > 0) {
-      // Use the first block if template only has 1 block
+      // použít první blok, pokud šablona má pouze 1 blok
       if (tmpl.blocks.length === 1) {
         ib = imported.blocks[0]
       }
@@ -715,14 +715,14 @@ export function checkTemplateCompatibility(
       continue
     }
 
-    // Check how many fields can be matched (using fuzzy matching)
+    // kontrola, kolik polí lze spárovat (pomocí přibližné shody)
     let matchedCount = 0
     for (const field of tb.fields) {
       const hasMatch = ib.headers.some(h => fuzzyMatch(field.name, h))
       if (hasMatch) matchedCount++
     }
 
-    // Consider compatible if at least 50% of fields match
+    // považovat za kompatibilní, pokud se shoduje alespoň 50 % polí
     const matchThreshold = Math.max(1, Math.floor(tb.fields.length * 0.5))
     if (matchedCount < matchThreshold) {
       reasons.push(`Tabulka hodnot ${tb.blockIndex}: málo shodných polí (${matchedCount}/${tb.fields.length})`)
@@ -742,8 +742,8 @@ export function checkTemplateCompatibility(
 
 
 /**
- * Vytvoření záznamů z importovaných bloků. Každý řádek dat = nový recordIndex.
- * Při nekompatibilitě NEVOLAT.
+ * vytvoření záznamů z importovaných bloků. každý řádek dat: nový recordindex.
+ * při nekompatibilitě nevolat.
  */
 export function buildRecordsFromImported(
   tmpl: TemplateLike,
@@ -759,11 +759,11 @@ export function buildRecordsFromImported(
     value: unknown
   }>
 }> {
-  // Use the FIRST block's row count as the number of records (not X Intensity block which has many more rows)
+  // použít počet řádků prvního bloku jako počet záznamů (ne blok x intensity, který má mnohem více řádků)
   const firstBlock = imported.blocks.find(b => b.blockIndex === 1)
   const maxRows = firstBlock?.rows.length ?? 0
 
-  // Find the "Record Number" column index in the first block
+  // nalezení indexu sloupce „record number“ v prvním bloku
   const recordNumberHeaderIdx = firstBlock?.headers.findIndex(h =>
     /record\s*number/i.test(h)
   ) ?? -1
@@ -778,7 +778,7 @@ export function buildRecordsFromImported(
       value: unknown
     }>
   }> = []
-  // Helper: normalize field name for fuzzy matching (same as in checkTemplateCompatibility)
+  // pomocník: normalizace názvu pole pro přibližnou shodu (stejné jako v checktemplatecompatibility)
   const normalize = (s: string): string => {
     return s
       .toLowerCase()
@@ -787,13 +787,13 @@ export function buildRecordsFromImported(
       .trim()
   }
 
-  // Helper: find column index by fuzzy name matching
+  // pomocník: nalezení indexu sloupce pomocí přibližné shody názvů
   const findColumnIndex = (fieldName: string, headers: string[]): number => {
     const nf = normalize(fieldName)
     for (let i = 0; i < headers.length; i++) {
       const nh = normalize(headers[i])
       if (nf === nh) return i
-      // One contains the other
+      // jeden obsahuje druhý
       if (nf.length > 2 && nh.length > 2) {
         if (nf.includes(nh) || nh.includes(nf)) return i
       }
@@ -811,7 +811,7 @@ export function buildRecordsFromImported(
       value: unknown
     }> = []
 
-    // Determine recordIndex from Record Number column or fallback to r+1
+    // určení recordindexu ze sloupce „record number“ nebo pád zpět na r + 1
     let recordIndex = r + 1
     if (firstBlock && recordNumberHeaderIdx >= 0) {
       const recordNumValue = firstBlock.rows[r]?.[recordNumberHeaderIdx]
@@ -829,12 +829,12 @@ export function buildRecordsFromImported(
       for (let fi = 0; fi < block.fields.length; fi++) {
         const f = block.fields[fi]!
 
-        // Get source index: explicit > find by name > fallback to field index
+        // získání indexu zdroje: explicitní > najít podle názvu > pád zpět na index pole
         let srcIdx: number
         if (typeof f.sourceIndex === 'number') {
           srcIdx = f.sourceIndex
         } else {
-          // Try to find by header name matching
+          // pokus o nalezení podle shody názvu hlavičky
           const matchedIdx = findColumnIndex(f.name, importedBlock.headers)
           srcIdx = matchedIdx >= 0 ? matchedIdx : fi
         }

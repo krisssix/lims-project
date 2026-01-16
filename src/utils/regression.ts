@@ -1,19 +1,19 @@
 /**
- * Regression Calculator Utilities
- * Provides linear and logarithmic regression calculations
+ * utility pro výpočet regrese
+ * poskytuje lineární a logaritmické výpočty
  */
 
 export interface RegressionResult {
     type: 'linear' | 'logarithmic'
-    slope: number           // a in y = ax + b (linear) or y = a*ln(x) + b (log)
+    slope: number           // a v y = ax + b (lineární) nebo y = a*ln(x) + b (log)
     intercept: number       // b
-    rSquared: number        // R² coefficient of determination
-    correlation: number     // Pearson correlation coefficient
-    equation: string        // Human readable equation
-    predictY: (x: number) => number  // Predict Y for given X
-    predictX: (y: number) => number  // Predict X for given Y (inverse)
-    residuals: number[]     // Residual errors for each point
-    standardError: number   // Standard error of estimate
+    rSquared: number        // r na druhou koeficient determinace
+    correlation: number     // pearsonův korelační koeficient
+    equation: string        // rovnice v čitelném formátu
+    predictY: (x: number) => number  // předpověď y pro dané x
+    predictX: (y: number) => number  // předpověď x pro dané y (inverzní)
+    residuals: number[]     // reziduální chyby pro každý bod
+    standardError: number   // standardní chyba odhadu
 }
 
 export interface DataPoint {
@@ -22,7 +22,7 @@ export interface DataPoint {
 }
 
 /**
- * Calculate linear regression: y = ax + b
+ * výpočet lineární regrese: y = ax + b
  */
 export function linearRegression(data: DataPoint[]): RegressionResult {
     const n = data.length
@@ -30,7 +30,7 @@ export function linearRegression(data: DataPoint[]): RegressionResult {
         throw new Error('Potřeba alespoň 2 body pro regresi')
     }
 
-    // Calculate sums
+    // výpočet sum
     let sumX = 0
     let sumY = 0
     let sumXY = 0
@@ -45,7 +45,7 @@ export function linearRegression(data: DataPoint[]): RegressionResult {
         sumY2 += point.y * point.y
     }
 
-    // Calculate slope (a) and intercept (b)
+    // výpočet sklonu (a) a průsečíku (b)
     const denominator = n * sumX2 - sumX * sumX
     if (Math.abs(denominator) < 1e-10) {
         throw new Error('Data jsou příliš lineárně závislá')
@@ -54,10 +54,10 @@ export function linearRegression(data: DataPoint[]): RegressionResult {
     const slope = (n * sumXY - sumX * sumY) / denominator
     const intercept = (sumY - slope * sumX) / n
 
-    // Calculate R² and correlation
+    // výpočet r² a korelace
     const meanY = sumY / n
-    let ssTot = 0  // Total sum of squares
-    let ssRes = 0  // Residual sum of squares
+    let ssTot = 0  // celkový součet čtverců
+    let ssRes = 0  // reziduální součet čtverců
     const residuals: number[] = []
 
     for (const point of data) {
@@ -71,10 +71,10 @@ export function linearRegression(data: DataPoint[]): RegressionResult {
     const rSquared = ssTot > 0 ? 1 - ssRes / ssTot : 0
     const correlation = Math.sqrt(rSquared) * (slope >= 0 ? 1 : -1)
 
-    // Standard error
+    // standard chyba
     const standardError = n > 2 ? Math.sqrt(ssRes / (n - 2)) : 0
 
-    // Format equation
+    // formátování rovnice
     const signB = intercept >= 0 ? '+' : ''
     const equation = `y = ${formatNumber(slope)}x ${signB} ${formatNumber(intercept)}`
 
@@ -93,7 +93,7 @@ export function linearRegression(data: DataPoint[]): RegressionResult {
 }
 
 /**
- * Calculate logarithmic regression: y = a*ln(x) + b
+ * výpočet logaritmické regrese: y = a*ln(x) + b
  */
 export function logarithmicRegression(data: DataPoint[]): RegressionResult {
     const n = data.length
@@ -101,19 +101,19 @@ export function logarithmicRegression(data: DataPoint[]): RegressionResult {
         throw new Error('Potřeba alespoň 2 body pro regresi')
     }
 
-    // Filter out non-positive X values (ln undefined)
+    // odfiltrování nekladných hodnot x (ln není definováno)
     const validData = data.filter(p => p.x > 0)
     if (validData.length < 2) {
         throw new Error('Potřeba alespoň 2 body s kladným X pro logaritmickou regresi')
     }
 
-    // Transform X to ln(X) and apply linear regression
+    // transformace x na ln(x) a aplikace lineární regrese
     const transformedData: DataPoint[] = validData.map(p => ({
         x: Math.log(p.x),
         y: p.y
     }))
 
-    // Calculate sums with ln(x)
+    // výpočet sum s ln(x)
     let sumLnX = 0
     let sumY = 0
     let sumLnXY = 0
@@ -135,7 +135,7 @@ export function logarithmicRegression(data: DataPoint[]): RegressionResult {
     const slope = (nValid * sumLnXY - sumLnX * sumY) / denominator
     const intercept = (sumY - slope * sumLnX) / nValid
 
-    // Calculate R² using original data
+    // výpočet r² s využitím původních dat
     const meanY = sumY / nValid
     let ssTot = 0
     let ssRes = 0
@@ -153,9 +153,9 @@ export function logarithmicRegression(data: DataPoint[]): RegressionResult {
     const correlation = Math.sqrt(rSquared) * (slope >= 0 ? 1 : -1)
     const standardError = nValid > 2 ? Math.sqrt(ssRes / (nValid - 2)) : 0
 
-    // Format equation
+    // formátování rovnice
     const signB = intercept >= 0 ? '+' : ''
-    const equation = `y = ${formatNumber(slope)}·ln(x) ${signB} ${formatNumber(intercept)}`
+    const equation = `y = ${formatNumber(slope)}*ln(x) ${signB} ${formatNumber(intercept)}`
 
     return {
         type: 'logarithmic',
@@ -172,7 +172,7 @@ export function logarithmicRegression(data: DataPoint[]): RegressionResult {
 }
 
 /**
- * Auto-detect best regression type based on R²
+ * automatická detekce nejvhodnějšího typu regrese podle r²
  */
 export function bestFitRegression(data: DataPoint[]): RegressionResult {
     const linear = linearRegression(data)
@@ -181,13 +181,13 @@ export function bestFitRegression(data: DataPoint[]): RegressionResult {
         const logarithmic = logarithmicRegression(data)
         return logarithmic.rSquared > linear.rSquared ? logarithmic : linear
     } catch {
-        // If log regression fails (negative X values), use linear
+        // pokud logaritmická regrese selže (záporné hodnoty x), použij lineární
         return linear
     }
 }
 
 /**
- * Format number for display
+ * formátování čísla pro zobrazení
  */
 function formatNumber(n: number, decimals = 4): string {
     if (Math.abs(n) < 0.0001 && n !== 0) {
@@ -197,18 +197,18 @@ function formatNumber(n: number, decimals = 4): string {
 }
 
 /**
- * Parse array of [x, y] pairs or separate X and Y arrays
+ * parsování pole dvojic [x, y] nebo samostatných polí x a y
  */
 export function parseRegressionData(
     input: number[][] | { xValues: number[]; yValues: number[] }
 ): DataPoint[] {
     if (Array.isArray(input) && input[0] && Array.isArray(input[0])) {
-        // Format: [[x1, y1], [x2, y2], ...]
+        // formát: [[x1, y1], [x2, y2], ...]
         return (input as number[][]).map(([x, y]) => ({ x, y }))
     }
 
     if ('xValues' in input && 'yValues' in input) {
-        // Format: { xValues: [...], yValues: [...] }
+        // formát: { xvalues: [...], yvalues: [...] }
         const len = Math.min(input.xValues.length, input.yValues.length)
         const points: DataPoint[] = []
         for (let i = 0; i < len; i++) {

@@ -1,12 +1,12 @@
 /**
- * Universal Import Parsing Utility for LIMS System
- * - Smart block detection (table, kv, stats, series)
- * - Auto-skip stats rows that are already computed by ChartPanel
- * - Device/template recognition for "memory" feature
- * - Keyboard-friendly design for lab workers
+ * univerzální nástroj pro parsování importů pro lims systém
+ * - chytrá detekce bloků (tabulka, kv, statistiky, série)
+ * - automatické přeskakování řádků statistik, které již počítá chartpanel
+ * - rozpoznávání zařízení/šablon pro funkci "paměti"
+ * - design přívětivý pro klávesnici pro laboratorní pracovníky
  */
 
-// ============ TYPES ============
+// ============ typy ============
 
 export type ColumnType = 'float' | 'int' | 'text' | 'file' | 'bool' | 'date'
 
@@ -73,7 +73,7 @@ export interface ImportProfile {
   lastUsed: number
 }
 
-// ============ CONSTANTS ============
+// ============ konstanty ============
 
 /** Statistiky které ChartPanel už počítá - budou automaticky skipnuty */
 const COMPUTED_STATS = new Set([
@@ -113,7 +113,7 @@ const DEVICE_PATTERNS: ReadonlyArray<DevicePattern> = [
 
 const PROFILE_STORAGE_KEY = 'cenagrivet_import_profiles'
 
-// ============ MAIN ANALYSIS FUNCTION ============
+// ============ hlavní analytická funkce ============
 
 export function analyzeClipboard(text: string, options: ParserOptions = {}): AnalyzeResult {
   const warnings: string[] = []
@@ -136,7 +136,7 @@ export function analyzeClipboard(text: string, options: ParserOptions = {}): Ana
     }
   }
 
-  // Post-process: merge unit rows into headers if enabled
+  // dodatečné zpracování: sloučení řádků s jednotkami do hlaviček, pokud je povoleno
   if (options.mergeUnitsWithHeaders) {
     for (const block of blocks) {
       if (block.kind === 'table' && block.unitRow) {
@@ -154,13 +154,13 @@ export function analyzeClipboard(text: string, options: ParserOptions = {}): Ana
   }
 }
 
-// ============ TEXT NORMALIZATION ============
+// ============ normalizace textu ============
 
 function normalizeText(s: string): string {
   return s
-    .replace(/\uFEFF/g, '') // BOM
-    .replace(/\r\n? /g, '\n') // CRLF -> LF
-    .replace(/\u00A0/g, ' ') // NBSP -> space
+    .replace(/\uFEFF/g, '') // bom (byte order mark)
+    .replace(/\r\n? /g, '\n') // crlf -> lf
+    .replace(/\u00A0/g, ' ') // nbsp -> mezera
     .trim()
 }
 
@@ -175,7 +175,7 @@ function mapDelimiterOverride(override: NonNullable<ParserOptions['delimiterOver
   return mapping[override]
 }
 
-// ============ DELIMITER DETECTION ============
+// ============ detekce oddělovače ============
 
 function detectDelimiter(text: string): string {
   const counts = {
@@ -202,7 +202,7 @@ function countChar(text: string, char: string): number {
   return count
 }
 
-// ============ DEVICE DETECTION ============
+// ============ detekce zařízení ============
 
 function detectDevice(text: string): string | undefined {
   for (const { pattern, device } of DEVICE_PATTERNS) {
@@ -211,7 +211,7 @@ function detectDevice(text: string): string | undefined {
   return undefined
 }
 
-// ============ SEGMENT SPLITTING ============
+// ============ rozdělení na segmenty ============
 
 interface Segment {
   lines: string[]
@@ -243,18 +243,18 @@ function splitIntoSegments(lines: string[]): Segment[] {
   return segments
 }
 
-// ============ BLOCK CLASSIFICATION ============
+// ============ klasifikace bloků ============
 
 type BlockKind = 'table' | 'stats' | 'kv' | 'series'
 
 function classifyBlockKind(lines: string[], delimiter: string): BlockKind {
   if (lines.length === 0) return 'table'
 
-  // Check for KV block (key: value or key = value pairs)
+  // kontrola kv bloku (klíč: hodnota nebo dvojice klíč = hodnota)
   const kvCount = lines.filter(line => /^[^:=]+[:=][^:=]+$/.test(line.trim())).length
   if (kvCount >= lines.length * 0.6) return 'kv'
 
-  // Check for stats block
+  // kontrola bloku statistik
   let statsCount = 0
   for (const line of lines) {
     const parts = smartSplit(line, delimiter)
@@ -264,7 +264,7 @@ function classifyBlockKind(lines: string[], delimiter: string): BlockKind {
   }
   if (statsCount >= lines.length * 0.5 && statsCount >= 2) return 'stats'
 
-  // Check for series (single column of values)
+  // kontrola sérií (jeden sloupec hodnot)
   if (isSeriesBlock(lines, delimiter)) return 'series'
 
   return 'table'
@@ -273,10 +273,10 @@ function classifyBlockKind(lines: string[], delimiter: string): BlockKind {
 function isComputedStat(value: string): boolean {
   const lower = value.toLowerCase().trim()
 
-  // Exact match
+  // přesná shoda
   if (COMPUTED_STATS.has(lower)) return true
 
-  // Prefix match
+  // shoda předpony
   for (const stat of COMPUTED_STATS) {
     if (lower.startsWith(stat)) return true
   }
@@ -297,7 +297,7 @@ function isSeriesBlock(lines: string[], delimiter: string): boolean {
   return singleColCount >= lines.length * 0.8
 }
 
-// ============ BLOCK PARSING ============
+// ============ parsování bloků ============
 
 function classifyAndParseSegment(
   lines: string[],
@@ -372,7 +372,7 @@ function parseTableBlock(
   startLine: number,
   delimiter: string,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  _options: ParserOptions // Reserved for future use (decimal comma handling, markdown tables)
+  _options: ParserOptions // vyhrazeno pro budoucí použití (zpracování desetinné čárky, markdown tabulky)
 ): TableBlock {
   const rows: string[][] = []
 
@@ -392,18 +392,18 @@ function parseTableBlock(
     }
   }
 
-  // First row is headers
+  // první řádek jsou hlavičky
   const headersRaw = rows[0]
   let dataRows = rows.slice(1)
   let unitRow: string[] | undefined
 
-  // Check if second row is units
+  // kontrola, zda je druhý řádek řádkem s jednotkami (units)
   if (dataRows.length > 0 && looksLikeUnitRow(dataRows[0])) {
     unitRow = dataRows[0]
     dataRows = dataRows.slice(1)
   }
 
-  // Filter out stats rows from data
+  // odfiltrování řádků statistik z dat
   dataRows = dataRows.filter(row => {
     const firstCell = row[0]?.toLowerCase().trim() || ''
     return !isComputedStat(firstCell)
@@ -422,12 +422,12 @@ function parseTableBlock(
   }
 }
 
-// ============ SMART SPLIT (CSV-aware) ============
+// ============ chytré rozdělení (smart split - csv aware) ============
 
 function smartSplit(line: string, delimiter: string): string[] {
   if (!line) return []
 
-  // Handle quoted CSV
+  // obsluha uvozovek v csv
   if (delimiter === ',' || delimiter === ';') {
     return splitCsvLine(line, delimiter)
   }
@@ -464,7 +464,7 @@ function splitCsvLine(line: string, sep: string): string[] {
   return out
 }
 
-// ============ UNIT ROW DETECTION ============
+// ============ detekce řádku s jednotkami (units) ============
 
 function looksLikeUnitRow(parts: string[]): boolean {
   if (!parts || parts.length === 0) return false
@@ -479,10 +479,10 @@ function looksLikeUnitRow(parts: string[]): boolean {
 
     const low = s.toLowerCase()
 
-    // Pure numbers are not units
+    // čistá čísla nejsou jednotky
     if (/^[+-]?\d+([.,]\d+)? $/.test(s)) continue
 
-    // Check for unit indicators
+    // kontrola indikátorů jednotek
     const hasUnit = UNIT_INDICATORS.some(u => low.includes(u)) ||
       (low.length <= 6 && /^[a-zµμ°/%\-/]+$/.test(low))
 
@@ -511,7 +511,7 @@ function mergeHeadersWithUnits(headers: string[], units: string[]): string[] {
   return result
 }
 
-// ============ HEADER NORMALIZATION ============
+// ============ normalizace hlaviček ============
 
 function normalizeHeader(h: string): string {
   if (!h) return ''
@@ -524,12 +524,12 @@ function normalizeHeader(h: string): string {
     .replace(/^_|_$/g, '')
 }
 
-// ============ FIELD TYPE INFERENCE ============
+// ============ odhad typu pole (inference) ============
 
 export function inferFieldType(header: string): ColumnType {
   const h = header.toLowerCase()
 
-  // Use word boundaries to avoid false positives (e.g. "hodnota" contains "no", "ano"; "jméno" contains "no")
+  // použití hranic slov pro zabránění falešně pozitivním výsledkům (např. "hodnota" obsahuje "no", "ano"; "jméno" obsahuje "no")
   if (/(^|\s)(datum|date|time|čas|timestamp)(\s|$)/.test(h)) return 'date'
   if (/^(bool|boolean|ano|ne|yes|no|true|false)$/.test(h) ||
     /(^|\s)(bool|boolean|ano|ne|yes|no|true|false)(\s|$)/.test(h)) return 'bool'
@@ -581,7 +581,7 @@ export function inferFieldTypeFromSamples(samples: string[]): ColumnType {
   return 'text'
 }
 
-// ============ REPEAT SET DETECTION ============
+// ============ detekce opakujících se sad (repeat set detection) ============
 
 export function buildRepeatMetaFromHeaders(headers: string[]): RepeatMeta {
   if (!headers || headers.length < 2) {
@@ -612,7 +612,7 @@ export function buildRepeatMetaFromHeaders(headers: string[]): RepeatMeta {
   }
 }
 
-// ============ IMPORT PROFILE MANAGEMENT (MEMORY) ============
+// ============ správa profilů importu (paměť - memory) ============
 
 export function loadImportProfiles(): ImportProfile[] {
   try {
@@ -635,7 +635,7 @@ export function saveImportProfile(profile: ImportProfile): void {
     profiles.push(updatedProfile)
   }
 
-  // Keep only last 20 profiles, sorted by lastUsed desc
+  // ponechat pouze posledních 20 profilů, seřazených sestupně podle lastused
   profiles.sort((a, b) => b.lastUsed - a.lastUsed)
   const toSave = profiles.slice(0, 20)
 
@@ -670,6 +670,6 @@ export function findMatchingProfile(headers: string[]): ImportProfile | null {
   return bestMatch
 }
 
-// ============ UTILITY EXPORTS ============
+// ============ exporty nástrojů ============
 
 export { isComputedStat, normalizeHeader }

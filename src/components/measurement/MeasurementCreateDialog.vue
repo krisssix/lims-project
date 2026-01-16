@@ -57,12 +57,12 @@ const props = defineProps<{
   templateById: Map<string, TemplateItem>
   initialTemplateId?: string | null
   members?: Array<{ username: string }>
-  /** BoardCard ID to link measurement to */
+  /** id boardcard pro propojení s měřením */
   boardCardId?: number | null
-  /** When duplicating a measurement, pass the source measurement here */
+  /** při duplikování měření sem předejte zdrojové měření */
   duplicateFrom?: {
-    type: string | null  // template name
-    unit: string | null  // device code
+    type: string | null  // název šablony
+    unit: string | null  // kód přístroje
     values?: Array<{ fieldName: string; value: unknown; recordNumber?: number; blockIndex?: number }>
     note?: string | null
     measuredByUsername?: string | null
@@ -77,30 +77,30 @@ const emits = defineEmits<{
   (e: 'deriveTemplate', templateId: string): void
 }>()
 
-/* Pop up*/
+/* vyskakovací okna */
 const showSuccessToast = ref(false)
 const showValidationError = ref(false)
 const validationErrorMessage = ref('')
 const lastCreatedMeasurementId = ref<number | null>(null)
 
-/* Warning dialogs */
+/* varovné dialogy */
 const showClearAllWarning = ref(false)
 const showApplyDataWarning = ref(false)
 const showEmptySeriesWarning = ref(false)
 const showGoBackWarning = ref(false)
 const pendingAction = ref<'back' | 'close'>('back')
 
-/* Series validation state */
+/* stav validace sérií */
 const showSeriesValidation = ref(false)
 
-/* Data Mapping Grid */
+/* mřížka pro mapování dat */
 const showDataMappingGrid = ref(false)
 const rawGridData = ref<(string | number)[][]>([])
 
 
 
 
-/* Store + devices */
+/* store + přístroje */
 const deviceStore = useDeviceStore()
 const storeDevices = computed(() => deviceStore.devices)
 async function ensureDeviceStoreLoaded(): Promise<void> {
@@ -110,32 +110,32 @@ async function ensureDeviceStoreLoaded(): Promise<void> {
 }
 void ensureDeviceStoreLoaded()
 
-/* Dialog state */
+/* stav dialogu */
 const wizardStep = ref<1 | 2 | 3>(1)
 const saving = ref(false)
 const importPanelOpen = ref(false)
-const mappingApplied = ref(false)  // Track if user applied custom mapping
-const mappingAutoApplied = ref(false)  // Track if mapping was auto-applied from learned
-const learnedMappingsAvailable = ref(false)  // Track if learned mappings exist for current import
+const mappingApplied = ref(false)  // sledování, zda uživatel použil vlastní mapování
+const mappingAutoApplied = ref(false)  // sledování, zda bylo mapování automaticky použito z naučených
+const learnedMappingsAvailable = ref(false)  // sledování, zda pro aktuální import existují naučená mapování
 const showHelp = ref(true)
 
-/* Meta selections */
+/* výběry metadat */
 const selectedMember = ref<string>('')
 const selectedDeviceId = ref<string>('')
 const selectedTemplateId = ref<string | null>(null)
 const measurementNote = ref<string>('')
 const membersList = computed<string[]>(() => (props.members ?? []).map(m => m.username))
 
-/* Handle duplicate mode - pre-fill from source measurement */
+/* obsluha režimu duplikace - předvyplnění ze zdrojového měření */
 watch(() => props.duplicateFrom, (source) => {
   if (!source) return
 
-  // Pre-fill device
+  // předvyplnění přístroje
   if (source.unit) {
     selectedDeviceId.value = source.unit
   }
 
-  // Pre-fill template by name
+  // předvyplnění šablony podle názvu
   if (source.type) {
     const template = props.templates.find(t => t.name === source.type)
     if (template) {
@@ -143,20 +143,20 @@ watch(() => props.duplicateFrom, (source) => {
     }
   }
 
-  // Pre-fill note
+  // předvyplnění poznámky
   if (source.note) {
     measurementNote.value = source.note
   }
 
-  // Pre-fill member
+  // předvyplnění člena
   if (source.measuredByUsername) {
     selectedMember.value = source.measuredByUsername
   }
 
-  // Wait for template to be selected, then pre-fill records
+  // počkat na výběr šablony a poté předvyplnit záznamy
   nextTick(() => {
     if (source.values && source.values.length > 0) {
-      // Group values by record number
+      // seskupení hodnot podle čísla záznamu
       const recordMap = new Map<number, Array<{ fieldName: string; value: unknown; blockIndex?: number }>>()
       for (const v of source.values) {
         const recNum = v.recordNumber ?? 1
@@ -164,7 +164,7 @@ watch(() => props.duplicateFrom, (source) => {
         recordMap.get(recNum)!.push({ fieldName: v.fieldName, value: v.value, blockIndex: v.blockIndex })
       }
 
-      // Initialize records from template first
+      // nejdříve inicializace záznamů ze šablony
       const tplFields = templateFields.value
       records.value = []
 
@@ -192,17 +192,17 @@ watch(() => props.duplicateFrom, (source) => {
       }
     }
 
-    // Jump to step 2 (data)
+    // přechod na krok 2 (data)
     if (canProceedToData.value) {
       wizardStep.value = 2
     }
   })
 }, { immediate: true })
 
-/* Validation Step 1 */
+/* validace kroku 1 */
 const canProceedToData = computed(() => !!selectedDeviceId.value && !!selectedTemplateId.value)
 
-/* Device create dialog */
+/* dialog pro vytvoření přístroje */
 const showDeviceCreate = ref(false)
 function openDeviceCreate(): void { showDeviceCreate.value = true }
 function onDeviceCreated(dev: { id: number; code: string; name: string; color?: string | null; active: boolean }): void {
@@ -210,15 +210,15 @@ function onDeviceCreated(dev: { id: number; code: string; name: string; color?: 
   showDeviceCreate.value = false
 }
 
-/* Records */
+/* záznamy */
 const records = ref<MeasurementRecord[]>([])
 const currentRecordIndex = ref<number>(1)
 const selectedRecordIndexes = ref<Set<number>>(new Set())
 
-/* Block navigation */
+/* navigace mezi bloky */
 const currentBlockIndex = ref<number>(0)
 
-/* Derived template */
+/* odvozená šablona */
 const selectedTemplate = computed<TemplateItem | null>(() => {
   if (!selectedTemplateId.value) return null
   return props.templateById.get(selectedTemplateId.value) ?? null
@@ -227,8 +227,8 @@ const templateBlocks = computed<TemplateBlockRow[]>(() => {
   const tpl = selectedTemplate.value
   if (!tpl) return []
   if (tpl.blocks && tpl.blocks.length > 0) {
-    // Filter out series blocks - they go to SeriesSection, not regular block navigation
-    // Check both kind AND title to ensure series aren't displayed as regular blocks
+    // odfiltrování bloků sérií - ty patří do seriessection, ne do běžné navigace u bloků
+    // kontrola typu (kind) i názvu (title), aby se série nezobrazovaly jako běžné bloky
     return tpl.blocks.filter(b => {
       const isSeries = b.kind === 'series' ||
         (b.title?.toLowerCase().includes('série')) ||
@@ -245,33 +245,33 @@ const templateBlocks = computed<TemplateBlockRow[]>(() => {
 })
 
 
-/* Series blocks from template - displayed in SeriesSection */
+/* bloky sérií ze šablony - zobrazeny v seriessection */
 const templateSeriesBlocks = computed<TemplateBlockRow[]>(() => {
   const tpl = selectedTemplate.value
   if (!tpl || !tpl.blocks) return []
 
-  // Detect series blocks by:
-  // 1. kind === 'series' (explicit backend flag)
-  // 2. title containing série/series keywords
-  // 3. title containing common series data patterns (size data, intensity, distribution)
-  // 4. blocks with "Data" suffix and multiple numeric fields
+  // detekce bloků sérií podle:
+  // 1. kind === 'series' (explicitní příznak z backendu)
+  // 2. název obsahuje klíčová slova série/series
+  // 3. název obsahuje běžné vzory pro série dat (size data, intensity, distribution)
+  // 4. bloky s příponou "data" a více číselnými poli
   return tpl.blocks.filter(b => {
     const titleLower = b.title?.toLowerCase() || ''
 
-    // Explicit series kind
+    // explicitní typ série
     if (b.kind === 'series') return true
 
-    // Direct série/series keyword
+    // přímé klíčové slovo série/series
     if (titleLower.includes('série') || titleLower.includes('series')) return true
 
-    // Common DLS/measurement series patterns
+    // běžné vzory dls/měřicích sérií
     if (titleLower.includes('size') && titleLower.includes('data')) return true
     if (titleLower.includes('intensity')) return true
     if (titleLower.includes('distribution')) return true
 
-    // Blocks ending with "Data" that have multiple fields (likely series)
+    // bloky končící na "data", které mají alespoň 2 pole (pravděpodobně série)
     if (titleLower.endsWith('data') && b.fields && b.fields.length >= 2) {
-      // Check if most fields are numeric (float/int) - series indicator
+      // kontrola, zda je většina polí číselných (float/int) - indikátor série
       const numericFields = b.fields.filter(f => f.type === 'float' || f.type === 'int')
       return numericFields.length >= Math.floor(b.fields.length * 0.7)
     }
@@ -280,11 +280,11 @@ const templateSeriesBlocks = computed<TemplateBlockRow[]>(() => {
   })
 })
 
-/* Series field definitions from template - passed to SeriesSection for dynamic columns */
+/* definice polí sérií ze šablony - předáno seriessection pro dynamické sloupce */
 const seriesFieldDefinitions = computed<Array<{ name: string; type: 'float' | 'int' | 'text'; required: boolean }>>(() => {
   const blocks = templateSeriesBlocks.value
   if (!blocks.length) return []
-  // Get fields from first series block as the column definition
+  // získání polí z prvního bloku série jako definici sloupců
   const firstBlock = blocks[0]
   if (!firstBlock?.fields?.length) return []
   return firstBlock.fields.map(f => ({
@@ -304,8 +304,8 @@ const templateFields = computed<Array<{ name: string; type: ValueType; required:
   if (tpl.blocks && tpl.blocks.length > 0) {
     const fields: Array<{ name: string; type: ValueType; required: boolean; blockIndex: number; blockTitle: string }> = []
     for (const block of tpl.blocks) {
-      // Skip series blocks - they are handled separately in SeriesSection
-      // Same filter as templateBlocks uses
+      // přeskočit bloky sérií - ty se řeší samostatně v seriessection
+      // stejná filtrace jako u templateblocks
       const isSeries = block.kind === 'series' ||
         (block.title?.toLowerCase().includes('série')) ||
         (block.title?.toLowerCase().includes('series'))
@@ -332,7 +332,7 @@ const templateFields = computed<Array<{ name: string; type: ValueType; required:
   }))
 })
 
-/* Current block fields */
+/* pole aktuálního bloku */
 const currentBlockFields = computed<RecordField[]>(() => {
   const rec = records.value.find(r => r.recordIndex === currentRecordIndex.value)
   if (!rec || !currentBlock.value) return []
@@ -340,24 +340,24 @@ const currentBlockFields = computed<RecordField[]>(() => {
   return rec.fields.filter(f => (f.blockIndex ?? 1) === blockIdx)
 })
 
-/* Helpers for template bindings */
+/* pomocné funkce pro vazby šablony */
 function textModel(field: RecordField): string | number | null {
   const val = field.value
   return (val === undefined ? null : (val as string | number | null))
 }
 function dateModel(field: RecordField): string | null {
   const val = field.value
-  // If already a number (epoch ms), convert to YYYY-MM-DD
+  // pokud je to již číslo (epocha v ms), převod na yyyy-mm-dd
   if (typeof val === 'number') {
     return new Date(val).toISOString().slice(0, 10)
   }
-  // If string, try to parse as Czech date (e.g. "4. října 2022 16:58:51")
+  // pokud je to řetězec, zkusit zparsovat jako český datum (např. "4. října 2022 16:58:51")
   if (typeof val === 'string' && val.trim()) {
     const parsed = parseCzechDate(val)
     if (parsed.success && parsed.date) {
       return parsed.date.toISOString().slice(0, 10)
     }
-    // If already in YYYY-MM-DD format, return as is
+    // pokud je to již ve formátu yyyy-mm-dd, vrátit jak je
     if (/^\d{4}-\d{2}-\d{2}$/.test(val)) {
       return val
     }
@@ -366,12 +366,12 @@ function dateModel(field: RecordField): string | null {
 }
 function timeModel(field: RecordField): string | null {
   const val = field.value
-  // If already a number (epoch ms), extract time as HH:MM
+  // pokud je to již číslo (epocha v ms), extrahovat čas jako hh:mm
   if (typeof val === 'number') {
     const d = new Date(val)
     return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`
   }
-  // If string, try to parse as Czech date (e.g. "4. října 2022 16:58:51")
+  // pokud je to řetězec, zkusit zparsovat jako český datum (např. "4. října 2022 16:58:51")
   if (typeof val === 'string' && val.trim()) {
     const parsed = parseCzechDate(val)
     if (parsed.success && parsed.hours !== null && parsed.minutes !== null) {
@@ -385,7 +385,7 @@ function fileModel(field: RecordField): File | null {
   return v && typeof v === 'object' && 'name' in (v as Record<string, unknown>) ? (v as File) : null
 }
 
-/* Numeric fields + stats */
+/* číselná pole + statistiky */
 const numericFieldNames = computed<string[]>(() => {
   const seen = new Set<string>()
   const out: string[] = []
@@ -420,7 +420,7 @@ const chartPoints = computed<number[]>(() => {
 })
 const statsObj = computed(() => computeBasicStats(chartPoints.value))
 
-/* Validation state */
+/* stav validace */
 const visitedFields = ref<Set<string>>(new Set())
 const touchedFields = ref<Set<string>>(new Set())
 function fieldKey(field: RecordField): string { return `${currentRecordIndex.value}-${field.name}` }
@@ -449,8 +449,8 @@ const canSave = computed<boolean>(() =>
   invalidTotal.value === 0
 )
 
-/* Series validation computed properties */
-// Check if any series has at least one non-null value
+/* vypočítané vlastnosti pro validaci sérií */
+// kontrola, zda má nějaká série alespoň jednu neprázdnou hodnotu
 const seriesHasAnyData = computed<boolean>(() => {
   return seriesData.value.some(s =>
     s.data.some(row =>
@@ -459,7 +459,7 @@ const seriesHasAnyData = computed<boolean>(() => {
   )
 })
 
-// Check if series has empty required fields when at least one value exists
+// kontrola, zda série obsahuje prázdná povinná pole, když existuje alespoň jedna hodnota
 const seriesHasIncompleteData = computed<boolean>(() => {
   if (!seriesHasAnyData.value) return false
 
@@ -471,42 +471,42 @@ const seriesHasIncompleteData = computed<boolean>(() => {
   })
 })
 
-// Check if series exists from template but is completely empty
+// kontrola, zda série existuje v šabloně, ale je zcela prázdná
 const seriesIsEmpty = computed<boolean>(() => {
   return templateSeriesBlocks.value.length > 0 && !seriesHasAnyData.value
 })
 
-/* Dirty state detection - check if user has made any changes */
+/* detekce "dirty" stavu - kontrola, zda uživatel provedl nějaké změny */
 const hasAnyChanges = computed<boolean>(() => {
-  // Check if any record has values
+  // kontrola, zda má nějaký záznam data
   const hasRecordData = records.value.some(r =>
     r.fields.some(f => f.value !== null && f.value !== '' && f.value !== undefined)
   )
-  // Check if series has data
+  // kontrola, zda mají série data
   const hasSeriesData = seriesHasAnyData.value
-  // Check if notes added
+  // kontrola poznámek
   const hasNotes = !!measurementNote.value && measurementNote.value.trim() !== ''
-  // Check if file imported
+  // kontrola importovaného souboru
   const hasImportedFile = !!importedFile.value
 
   return hasRecordData || hasSeriesData || hasNotes || hasImportedFile
 })
 
-/* Focus helpers */
+/* pomocníci pro zaměření (focus) */
 function focusFieldByIndex(idx: number, flashAnimation = false): void {
   nextTick(() => {
     const els = document.querySelectorAll<HTMLElement>('[data-field-input]')
     const el = els[idx]
     if (!el) return
 
-    // Scroll into view first
+    // nejdříve odrolovat na zobrazení
     el.scrollIntoView({ behavior: 'smooth', block: 'center' })
 
-    // Focus after scroll
+    // zaměření po odrolování
     setTimeout(() => {
       el.focus()
 
-      // Add flash animation if requested
+      // přidání animace bliknutí, pokud je vyžadována
       if (flashAnimation) {
         const row = el.closest('.data-row') as HTMLElement | null
         if (row) {
@@ -526,8 +526,8 @@ function focusFirstInvalidInCurrentBlock(): void {
 }
 
 /**
- * Find first invalid field across ALL records and blocks, navigate there, show error.
- * Returns true if found invalid field, false if all valid.
+ * najde první neplatné pole napříč všemi záznamy a bloky, přejde tam a zobrazí chybu.
+ * vrací true, pokud bylo nalezeno neplatné pole, false, pokud jsou všechna platná.
  */
 function goToFirstInvalidField(): boolean {
   for (const record of records.value) {
@@ -544,19 +544,19 @@ function goToFirstInvalidField(): boolean {
           error: error
         })
 
-        // Find which block this field belongs to
+        // zjištění, do kterého bloku toto pole patří
         const blockIdx = templateBlocks.value.findIndex(b => b.blockIndex === (field.blockIndex ?? 1))
         console.warn('[DEBUG goToFirstInvalidField] Block index for field:', blockIdx, 'Template blocks:', templateBlocks.value.map(b => ({ blockIndex: b.blockIndex, title: b.title })))
 
-        // Navigate to that record and block
+        // navigace na daný záznam a blok
         currentRecordIndex.value = record.recordIndex
         if (blockIdx >= 0) currentBlockIndex.value = blockIdx
 
-        // Show error message
+        // zobrazení chybové zprávy
         validationErrorMessage.value = `Záznam ${record.recordIndex}: pole "${field.name}" - ${error}`
         showValidationError.value = true
 
-        // Focus the field after navigation
+        // zaměření pole po navigaci
         nextTick(() => {
           const fieldsInBlock = record.fields.filter(f => (f.blockIndex ?? 1) === (field.blockIndex ?? 1))
           const fieldIdxInBlock = fieldsInBlock.findIndex(f => f.name === field.name)
@@ -570,23 +570,23 @@ function goToFirstInvalidField(): boolean {
   return false
 }
 
-/* Block navigation */
+/* navigace mezi bloky */
 function prevBlock(): void { if (currentBlockIndex.value > 0) currentBlockIndex.value-- }
 function nextBlock(): void { if (currentBlockIndex.value < templateBlocks.value.length - 1) currentBlockIndex.value++ }
 
-/* Watch for external template selection (e.g., after creating a new template) */
+/* sledování externího výběru šablony (např. po vytvoření nové šablony) */
 watch(() => props.initialTemplateId, (newId) => {
   if (newId && props.modelValue) {
     selectedTemplateId.value = newId
   }
 })
 
-/* When selected template changes, reset series data and import state */
+/* při změně vybrané šablony resetovat data sérií a stav importu */
 watch(selectedTemplateId, (newVal, oldVal) => {
-  // Skip if templateId is being set for the first time (from null) or unchanged
+  // přeskočit, pokud je templateid nastavováno poprvé (z null) nebo se nezměnilo
   if (oldVal === null || newVal === oldVal) return
 
-  // Clear all data when template changes - fresh start for the new template
+  // vymazat všechna data při změně šablony - čistý začátek pro novou šablonu
   seriesData.value = []
   resetImport()
   records.value = []
@@ -597,7 +597,7 @@ watch(selectedTemplateId, (newVal, oldVal) => {
   touchedFields.value.clear()
 })
 
-/* Initialization */
+/* inicializace */
 /* Initialization */
 function initDialog(): void {
   wizardStep.value = 1
@@ -612,11 +612,11 @@ function initDialog(): void {
   showHelp.value = true
   visitedFields.value.clear()
   touchedFields.value.clear()
-  seriesData.value = [] // Reset series data when dialog opens
+  seriesData.value = [] // resetovat data sérií při otevření dialogu
   resetImport()
 }
 
-/* Step transition */
+/* přechody mezi kroky */
 function goToNextStep(): void {
   console.warn('[DEBUG goToNextStep] Current step:', wizardStep.value)
   console.warn('[DEBUG goToNextStep] Records count:', records.value.length)
@@ -624,7 +624,7 @@ function goToNextStep(): void {
 
   if (wizardStep.value === 1) {
     if (!canProceedToData.value) return
-    // Initialize records if empty
+    // inicializace záznamů, pokud jsou prázdné
     if (records.value.length === 0) {
       records.value = [newRecordFromTemplateFields(1, templateFields.value)]
       currentRecordIndex.value = 1
@@ -633,25 +633,25 @@ function goToNextStep(): void {
       visitedFields.value.clear()
       touchedFields.value.clear()
 
-      // Initialize series data from template series blocks (if any)
-      // This creates empty series entries with correct structure from template definition
+      // inicializace dat sérií z bloků sérií v šabloně (pokud existují)
+      // vytvoří prázdné položky sérií se správnou strukturou podle definice v šabloně
       const seriesBlocks = templateSeriesBlocks.value
       console.warn('[DEBUG goToNextStep] Series blocks from template:', seriesBlocks)
       if (seriesBlocks.length > 0) {
         seriesData.value = seriesBlocks.map((block, idx) => {
-          // Convert block fields to column definitions
+          // převod polí bloku na definice sloupců
           const columns = block.fields?.map(f => ({
             name: f.name,
             type: f.type as 'float' | 'int' | 'text',
             required: f.required
           })) || []
 
-          // Create 5 empty placeholder rows with null values
+          // vytvoření 5 prázdných řádků s null hodnotami
           const emptyRows: Record<string, number | string | null>[] = []
           for (let i = 0; i < 5; i++) {
             const row: Record<string, number | string | null> = {}
             columns.forEach(col => {
-              row[col.name] = null  // Empty placeholder, user fills in
+              row[col.name] = null  // prázdná hodnota, uživatel vyplní
             })
             emptyRows.push(row)
           }
@@ -661,7 +661,7 @@ function goToNextStep(): void {
             seriesName: block.title || undefined,
             linkedRecordIndex: currentRecordIndex.value,
             linkedRecordDescription: `Záznam ${currentRecordIndex.value}`,
-            columns: columns,  // Include column definitions
+            columns: columns,  // zahrnutí definic sloupců
             data: emptyRows
           }
         })
@@ -677,10 +677,10 @@ function goToNextStep(): void {
       el?.focus()
     })
   } else if (wizardStep.value === 2) {
-    // Mark all fields as touched to show validation errors
+    // označení všech polí jako dotčených (touched) pro zobrazení validačních chyb
     records.value.forEach(r => r.fields.forEach(f => markFieldTouched(f)))
 
-    // Enable series validation display
+    // povolení zobrazení validace sérií
     showSeriesValidation.value = true
 
     console.warn('[DEBUG goToNextStep] Step 2 -> 3 validation')
@@ -689,21 +689,21 @@ function goToNextStep(): void {
     console.warn('[DEBUG goToNextStep] seriesHasIncompleteData:', seriesHasIncompleteData.value)
     console.warn('[DEBUG goToNextStep] seriesIsEmpty:', seriesIsEmpty.value)
 
-    // Check validation - if invalid, go to first error
+    // kontrola validace - pokud je neplatná, přejít na první chybu
     if (invalidTotal.value > 0) {
       console.warn('[DEBUG goToNextStep] Validation failed, finding first invalid field...')
       goToFirstInvalidField()
       return
     }
 
-    // Check if series has incomplete required data
+    // kontrola, zda mají série neúplná povinná data
     if (seriesHasIncompleteData.value) {
       validationErrorMessage.value = 'Datová série obsahuje nezadaná povinná pole. Doplňte hodnoty nebo smažte prázdné řádky.'
       showValidationError.value = true
       return
     }
 
-    // Check if series is completely empty - show warning dialog
+    // kontrola, zda je série zcela prázdná - zobrazit varovný dialog
     if (seriesIsEmpty.value) {
       showEmptySeriesWarning.value = true
       return
@@ -715,7 +715,7 @@ function goToNextStep(): void {
 }
 
 
-/* Navigation with unsaved changes warning */
+/* navigace s varováním o neuložených změnách */
 function goToPrevStep(): void {
   if (wizardStep.value === 2) {
     wizardStep.value = 1
@@ -730,7 +730,7 @@ function requestGoBack(): void {
     hasChanges: hasAnyChanges.value,
     showWarning: showGoBackWarning.value
   })
-  // From step 2: check if there are changes
+  // z kroku 2: zkontrolovat, zda existují změny
   if (wizardStep.value === 2 && hasAnyChanges.value) {
     console.log('[DEBUG] Showing go back warning dialog')
     pendingAction.value = 'back'
@@ -752,7 +752,7 @@ function requestCancel(): void {
 
 function confirmGoBack(): void {
   showGoBackWarning.value = false
-  // Reset all data
+  // resetovat všechna data
   doClearAll()
 
   if (pendingAction.value === 'close') {
@@ -764,16 +764,16 @@ function confirmGoBack(): void {
 
 function close(): void { emits('update:modelValue', false) }
 
-/* Series warning confirmation */
+/* potvrzení varování o sériích */
 function confirmSaveWithoutSeries(): void {
   showEmptySeriesWarning.value = false
-  // Clear empty series data before proceeding
+  // vymazat prázdná data sérií před pokračováním
   seriesData.value = []
   wizardStep.value = 3
 }
 
 /* ============================================
-   DRAFTS FUNCTIONALITY - localStorage
+   KONCEPTY (DRAFTS) - localStorage
    ============================================ */
 const DRAFT_STORAGE_KEY = 'measurement-create-draft'
 const showDraftDialog = ref(false)
@@ -788,7 +788,7 @@ interface MeasurementDraft {
   savedAt: number
 }
 
-// Check if draft exists in localStorage
+// kontrola, zda koncept existuje v localstorage
 const hasDraft = computed<boolean>(() => {
   try {
     const stored = localStorage.getItem(DRAFT_STORAGE_KEY)
@@ -798,7 +798,7 @@ const hasDraft = computed<boolean>(() => {
   }
 })
 
-// Get draft info without loading
+// získat informace o konceptu bez načítání
 function getDraftInfo(): { savedAt: Date; templateId: number | null } | null {
   try {
     const stored = localStorage.getItem(DRAFT_STORAGE_KEY)
@@ -810,7 +810,7 @@ function getDraftInfo(): { savedAt: Date; templateId: number | null } | null {
   }
 }
 
-// Save current state as draft
+// uložit aktuální stav jako koncept
 function saveDraft(): void {
   try {
     const draft: MeasurementDraft = {
@@ -823,15 +823,15 @@ function saveDraft(): void {
       savedAt: Date.now()
     }
     localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draft))
-    // Show success feedback
-    validationErrorMessage.value = 'Koncept byl uložen'
+    // zobrazení úspěšné zpětné vazby
+    validationErrorMessage.value = 'koncept byl uložen'
     showValidationError.value = true
   } catch (e) {
     console.error('Failed to save draft:', e)
   }
 }
 
-// Load draft from localStorage
+// načíst koncept z localstorage
 function loadDraft(): void {
   try {
     const stored = localStorage.getItem(DRAFT_STORAGE_KEY)
@@ -839,7 +839,7 @@ function loadDraft(): void {
 
     const draft = JSON.parse(stored) as MeasurementDraft
 
-    // Restore state - cast to expected types
+    // obnovit stav - přetypování na očekávané typy
     if (draft.templateId != null) selectedTemplateId.value = draft.templateId as typeof selectedTemplateId.value
     if (draft.deviceId != null) selectedDeviceId.value = draft.deviceId as typeof selectedDeviceId.value
     if (draft.memberId) selectedMember.value = draft.memberId
@@ -849,7 +849,7 @@ function loadDraft(): void {
 
     showDraftDialog.value = false
 
-    // Go to step 2 if we have template selected
+    // přejít na krok 2, pokud je vybraná šablona a přístroj
     if (draft.templateId && draft.deviceId) {
       wizardStep.value = 2
     }
@@ -858,7 +858,7 @@ function loadDraft(): void {
   }
 }
 
-// Clear draft from localStorage
+// vymazat koncept z localstorage
 function clearDraft(): void {
   try {
     localStorage.removeItem(DRAFT_STORAGE_KEY)
@@ -867,13 +867,13 @@ function clearDraft(): void {
   }
 }
 
-// Dismiss draft dialog without loading
+// zavřít dialog konceptů bez načtení
 function dismissDraftDialog(): void {
   showDraftDialog.value = false
   clearDraft()
 }
 
-/* Record operations */
+/* operace se záznamem */
 function addRecord(): void {
   const nextIdx = records.value.length
     ? Math.max(...records.value.map(r => r.recordIndex)) + 1
@@ -911,20 +911,20 @@ function deleteCurrentRecord(): void {
   const idx = records.value.findIndex(r => r.recordIndex === currentRecordIndex.value)
   if (idx === -1) return
 
-  // Find the next record to select after deletion
+  // vyhledání dalšího záznamu k výběru po smazání
   const sorted = records.value.map(r => r.recordIndex).sort((a, b) => a - b)
   const posInSorted = sorted.indexOf(currentRecordIndex.value)
 
-  // Remove the record
+  // odstranění záznamu
   records.value.splice(idx, 1)
 
-  // After deletion, pick the next record (or previous if we deleted the last one)
+  // po smazání vybrat další záznam (nebo předchozí, pokud jsme smazali poslední)
   const newSorted = records.value.map(r => r.recordIndex).sort((a, b) => a - b)
   if (posInSorted < newSorted.length) {
-    // There's still a record at this position (the one that was after the deleted)
+    // na této pozici je stále záznam (ten, který byl po smazaném)
     currentRecordIndex.value = newSorted[posInSorted]!
   } else {
-    // We deleted the last one, go to the new last record
+    // smazali jsme poslední, přejít na nový poslední záznam
     currentRecordIndex.value = newSorted[newSorted.length - 1]!
   }
 
@@ -966,7 +966,7 @@ function toggleRecordSelection(idx: number, multi: boolean): void {
   }
 }
 
-/* Field edit */
+/* úprava pole */
 function updateField(field: RecordField, raw: unknown): void {
   markFieldTouched(field)
   switch (field.type) {
@@ -982,20 +982,20 @@ function updateField(field: RecordField, raw: unknown): void {
 
 function updateTimeField(field: RecordField, timeStr: string): void {
   markFieldTouched(field)
-  // Get existing date from field, or use today as fallback
+  // získat existující datum z pole nebo použít dnešek jako fallback
   let datePart: string | null = dateModel(field)
   if (!datePart) {
-    // Use today's date if no date is set
+    // použít dnešní datum, pokud není nastaveno žádné datum
     datePart = new Date().toISOString().slice(0, 10)
   }
-  // Combine date and time into epoch milliseconds
+  // spojení data a času do epoch milisekund
   const [hours, minutes] = (timeStr || '00:00').split(':').map(Number)
   const [year, month, day] = datePart.split('-').map(Number)
   const combined = new Date(year, month - 1, day, hours || 0, minutes || 0, 0)
   field.value = combined.getTime()
 }
 
-/* Import state - from composable */
+/* stav importu - z composable */
 const {
   importedFile,
   importedStructure,
@@ -1012,7 +1012,7 @@ const {
   checkCompatibility
 } = useMeasurementImport()
 
-// Count how many template fields don't have matching headers in imported data
+// spočítat, kolik polí šablony nemá odpovídající hlavičky v importovaných datech
 const unmappedFieldsCount = computed<number>(() => {
   if (!importedStructure.value || !selectedTemplate.value) return 0
   const tmpl = buildTemplateLike()
@@ -1035,7 +1035,7 @@ const unmappedFieldsCount = computed<number>(() => {
   return unmapped
 })
 
-/* Manual grid picker */
+/* ruční výběr z mřížky */
 const gridPickerOpen = ref(false)
 const gridPickerTargetField = ref('')
 const gridPickerData = computed(() => {
@@ -1048,17 +1048,17 @@ const gridPickerData = computed(() => {
 })
 
 /**
- * Convert imported series data to 2D string array for SeriesDataPicker
- * Combines all series columns into a single table: header row + data rows
- * Falls back to main block rows if no series data
+ * převod importovaných dat sérií na 2d pole řetězců pro seriesdatapicker
+ * kombinuje všechny sloupce sérií do jedné tabulky: řádek hlavičky + datové řádky
+ * pokud nejsou data sérií, použije řádky hlavního bloku
  */
 const seriesRawDataForPicker = computed<string[][] | undefined>(() => {
   const structure = importedStructure.value
   if (!structure) return undefined
 
-  // If we have series data, convert it to 2D array
+  // pokud máme data sérií, převést je na 2d pole
   if (structure.series && structure.series.length > 0) {
-    // Collect all unique column names from all series
+    // posbírat všechny unikátní názvy sloupců ze všech sérií
     const allColumns: string[] = []
     const seenCols = new Set<string>()
 
@@ -1071,7 +1071,7 @@ const seriesRawDataForPicker = computed<string[][] | undefined>(() => {
           }
         }
       } else {
-        // Default x/y columns
+        // výchozí sloupce x/y
         if (!seenCols.has(s.xLabel)) { seenCols.add(s.xLabel); allColumns.push(s.xLabel) }
         if (!seenCols.has(s.yLabel)) { seenCols.add(s.yLabel); allColumns.push(s.yLabel) }
       }
@@ -1079,10 +1079,10 @@ const seriesRawDataForPicker = computed<string[][] | undefined>(() => {
 
     if (allColumns.length === 0) return structure.blocks[0]?.originalRows
 
-    // Create header row
+    // vytvoření řádku hlavičky
     const rows: string[][] = [allColumns]
 
-    // Find max data length across all series
+    // nalezení maximální délky dat napříč všemi sériemi
     let maxDataLen = 0
     for (const s of structure.series) {
       if (Array.isArray(s.data)) {
@@ -1090,7 +1090,7 @@ const seriesRawDataForPicker = computed<string[][] | undefined>(() => {
       }
     }
 
-    // Create data rows - merge all series data
+    // vytvoření datových řádků - sloučení všech dat sérií
     for (let i = 0; i < maxDataLen; i++) {
       const row: string[] = allColumns.map(() => '')
 
@@ -1098,14 +1098,14 @@ const seriesRawDataForPicker = computed<string[][] | undefined>(() => {
         if (!Array.isArray(s.data) || !s.data[i]) continue
         const dataPoint = s.data[i]
 
-        // Handle {x, y} format
+        // obsluha formátu {x, y}
         if ('x' in dataPoint && 'y' in dataPoint) {
           const xColIdx = allColumns.indexOf(s.xLabel)
           const yColIdx = allColumns.indexOf(s.yLabel)
           if (xColIdx >= 0 && dataPoint.x != null) row[xColIdx] = String(dataPoint.x)
           if (yColIdx >= 0 && dataPoint.y != null) row[yColIdx] = String(dataPoint.y)
         }
-        // Handle Record<string, ...> format
+        // obsluha formátu record<string, ...>
         else if (typeof dataPoint === 'object') {
           for (const [key, val] of Object.entries(dataPoint)) {
             const colIdx = allColumns.indexOf(key)
@@ -1121,7 +1121,7 @@ const seriesRawDataForPicker = computed<string[][] | undefined>(() => {
     return rows
   }
 
-  // Fallback to main block rows
+  // návrat k řádkům hlavního bloku
   return structure.blocks[0]?.originalRows
 })
 
@@ -1131,10 +1131,10 @@ function openGridPicker(fieldName: string): void {
 }
 
 function applyGridPickerValues(values: (string | number)[]): void {
-  // Distribute values across records for the target field
+  // rozdělení hodnot napříč záznamy pro cílové pole
   const fieldName = gridPickerTargetField.value
 
-  // Auto-create records if we need more than exist
+  // automatické vytvoření záznamů, pokud jich potřebujeme více než existuje
   const neededRecords = values.length
   const existingRecords = records.value.length
 
@@ -1157,14 +1157,14 @@ function applyGridPickerValues(values: (string | number)[]): void {
 
     const field = record.fields.find(f => f.name === fieldName)
     if (field) {
-      // Parse value based on field type
+      // parsování hodnoty na základě typu pole
       if (field.type === 'int') {
         field.value = parseInt(String(val), 10) || 0
       } else if (field.type === 'float') {
         const normalized = String(val).replace(',', '.')
         field.value = parseFloat(normalized) || 0
       } else if (field.type === 'date') {
-        // Try to parse date values
+        // pokus o parsování hodnot data
         const dateMs = toDateMs(String(val))
         field.value = dateMs ?? val
       } else {
@@ -1173,14 +1173,14 @@ function applyGridPickerValues(values: (string | number)[]): void {
     }
   })
 
-  // Navigate to the first record to see the applied values
+  // navigace na první záznam pro zobrazení použitých hodnot
   if (sortedRecords[0]) {
     currentRecordIndex.value = sortedRecords[0].recordIndex
     currentBlockIndex.value = 0
   }
 }
 
-/* Series state */
+/* stav sérií */
 const seriesData = ref<SeriesData[]>([])
 const recordOptions = computed(() =>
   records.value.map(r => ({
@@ -1189,7 +1189,7 @@ const recordOptions = computed(() =>
   }))
 )
 
-/* Filtered series - only show series for current record or unlinked series */
+/* filtrované série - zobrazit pouze série pro aktuální záznam nebo nepropojené série */
 const currentRecordSeriesData = computed<SeriesData[]>({
   get: () => {
     return seriesData.value.filter(s =>
@@ -1198,8 +1198,8 @@ const currentRecordSeriesData = computed<SeriesData[]>({
     )
   },
   set: (newFiltered: SeriesData[]) => {
-    // When SeriesSection updates, merge changes back to full list
-    // This is tricky - we need to update only the matching items
+    // když se seriessection aktualizuje, sloučit změny zpět do úplného seznamu
+    // toto je složitější - musíme aktualizovat pouze odpovídající položky
     const otherSeries = seriesData.value.filter(s =>
       s.linkedRecordIndex !== null &&
       s.linkedRecordIndex !== currentRecordIndex.value
@@ -1229,12 +1229,12 @@ function addEmptySeriesForCurrentRecord(): void {
 }
 
 function removeSeries(filteredIdx: number): void {
-  // Get the series from filtered list
+  // získat sérii z filtrovaného seznamu
   const filtered = currentRecordSeriesData.value
   const seriesToRemove = filtered[filteredIdx]
   if (!seriesToRemove) return
 
-  // Find it in the full list and remove
+  // najít ji v úplném seznamu a odstranit
   const fullIdx = seriesData.value.findIndex(s =>
     s.seriesName === seriesToRemove.seriesName &&
     s.linkedRecordIndex === seriesToRemove.linkedRecordIndex &&
@@ -1245,7 +1245,7 @@ function removeSeries(filteredIdx: number): void {
   }
 }
 
-/* Paste handlers from Toolbar */
+/* obsluha vložení z lišty nástrojů */
 async function onPasteCurrent(): Promise<void> {
   try {
     const text = await navigator.clipboard.readText()
@@ -1258,12 +1258,12 @@ async function onPasteCurrent(): Promise<void> {
       return
     }
 
-    // Use the first record from paste to fill current record
+    // použít první záznam z vložení k vyplnění aktuálního záznamu
     const sourceRec = recordsFromPaste[0]
     const targetRec = records.value.find(r => r.recordIndex === currentRecordIndex.value)
 
     if (targetRec && sourceRec) {
-      // Update fields that have values in source
+      // aktualizace polí, která mají ve zdroji hodnoty
       for (const sourceField of sourceRec.fields) {
         if (sourceField.value !== null && sourceField.value !== '') {
           const targetField = targetRec.fields.find(f => f.name === sourceField.name)
@@ -1294,12 +1294,12 @@ async function onPasteMultiple(): Promise<void> {
       return
     }
 
-    // Append as new records
+    // přidat jako nové záznamy
     const startIdx = records.value.length
       ? Math.max(...records.value.map(r => r.recordIndex)) + 1
       : 1
 
-    // Re-index pasted records
+    // přeznačení indexů vložených záznamů (re-index)
     const newRecords = recordsFromPaste.map((r, i) => ({
       ...r,
       recordIndex: startIdx + i
@@ -1307,7 +1307,7 @@ async function onPasteMultiple(): Promise<void> {
 
     records.value.push(...newRecords)
 
-    // Select the first new record
+    // výběr prvního nového záznamu
     currentRecordIndex.value = newRecords[0].recordIndex
     currentBlockIndex.value = 0
     selectedRecordIndexes.value.add(newRecords[0].recordIndex)
@@ -1320,7 +1320,7 @@ async function onPasteMultiple(): Promise<void> {
   }
 }
 
-// Helper to parse pasted text into records compatible with current template
+// pomocná funkce pro parsování vloženého textu do záznamů kompatibilních s aktuální šablonou
 async function parsePasteAndBuildRecords(text: string): Promise<MeasurementRecord[]> {
   const file = new File([text], 'paste.txt', { type: 'text/plain' })
   const structure = await parseImportedMeasurementFile(file)
@@ -1330,13 +1330,13 @@ async function parsePasteAndBuildRecords(text: string): Promise<MeasurementRecor
   const tmpl = buildTemplateLike()
   if (!tmpl) return []
 
-  // Ensure parsing compatibility/mapping if possible
-  // For simple paste, we rely on header matching (case-insensitive normalization)
-  // We won't trigger the full mapping wizard here, just best-effort match
+  // zajištění kompatibility parsování/mapování, pokud je to možné
+  // u jednoduchého vložení spoléháme na shodu hlaviček (normalizace bez ohledu na velikost písmen)
+  // nebudeme zde spouštět plného průvodce mapováním, pouze s nejlepším úsilím najdeme shodu
 
   const recs = buildRecordsFromImported(tmpl, structure)
 
-  // Convert to UI format (MeasurementRecord) using existing helper
+  // převod do ui formátu (measurementrecord) pomocí existujícího pomocníka
   const uiFormat = recs.map(r => ({
     recordIndex: r.recordIndex,
     fields: r.fields.map((f, order) => ({
@@ -1353,7 +1353,7 @@ async function parsePasteAndBuildRecords(text: string): Promise<MeasurementRecor
   return normalizeImportedRecords(uiFormat)
 }
 
-/* Import helpers */
+/* pomocníci pro import */
 function toggleImportPanel(): void {
   if (!selectedTemplate.value) return
   importPanelOpen.value = !importPanelOpen.value
@@ -1362,9 +1362,7 @@ function resetImport(): void {
   composableResetImport()
 }
 
-/**
- * Manual Data Type Change
- */
+/** ruční změna datového typu */
 const showTemplateUpdateDialog = ref(false)
 const pendingTemplateUpdate = ref<{ 
   fieldName: string; 
@@ -1381,8 +1379,8 @@ function onFieldTypeUpdate(field: RecordField, newType: string): void {
     oldValue: field.type,
     newValue: newType
   }
-  // showTemplateUpdateDialog.value = true
-  // Directly apply change for this measurement only
+  // showtemplateupdatedialog.value = true
+  // přímo použít změnu pouze pro toto měření
   applyTemplateUpdate(false)
 }
 
@@ -1393,8 +1391,8 @@ function onFieldRequiredUpdate(field: RecordField, required: boolean): void {
     oldValue: field.required,
     newValue: required
   }
-  // showTemplateUpdateDialog.value = true
-  // Directly apply change for this measurement only
+  // showtemplateupdatedialog.value = true
+  // přímo použít změnu pouze pro toto měření
   applyTemplateUpdate(false)
 }
 
@@ -1404,7 +1402,7 @@ async function applyTemplateUpdate(updateTemplate: boolean): Promise<void> {
 
   const { fieldName, changeType, newValue } = pendingTemplateUpdate.value
 
-  // 1. Update all existing records locally
+  // 1. aktualizace všech existujících záznamů lokálně
   records.value.forEach(rec => {
     const f = rec.fields.find(f => f.name === fieldName)
     if (f) {
@@ -1418,20 +1416,20 @@ async function applyTemplateUpdate(updateTemplate: boolean): Promise<void> {
     }
   })
 
-  // 2. Also update templateFields (which affects new records)
+  // 2. také aktualizovat templatefields (což ovlivní nové záznamy)
   const tmplField = templateFields.value.find(f => f.name === fieldName)
   if (tmplField) {
     if (changeType === 'type') tmplField.type = newValue as ValueType
     else if (changeType === 'required') tmplField.required = newValue as boolean
   }
 
-  // 3. If requested, create new template version
+  // 3. pokud je požadováno, vytvořit novou verzi šablony
   if (updateTemplate && selectedTemplate.value) {
     try {
       const templatesStore = useMeasurementTemplatesStore()
       const projectStore = useProjectStore()
       
-      // Try to find project ID from loaded templates first, fallback to store
+      // nejdříve se pokusit najít id projektu z načtených šablon, jinak použít ze storu
       const existingTpl = templatesStore.items.find(t => String(t.id) === String(selectedTemplate.value?.id))
       const projectId = existingTpl?.projectId || projectStore.projectId
       
@@ -1486,8 +1484,8 @@ async function applyTemplateUpdate(updateTemplate: boolean): Promise<void> {
 }
 
 /**
- * Open the Data Mapping Grid dialog
- * Converts imported data to grid format for manual mapping
+ * otevře dialog mřížky pro mapování dat
+ * převede importovaná data do formátu mřížky pro ruční mapování
  */
 function openDataMappingGrid(): void {
   console.log('[openDataMappingGrid] Called', {
@@ -1496,7 +1494,7 @@ function openDataMappingGrid(): void {
     blocksCount: importedStructure.value?.blocks?.length
   })
 
-  // Try to build grid from imported structure blocks
+  // pokus o sestavení mřížky z bloků importované struktury
   if (importedStructure.value?.blocks?.length) {
     const grids: (string | number)[][] = []
     for (const block of importedStructure.value.blocks) {
@@ -1516,7 +1514,7 @@ function openDataMappingGrid(): void {
     }
   }
 
-  // If blocks are empty, try to parse file directly
+  // pokud jsou bloky prázdné, zkusit zparsovat přímo soubor
   if (importedFile.value) {
     console.log('[openDataMappingGrid] Parsing file:', importedFile.value.name)
     parseFileToGrid(importedFile.value).then(result => {
@@ -1538,21 +1536,21 @@ function openDataMappingGrid(): void {
 
 
 /**
- * Apply selections from ManualHeaderPickerDialog
- * tableHeaders -> become field values in records
- * seriesHeaders -> become series data columns
+ * použití výběrů z manualheaderpickerdialog
+ * tableheaders -> stanou se hodnotami polí v záznamech
+ * seriesheaders -> stanou se sloupci dat sérií
  */
 function onManualHeaderPickerApply(result: { tableHeaders: string[], seriesHeaders: string[], headerRowIndex: number | null }): void {
   console.log('[onManualHeaderPickerApply] Received:', result)
 
   const { tableHeaders, seriesHeaders } = result
 
-  // If we got table headers, match them to template fields and create records
+  // pokud jsme získali hlavičky tabulky, spárovat je s poli šablony a vytvořit záznamy
   if (tableHeaders.length > 0) {
-    // Try to find matching template fields or use headers as field values
+    // pokus o nalezení odpovídajících polí šablony nebo použití hlaviček jako hodnot polí
     const rec = records.value.find(r => r.recordIndex === currentRecordIndex.value)
     if (rec) {
-      // For each table header, try to fill a matching field
+      // pro každou hlavičku tabulky se pokusit vyplnit odpovídající pole
       for (let i = 0; i < tableHeaders.length && i < rec.fields.length; i++) {
         rec.fields[i].value = tableHeaders[i]
       }
@@ -1560,7 +1558,7 @@ function onManualHeaderPickerApply(result: { tableHeaders: string[], seriesHeade
     console.log('[onManualHeaderPickerApply] Applied', tableHeaders.length, 'table headers to current record')
   }
 
-  // If we got series headers, create a new series with those columns
+  // pokud jsme získali hlavičky sérií, vytvořit novou sérii s těmito sloupci
   if (seriesHeaders.length > 0) {
     const newSeries: SeriesData = {
       seriesType: 'OTHER',
@@ -1573,7 +1571,7 @@ function onManualHeaderPickerApply(result: { tableHeaders: string[], seriesHeade
         required: false
       })),
       data: [
-        // Create first row with column names as initial structure
+        // vytvoření prvního řádku s názvy sloupců jako počáteční strukturu
         seriesHeaders.reduce((acc, name) => {
           acc[name] = null
           return acc
@@ -1589,12 +1587,12 @@ function onManualHeaderPickerApply(result: { tableHeaders: string[], seriesHeade
 
 
 /**
- * Check if any field has meaningful data filled in (ignoring empty records)
+ * kontrola, zda má nějaké pole vyplněna smysluplná data (ignorujeme prázdné záznamy)
  */
 function hasFilledData(): boolean {
-  // If we have more than one record, consider it as having data
+  // pokud máme více než jeden záznam, považujeme to za přítomnost dat
   if (records.value.length > 1) return true
-  // Check if any field has a non-empty value
+  // kontrola, zda má nějaké pole neprázdnou hodnotu
   for (const record of records.value) {
     for (const field of record.fields) {
       const val = field.value
@@ -1609,40 +1607,40 @@ function hasFilledData(): boolean {
 }
 
 /**
- * Clear all data - no confirmation needed
+ * vymazat všechna data - není vyžadováno potvrzení
  */
 function requestClearAll(): void {
   doClearAll()
 }
 
 /**
- * Actually clear all data
+ * skutečné vymazání všech dat
  */
 function doClearAll(): void {
   console.log('[doClearAll] Clearing all data')
   showClearAllWarning.value = false
 
-  // Clear import state
+  // vymazat stav importu
   resetImport()
 
-  // Reset records to fresh empty state (1 empty record)
+  // resetovat záznamy na výchozí prázdný stav (1 prázdný záznam)
   records.value = [newRecordFromTemplateFields(1, templateFields.value)]
   currentRecordIndex.value = 1
   currentBlockIndex.value = 0
   selectedRecordIndexes.value = new Set([1])
 
-  // Clear series data
+  // vymazat data sérií
   seriesData.value = []
 
-  // Clear notes
+  // vymazat poznámky
   measurementNote.value = ''
 
-  // Clear validation state
+  // vymazat stav validace
   visitedFields.value.clear()
   touchedFields.value.clear()
 }
 
-// clearAll function - wrapper that shows warning if data exists
+// funkce clearall - obal, který zobrazí varování, pokud existují data
 function clearAll(): void {
   console.log('[clearAll] Called')
   requestClearAll()
@@ -1653,7 +1651,7 @@ function onImportFilePicked(f: File | null): void {
 function buildTemplateLike(): TemplateLike | null {
   const tpl = selectedTemplate.value
   if (!tpl) return null
-  // Filter out series-kind blocks - they go to SeriesSection, not mapping
+  // odfiltrovat bloky typu series - ty patří do seriessection, ne do mapování
   const nonSeriesBlocks = templateBlocks.value.filter(b => b.kind !== 'series')
   const blocks = nonSeriesBlocks.map(b => ({
     blockIndex: b.blockIndex,
@@ -1680,10 +1678,10 @@ async function analyzeImport(): Promise<void> {
     const structure = await parseImportedMeasurementFile(importedFile.value)
     importedStructure.value = structure
 
-    // Sync imported series to template-defined series
-    // Strategy: Fill existing template series with imported data, don't create new series
+    // synchronizace importovaných sérií se sériemi definovanými v šabloně
+    // strategie: vyplnit existující série šablony importovanými daty, nevytvářet nové série
     if (structure.series?.length && seriesData.value.length > 0) {
-      // Group imported series by record index for efficient lookup
+      // seskupení importovaných sérií podle indexu záznamu pro efektivní vyhledávání
       const importedByRecord = new Map<number, typeof structure.series>()
       for (const s of structure.series) {
         const recIdx = s.linkedRecordIndex || 0
@@ -1693,24 +1691,24 @@ async function analyzeImport(): Promise<void> {
         importedByRecord.get(recIdx)!.push(s)
       }
 
-      // For each template series, try to fill data from imported
+      // pro každou sérii šablony se pokusit vyplnit data z importu
       const updatedSeries = seriesData.value.map(templateSeries => {
         const columns = templateSeries.columns || []
         if (columns.length === 0) return templateSeries
 
-        // Find imported series that could map to template columns
-        // Match by column name (e.g., template "Sizes" column -> imported "Sizes" series)
+        // nalezení importované série, která by mohla odpovídat sloupcům šablony
+        // shoda podle názvu sloupce (např. sloupec šablony "sizes" -> importovaná série "sizes")
         const seriesForRecord = importedByRecord.get(templateSeries.linkedRecordIndex || 0)
           || importedByRecord.get(0)
           || Array.from(importedByRecord.values())[0]
           || []
 
-        // Build row data by mapping each column to its imported series
+        // sestavení dat řádků mapováním každého sloupce na jeho importovanou sérii
         let maxRows = 0
         const columnDataMap = new Map<string, (number | string | null)[]>()
 
         for (const col of columns) {
-          // Find imported series matching this column name
+          // nalezení importované série odpovídající tomuto názvu sloupce
           const matchingSeries = seriesForRecord.find(s =>
             s.seriesName?.toLowerCase() === col.name.toLowerCase() ||
             s.yLabel?.toLowerCase() === col.name.toLowerCase() ||
@@ -1718,10 +1716,10 @@ async function analyzeImport(): Promise<void> {
           )
 
           if (matchingSeries && Array.isArray(matchingSeries.data)) {
-            // Extract values from series data
+            // extrakce hodnot z dat sérií
             const values: (number | string | null)[] = []
             for (const row of matchingSeries.data as { x?: number; y?: number }[]) {
-              // Use Y value if column matches yLabel, X otherwise
+              // použít hodnotu y, pokud sloupec odpovídá ylabel, jinak x
               const val = col.name.toLowerCase() === matchingSeries.xLabel?.toLowerCase()
                 ? row.x
                 : row.y
@@ -1732,10 +1730,10 @@ async function analyzeImport(): Promise<void> {
           }
         }
 
-        // If no data was mapped, keep original template data
+        // pokud nebyla namapována žádná data, ponechat původní data šablony
         if (columnDataMap.size === 0) return templateSeries
 
-        // Build rows from column data
+        // sestavení řádků z dat sloupců
         const newData: Record<string, number | string | null>[] = []
         for (let i = 0; i < maxRows; i++) {
           const row: Record<string, number | string | null> = {}
@@ -1753,7 +1751,7 @@ async function analyzeImport(): Promise<void> {
 
       seriesData.value = updatedSeries
     } else if (structure.series?.length && seriesData.value.length === 0) {
-      // No template series, use imported series as-is
+      // žádné série v šabloně, použít importované série jak jsou
       seriesData.value = structure.series.map(s => ({
         seriesType: s.seriesType,
         seriesName: s.seriesName,
@@ -1763,7 +1761,7 @@ async function analyzeImport(): Promise<void> {
         columns: s.columns
       }))
     }
-    // Note: If file has no series, keep existing template-defined series intact
+    // poznámka: pokud soubor nemá žádné série, ponechat stávající série ze šablony beze změny
 
 
     const tmpl = buildTemplateLike()
@@ -1775,10 +1773,10 @@ async function analyzeImport(): Promise<void> {
     importCompatibility.value = { compatible: compat.compatible, reasons: compat.reasons }
 
     if (!compat.compatible) {
-      // Not compatible by header names - check if learned mappings exist
+      // neodpovídá podle názvů hlaviček - zkontrolovat, zda existují naučená mapování
       importPanelOpen.value = true
 
-      // Check for learned mappings
+      // kontrola naučených mapování
       const headers = structure.blocks?.[0]?.headers ?? []
       if (headers.length && selectedTemplate.value?.id) {
         const importStore = useImportStore()
@@ -1830,7 +1828,7 @@ function normalizeImportedRecords(ui: Array<{
   }))
 }
 /**
- * Request to apply imported data - shows warning if data exists
+ * požadavek na použití importovaných dat - zobrazí varování, pokud data existují
  */
 function requestApplyImport(): void {
   console.log('[requestApplyImport] Called', {
@@ -1853,13 +1851,13 @@ function requestApplyImport(): void {
     return
   }
 
-  // Already compatible - apply directly
+  // již kompatibilní - použít přímo
   console.log('[requestApplyImport] Calling doApplyImport directly')
   doApplyImport()
 }
 
 /**
- * Actually apply imported records
+ * skutečné použití importovaných záznamů
  */
 function doApplyImport(): void {
   console.log('[doApplyImport] START')
@@ -1878,7 +1876,7 @@ function doApplyImport(): void {
   console.log('[doApplyImport] Imported blocks:', importedStructure.value.blocks.length)
   console.log('[doApplyImport] Row offset:', importRowOffset.value)
 
-  // Apply row offset by slicing rows from each block
+  // použití posunu řádků (row offset) oříznutím řádků z každého bloku
   const adjustedStructure: ImportedFileStructure = {
     ...importedStructure.value,
     blocks: importedStructure.value.blocks.map(block => ({
@@ -1919,17 +1917,17 @@ function doApplyImport(): void {
   visitedFields.value.clear()
   touchedFields.value.clear()
 
-  // === SERIES DATA EXTRACTION FROM PARSED SERIES ===
-  // Strategy: If we have template series, fill their columns with matching imported data
-  // If no template series, create series from import (fallback)
+  // === EXTRAKCE DAT SÉRIÍ Z PARSOVANÝCH SÉRIÍ ===
+  // strategie: pokud máme série v šabloně, vyplnit jejich sloupce odpovídajícími importovanými daty
+  // pokud v šabloně série nejsou, vytvořit série z importu (fallback)
   const importedSeries = adjustedStructure.series || []
 
   console.log('[doApplyImport] Imported series from parser:', importedSeries.length)
   console.log('[doApplyImport] Template series count BEFORE init:', seriesData.value.length)
 
-  // Initialize template series if not already done (doApplyImport can be called before goToNextStep)
+  // inicializace sérií šablony, pokud ještě nebyla provedena (doapplyimport může být voláno před gootonextstep)
   if (seriesData.value.length === 0) {
-    // Debug: Log all template blocks to understand detection
+    // debug: vypsat všechny bloky šablony pro pochopení detekce
     const tpl = selectedTemplate.value
     console.log('[doApplyImport] Selected template:', tpl?.name)
     console.log('[doApplyImport] All template blocks:', tpl?.blocks?.map(b => ({
@@ -1975,7 +1973,7 @@ function doApplyImport(): void {
   console.log('[doApplyImport] Template series count AFTER init:', seriesData.value.length)
 
   if (importedSeries.length > 0) {
-    // Get template columns from seriesData or templateSeriesBlocks
+    // získat sloupce šablony ze seriesdata nebo templateseriesblocks
     const templateColumns = seriesData.value[0]?.columns ||
       templateSeriesBlocks.value[0]?.fields?.map(f => ({
         name: f.name,
@@ -1998,33 +1996,33 @@ function doApplyImport(): void {
 
       console.log('[doApplyImport] Records with series:', Array.from(seriesByRecord.keys()))
 
-      // Create series for each record
+      // vytvoření sérií pro každý záznam
       const allSeries: SeriesData[] = []
 
       for (const [recordIndex, recordSeriesList] of seriesByRecord) {
-        // Build column data for this record
+        // sestavení dat sloupců pro tento záznam
         let maxRows = 0
         const columnDataMap = new Map<string, (number | string | null)[]>()
 
         for (const col of templateColumns) {
-          // Find imported series that contains data for this column
-          // The imported series now has multi-column data in format: { Sizes: x, Intensities: y1, ... }
+          // nalezení importované série, která obsahuje data pro tento sloupec
+          // importovaná série má nyní data ve více sloupcích ve formátu: { sizes: x, intensities: y1, ... }
           const values: (number | string | null)[] = []
 
           for (const importedS of recordSeriesList) {
             if (!Array.isArray(importedS.data) || importedS.data.length === 0) continue
 
-            // Check if this series has data for this column
+            // kontrola, zda tato série má data pro tento sloupec
             const firstRow = importedS.data[0] as Record<string, unknown>
             if (col.name in firstRow) {
-              // Extract values for this column from all rows
+              // extrakce hodnot pro tento sloupec ze všech řádků
               for (const row of importedS.data as Record<string, number | string | null>[]) {
                 values.push(row[col.name] ?? null)
               }
-              break // Found data for this column
+              break // data pro tento sloupec nalezena
             }
 
-            // Fallback: check old x/y format
+            // fallback: kontrola starého formátu x/y
             if ('x' in firstRow && col.name.toLowerCase().includes('size')) {
               for (const row of importedS.data as { x?: number; y?: number }[]) {
                 values.push(row.x ?? null)
@@ -2074,7 +2072,7 @@ function doApplyImport(): void {
       seriesData.value = allSeries
       console.log('[doApplyImport] Created', allSeries.length, 'series for all records')
     } else {
-      // No template series - create series from import
+      // žádné série v šabloně - vytvořit série z importu
       console.log('[doApplyImport] No template series, creating from import')
       const populatedSeries: SeriesData[] = importedSeries.map(importedS => {
         const simpleData = importedS.data.map(point => ({
@@ -2099,7 +2097,7 @@ function doApplyImport(): void {
       console.log('[doApplyImport] Created', populatedSeries.length, 'series from import')
     }
 
-    // Log first series details for debugging
+    // výpis podrobností o první sérii pro ladění
     if (seriesData.value.length > 0) {
       const first = seriesData.value[0]
       console.log(`[doApplyImport] First series: "${first.seriesName}", ${first.data.length} rows`)
@@ -2112,7 +2110,7 @@ function doApplyImport(): void {
   wizardStep.value = 2
 }
 
-// applyImportedRecords function - wrapper that shows warning if data exists
+// funkce applyimportedrecords - obal, který zobrazí varování, pokud existují data
 function applyImportedRecords(): void {
   requestApplyImport()
 }
@@ -2125,7 +2123,7 @@ async function openMappingWizard(): Promise<void> {
   const tmpl = buildTemplateLike()
   if (!tmpl) return
 
-  // Build initial model from template and imported structure
+  // sestavení počátečního modelu ze šablony a importované struktury
   let model = buildMappingModel(tmpl, {
     fileName: importedStructure.value.fileName,
     delimiter: importedStructure.value.delimiter,
@@ -2135,7 +2133,7 @@ async function openMappingWizard(): Promise<void> {
     }))
   })
 
-  // Fetch learned suggestions from backend
+  // načtení naučených návrhů z backendu
   const importStore = useImportStore()
   const headers = importedStructure.value.blocks.flatMap(b => b.headers)
   const templateFieldNames = tmpl.blocks.flatMap(b => b.fields.map(f => f.name))
@@ -2146,14 +2144,14 @@ async function openMappingWizard(): Promise<void> {
       headers,
       templateFieldNames
     )
-    // Apply learned suggestions to model
+    // aplikace naučených návrhů na model
     if (Object.keys(suggestions).length > 0) {
       model = applyLearnedSuggestions(model, suggestions)
       console.log('[openMappingWizard] Applied', Object.keys(suggestions).length, 'learned mappings')
     }
   } catch (e) {
     console.warn('[openMappingWizard] Failed to fetch learned mappings:', e)
-    // Continue with original model if API fails
+    // pokračovat s původním modelem, pokud api selže
   }
 
   mappingModel.value = model
@@ -2164,7 +2162,7 @@ function onApplyMapping(payload: ReturnType<typeof exportMapping>): void {
   const base = buildTemplateLike()
   if (!base) return
 
-  // Handle new object structure { blockMappings, seriesMappings }
+  // obsluha nové struktury objektu { blockmappings, seriesmappings }
   const blockMappings = payload.blockMappings ?? []
 
   for (const blockMapping of blockMappings) {
@@ -2198,7 +2196,7 @@ function onApplyMapping(payload: ReturnType<typeof exportMapping>): void {
   wizardStep.value = 2
   mappingOpen.value = false
 
-  // Uložit mapování pro budoucí importy (learning)
+  // uložit mapování pro budoucí importy (učení - learning)
   console.log('[onApplyMapping] Checking save condition:', {
     hasTemplateId: !!selectedTemplate.value?.id,
     hasMappingModel: !!mappingModel.value
@@ -2207,7 +2205,7 @@ function onApplyMapping(payload: ReturnType<typeof exportMapping>): void {
   if (selectedTemplate.value?.id && mappingModel.value) {
     const importStore = useImportStore()
 
-    // Sestavit mapping: header -> fieldName
+    // sestavení mapování: hlavička -> název pole (fieldname)
     const learnedMapping: Record<string, string> = {}
     for (const block of mappingModel.value.blocks) {
       console.log('[onApplyMapping] Processing block:', {
@@ -2231,10 +2229,10 @@ function onApplyMapping(payload: ReturnType<typeof exportMapping>): void {
       console.log('[onApplyMapping] Calling saveMappings with templateId:', selectedTemplate.value.id)
       // Fire and forget - neblokovat UI
       void importStore.saveMappings(Number(selectedTemplate.value.id), learnedMapping)
-      mappingApplied.value = true  // Mark that user applied custom mapping
+      mappingApplied.value = true  // označit, že uživatel použil vlastní mapování
     } else {
       console.warn('[onApplyMapping] No mappings to save!')
-      mappingApplied.value = true  // Still mark as applied even without save
+      mappingApplied.value = true  // stále označit jako použité i bez uložení
     }
   } else {
     console.warn('[onApplyMapping] Missing template or model - not saving')
@@ -2242,8 +2240,8 @@ function onApplyMapping(payload: ReturnType<typeof exportMapping>): void {
 }
 
 /**
- * Try to auto-apply learned mappings when data is analyzed.
- * If learned mappings exist, builds a mapping model, applies, and shows success message.
+ * pokus o automatické použití naučených mapování při analýze dat.
+ * pokud naučená mapování existují, sestaví model mapování, použije jej a zobrazí úspěšnou zprávu.
  */
 async function tryAutoApplyLearnedMappings(structure: ImportedFileStructure): Promise<void> {
   try {
@@ -2276,18 +2274,18 @@ async function tryAutoApplyLearnedMappings(structure: ImportedFileStructure): Pr
     const threshold = Math.ceil(templateFieldNames.length * 0.5)
     console.log('[tryAutoApply] Learned count:', learnedCount, '/', templateFieldNames.length, 'threshold:', threshold)
 
-    // Only auto-apply if we have enough learned mappings (at least 50% of fields)
+    // automaticky použít pouze tehdy, pokud máme dostatek naučených mapování (alespoň 50 % polí)
     if (learnedCount >= threshold) {
       console.log('[tryAutoApply] Enough learned mappings - auto-applying!')
 
-      // Build mapping model and apply suggestions
+      // sestavení modelu mapování a aplikace návrhů
       const tplData = buildTemplateLike()
       if (!tplData) {
         console.log('[tryAutoApply] Could not build template - skipping')
         return
       }
 
-      // Build template object for buildMappingModel
+      // sestavení objektu šablony pro buildmappingmodel
       const templateObj = {
         name: tplData.name,
         deviceId: '',
@@ -2298,7 +2296,7 @@ async function tryAutoApplyLearnedMappings(structure: ImportedFileStructure): Pr
         }))
       }
 
-      // Build imported object for buildMappingModel
+      // sestavení importovaného objektu pro buildmappingmodel
       const importedObj = {
         fileName: structure.fileName || 'imported',
         delimiter: structure.delimiter || ',',
@@ -2314,14 +2312,14 @@ async function tryAutoApplyLearnedMappings(structure: ImportedFileStructure): Pr
       applyLearnedSuggestions(model, learnedSuggestions)
       console.log('[tryAutoApply] Applied suggestions to model')
 
-      // Build records from mapping (similar to onApplyMapping)
+      // sestavení záznamů z mapování (podobně jako v onapplymapping)
       const base = buildTemplateLike()
       if (!base) {
         console.log('[tryAutoApply] Could not build base template - skipping')
         return
       }
 
-      // Apply mappings to base template
+      // aplikace mapování na základní šablonu
       for (const block of model.blocks) {
         const tmplBlock = base.blocks.find(b => b.blockIndex === block.blockIndex)
         if (!tmplBlock) continue
@@ -2363,9 +2361,9 @@ async function tryAutoApplyLearnedMappings(structure: ImportedFileStructure): Pr
       touchedFields.value.clear()
       wizardStep.value = 2
       mappingApplied.value = true
-      mappingAutoApplied.value = true  // Mark as auto-applied
+      mappingAutoApplied.value = true  // označit jako automaticky použité
 
-      // Update compatibility - data is now "compatible" because we applied learned mappings
+      // aktualizace kompatibility - data jsou nyní "kompatibilní", protože jsme použili naučená mapování
       importCompatibility.value = { compatible: true, reasons: [] }
 
       console.log('[tryAutoApply] ✅ Auto-applied learned mappings successfully!', cleaned.length, 'records')
@@ -2378,7 +2376,7 @@ async function tryAutoApplyLearnedMappings(structure: ImportedFileStructure): Pr
 }
 
 /**
- * Handle derive template request - emit to parent to open TemplateWizardDialog with deriveFrom
+ * obsluha požadavku na odvození šablony - vyslání (emit) rodiči pro otevření templatewizarddialog s derivefrom
  */
 function onDeriveTemplate(payload: {
   newTemplateName: string;
@@ -2388,7 +2386,7 @@ function onDeriveTemplate(payload: {
 
   const currentTpl = selectedTemplate.value
 
-  // Build the extra fields with default 'text' type
+  // sestavení extra polí s výchozím typem 'text'
   const extraFields = payload.extraColumns.map((col, idx) => ({
     orderIndex: (currentTpl.fields?.length ?? 0) + idx + 1,
     type: 'text' as const,
@@ -2396,22 +2394,22 @@ function onDeriveTemplate(payload: {
     name: col.name
   }))
 
-  // Use existing emit to trigger parent to open TemplateWizardDialog
-  // Parent Measurements.vue will handle this and open TemplateWizardDialog with deriveFrom prop
+  // použití existujícího emit k aktivaci rodiče pro otevření templatewizarddialog
+  // rodič measurements.vue to obslouží a otevře templatewizarddialog s propem derivefrom
   emits('deriveTemplate', currentTpl.id)
 
-  // Close mapping dialog
+  // zavřít dialog mapování
   mappingOpen.value = false
 }
 
-/* Text paste handler - uses same parsing as file import */
+/* obsluha vložení textu - používá stejné parsování jako import souboru */
 async function handlePastedText(text: string): Promise<void> {
   if (!text.trim()) return
   importBusy.value = true
   importError.value = null
   try {
-    // Use the same import parsing logic as file import
-    // Create a File object from the text (parseImportedMeasurementFile expects File)
+    // použití stejné logiky parsování jako u importu souboru
+    // vytvoření objektu file z textu (parseimportedmeasurementfile očekává file)
     const file = new File([text], 'pasted-data.txt', { type: 'text/plain' })
     const structure = await parseImportedMeasurementFile(file)
 
@@ -2420,10 +2418,10 @@ async function handlePastedText(text: string): Promise<void> {
       return
     }
 
-    // Store the parsed structure
+    // uložení zparsované struktury
     importedStructure.value = structure
 
-    // Sync imported series to editable series state
+    // synchronizace importovaných sérií do stavu upravitelných sérií
     if (structure.series?.length) {
       seriesData.value = structure.series.map(s => ({
         seriesType: s.seriesType,
@@ -2431,18 +2429,18 @@ async function handlePastedText(text: string): Promise<void> {
         linkedRecordIndex: s.linkedRecordIndex ?? null,
         linkedRecordDescription: '',
         data: s.data,
-        columns: s.columns // Preserve column definitions if present
+        columns: s.columns // zachovat definice sloupců, pokud jsou přítomny
       }))
     }
 
-    // Check compatibility with current template
+    // kontrola kompatibility s aktuální šablonou
     const tplLike = buildTemplateLike()
     if (tplLike) {
       const compat = checkTemplateCompatibility(tplLike, structure)
       importCompatibility.value = { compatible: compat.compatible, reasons: compat.reasons }
 
       if (compat.compatible) {
-        // Auto-apply if compatible
+        // automatické použití, pokud je kompatibilní
         applyImportedRecords()
       }
     } else {
@@ -2471,14 +2469,14 @@ function convertValueForField(value: string, type: string): unknown {
   }
 }
 
-/* Keyboard shortcuts */
+/* klávesové zkratky */
 function handleKey(e: KeyboardEvent): void {
   if (!props.modelValue) return
   const key = e.key.toLowerCase()
   const ctrl = e.ctrlKey || e.metaKey
   if (key === 'escape') {
     e.preventDefault()
-    // If on step 2 or 3, ESC acts as Back
+    // pokud jsme v kroku 2 nebo 3, esc funguje jako zpět (back)
     if (wizardStep.value > 1) { goToPrevStep(); return }
     emits('update:modelValue', false)
     return
@@ -2492,7 +2490,7 @@ watch(() => props.modelValue, v => {
   if (v) {
     initDialog()
     window.addEventListener('keydown', handleKey)
-    // Check for existing draft and offer to load it
+    // kontrola existujícího konceptu a nabídka jeho načtení
     if (hasDraft.value) {
       showDraftDialog.value = true
     }
@@ -2503,7 +2501,7 @@ watch(() => props.modelValue, v => {
 onMounted(() => { if (props.modelValue) window.addEventListener('keydown', handleKey) })
 onBeforeUnmount(() => window.removeEventListener('keydown', handleKey))
 
-/* Save */
+/* uložení */
 function buildMeasuredValues(): MeasuredValue[] {
   const flat = flattenRecords(records.value)
   return flat.map(v => ({
@@ -2525,27 +2523,27 @@ async function onSave(): Promise<void> {
   if (!canSave.value) { goToFirstInvalidField(); return }
   saving.value = true
   try {
-    // Step 1: Upload all file fields first
+    // krok 1: nejprve nahrát všechna pole souborů (file fields)
     const filesToUpload = extractFilesFromRecords(records.value)
     if (filesToUpload.length > 0) {
       // Upload files and store their URLs back into records
       for (const fileInfo of filesToUpload) {
         const result = await uploadFile(fileInfo.file)
         if (result.success) {
-          // Find the record and field, update the value with the server URL
+          // vyhledat záznam a pole, aktualizovat hodnotu s url ze serveru
           const record = records.value.find(r => r.recordIndex === fileInfo.recordIndex)
           if (record) {
             const field = record.fields.find(
               f => f.name === fileInfo.fieldName && (f.blockIndex ?? 1) === fileInfo.blockIndex
             )
             if (field) {
-              // Replace File object with the server URL
+              // nahradit objekt file adresou url ze serveru
               field.value = result.fileUrl
             }
           }
         } else {
           console.error(`Failed to upload file ${fileInfo.file.name}:`, result.error)
-          // Keep the filename as fallback if upload fails
+          // pokud nahrávání selže, ponechat název souboru jako fallback
           const record = records.value.find(r => r.recordIndex === fileInfo.recordIndex)
           if (record) {
             const field = record.fields.find(
@@ -2567,10 +2565,10 @@ async function onSave(): Promise<void> {
     const tpl = selectedTemplateId.value ? props.templateById.get(selectedTemplateId.value) : null
     if (!tpl) return
     // Convert series data to request format
-    // Series data can have dynamic column names from template (e.g., Xahojky, Ybhjojky)
-    // We need to extract values from the first two columns (or x/y if present)
+    // data sérií mohou mít dynamické názvy sloupců ze šablony (např. xahojky, ybhjojky)
+    // potřebujeme extrahovat hodnoty z prvních dvou sloupců (nebo x/y, pokud jsou přítomny)
     const seriesPayload: MeasurementSeriesRequest[] = seriesData.value.map(s => {
-      // Get column names - first two columns become X and Y
+      // získat názvy sloupců - první dva sloupce se stanou x a y
       const columnNames = s.columns?.map(c => c.name) || []
       const xColName = columnNames[0] || 'x' || 'X'
       const yColName = columnNames[1] || 'y' || 'Y'
@@ -2587,7 +2585,7 @@ async function onSave(): Promise<void> {
       return {
         seriesType: s.seriesType,
         seriesName: s.seriesName,
-        seriesScope: s.seriesScope ?? 'record',  // Default to 'record' if not specified
+        seriesScope: s.seriesScope ?? 'record',  // výchozí hodnota 'record', pokud není specifikováno
         linkedRecordIndex: s.linkedRecordIndex ?? null,
         linkedRecordDescription: s.linkedRecordDescription ?? null,
         xValues: s.data.map(d => {
@@ -2602,7 +2600,7 @@ async function onSave(): Promise<void> {
         yUnit: null
       }
     })
-    // Extract measurement timestamp from the first date-type field (e.g. "Measurement Date and Time")
+    // extrakce časového razítka měření z prvního pole typu datum (např. "datum a čas měření")
     const dateField = records.value
       .flatMap(r => r.fields)
       .find(f => f.type === 'date' && f.value != null)
@@ -2653,7 +2651,7 @@ defineExpose({
       <div class="wizard-header">
         <h2 class="wizard-title">Nové měření</h2>
 
-        <!-- Minimal Stepper -->
+        <!-- minimální krokovník (stepper) -->
         <nav class="wizard-nav" aria-label="Průběh vytváření měření">
           <div
             class="wizard-step"
@@ -2691,7 +2689,7 @@ defineExpose({
         <!-- STEP 1: SETUP -->
         <v-window v-model="wizardStep">
           <v-window-item :value="1">
-            <div class="pa-1">
+            <!-- krok 1: nastavení -->            <div class="pa-1">
               <MeasurementMetaStep
                 v-model:selected-member="selectedMember"
                 v-model:selected-device-id="selectedDeviceId"
@@ -2712,7 +2710,7 @@ defineExpose({
             </div>
           </v-window-item>
 
-          <!-- STEP 2: DATA -->
+          <!-- krok 2: data -->
           <v-window-item :value="2">
             <div class="pa-1">
               <ImportPanel
@@ -2739,7 +2737,7 @@ defineExpose({
                 :learned-mappings-available="learnedMappingsAvailable"
               />
 
-              <!-- Removed: Mapovat data ručně button (user request) -->
+              <!-- odstraněno: tlačítko "mapovat data ručně" (požadavek uživatele) -->
               <v-divider v-if="selectedTemplateId" class="my-4" />
 
               <BlocksNavigation
@@ -2751,7 +2749,7 @@ defineExpose({
                 @set-index="i => currentBlockIndex = i"
               />
 
-              <!-- Record Data Container - groups toolbar, values and series for current record -->
+              <!-- kontejner dat záznamu - seskupuje lištu, hodnoty a série pro aktuální záznam -->
               <div class="record-data-section">
                 <RecordsToolbar
                   :records="records"
@@ -2807,7 +2805,7 @@ defineExpose({
                 />
               </div>
 
-              <!-- NOTES SECTION -->
+              <!-- sekce poznámek -->
               <div class="notes-section-wrapper">
                 <!-- Header -->
                 <div class="notes-header">
@@ -2817,14 +2815,14 @@ defineExpose({
                     </div>
                     <span>Poznámky</span>
                   </div>
-                  <!-- Chip: Markdown indicator -->
+                  <!-- čip: indikátor markdownu -->
                   <span class="markdown-chip">
                     <v-icon size="12">mdi-language-markdown</v-icon>
                     Markdown
                   </span>
                 </div>
 
-                <!-- Markdown Editor Wrapper -->
+                <!-- obal markdown editoru -->
                 <div class="notes-editor-wrapper">
                   <MarkdownEditor
                     v-model="measurementNote"
@@ -2882,10 +2880,10 @@ defineExpose({
             </div>
           </v-window-item>
 
-          <!-- STEP 3: REVIEW / FINISH -->
+          <!-- krok 3: revize / dokončení -->
           <v-window-item :value="3">
             <div class="review-step">
-              <!-- Warning header -->
+              <!-- varovná hlavička -->
               <div class="review-alert">
                 <v-icon size="24" color="warning">mdi-alert-circle-outline</v-icon>
                 <div>
@@ -2894,7 +2892,7 @@ defineExpose({
                 </div>
               </div>
 
-              <!-- Meta summary -->
+              <!-- souhrn metadat -->
               <div class="review-meta">
                 <div class="meta-chip">
                   <v-icon size="16">mdi-microscope</v-icon>
@@ -2914,7 +2912,7 @@ defineExpose({
                 </div>
               </div>
 
-              <!-- Data preview table -->
+              <!-- tabulka s náhledem dat -->
               <div class="preview-container">
                 <h4 class="preview-title">Náhled dat</h4>
 
@@ -2954,7 +2952,7 @@ defineExpose({
                   </table>
                 </div>
 
-                <!-- Series summary if any -->
+                <!-- souhrn sérií, pokud existují -->
                 <div v-if="seriesData.length > 0" class="series-summary">
                   <h5 class="series-title">Datové série</h5>
                   <div v-for="(series, idx) in seriesData" :key="idx" class="series-preview-block">
@@ -2989,7 +2987,7 @@ defineExpose({
                 </div>
               </div>
 
-              <!-- Note Preview -->
+              <!-- náhled poznámky -->
               <div v-if="measurementNote.trim()" class="notes-preview mt-4">
                 <div class="d-flex align-center mb-2">
                   <v-icon size="18" color="deep-purple" class="mr-2">mdi-notebook-outline</v-icon>
@@ -3053,7 +3051,7 @@ defineExpose({
       </div>
     </template>
 
-    <!-- success toast -->
+    <!-- oznámení o úspěchu -->
     <v-snackbar
       v-model="showSuccessToast"
       timeout="2500"
@@ -3066,7 +3064,7 @@ defineExpose({
       </div>
     </v-snackbar>
 
-    <!-- validation error toast -->
+    <!-- oznámení o chybě validace -->
     <v-snackbar
       v-model="showValidationError"
       timeout="5000"
@@ -3091,7 +3089,7 @@ defineExpose({
 
 
 
-    <!-- Clear All Warning Dialog -->
+    <!-- dialog pro varování před vyčištěním všeho -->
     <teleport to="body">
       <v-dialog v-model="showClearAllWarning" max-width="420" persistent>
         <v-card>
@@ -3111,7 +3109,7 @@ defineExpose({
       </v-dialog>
     </teleport>
 
-    <!-- Apply Data Warning Dialog -->
+    <!-- dialog pro varování před přepsáním dat -->
     <v-dialog v-model="showApplyDataWarning" max-width="420" persistent>
       <v-card>
         <v-card-title class="d-flex align-center" style="gap: 8px;">
@@ -3129,7 +3127,7 @@ defineExpose({
       </v-card>
     </v-dialog>
 
-    <!-- Empty Series Warning Dialog -->
+    <!-- dialog pro varování před prázdnými sériemi -->
     <v-dialog v-model="showEmptySeriesWarning" max-width="460" persistent>
       <v-card>
         <v-card-title class="d-flex align-center" style="gap: 8px;">
@@ -3148,7 +3146,7 @@ defineExpose({
       </v-card>
     </v-dialog>
 
-    <!-- Draft Load Dialog -->
+    <!-- dialog pro načtení konceptu -->
     <v-dialog v-model="showDraftDialog" max-width="420" persistent>
       <v-card>
         <v-card-title class="d-flex align-center" style="gap: 8px;">
@@ -3167,7 +3165,7 @@ defineExpose({
     </v-dialog>
   </Dialog>
 
-  <!-- Go Back Warning Dialog - OUTSIDE of Dialog component -->
+  <!-- dialog pro varování při návratu zpět - mimo komponentu dialog -->
   <v-dialog
     v-model="showGoBackWarning"
     max-width="420"
@@ -3196,7 +3194,7 @@ defineExpose({
    WIZARD UI STYLES - Clean & Elegant
    ============================================ */
 
-/* Header */
+/* hlavička */
 .wizard-header {
   padding: 20px 24px 16px;
 }
@@ -3208,7 +3206,7 @@ defineExpose({
   letter-spacing: -0.01em;
 }
 
-/* Step Navigation */
+/* navigace kroků */
 .wizard-nav {
   display: flex;
   align-items: center;
@@ -3274,7 +3272,7 @@ defineExpose({
   background: #1867c0;
 }
 
-/* Footer */
+/* patička */
 .wizard-footer {
   display: flex;
   align-items: center;
@@ -3282,7 +3280,7 @@ defineExpose({
   border-top: 1px solid #f0f0f0;
 }
 
-/* Review Step */
+/* revizní krok */
 .review-step {
   padding: 24px;
   max-height: 70vh;
@@ -3440,7 +3438,7 @@ defineExpose({
   font-size: 11px;
 }
 
-/* Field highlight animation */
+/* animace zvýraznění pole */
 @keyframes fieldHighlightFlash {
   0% { background-color: rgba(24, 103, 192, 0.1); }
   50% { background-color: rgba(24, 103, 192, 0.2); }
@@ -3452,11 +3450,11 @@ defineExpose({
   border-radius: 8px;
 }
 
-/* Utility */
+/* pomocné třídy (utility) */
 .text-medium-emphasis {
   opacity: 0.7;
 }
-/* Record Data Section - groups values and series visually */
+/* sekce dat záznamu - vizuálně seskupuje hodnoty a série */
 .record-data-section {
   border: 1px solid rgba(var(--v-theme-primary), 0.2);
   border-radius: 12px;
@@ -3465,7 +3463,7 @@ defineExpose({
   margin-top: 12px;
 }
 
-/* Notes Section - visually distinct */
+/* sekce poznámek - vizuálně odlišná */
 .notes-section-wrapper {
   border: 1px solid rgba(103, 58, 183, 0.2);
   border-radius: 12px;
@@ -3519,7 +3517,7 @@ defineExpose({
   overflow: hidden;
 }
 
-/* Unified section title styling */
+/* sjednocený styl nadpisů sekcí */
 .section-title {
   font-size: 15px;
   font-weight: 600;
