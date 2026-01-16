@@ -298,16 +298,22 @@ const conflictAllReservations = ref<ConflictItem[]>([])
 // New: list of conflicting reservations for display
 const conflictItems = ref<Array<{ id: number; title: string; start: Date; end: Date; username: string | null }>>([])
 // Pending force-create payload (saved when conflict occurs)
-const pendingForcePayload = ref<{
-  title: string
-  deviceCode: string
-  startTime: number
-  endTime: number
-  projectId: number
-  username: string
-  note: string | null
-  recurrence?: RecurrenceRequest | null
-} | null>(null)
+type PendingForceContext = {
+  action: 'create' | 'update_single' | 'update_series'
+  id?: number
+  scope?: 'single' | 'series' | 'following'
+  payload: {
+    title: string
+    deviceCode: string
+    startTime: number
+    endTime: number
+    projectId: number
+    username: string
+    note: string | null
+    recurrence?: RecurrenceRequest | null
+  }
+}
+const pendingForcePayload = ref<PendingForceContext | null>(null)
 
 function deviceNameById(id: string): string {
   return allDevices.value.find(d => d.id === id)?.name || id
@@ -1102,14 +1108,17 @@ async function commitMove(d: DragState, x: number, y: number): Promise<void> {
            conflictCtx.value = null
            conflictOpen.value = true
            pendingForcePayload.value = {
-               title: sourceArr[idx].title + ' (kopie)',
-               deviceCode: newDeviceId,
-               startTime: startDate.getTime(),
-               endTime: endDate.getTime(),
-               projectId,
-               username: sourceArr[idx].username ?? auth.user?.username ?? '',
-               note: sourceArr[idx].note,
-               recurrence: null
+               action: 'create',
+               payload: {
+                   title: sourceArr[idx].title + ' (kopie)',
+                   deviceCode: newDeviceId,
+                   startTime: startDate.getTime(),
+                   endTime: endDate.getTime(),
+                   projectId,
+                   username: sourceArr[idx].username ?? auth.user?.username ?? '',
+                   note: sourceArr[idx].note,
+                   recurrence: null
+               }
            }
            return
       }
@@ -1564,15 +1573,27 @@ async function doSaveReservation(f: any, start: Date, end: Date, scope: 'single'
           end: new Date(ev.end),
           username: ev.username
         }))
+       // Determine context for potential force action
+       let actionType: 'create' | 'update_single' | 'update_series' = 'create'
+       if (editorMode.value === 'edit') {
+          if (scope === 'single') actionType = 'update_single'
+          else actionType = 'update_series'
+       }
+
        pendingForcePayload.value = {
-        title: f.title?.trim() || 'Rezervace',
-        deviceCode: f.deviceCode,
-        startTime: s.getTime(),
-        endTime: e.getTime(),
-        projectId,
-        username: f.username || '',
-        note: (f.note ?? '').trim() || null,
-        recurrence: f.recurrence
+        action: actionType,
+        id: f.id,
+        scope: scope,
+        payload: {
+          title: f.title?.trim() || 'Rezervace',
+          deviceCode: f.deviceCode,
+          startTime: s.getTime(),
+          endTime: e.getTime(),
+          projectId,
+          username: f.username || '',
+          note: (f.note ?? '').trim() || null,
+          recurrence: f.recurrence
+        }
       }
       conflictCtx.value = editorMode.value === 'edit' && f.id
         ? { reservationId: f.id, deviceId: f.deviceCode, dayKey: dateKey(fromYmdLocal(f.dateYmd)) }
@@ -1707,38 +1728,42 @@ async function executeDragAction(scope: 'single' | 'following' | 'series', p: an
 
 
 // Force-create handler: creates reservation despite conflicts
+// Force-create handler: creates reservation despite conflicts
 async function onForceCreate() {
   if (!pendingForcePayload.value) return
-  const payload = pendingForcePayload.value
+  const { action, payload, id, scope } = pendingForcePayload.value
+  
+  // Add force flag
+  const forcePayload = { ...payload, force: true }
+
   try {
-    const created = await reservations.createReservation({
-      ...payload,
-      force: true  // Skip conflict check
-    })
+    if (action === 'create') {
+        const created = await reservations.createReservation(forcePayload)
+        // Immediately add to daily list if active (optimistic-ish)
+        if (isDailyList.value && dailyListRef.value?.addReservation) {
+            dailyListRef.value.addReservation({ ...created, id: created.id })
+        }
+    } else if (action === 'update_single' && id) {
+        // Must preserve seriesId logic if we want to keep it linked (normally handled in saveReservation, 
+        // but here we are forcing. If backend handles it, good. 
+        // Actually, updateReservation backend ignores seriesId in payload usually, it relies on ID path param)
+        await reservations.updateReservation(id, forcePayload)
+    } else if (action === 'update_series' && id && scope && scope !== 'single') {
+        await reservations.updateSeries(id, forcePayload, scope)
+    }
+
     // Close dialogs
     conflictOpen.value = false
     editorOpen.value = false
     pendingForcePayload.value = null
     resForm.value = null
 
-    // Reload week to show new reservation
+    // Reload week to show changes
     await loadWeekFor(currentDay.value)
-    // Immediately add to daily list if active
-    if (isDailyList.value && dailyListRef.value?.addReservation) {
-      dailyListRef.value.addReservation({
-        id: created.id,
-        title: created.title,
-        deviceCode: created.deviceCode,
-        startTime: created.startTime,
-        endTime: created.endTime,
-        username: created.username,
-        projectId: created.projectId,
-        note: created.note
-      })
-    }
+    if (isDailyList.value) await dailyListRef.value?.loadListRange()
+
   } catch (e) {
     console.error('Force-create failed', e)
-    // Still show error to user
   }
 }
 function openCreateFromToolbar() {
