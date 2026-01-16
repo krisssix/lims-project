@@ -358,7 +358,7 @@ watch(() => props.templates, () => {
         <SearchBar
           v-model="search"
           placeholder="Hledat šablony podle názvu, zařízení nebo verze..."
-          style="flex: 1; max-width: 500px"
+          style="flex: 1;"
         />
         <div class="toolbar-actions">
 
@@ -776,6 +776,7 @@ watch(() => props.templates, () => {
   display:flex;
   gap:8px;
   align-items: center; 
+  flex-shrink: 0;
 }
 
 .filter-toggle {

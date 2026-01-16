@@ -409,7 +409,7 @@ export function detectOutliersIqr(values: number[]): IqrOutliers {
   }
   const q1 = quantile(0.25)
   const q3 = quantile(0.75)
-  const iqr = q3 - q1 || 1
+  const iqr = q3 - q1
   const lowerFence = q1 - 1.5 * iqr
   const upperFence = q3 + 1.5 * iqr
   const outlierIndexes: number[] = []

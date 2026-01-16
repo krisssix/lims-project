@@ -157,36 +157,37 @@ function analyze(): void {
     <div class="import-toolbar">
       <div class="toolbar-actions">
         <!-- Změnit soubor / Soubor button -->
-        <button 
-          type="button" 
-          :class="['btn-primary', { 'btn-secondary': props.importedFile }]"
+        <v-btn
+          variant="flat"
+          color="primary"
+          :class="{ 'btn-secondary': props.importedFile }"
+          prepend-icon="mdi-file-upload-outline"
           @click="switchToFileMode"
         >
-          <v-icon size="16">mdi-file-upload-outline</v-icon>
           {{ props.importedFile ? 'Změnit soubor' : 'Nahrát soubor' }}
-        </button>
+        </v-btn>
         
         <!-- Vložit text button -->
-        <button 
-          type="button" 
-          :class="['btn-outlined', { active: inputMode === 'text' }]"
+        <v-btn :active="inputMode === 'text'"
+          variant="outlined"
+          color="primary"
+          prepend-icon="mdi-content-paste"
           @click="switchToTextMode"
         >
-          <v-icon size="16">mdi-content-paste</v-icon>
           Vložit text
-        </button>
+        </v-btn>
         
         <div class="toolbar-divider"></div>
         
         <!-- Vyčistit vše button -->
-        <button 
-          type="button" 
-          class="btn-secondary"
+        <v-btn
+          variant="tonal"
+          color="secondary"
+          prepend-icon="mdi-broom"
           @click="emits('clear-all')"
         >
-          <v-icon size="16">mdi-broom</v-icon>
           Vyčistit vše
-        </button>
+        </v-btn>
       </div>
       
       <div class="toolbar-spacer"></div>
@@ -207,16 +208,17 @@ function analyze(): void {
         </div>
         
         <!-- Analyze Button for File -->
-        <button 
+        <v-btn
           v-if="inputMode === 'file' && props.importedFile && !props.importedStructure"
-          type="button" 
-          class="btn-primary"
-          style="padding: 6px 12px; height: 32px;"
+          color="primary"
+          variant="flat"
+          height="32"
+          class="px-3"
+          prepend-icon="mdi-play"
           @click="analyze"
         >
-          <v-icon size="14">mdi-play</v-icon>
           Analyzovat
-        </button>
+        </v-btn>
 
         <!-- Status Chip -->
         <div v-if="props.importedStructure" class="status-chip success">
@@ -249,15 +251,15 @@ function analyze(): void {
         placeholder="Ctrl+V pro vložení dat..."
       />
       <div class="d-flex justify-end mt-2">
-        <button 
+        <v-btn
           v-if="pastedText.trim()"
-          type="button" 
-          class="btn-primary"
+          color="primary"
+          variant="flat"
+          prepend-icon="mdi-play"
           @click="analyze"
         >
-          <v-icon size="16">mdi-play</v-icon>
           Analyzovat
-        </button>
+        </v-btn>
       </div>
     </div>
 
@@ -294,24 +296,24 @@ function analyze(): void {
         <div class="section-spacer"></div>
         
         <div class="section-actions" @click.stop>
-          <button 
-            type="button" 
-            class="btn-outlined" 
+          <v-btn
+            variant="outlined"
+            color="primary"
             :class="{ 'btn-pulse': highlightMappingBtn }"
+            prepend-icon="mdi-table-cog"
             @click="emits('open-mapping')"
           >
-            <v-icon size="16">mdi-table-cog</v-icon>
             Upravit mapování
-          </button>
-          <button 
+          </v-btn>
+          <v-btn
             v-if="props.importedStructure"
-            type="button" 
-            :class="[props.dataApplied ? 'btn-secondary' : 'btn-primary']"
+            :variant="props.dataApplied ? 'tonal' : 'flat'"
+            :color="props.dataApplied ? 'secondary' : 'primary'"
+            prepend-icon="mdi-check"
             @click="handleApply"
           >
-            <v-icon size="16">mdi-check</v-icon>
             {{ props.dataApplied ? 'Znovu použít' : 'Použít data' }}
-          </button>
+          </v-btn>
         </div>
       </summary>
       

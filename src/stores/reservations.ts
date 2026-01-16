@@ -34,6 +34,7 @@ type CreateReservationPayload = {
 
   note?: string | null
   recurrence?: RecurrenceRequest | null
+  force?: boolean
 }
 
 type UpdateReservationPayload = {
@@ -44,6 +45,7 @@ type UpdateReservationPayload = {
   username?: string | null
   note?: string | null
   recurrence?: RecurrenceRequest | null
+  force?: boolean
 }
 
 export const useReservationsStore = defineStore('reservations', () => {

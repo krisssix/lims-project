@@ -206,6 +206,43 @@ const isAllSelected = computed(() =>
   visibleTableItems.value.length > 0 && selectedIds.value.size === visibleTableItems.value.length
 )
 
+/* Bulk Delete */
+const bulkDeleteConfirmOpen = ref(false)
+const bulkDeleting = ref(false)
+
+function clearSelection() {
+  selectedIds.value = new Set()
+}
+
+function askBulkDelete() {
+  if (selectedIds.value.size === 0) return
+  bulkDeleteConfirmOpen.value = true
+}
+
+async function confirmBulkDelete() {
+  if (selectedIds.value.size === 0) return
+  bulkDeleting.value = true
+  try {
+    const idsToDelete = Array.from(selectedIds.value)
+    // Delete all selected reservations sequentially
+    for (const id of idsToDelete) {
+      await del(`reservations/${id}`)
+      // Optimistic update - remove from local list
+      const idx = listRaw.value.findIndex(r => r.id === id)
+      if (idx >= 0) listRaw.value.splice(idx, 1)
+    }
+    // Clear selection after successful delete
+    selectedIds.value = new Set()
+    bulkDeleteConfirmOpen.value = false
+  } catch (e) {
+    console.error('Bulk delete failed', e)
+    // Reload to get consistent state
+    await loadListRange()
+  } finally {
+    bulkDeleting.value = false
+  }
+}
+
 function resetVisibleCount() { visibleCount.value = TABLE_BATCH }
 function onTableScroll() {
   const el = tableWrap.value
@@ -1001,6 +1038,68 @@ defineExpose({ loadListRange, loadAll, addReservation, updateReservation, remove
         />
       </template>
     </ReservationEditorDialog>
+
+    <!-- Selection Action Bar (floating) -->
+    <Transition name="slide-up">
+      <div v-if="selectedIds.size > 0" class="selection-action-bar">
+        <div class="selection-info">
+          <v-icon size="20" class="mr-2">mdi-checkbox-marked</v-icon>
+          <span><strong>{{ selectedIds.size }}</strong> {{ selectedIds.size === 1 ? 'rezervace vybrána' : 'rezervací vybráno' }}</span>
+        </div>
+        <div class="selection-actions">
+          <v-btn
+            size="small"
+            variant="text"
+            prepend-icon="mdi-close"
+            @click="clearSelection"
+          >
+            Zrušit výběr
+          </v-btn>
+          <v-btn
+            size="small"
+            color="error"
+            variant="flat"
+            prepend-icon="mdi-delete"
+            @click="askBulkDelete"
+          >
+            Smazat vybrané
+          </v-btn>
+        </div>
+      </div>
+    </Transition>
+
+    <!-- Bulk Delete Confirmation Dialog -->
+    <v-dialog v-model="bulkDeleteConfirmOpen" max-width="480" persistent>
+      <v-card>
+        <v-card-title class="text-h6 d-flex align-center" style="gap: 8px;">
+          <v-icon color="error">mdi-alert-circle</v-icon>
+          Potvrdit hromadné smazání
+        </v-card-title>
+        <v-card-text>
+          <p>Opravdu chcete smazat <strong>{{ selectedIds.size }}</strong> {{ selectedIds.size === 1 ? 'rezervaci' : 'rezervací' }}?</p>
+          <p class="text-medium-emphasis mt-2">Tato akce je nevratná.</p>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn
+            variant="text"
+            :disabled="bulkDeleting"
+            @click="bulkDeleteConfirmOpen = false"
+          >
+            Zrušit
+          </v-btn>
+          <v-btn
+            color="error"
+            variant="flat"
+            :loading="bulkDeleting"
+            prepend-icon="mdi-delete"
+            @click="confirmBulkDelete"
+          >
+            Smazat
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </div>
 </template>
 
@@ -1326,5 +1425,54 @@ defineExpose({ loadListRange, loadAll, addReservation, updateReservation, remove
   background: white;
   color: #424242;
   cursor: pointer;
+}
+
+/* Selection Action Bar */
+.selection-action-bar {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 12px 20px;
+  background: linear-gradient(135deg, #1e3a5f 0%, #2c5282 100%);
+  color: white;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+  z-index: 1000;
+  min-width: 400px;
+}
+
+.selection-info {
+  display: flex;
+  align-items: center;
+  font-size: 14px;
+}
+
+.selection-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Slide up transition */
+.slide-up-enter-active,
+.slide-up-leave-active {
+  transition: all 0.3s ease;
+}
+
+.slide-up-enter-from,
+.slide-up-leave-to {
+  opacity: 0;
+  transform: translateX(-50%) translateY(20px);
+}
+
+.slide-up-enter-to,
+.slide-up-leave-from {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
 }
 </style>

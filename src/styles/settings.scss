@@ -4,7 +4,7 @@
  * Configures SASS variables and Vuetify overwrites
  */
 
-// https://vuetifyjs.com/features/sass-variables/
+// https://vuetifyjs.com/features/sass-variables/`
 // @use 'vuetify/settings' with (
 //   $color-pack: false
 // );
@@ -25,4 +25,205 @@
   /* skrýt jen avatar; nechat titulek + čas */
 }
 
-/* CSS definice tlačítek byly přesunuty do src/styles/global.scss pro sjednocení designu */
+
+
+.event {
+  container-type: size;
+}
+
+@container (max-height: calc(var(--event-h-xs) - 1px)) {
+  .event {
+    padding: 0 !important;
+  }
+
+  .event .event-title,
+  .event .event-time,
+  .event .event-note-icon,
+  .event .event-avatar {
+    display: none !important;
+  }
+}
+
+@container (min-height: var(--event-h-xs)) and (max-height: calc(var(--event-h-sm) - 1px)) {
+  .event {
+    padding: 4px 8px !important;
+  }
+
+  .event .event-time,
+  .event .event-note-icon,
+  .event .event-avatar {
+    display: none !important;
+  }
+
+  .event .event-title {
+    font-size: 12px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow: hidden;
+  }
+}
+
+@container (min-height: var(--event-h-sm)) and (max-height: calc(var(--event-h-md) - 1px)) {
+  .event {
+    padding: 6px 8px 10px 8px !important;
+  }
+
+  .event .event-avatar {
+    display: none !important;
+  }
+
+  .event .event-title {
+    -webkit-line-clamp: 1;
+  }
+
+  .event .event-time {
+    font-size: 12px;
+  }
+}
+
+
+/* =========================================================
+   GLOBAL BUTTON DESIGN SYSTEM
+   ========================================================= */
+
+/* ---------------------------------------------------------
+   PRIMARY BUTTON
+   Use: Create actions, Save, Confirm, Done
+   --------------------------------------------------------- */
+.btn-primary,
+.v-btn.v-btn--variant-flat.bg-primary,
+.v-btn--variant-flat.text-white[style*="background-color: rgb(25, 118, 210)"] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 20px;
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%) !important;
+  color: white !important;
+  border: none;
+  border-radius: 10px !important;
+  font-size: 14px;
+  font-weight: 600 !important;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25) !important;
+  text-transform: none !important;
+  letter-spacing: 0.02em;
+}
+
+.btn-primary:hover,
+.v-btn.v-btn--variant-flat.bg-primary:hover {
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%) !important;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.35) !important;
+}
+
+.btn-primary:active {
+  transform: translateY(0);
+}
+
+.btn-primary i,
+.btn-primary .v-icon {
+  font-size: 18px;
+}
+
+/* ---------------------------------------------------------
+   SECONDARY BUTTON
+   Use: Toggles, filters, less important actions
+   --------------------------------------------------------- */
+.btn-secondary,
+.v-btn--variant-tonal:not([color]),
+.v-btn.v-btn--variant-tonal.text-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 16px;
+  background: #f1f5f9 !important;
+  color: #475569 !important;
+  border: none;
+  border-radius: 10px !important;
+  font-size: 14px;
+  font-weight: 500 !important;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-transform: none !important;
+}
+
+.btn-secondary:hover,
+.v-btn--variant-tonal:not([color]):hover {
+  background: #e2e8f0 !important;
+  color: #1e293b !important;
+}
+
+.btn-secondary i,
+.btn-secondary .v-icon {
+  font-size: 18px;
+}
+
+/* ---------------------------------------------------------
+   TERTIARY BUTTON (TEXT LINK)
+   Use: Inline actions, "Vybrat vše", "Zrušit"
+   --------------------------------------------------------- */
+.btn-tertiary,
+.v-btn.v-btn--variant-text.text-primary,
+.link-btn,
+.action-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  background: transparent !important;
+  color: #1976d2 !important;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600 !important;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-transform: none !important;
+}
+
+.btn-tertiary:hover,
+.v-btn.v-btn--variant-text.text-primary:hover,
+.link-btn:hover,
+.action-link:hover {
+  background: rgba(25, 118, 210, 0.08) !important;
+  color: #1565c0 !important;
+}
+
+.btn-tertiary:disabled,
+.action-link:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ---------------------------------------------------------
+   DANGER/DESTRUCTIVE ACTIONS
+   Use: Delete, Remove
+   --------------------------------------------------------- */
+.btn-danger,
+.v-btn.v-btn--variant-flat.bg-error {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%) !important;
+  box-shadow: 0 2px 8px rgba(220, 38, 38, 0.25) !important;
+}
+
+.btn-danger:hover,
+.v-btn.v-btn--variant-flat.bg-error:hover {
+  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%) !important;
+  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.35) !important;
+}
+
+/* ---------------------------------------------------------
+   TOP TOOLBAR LAYOUT
+   --------------------------------------------------------- */
+.top-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  background: white;
+  border-bottom: 1px solid #e5e7eb;
+}

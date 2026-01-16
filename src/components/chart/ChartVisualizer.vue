@@ -683,6 +683,18 @@ const ariaLabel = computed(() => {
           stroke="#e53935"
           stroke-width="1.4"
         />
+        <g v-if="outliers && outliers.outlierIndexes.length && series[0]">
+          <circle
+            v-for="idx in outliers.outlierIndexes"
+            :key="'out-box-'+idx"
+            cx="50"
+            :cy="mapYValue(series[0].points[idx])"
+            r="2.5"
+            fill="white"
+            stroke="#e64a19"
+            stroke-width="1.5"
+          />
+        </g>
         <template v-if="showHover && hoverYPercent !== null && !hoverMeanActive">
           <line
             x1="0"

@@ -132,6 +132,7 @@
               <v-btn
                 size="small"
                 variant="outlined"
+                color="primary"
                 prepend-icon="mdi-content-paste"
                 @click="showTextareaInput = true"
               >
@@ -273,6 +274,7 @@
                   <v-btn
                     size="small"
                     variant="outlined"
+                    color="primary"
                     prepend-icon="mdi-hand-pointing-up"
                     @click="showManualHeaderPicker = true"
                   >

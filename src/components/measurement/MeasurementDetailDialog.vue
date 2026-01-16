@@ -1136,7 +1136,7 @@ const liveStatus = computed<string>(() => {
 
         <div v-show="!valuesCollapsed">
         <div
-          class="records-toolbar d-flex align-center justify-space-between mb-3 flex-wrap mt-3"
+          class="records-toolbar d-flex align-center mb-3 flex-wrap mt-3"
           style="gap: 12px;"
         >
           <div
@@ -1173,6 +1173,8 @@ const liveStatus = computed<string>(() => {
               @click="deleteCurrentRecord"
             />
           </div>
+
+          <v-spacer />
 
           <div
             class="record-nav d-flex align-center"
