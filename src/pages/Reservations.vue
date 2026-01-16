@@ -135,6 +135,8 @@ function onSuggestNextDay() {
 }
 
 
+
+
 // DTO from DailyListView
 function toYmdLocal(d: Date): string {
   const year = d.getFullYear()
