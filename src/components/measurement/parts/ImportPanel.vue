@@ -86,6 +86,16 @@ const hasInput = computed(() => {
 // Can analyze?
 const canAnalyze = computed(() => hasInput.value && !props.importBusy)
 
+const delimiterLabel = computed(() => {
+  const d = props.importedStructure?.delimiter
+  if (d === ',') return 'Čárka (,)'
+  if (d === ';') return 'Středník (;)'
+  if (d === '\t') return 'Tabulátor'
+  if (d === '|') return 'Svislítko (|)'
+  return d ? `"${d}"` : 'Neznámý'
+})
+
+
 function openFileChooser(): void {
   if (fileInputRef.value) {
     fileInputRef.value.value = ''
@@ -291,6 +301,11 @@ function analyze(): void {
             <v-icon size="12">mdi-database</v-icon>
             {{ offsetRows.length }} záznamy měření
           </span>
+          <span v-if="props.importedStructure?.series?.length" class="mini-chip secondary">
+            <v-icon size="12">mdi-chart-line</v-icon>
+            {{ props.importedStructure.series.length }} sérií
+          </span>
+
         </div>
         
         <div class="section-spacer"></div>
@@ -332,6 +347,14 @@ function analyze(): void {
           </div>
           
           <div class="settings-row">
+            <!-- Delimiter info -->
+            <div class="setting-item">
+              <span class="setting-label">Oddělovač</span>
+              <span class="value-badge">{{ delimiterLabel }}</span>
+            </div>
+
+            <div class="setting-divider"></div>
+
             <!-- Skip rows -->
             <div class="setting-item">
               <span class="setting-label">Přeskočit</span>
@@ -611,6 +634,11 @@ function analyze(): void {
   color: #1976d2;
 }
 
+.mini-chip.secondary {
+  background: #f3e5f5;
+  color: #9c27b0;
+}
+
 .section-spacer {
   flex: 1;
 }
@@ -798,6 +826,16 @@ function analyze(): void {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.8125rem;
+}
+
+.value-badge {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #1e293b;
+  background: #f1f5f9;
+  padding: 2px 8px;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
 }
 
 .records-table th {

@@ -42,6 +42,7 @@ const props = defineProps<{
 const emits = defineEmits<{
   (e: 'update:series', val: SeriesData[]): void
   (e: 'add-series'): void
+  (e: 'duplicate-series'): void
   (e: 'remove-series', index: number): void
   (e: 'add-row', seriesIndex: number): void
   (e: 'remove-row', seriesIndex: number, rowIndex: number): void
@@ -563,22 +564,91 @@ function updateChart(sIdx: number): void {
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      interaction: {
+        mode: 'index',
+        intersect: false,
+      },
       scales: {
         x: {
-          title: { display: true, text: xCol }
+          title: { display: true, text: xCol },
+          ticks: {
+            autoSkip: false, // Show all labels
+            maxRotation: 45,
+            minRotation: 0
+          },
+          grid: {
+            display: false
+          }
         },
         y: {
-          title: { display: true, text: 'Value' }
+          title: { display: true, text: 'Hodnota' },
+          grid: {
+            color: '#f0f0f0'
+          }
         }
       },
       plugins: {
-        legend: { position: 'top' }
+        legend: {
+          position: 'top',
+          align: 'end',
+          labels: {
+            usePointStyle: true,
+            boxWidth: 8
+          }
+        },
+        tooltip: {
+          usePointStyle: true,
+          callbacks: {
+            label: function(context) {
+              let label = context.dataset.label || '';
+              if (label) {
+                label += ': ';
+              }
+              if (context.parsed.y !== null) {
+                label += context.parsed.y;
+              }
+              return label;
+            }
+          }
+        }
+      },
+      elements: {
+        point: {
+          radius: 3,
+          hoverRadius: 6
+        },
+        line: {
+          tension: 0.2,
+          borderWidth: 2
+        }
       }
     }
   })
   
   chartInstances.value.set(sIdx, chart)
 }
+
+function getChartInnerStyle(sIdx: number): Record<string, string> {
+  const series = props.series[sIdx]
+  if (!series || !series.data.length) return { height: '350px', width: '100%', position: 'relative' }
+  
+  const count = series.data.length
+  // If we have many points, force a larger width to enable scrolling
+  if (count > 20) {
+    // 35px per point
+    return { height: '350px', width: `${Math.max(100, count * 35)}px`, position: 'relative' }
+  }
+  return { height: '350px', width: '100%', position: 'relative' }
+}
+
+// Reactively update visible charts when data changes
+watch(() => props.series, () => {
+  showChart.value.forEach((visible, sIdx) => {
+    if (visible && chartInstances.value.has(sIdx)) {
+      updateChart(sIdx)
+    }
+  })
+}, { deep: true })
 
 // Cleanup charts on unmount
 onUnmounted(() => {
@@ -887,8 +957,10 @@ onUnmounted(() => {
               </div>
               
               <!-- Chart Canvas -->
-              <div class="chart-container mt-3" style="height: 300px; position: relative;">
-                <canvas :ref="(el) => setChartRef(sIdx, el as HTMLCanvasElement)"></canvas>
+              <div class="chart-container mt-3" style="height: 350px; overflow-x: auto; border: 1px solid #f0f0f0; border-radius: 8px;">
+                <div :style="getChartInnerStyle(sIdx)">
+                  <canvas :ref="(el) => setChartRef(sIdx, el as HTMLCanvasElement)"></canvas>
+                </div>
               </div>
             </div>
           </div>

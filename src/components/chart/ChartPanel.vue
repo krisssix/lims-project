@@ -1,11 +1,13 @@
-<!-- chartpanel.vue -->
+<!-- ChartPanel.vue -->
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { type StatsObj, type OutliersMeta, type MultiSeriesItem, fmt2 } from './types'
-// import podkomponent
 import ChartStats from './ChartStats.vue'
 import ChartVisualizer from './ChartVisualizer.vue'
 
+/* -------------------------------------------------
+   Props & Emits
+   ------------------------------------------------- */
 const props = defineProps<{
   chartPoints: number[]
   stats: StatsObj | null
@@ -15,89 +17,109 @@ const props = defineProps<{
   outliers?: OutliersMeta | null
   multiSeries?: MultiSeriesItem[] | null
 }>()
+
 const emit = defineEmits<{
   (e: 'select-field', field: string): void
+  (e: 'point-click', payload: { event: MouseEvent; idx: number; val: number }): void
 }>()
-/* stav (state) */
+
+/* -------------------------------------------------
+   State
+   ------------------------------------------------- */
 const tabs = ['LINE', 'SCATTER', 'HISTOGRAM', 'BOXPLOT'] as const
-type TabKind = typeof tabs[number]
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+type TabKind = (typeof tabs)[number]
 
 const activeTab = ref<TabKind>('LINE')
 const tabIcons: Record<TabKind, string> = {
   LINE: 'mdi-chart-line',
   SCATTER: 'mdi-chart-scatter-plot',
   HISTOGRAM: 'mdi-chart-bar',
-  BOXPLOT: 'mdi-chart-box-outline'
+  BOXPLOT: 'mdi-chart-box-outline',
 }
 
-
-
-
-
-
-
-
-
-
+const tabLabels: Record<TabKind, string> = {
+  LINE: 'Čárový',
+  SCATTER: 'Bodový',
+  HISTOGRAM: 'Histogram',
+  BOXPLOT: 'Box Plot',
+}
 
 const showGrid = ref(true)
 const showMean = ref(true)
 const showHover = ref(true)
-const focusMode = ref(false)
+const showTrend = ref(false)
+const trendType = ref<'linear' | 'logarithmic'>('linear')
 
-/* příprava dat (data prep) */
-const palette = ['#1e88e5','#8e24aa','#43a047','#fb8c00','#5d4037','#3949ab','#f4511e','#00897b','#6d4c41','#7cb342']
+/* -------------------------------------------------
+   Data preparation
+   ------------------------------------------------- */
+const palette = [
+  '#1e88e5',
+  '#8e24aa',
+  '#43a047',
+  '#fb8c00',
+  '#5d4037',
+  '#3949ab',
+  '#f4511e',
+  '#00897b',
+  '#6d4c41',
+  '#7cb342',
+]
+
 const singleSeriesPoints = computed<number[]>(() =>
-  (props.multiSeries && props.multiSeries.length ? [] : (props.chartPoints || []))
+  props.multiSeries && props.multiSeries.length ? [] : props.chartPoints || []
 )
+
 const seriesEnhanced = computed<MultiSeriesItem[]>(() => {
-  const baseList = props.multiSeries && props.multiSeries.length
-    ? props.multiSeries
-    : singleSeriesPoints.value.length
+  const baseList =
+    props.multiSeries && props.multiSeries.length
+      ? props.multiSeries
+      : singleSeriesPoints.value.length
       ? [{ label: props.selectedField || 'Data', points: singleSeriesPoints.value }]
       : []
   return baseList.map((s, i) => ({
     ...s,
-    colorAssigned: s.color || palette[i % palette.length]
+    colorAssigned: s.color || palette[i % palette.length],
   }))
 })
 
-/* akce (actions) */
-function onSelectField(f: string): void { emit('select-field', f) }
-// odkaz na vizualizátor pro spuštění exportů (trigger exports)
+/* -------------------------------------------------
+   Actions
+   ------------------------------------------------- */
+function onSelectField(f: string): void {
+  emit('select-field', f)
+}
 
 const visualizerRef = ref<InstanceType<typeof ChartVisualizer> | null>(null)
-function triggerCsv() { visualizerRef.value?.exportCsv() }
-function triggerSvg() { visualizerRef.value?.exportSvg() }
-function triggerPng() { visualizerRef.value?.exportPng() }
-/* watchery a hooky (watchers & hooks) */
+function triggerCsv() {
+  visualizerRef.value?.exportCsv()
+}
+function triggerSvg() {
+  visualizerRef.value?.exportSvg()
+}
+function triggerPng() {
+  visualizerRef.value?.exportPng()
+}
 
-watch(() => props.fields, (fList) => {
-  if (!props.selectedField && fList.length) nextTick(() => onSelectField(fList[0]!))
-})
+/* -------------------------------------------------
+   Watchers
+   ------------------------------------------------- */
+watch(
+  () => props.fields,
+  (fList) => {
+    if (!props.selectedField && fList.length) nextTick(() => onSelectField(fList[0]!))
+  }
+)
 
-/* klávesové zkratky (hotkeys) */
+/* -------------------------------------------------
+   Keyboard shortcuts
+   ------------------------------------------------- */
 function handleKey(e: KeyboardEvent): void {
   const key = e.key.toLowerCase()
   const ctrl = e.ctrlKey || e.metaKey
   const alt = e.altKey
 
+  // Alt + 1-9: Select field
   if (alt && /^[1-9]$/.test(key)) {
     const idx = parseInt(key, 10) - 1
     if (idx >= 0 && idx < props.fields.length) {
@@ -105,204 +127,219 @@ function handleKey(e: KeyboardEvent): void {
       onSelectField(props.fields[idx]!)
     }
   }
-  if (alt && key === 'g') { e.preventDefault(); showGrid.value = !showGrid.value }
-  if (alt && key === 'm') { e.preventDefault(); showMean.value = !showMean.value }
-  if (alt && key === 'h') { e.preventDefault(); showHover.value = !showHover.value }
-  if (alt && key === 'x') { e.preventDefault(); focusMode.value = !focusMode.value }
-  if (alt && key === 'l') { e.preventDefault(); activeTab.value = 'LINE' }
-  if (alt && key === 's') { e.preventDefault(); activeTab.value = 'SCATTER' }
-  if (alt && key === 't') { e.preventDefault(); activeTab.value = 'HISTOGRAM' }
-  if (alt && key === 'b') { e.preventDefault(); activeTab.value = 'BOXPLOT' }
 
+  // Alt + G/M/H/T: Toggle display options
+  if (alt && key === 'g') {
+    e.preventDefault()
+    showGrid.value = !showGrid.value
+  }
+  if (alt && key === 'm') {
+    e.preventDefault()
+    showMean.value = !showMean.value
+  }
+  if (alt && key === 'h') {
+    e.preventDefault()
+    showHover.value = !showHover.value
+  }
+  if (alt && key === 't') {
+    e.preventDefault()
+    showTrend.value = !showTrend.value
+  }
 
-  if (ctrl && key === 'e' && !e.shiftKey && !e.altKey) { e.preventDefault(); triggerCsv() }
-  if (ctrl && e.shiftKey && key === 'e') { e.preventDefault(); triggerSvg() }
-  if (ctrl && e.altKey && key === 'e') { e.preventDefault(); triggerPng() }
+  // Alt + L/S/T/B: Switch chart type
+  if (alt && key === 'l') {
+    e.preventDefault()
+    activeTab.value = 'LINE'
+  }
+  if (alt && key === 's') {
+    e.preventDefault()
+    activeTab.value = 'SCATTER'
+  }
+  if (alt && key === 't') {
+    e.preventDefault()
+    activeTab.value = 'HISTOGRAM'
+  }
+  if (alt && key === 'b') {
+    e.preventDefault()
+    activeTab.value = 'BOXPLOT'
+  }
+
+  // Ctrl + E: Export shortcuts
+  if (ctrl && key === 'e' && !e.shiftKey && !e.altKey) {
+    e.preventDefault()
+    triggerCsv()
+  }
+  if (ctrl && e.shiftKey && key === 'e') {
+    e.preventDefault()
+    triggerSvg()
+  }
+  if (ctrl && e.altKey && key === 'e') {
+    e.preventDefault()
+    triggerPng()
+  }
 }
+
 onMounted(() => window.addEventListener('keydown', handleKey))
 onBeforeUnmount(() => window.removeEventListener('keydown', handleKey))
 
-/* přístupnost (a11y) */
+/* -------------------------------------------------
+   Accessibility
+   ------------------------------------------------- */
 const liveStatus = computed<string>(() => {
   if (!seriesEnhanced.value.length) return 'Graf nemá žádná data.'
   const parts: string[] = []
   if (props.stats) parts.push(`Průměr ${fmt2(props.stats.mean)}, počet ${props.stats.count}`)
-  if (focusMode.value) parts.push(`Fokus mód aktivní`)
-
   return parts.join('. ')
 })
+
+
+const displayOptions = computed(() => [
+  {
+    label: 'Mřížka',
+    icon: 'mdi-grid',
+    active: showGrid.value,
+    action: () => (showGrid.value = !showGrid.value),
+    shortcut: 'Alt+G',
+  },
+  {
+    label: 'Průměr',
+    icon: 'mdi-chart-bell-curve',
+    active: showMean.value,
+    action: () => (showMean.value = !showMean.value),
+    shortcut: 'Alt+M',
+  },
+  {
+    label: 'Hover',
+    icon: 'mdi-crosshairs',
+    active: showHover.value,
+    action: () => (showHover.value = !showHover.value),
+    shortcut: 'Alt+H',
+  },
+  {
+    label: 'Trend',
+    icon: 'mdi-chart-line-variant',
+    active: showTrend.value,
+    action: () => (showTrend.value = !showTrend.value),
+    shortcut: 'Alt+T',
+  },
+])
 </script>
 
 <template>
-  <div
-    class="chart-panel"
-    :aria-label="liveStatus"
-    aria-live="polite"
-  >
-    <!-- hodnoty -->
-    <section class="modern-section mb-4">
-      <div class="section-header">
-        <v-icon
-          size="18"
-          color="primary"
-          class="mr-2"
-        >
-          mdi-tag-multiple
-        </v-icon>
-        <h3 class="section-title">
-          Numerická pole
-        </h3>
-        <v-spacer />
-        <v-tooltip
-          location="top"
-          text="Pro rychlý výběr použijte klávesy Alt + číslo"
-        >
-          <template #activator="{ props }">
-            <v-chip
-              v-bind="props"
-              size="small"
-              color="grey-darken-1"
-              variant="tonal"
-              class="keyboard-hint cursor-help"
-              label
-            >
-              <v-icon
-                size="14"
-                start
-                icon="mdi-keyboard-variant"
+  <div class="chart-panel" :aria-label="liveStatus" aria-live="polite">
+    <!-- Compact field selector -->
+    <div class="field-selector-compact">
+      <v-select
+        :model-value="selectedField"
+        :items="fields"
+        label="Vyberte pole pro vizualizaci"
+        variant="outlined"
+        density="compact"
+        hide-details
+        class="field-select-compact"
+        @update:model-value="onSelectField"
+      >
+        <template #prepend-inner>
+          <v-icon size="18" color="primary">mdi-tag-multiple</v-icon>
+        </template>
+        <template #selection="{ item }">
+          <span class="font-weight-medium">{{ item.raw }}</span>
+        </template>
+      </v-select>
+
+      <v-tooltip location="top" text="Pro rychlý výběr použijte Alt + číslo">
+        <template #activator="{ props: tooltipProps }">
+          <v-chip v-bind="tooltipProps" size="small" variant="tonal" class="keyboard-hint ml-2">
+            <v-icon size="14" start>mdi-keyboard-variant</v-icon>
+            Alt+1..9
+          </v-chip>
+        </template>
+      </v-tooltip>
+    </div>
+
+    <!-- Main chart area with integrated controls -->
+    <div class="chart-main-container">
+      <!-- Chart toolbar -->
+      <div class="chart-toolbar">
+        <!-- Chart type selector -->
+        <div class="toolbar-section">
+          <v-btn-toggle v-model="activeTab" class="chart-type-toggle-compact" divided mandatory density="compact" color="primary">
+            <v-tooltip v-for="tab in tabs" :key="tab" location="top" :text="`${tabLabels[tab]} (Alt+${tab[0]})`">
+              <template #activator="{ props: tooltipProps }">
+                <v-btn v-bind="tooltipProps" :value="tab" size="small">
+                  <v-icon :icon="tabIcons[tab]" size="18" />
+                </v-btn>
+              </template>
+            </v-tooltip>
+          </v-btn-toggle>
+        </div>
+
+        <!-- Display options -->
+        <div class="toolbar-section">
+          <v-tooltip v-for="opt in displayOptions" :key="opt.label" location="top" :text="`${opt.label} (${opt.shortcut})`">
+            <template #activator="{ props: tooltipProps }">
+              <v-btn
+                v-bind="tooltipProps"
+                size="small"
+                :color="opt.active ? 'primary' : 'grey'"
+                :variant="opt.active ? 'flat' : 'text'"
+                :icon="opt.icon"
+                @click="opt.action"
               />
-              <span class="font-weight-bold">Alt+1..9</span>
-            </v-chip>
-          </template>
-        </v-tooltip>
+            </template>
+          </v-tooltip>
+        </div>
+
+        <!-- Trend type selector (shown when trend is active) -->
+        <v-expand-transition>
+          <div v-if="showTrend" class="toolbar-section">
+            <v-btn-toggle v-model="trendType" density="compact" color="primary" mandatory class="trend-toggle">
+              <v-tooltip location="top" text="Lineární regrese (y = ax + b)">
+                <template #activator="{ props: tooltipProps }">
+                  <v-btn v-bind="tooltipProps" value="linear" size="x-small">
+                    <v-icon size="16">mdi-chart-line</v-icon>
+                    <span class="ml-1 text-caption">Lin</span>
+                  </v-btn>
+                </template>
+              </v-tooltip>
+              <v-tooltip location="top" text="Logaritmická regrese (y = a*ln(x) + b)">
+                <template #activator="{ props: tooltipProps }">
+                  <v-btn v-bind="tooltipProps" value="logarithmic" size="x-small">
+                    <v-icon size="16">mdi-chart-bell-curve-cumulative</v-icon>
+                    <span class="ml-1 text-caption">Log</span>
+                  </v-btn>
+                </template>
+              </v-tooltip>
+            </v-btn-toggle>
+          </div>
+        </v-expand-transition>
+
+        <v-spacer />
+
+        <!-- Export options -->
+        <div class="toolbar-section">
+          <v-tooltip text="Export CSV (Ctrl+E)" location="top">
+            <template #activator="{ props: tooltipProps }">
+              <v-btn v-bind="tooltipProps" size="small" variant="text" icon="mdi-file-delimited" @click="triggerCsv" />
+            </template>
+          </v-tooltip>
+          <v-tooltip text="Export SVG (Ctrl+Shift+E)" location="top">
+            <template #activator="{ props: tooltipProps }">
+              <v-btn v-bind="tooltipProps" size="small" variant="text" icon="mdi-vector-square" @click="triggerSvg" />
+            </template>
+          </v-tooltip>
+          <v-tooltip text="Export PNG (Ctrl+Alt+E)" location="top">
+            <template #activator="{ props: tooltipProps }">
+              <v-btn v-bind="tooltipProps" size="small" variant="text" icon="mdi-file-image" @click="triggerPng" />
+            </template>
+          </v-tooltip>
+        </div>
       </div>
 
-      <div class="section-content pt-2 pb-3 px-3">
-        <v-select
-          :model-value="selectedField"
-          :items="fields"
-          label="Vyberte pole pro vizualizaci"
-          variant="outlined"
-          density="comfortable"
-          hide-details
-          class="field-select"
-          menu-icon="mdi-chevron-down"
-          @update:model-value="onSelectField"
-        >
-          <template #selection="{ item }">
-            <v-chip
-              color="primary"
-              variant="flat"
-              size="small"
-              class="font-weight-medium"
-              label
-            >
-              <template #prepend>
-                <v-avatar
-                  color="white"
-                  size="20"
-                  class="mr-1"
-                >
-                  <span class="text-primary text-caption font-weight-black">
-                    {{ fields.indexOf(item.raw) + 1 }}
-                  </span>
-                </v-avatar>
-              </template>
-              {{ item.raw }}
-            </v-chip>
-          </template>
-
-          <template #item="{ props, item, index }">
-            <v-list-item
-              v-bind="props"
-              :title="item.raw"
-              density="compact"
-              class="mb-1 rounded-md"
-              :class="{ 'bg-primary-lighten-5 text-primary font-weight-bold': item.raw === selectedField }"
-            >
-              <template #prepend>
-                <v-avatar
-                  size="24"
-                  :color="item.raw === selectedField ? 'primary' : 'grey-lighten-2'"
-                  :variant="item.raw === selectedField ? 'flat' : 'tonal'"
-                  class="mr-3"
-                >
-                  <span
-                    class="text-caption font-weight-bold"
-                    :class="{'text-grey-darken-2': item.raw !== selectedField}"
-                  >
-                    {{ index + 1 }}
-                  </span>
-                </v-avatar>
-              </template>
-
-              <template
-                v-if="item.raw === selectedField"
-                #append
-              >
-                <v-icon
-                  color="primary"
-                  icon="mdi-check-circle"
-                  size="small"
-                />
-              </template>
-            </v-list-item>
-          </template>
-        </v-select>
-      </div>
-    </section>
-
-
-    <!-- horizontální rozložení grafu a statistik (chart + stats row) -->
-    <div class="chart-stats-row">
-      <!-- graf s integrovaným ovládáním (integrated controls) -->
-      <section class="modern-section chart-section chart-section-flex">
-      <!-- lišta pro výběr typu grafu (chart type selector) -->
-      <div class="chart-type-bar">
-        <v-icon
-          size="18"
-          color="primary"
-        >
-          mdi-chart-multiple
-        </v-icon>
-        <span class="chart-type-label">Typ grafu</span>
-        <v-btn-toggle
-          v-model="activeTab"
-          class="chart-type-toggle"
-          divided
-          mandatory
-          density="comfortable"
-          color="primary"
-        >
-          <v-btn
-            v-for="tab in tabs"
-            :key="tab"
-            :value="tab"
-            size="small"
-            class="chart-type-btn"
-          >
-            <v-icon
-              :icon="tabIcons[tab]"
-              size="18"
-            />
-            <span class="ml-1 text-caption">{{ tab }}</span>
-          </v-btn>
-        </v-btn-toggle>
-
-
-
-
-
-
-
-
-
-
-      </div>
-      <!-- hlavní rozložení grafu (main chart layout) -->
-      <div class="chart-main-layout">
-        <!-- vizualizátor grafu (chart visualizer) -->
-        <div class="chart-visualizer-wrapper">
+      <!-- Chart and stats layout -->
+      <div class="chart-content-layout">
+        <!-- Main chart area -->
+        <div class="chart-area-main">
           <ChartVisualizer
             ref="visualizerRef"
             :series="seriesEnhanced"
@@ -313,391 +350,252 @@ const liveStatus = computed<string>(() => {
             :show-grid="showGrid"
             :show-mean="showMean"
             :show-hover="showHover"
-            :focus-mode="focusMode"
-
+            :show-trend="showTrend"
+            :trend-type="trendType"
+            :focus-mode="false"
+            @point-click="(p) => emit('point-click', p)"
           />
         </div>
-        <!-- postranní panel ovládání (controls sidebar) -->
-        <div class="chart-controls-sidebar">
-          <!-- možnosti zobrazení (display options) -->
-          <div class="control-group">
-            <div class="control-label">
-              <v-icon size="14">
-                mdi-tune
-              </v-icon>
-              <span>Zobrazení</span>
-            </div>
-            <v-btn
-              size="small"
-              :color="showGrid ? 'primary' : 'grey'"
-              :variant="showGrid ? 'flat' : 'tonal'"
-              prepend-icon="mdi-grid"
-              block
-              class="control-btn"
-              @click="showGrid = !showGrid"
-            >
-              Mřížka
-            </v-btn>
-            <v-btn
-              size="small"
-              :color="showMean ? 'orange' : 'grey'"
-              :variant="showMean ? 'flat' : 'tonal'"
-              prepend-icon="mdi-chart-bell-curve"
-              block
-              class="control-btn"
-              @click="showMean = !showMean"
-            >
-              Mean
-            </v-btn>
-            <v-btn
-              size="small"
-              :color="showHover ? 'primary' : 'grey'"
-              :variant="showHover ? 'flat' : 'tonal'"
-              prepend-icon="mdi-crosshairs"
-              block
-              class="control-btn"
-              @click="showHover = !showHover"
-            >
-              Hover
-            </v-btn>
-            <v-btn
-              size="small"
-              :color="focusMode ? 'deep-purple' : 'grey'"
-              :variant="focusMode ? 'flat' : 'tonal'"
-              prepend-icon="mdi-eye-outline"
-              block
-              class="control-btn"
-              @click="focusMode = !focusMode"
-            >
-              Focus
-            </v-btn>
-          </div>
-          <div class="control-divider" />
-          <!-- možnosti exportu (export options) -->
-          <div class="control-group">
-            <div class="control-label">
-              <v-icon size="14">
-                mdi-download
-              </v-icon>
-              <span>Export</span>
-            </div>
-            <v-tooltip
-              text="Export CSV (Ctrl+E)"
-              location="left"
-            >
-              <template #activator="{ props: tp }">
-                <v-btn
-                  v-bind="tp"
-                  size="small"
-                  variant="tonal"
-                  prepend-icon="mdi-file-delimited"
-                  block
-                  class="control-btn"
-                  @click="triggerCsv"
-                >
-                  CSV
-                </v-btn>
-              </template>
-            </v-tooltip>
-            <v-tooltip
-              text="Export SVG (Ctrl+Shift+E)"
-              location="left"
-            >
-              <template #activator="{ props: tp }">
-                <v-btn
-                  v-bind="tp"
-                  size="small"
-                  variant="tonal"
-                  prepend-icon="mdi-vector-square"
-                  block
-                  class="control-btn"
-                  @click="triggerSvg"
-                >
-                  SVG
-                </v-btn>
-              </template>
-            </v-tooltip>
-            <v-tooltip
-              text="Export PNG (Ctrl+Alt+E)"
-              location="left"
-            >
-              <template #activator="{ props: tp }">
-                <v-btn
-                  v-bind="tp"
-                  size="small"
-                  variant="tonal"
-                  prepend-icon="mdi-file-image"
-                  block
-                  class="control-btn"
-                  @click="triggerPng"
-                >
-                  PNG
-                </v-btn>
-              </template>
-            </v-tooltip>
-          </div>
+
+        <!-- Compact stats sidebar -->
+        <div class="stats-sidebar-compact">
+          <ChartStats :stats="stats" :outliers="outliers" />
         </div>
       </div>
-    </section>
-    <!-- komponenta statistik vedle grafu (stats beside chart) -->
-    <ChartStats
-      :stats="stats"
-      :outliers="outliers"
-      class="stats-beside-chart"
-    />
-    </div><!-- end chart-stats-row -->
-    <!-- legenda sérií (series legend) -->
+    </div>
+
+    <!-- Series legend (if multiple) -->
     <v-expand-transition>
-      <section
-        v-if="seriesEnhanced.length > 1"
-        class="modern-section mt-4"
-      >
-        <div class="section-header">
-          <v-icon
-            size="18"
-            color="primary"
+      <div v-if="seriesEnhanced.length > 1" class="series-legend-compact">
+        <div class="legend-header">
+          <v-icon size="16" color="primary">mdi-format-list-bulleted</v-icon>
+          <span class="legend-title">Série ({{ seriesEnhanced.length }})</span>
+        </div>
+        <div class="legend-items">
+          <v-chip
+            v-for="(s, i) in seriesEnhanced"
+            :key="s.label + i"
+            size="small"
+            variant="flat"
+            :style="{ backgroundColor: s.colorAssigned, color: 'white' }"
+            class="legend-chip"
           >
-            mdi-format-list-bulleted
-          </v-icon>
-          <h3 class="section-title">
-            Legenda sérií
-          </h3>
-        </div>
-        <div class="section-content">
-          <div class="series-legend">
-            <v-chip
-              v-for="(s, i) in seriesEnhanced"
-              :key="s.label + i"
-              size="small"
-              variant="flat"
-              :style="{ backgroundColor: s.colorAssigned, color: 'white' }"
-              class="legend-chip"
-            >
-              {{ s.label }}
-              <v-chip
-                size="small"
-                variant="elevated"
-                color="white"
-                class="ml-1"
-                style="color: inherit;"
-              >
-                {{ s.points.length }}
-              </v-chip>
+            {{ s.label }}
+            <v-chip size="x-small" variant="elevated" color="white" class="ml-1">
+              {{ s.points.length }}
             </v-chip>
-          </div>
+          </v-chip>
         </div>
-      </section>
+      </div>
     </v-expand-transition>
   </div>
 </template>
 
 <style scoped>
+/* -----------------------------------------------------------------
+   Main layout
+   ----------------------------------------------------------------- */
 .chart-panel {
   display: flex;
   flex-direction: column;
+  gap: 12px;
+  height: 100%;
 }
-/* moderní sekce: styl modré karty (blue card style) */
-.modern-section {
-  background: #F4F7FB;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  border-radius: 12px;
-  overflow: hidden;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-}
-.modern-section:hover {
-  background: #F0F4F9;
-  border-color: rgba(var(--v-theme-primary), 0.3);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
-}
-.section-header {
+
+/* -----------------------------------------------------------------
+   Compact field selector
+   ----------------------------------------------------------------- */
+.field-selector-compact {
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
-  min-height: 40px;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
-  background: rgba(255, 255, 255, 0.4);
+  background: linear-gradient(to bottom, #f9fafb, #ffffff);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 8px;
 }
-.section-title {
-  font-size: 0.95rem;
-  font-weight: 600;
-  color: rgba(0, 0, 0, 0.87);
-  letter-spacing: 0.01em;
-  margin: 0;
+
+.field-select-compact {
+  max-width: 400px;
 }
-.section-content {
-  padding: 16px;
-}
-/* čipy polí (field chips) */
-.field-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-.field-chip {
-  transition: all 0.2s ease;
-}
-.field-chip:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
-}
+
 .keyboard-hint {
-  font-family: ui-monospace, monospace;
+  font-family: ui-monospace, 'SF Mono', 'Cascadia Code', 'Roboto Mono', monospace;
   font-size: 0.7rem;
-}
-/* horizontální rozložení grafu a statistik (chart + stats layout) */
-.chart-stats-row {
-  display: flex;
-  gap: 16px;
-  align-items: flex-start;
-}
-.chart-section-flex {
-  flex: 1;
-  min-width: 0;
-}
-.stats-beside-chart {
-  width: 280px;
+  cursor: help;
   flex-shrink: 0;
 }
-.stats-beside-chart :deep(.stats-grid) {
-  grid-template-columns: repeat(2, 1fr);
+
+/* -----------------------------------------------------------------
+   Main chart container
+   ----------------------------------------------------------------- */
+.chart-main-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(to bottom, #f9fafb, #ffffff);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 8px;
+  overflow: hidden;
+  min-height: 0;
 }
-.stats-beside-chart :deep(.stat-item) {
-  padding: 12px 14px;
-  min-height: 70px;
-}
-.stats-beside-chart :deep(.stat-item:nth-child(3n)) {
-  border-right: 1px solid rgba(0, 0, 0, 0.06);
-}
-.stats-beside-chart :deep(.stat-item:nth-child(2n)) {
-  border-right: none;
-}
-.stats-beside-chart :deep(.stat-item:nth-last-child(-n+3)) {
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
-}
-.stats-beside-chart :deep(.stat-item:nth-last-child(-n+2)) {
-  border-bottom: none;
-}
-/* specifické pro sekci grafu (chart section specific) */
-.chart-section {
-  padding: 0;
-}
-.chart-type-bar {
+
+/* -----------------------------------------------------------------
+   Chart toolbar
+   ----------------------------------------------------------------- */
+.chart-toolbar {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
   padding: 8px 12px;
-  background: rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.8);
   border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  backdrop-filter: blur(8px);
+  flex-shrink: 0;
 }
-.chart-type-label {
-  font-size: 0.95rem;
-  font-weight: 600;
-  color: rgba(0, 0, 0, 0.87);
-}
-.chart-type-toggle {
-  flex: 1;
-  max-width: 500px;
-  margin-left: auto;
-}
-.chart-type-btn {
-  flex: 1;
-  font-weight: 600;
-}
-/* hlavní rozložení grafu (main chart layout) */
-.chart-main-layout {
+
+.toolbar-section {
   display: flex;
-  min-height: 280px;
+  align-items: center;
+  gap: 4px;
 }
-.chart-visualizer-wrapper {
+
+.chart-type-toggle-compact {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.trend-toggle {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+/* -----------------------------------------------------------------
+   Chart content layout
+   ----------------------------------------------------------------- */
+.chart-content-layout {
   flex: 1;
-  padding: 16px;
-  background: white;
+  display: flex;
+  gap: 12px;
+  padding: 12px;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.chart-area-main {
+  flex: 1;
   min-width: 0;
-}
-.chart-controls-sidebar {
-  width: 180px;
-  padding: 16px;
-  background: rgba(255, 255, 255, 0.6);
-  border-left: 1px solid rgba(0, 0, 0, 0.06);
+  min-height: 0;
   display: flex;
   flex-direction: column;
 }
-.control-group {
-  display: flex;
-  flex-direction: column;
+
+.stats-sidebar-compact {
+  width: 240px;
+  flex-shrink: 0;
+  overflow-y: auto;
+}
+
+.stats-sidebar-compact :deep(.stats-grid) {
+  grid-template-columns: 1fr;
   gap: 8px;
 }
-.control-label {
+
+.stats-sidebar-compact :deep(.stat-item) {
+  padding: 10px 12px;
+  min-height: auto;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.stats-sidebar-compact :deep(.stat-item:nth-child(n)) {
+  border-right: none;
+  border-bottom: none;
+}
+
+/* -----------------------------------------------------------------
+   Series legend compact
+   ----------------------------------------------------------------- */
+.series-legend-compact {
+  padding: 10px 12px;
+  background: linear-gradient(to bottom, #f9fafb, #ffffff);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 8px;
+}
+
+.legend-header {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 0.75rem;
+  margin-bottom: 8px;
+}
+
+.legend-title {
+  font-size: 0.875rem;
   font-weight: 600;
-  text-transform: uppercase;
-  color: rgba(0, 0, 0, 0.5);
-  margin-bottom: 4px;
+  color: rgba(0, 0, 0, 0.87);
 }
-.control-btn {
-  text-transform: none;
-  justify-content: flex-start;
-}
-.control-divider {
-  height: 1px;
-  background: rgba(0, 0, 0, 0.06);
-  margin: 12px 0;
-}
-/* legenda sérií (series legend) */
-.series-legend {
+
+.legend-items {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
 }
+
 .legend-chip {
   font-weight: 600;
   letter-spacing: 0.02em;
+  transition: all 0.2s ease;
 }
-/* responzivita (responsive) */
-@media (max-width: 960px) {
-  .chart-main-layout {
+
+.legend-chip:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+
+/* -----------------------------------------------------------------
+   Responsive design
+   ----------------------------------------------------------------- */
+@media (max-width: 1200px) {
+  .chart-content-layout {
     flex-direction: column;
   }
-  .chart-controls-sidebar {
+
+  .stats-sidebar-compact {
     width: 100%;
-    border-left: none;
-    border-top: 1px solid rgba(0, 0, 0, 0.06);
+    max-height: 200px;
   }
-  .control-group {
-    flex-direction: row;
-    flex-wrap: wrap;
-  }
-  .control-label {
-    width: 100%;
-  }
-  .control-group .v-btn {
-    flex: 1;
-    min-width: 100px;
-  }
-  .control-divider {
-    width: 100%;
-    margin: 8px 0;
+
+  .stats-sidebar-compact :deep(.stats-grid) {
+    grid-template-columns: repeat(3, 1fr);
   }
 }
+
 @media (max-width: 768px) {
-  .field-chips {
-    gap: 6px;
+  .field-selector-compact {
+    flex-direction: column;
+    align-items: stretch;
   }
-  .chart-type-btn span {
-    display: none;
-  }
-  .chart-type-toggle {
+
+  .field-select-compact {
     max-width: none;
   }
-  .chart-visualizer-wrapper {
-    padding: 12px;
+
+  .chart-toolbar {
+    flex-wrap: wrap;
   }
-  .chart-controls-sidebar {
-    padding: 12px;
+
+  .stats-sidebar-compact :deep(.stats-grid) {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 480px) {
+  .chart-content-layout {
+    padding: 8px;
+  }
+
+  .stats-sidebar-compact :deep(.stats-grid) {
+    grid-template-columns: 1fr;
   }
 }
 </style>
