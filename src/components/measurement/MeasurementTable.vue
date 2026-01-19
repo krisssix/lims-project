@@ -31,7 +31,7 @@ const props = defineProps<{
   headers: TableHeader[]
   items: TableRow[]
   devicesById: Map<string, DeviceItem>
-  highlightedRowId?: number | null
+  highlightedRowIds?: number[] | null
   activeDateField?: 'date' | 'createdAt' | 'updatedAt'
 
   devices?: Array<{ id: string; name: string; color?: string }>
@@ -124,44 +124,56 @@ const filteredItems = computed<TableRow[]>(() => {
     )
   }
 
+  // Default sort: nejnovější měření nahoru (descending by date)
+  result = [...result].sort((a, b) => {
+    const aDate = typeof a.date === 'number' ? a.date : Date.parse(String(a.date))
+    const bDate = typeof b.date === 'number' ? b.date : Date.parse(String(b.date))
+    return bDate - aDate  // Descending - newest first
+  })
+
   return result
 })
 
 
-const animatingRowId = ref<number | null>(null)
+const animatingRowIds = ref<Set<number>>(new Set())
 
-
-watch(() => props.highlightedRowId, (newId) => {
-  if (newId != null) {
-    animatingRowId.value = newId
+watch(() => props.highlightedRowIds, (newIds) => {
+  if (newIds && newIds.length > 0) {
+    newIds.forEach(id => animatingRowIds.value.add(id))
     // ukončení animace po dokončení
     setTimeout(() => {
-      animatingRowId.value = null
+      newIds.forEach(id => animatingRowIds.value.delete(id))
     }, 2500)
   }
-})
+}, { deep: true })
+
 const emits = defineEmits<{
   (e: 'row-click', id: number): void
   (e: 'create-measurement'): void
   (e: 'delete-selected', ids: number[]): void
   (e: 'export-selected', ids: number[]): void
   (e: 'publish-zenodo', ids: number[]): void
+  (e: 'compare-selected', ids: number[]): void
 }>()
-
-
-function deleteSelected(): void {
-  const ids = selected.value.map(r => r.id)
-  if (ids.length) emits('delete-selected', ids)
-}
 
 function exportSelected(): void {
   const ids = selected.value.map(r => r.id)
   if (ids.length) emits('export-selected', ids)
 }
 
+function compareSelected(): void {
+  const ids = selected.value.map(r => r.id)
+  if (ids.length >= 2) emits('compare-selected', ids)
+}
+
 function publishZenodo(): void {
   const ids = selected.value.map(r => r.id)
   if (ids.length) emits('publish-zenodo', ids)
+}
+
+function deleteSelected(): void {
+  const ids = selected.value.map(r => r.id)
+  if (ids.length) emits('delete-selected', ids)
 }
 
 function clearSelection(): void {
@@ -218,7 +230,8 @@ function formatDate(dateInput: string | number): { date: string; time: string } 
     })
     const time = d.toLocaleTimeString('cs-CZ', {
       hour: '2-digit',
-      minute: '2-digit'
+      minute: '2-digit',
+      second: '2-digit'
     })
     return { date, time }
   } catch {
@@ -279,6 +292,16 @@ function formatDate(dateInput: string | number): { date: string; time: string } 
             Export
           </v-btn>
           <v-btn
+             size="small"
+             variant="tonal"
+             color="secondary"
+             prepend-icon="mdi-compare"
+             :disabled="selected.length < 2"
+             @click="compareSelected"
+          >
+            Porovnat
+          </v-btn>
+          <v-btn
             size="small"
             variant="tonal"
             color="deep-purple"
@@ -320,7 +343,7 @@ function formatDate(dateInput: string | number): { date: string; time: string } 
       :show-expand="hasNotes"
       :expand-on-click="false"
       :row-props="({ item }) => ({
-        class: item.id === animatingRowId ? 'row-highlight-success' : ''
+        class: animatingRowIds.has(item.id) ? 'row-highlight-success' : ''
       })"
       @click:row="onRowClick"
     >

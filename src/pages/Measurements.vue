@@ -11,6 +11,7 @@ import TemplatesOverviewDialog from '@/components/measurement/TemplatesOverviewD
 import TemplateWizardDialog from '@/components/import/TemplateWizardDialog.vue'
 import MeasurementCreateDialog from '@/components/measurement/MeasurementCreateDialog.vue'
 import MeasurementDetailDialog from '@/components/measurement/MeasurementDetailDialog.vue'
+import MeasurementCompareDialog from '@/components/measurement/MeasurementCompareDialog.vue'
 import ZenodoDialog from '@/components/measurement/ZenodoDialog.vue'
 import ExportDialog from '@/components/measurement/ExportDialog.vue'
 import VersionConflictDialog from '@/components/measurement/VersionConflictDialog.vue'
@@ -28,6 +29,7 @@ import {
   type WizardTemplatePayload
 } from '@/stores/measurement-templates'
 import { useImportStore } from '@/stores/import'
+import { useAttachments } from '@/composables/useAttachments'
 import {type DeviceItem, type TemplateItem, type TableHeader, type TemplateBlockRow} from '@/types/measurement-ui'
 import { useProjectStore } from '@/stores/project/project'
 import { auth } from '@/stores/auth'
@@ -38,12 +40,21 @@ const measurementStore = useMeasurementStore()
 const reservationsStore = useReservationsStore()
 const importStore = useImportStore()
 const projectStore = useProjectStore()
+const { uploadFile } = useAttachments()
 
 /* Devices */
 const devices = computed<DeviceItem[]>(() =>
-  reservationsStore.devices.map(d => ({ id: d.code, name: d.code, color: d.color || 'primary' }))
+  reservationsStore.devices.map(d => ({ id: d.code, code: d.code, name: d.name, color: d.color || 'primary' }))
 )
 const devicesById = computed(() => new Map(devices.value.map(d => [d.id, d])))
+
+/* Devices with measurements - for DateFilterPanel */
+const devicesWithMeasurements = computed<DeviceItem[]>(() => {
+  const measurementDeviceCodes = new Set(
+    (measurementStore.allMeasurements || []).map(m => m.unit).filter(Boolean)
+  )
+  return devices.value.filter(d => measurementDeviceCodes.has(d.id))
+})
 
 /* Templates */
 const templatesStore = useMeasurementTemplatesStore()
@@ -82,8 +93,8 @@ const templates = computed<TemplateItem[]>(() =>
 
     return {
       id: String(t.id),
-      name: t.name,
-      deviceId: t.deviceCode,
+      name: t.name || '',
+      deviceId: t.deviceCode || '',
       deviceColor: t.deviceColor || 'primary',
       fields: (t.fields || [])
         .sort((a, b) => a.orderIndex - b.orderIndex)
@@ -104,8 +115,8 @@ const templates = computed<TemplateItem[]>(() =>
 
 const templateById = computed(() => new Map(templates.value.map(t => [t.id, t])))
 
-/* Wizard confirm – TADY se volá create/update šablony */
 const snackbar = ref<{ open: boolean; text: string }>({ open: false, text: '' })
+const createdTemplateId = ref<number | null>(null)
 
 async function handleTemplateConfirm(payload: WizardTemplatePayload): Promise<void> {
   try {
@@ -115,26 +126,47 @@ async function handleTemplateConfirm(payload: WizardTemplatePayload): Promise<vo
         if (payload.createVersionType) {
           // 1. Create new version from current
           const newVersion = await templatesStore.createVersion(idNum, payload.createVersionType)
-          
+
           // 2. Update the NEW version with the editor content
           // We must update the payload to point to the new ID
           const newId = newVersion.id
           await templatesStore.updateFromWizard(projectId, newId, { ...payload, templateId: String(newId) })
-          
-          // 3. Mark as ACTIVE immediately? (Optional, based on requirement. Assuming Update keeps it properly set or backend handles it)
-          // If needed: await templatesStore.publish(newId)
+
+          // 3. Mark as ACTIVE if requested
+          if (payload.status === 'ACTIVE') {
+            await templatesStore.publish(newId)
+          }
         } else {
           // Standard update of existing ID
           await templatesStore.updateFromWizard(projectId, idNum, payload)
+          // If explicitly requested to be active (e.g. editing a draft and saving as active)
+          if (payload.status === 'ACTIVE') {
+            await templatesStore.publish(idNum)
+          }
         }
       }
     } else {
-      await templatesStore.createFromWizard(projectId, payload)
+      const tpl = await templatesStore.createFromWizard(projectId, payload)
+      createdTemplateId.value = tpl.id
+      selectedTemplateId.value = String(tpl.id)
+      if (payload.status !== 'DRAFT') {
+        try {
+          await templatesStore.publish(tpl.id)
+        } catch (pubErr) {
+          console.warn('Publish new template failed (ignoring)', pubErr)
+        }
+      }
     }
     await templatesStore.fetchByProject(projectId)
     templateWizardOpen.value = false
     initialWizardTemplate.value = null
-    overviewOpen.value = true
+    
+    if (isCreatingFromMeasurementDialog.value) {
+      // Do not open overview, return to measurement create dialog
+    } else {
+      overviewOpen.value = true
+    }
+    isCreatingFromMeasurementDialog.value = false
   } catch (error) {
     let msg = 'Nepodařilo se uložit data.'
     const maybeApi = error as { statusCode?: number; message?: string; response?: { data?: unknown } }
@@ -199,7 +231,16 @@ const pickedTemplates = ref<string[]>([])
 const pickedMembers = ref<string[]>([])
 
 const templateFilterItems = computed<{ id: string; name: string }[]>(() => {
-  const uniqueNames = new Set(templates.value.map(t => t.name))
+  let filteredTemplates = templates.value
+  
+  // Filter templates based on selected devices
+  if (pickedDevices.value.length > 0) {
+    filteredTemplates = filteredTemplates.filter(t => 
+      pickedDevices.value.includes(t.deviceCode)
+    )
+  }
+  
+  const uniqueNames = new Set(filteredTemplates.map(t => t.name))
   return Array.from(uniqueNames).map(n => ({ id: n, name: n }))
 })
 function arraysEqual(a: string[], b: string[]): boolean {
@@ -386,13 +427,17 @@ const initialWizardTemplate = ref<{
 /** Device to pre-select in TemplateWizardDialog */
 const preselectedDeviceForWizard = ref<string | null>(null)
 
+const isCreatingFromMeasurementDialog = ref(false)
+
 function startCreateTemplate(deviceCode?: string): void {
+  isCreatingFromMeasurementDialog.value = measurementCreateOpen.value
   wizardMode.value = 'empty'
   initialWizardTemplate.value = null
   preselectedDeviceForWizard.value = deviceCode || null
   templateWizardOpen.value = true
 }
 function startCreateTemplateFromFile(deviceCode?: string): void {
+  isCreatingFromMeasurementDialog.value = measurementCreateOpen.value
   wizardMode.value = 'import'
   initialWizardTemplate.value = null
   preselectedDeviceForWizard.value = deviceCode || null
@@ -467,7 +512,7 @@ async function handleTemplateDelete(id: string): Promise<void> {
 async function handleBulkDeleteTemplates(ids: string[]): Promise<void> {
   const numericIds = ids.map(Number).filter(Number.isFinite)
   if (numericIds.length === 0) return
-  
+
   try {
     for (const id of numericIds) {
        await templatesStore.remove(id)
@@ -485,13 +530,13 @@ const loadingTemplates = ref(false)
 async function handleBulkStatusUpdate(ids: string[], status: 'ACTIVE' | 'DRAFT' | 'DEPRECATED'): Promise<void> {
   const numericIds = ids.map(Number).filter(Number.isFinite)
   if (!numericIds.length) return
-  
+
   loadingTemplates.value = true
   try {
     const res = await templatesStore.bulkUpdateStatus(numericIds, status)
-    
+
     await templatesStore.fetchByProject(projectId)
-    
+
     let msg = `Stav změněn u ${res.updated} z ${res.requested} vybraných šablon.`
     if (res.skipped > 0) {
        msg += ` (${res.skipped} již bylo v požadovaném stavu).`
@@ -655,10 +700,33 @@ const repeatIndex = ref<number>(1)
 function gotoPrevSet(): void { if (repeatEnabled.value) repeatIndex.value = Math.max(1, repeatIndex.value - 1) }
 function gotoNextSet(): void { if (repeatEnabled.value) repeatIndex.value = Math.min(repeatCount.value, repeatIndex.value + 1) }
 
-async function onSaveMeasurement(payload: MeasurementRequest): Promise<void> {
-  await measurementStore.saveMeasurement(projectId, payload)
+const highlightedMeasurementIds = ref<number[]>([])
+const tableRefreshKey = ref(0)
+
+async function onSaveMeasurement(payload: MeasurementRequest, attachments: File[] = []): Promise<void> {
+  const result = await measurementStore.saveMeasurement(projectId, payload)
+
+  if (result && result.id) {
+    if (attachments && attachments.length > 0) {
+      for (const file of attachments) {
+        try {
+          await uploadFile(result.id, file, () => {})
+        } catch (e) {
+          console.error(`Failed to upload attachment ${file.name}`, e)
+        }
+      }
+    }
+
+    if (repeatIndex.value === 1) {
+      highlightedMeasurementIds.value = [result.id]
+    } else {
+      highlightedMeasurementIds.value = [...highlightedMeasurementIds.value, result.id]
+    }
+  }
+
   if (!repeatEnabled.value || repeatIndex.value >= repeatCount.value) {
     await loadMeasurements()
+    tableRefreshKey.value++
     measurementCreateOpen.value = false
     repeatIndex.value = 1
   } else {
@@ -725,11 +793,16 @@ async function saveDetail(payload: {
   measuredByUsername: string | null
 }): Promise<void> {
   if (!detailItem.value) return
-  await measurementStore.updateMeasurement(
+  const result = await measurementStore.updateMeasurement(
     detailItem.value.id,
     payload as unknown as Partial<MeasurementRequest>
   )
-  await loadMeasurements()
+  // Ensure visual feedback - force updatedAt to now
+  if (result) {
+      result.updatedAt = Date.now()
+  }
+  // await loadMeasurements() - skip to keep patched result and avoid stale cache
+  tableRefreshKey.value++
   snackbar.value = { open: true, text: 'Měření upraveno' }
   detailOpen.value = false
 }
@@ -763,20 +836,19 @@ function onBulkDelete(ids: number[]): void {
 }
 
 async function confirmBulkDelete(): Promise<void> {
-  if (!bulkDeleteIds.value.length) {
-    bulkDeleteConfirmOpen.value = false
-    return
-  }
+  if (!bulkDeleteIds.value.length) return
+
   bulkDeleteLoading.value = true
   try {
-    for (const id of bulkDeleteIds.value) {
-      await measurementStore.deleteMeasurement(id)
-    }
+    await measurementStore.deleteMeasurementsBulk(bulkDeleteIds.value)
     await loadMeasurements()
-    snackbar.value = { open: true, text: `Smazáno ${bulkDeleteIds.value.length} měření` }
+    snackbar.value = { open: true, text: `Úspěšně smazáno ${bulkDeleteIds.value.length} měření` }
     bulkDeleteConfirmOpen.value = false
     bulkDeleteIds.value = []
     selectedMeasurements.value = []
+  } catch (e) {
+    console.error('Failed to delete measurements:', e)
+    snackbar.value = { open: true, text: 'Nepodařilo se smazat vybraná měření' }
   } finally {
     bulkDeleteLoading.value = false
   }
@@ -793,9 +865,24 @@ function onOpenExport(ids: number[]): void {
   exportDialogOpen.value = true
 }
 
+
+
 function onExported(format: ExportFormat, count: number): void {
   snackbar.value = { open: true, text: `Exportováno ${count} měření do ${format.toUpperCase()}` }
   selectedMeasurements.value = []
+}
+
+/* Compare dialog */
+const compareDialogOpen = ref(false)
+const measurementsForCompare = ref<MeasurementResponse[]>([])
+
+function onCompareSelected(ids: number[]): void {
+  const items = measurementStore.allMeasurements?.filter(m => ids.includes(m.id)) || []
+  if (items.length < 2) return
+  
+  // Sort by ID or other criteria if needed, for better UX
+  measurementsForCompare.value = items.sort((a, b) => a.id - b.id)
+  compareDialogOpen.value = true
 }
 
 /* Načtení */
@@ -850,7 +937,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onHotkeys))
           <div style="width: 320px;">
              <DateFilterPanel
                v-model="dateFilterModel"
-               :devices="devices"
+               :devices="devicesWithMeasurements"
                :members="membersList"
                :templates="templateFilterItems"
                v-model:pickedDevices="pickedDevices"
@@ -864,16 +951,19 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onHotkeys))
         <v-col class="flex-grow-1" style="min-width: 0;">
           <v-sheet elevation="1" class="pa-4 rounded-xl">
             <MeasurementTable
+        :key="tableRefreshKey"
               v-model:selected="selectedMeasurements"
               :headers="headers"
               :items="filteredMeasurements"
               :devices-by-id="devicesById"
-              :active-date-field="dateFilterModel.field"
+              :active-date-field="dateFilterModel.from && dateFilterModel.to ? dateFilterModel.field : undefined"
+              :highlighted-row-ids="highlightedMeasurementIds"
               @row-click="openDetailById"
               @create-measurement="measurementCreateOpen = true"
               @publish-zenodo="onPublishZenodo"
               @delete-selected="onBulkDelete"
               @export-selected="onOpenExport"
+              @compare-selected="onCompareSelected"
             />
           </v-sheet>
         </v-col>
@@ -919,6 +1009,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onHotkeys))
         :delete-loading="deleteTemplateLoading"
         :start-mode="wizardMode"
         :preselected-device="preselectedDeviceForWizard"
+        :lock-device="!!preselectedDeviceForWizard"
         @delete="askDeleteTemplate"
       />
 
@@ -948,6 +1039,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onHotkeys))
         :devices="devices"
         :templates="templates"
         :template-by-id="templateById"
+        :initial-template-id="createdTemplateId"
         @createTemplate="startCreateTemplate"
         @createTemplateFromClipboard="startCreateTemplateFromFile"
         @save="onSaveMeasurement"
@@ -979,6 +1071,14 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onHotkeys))
         @next="nextDetail"
       />
 
+      <MeasurementCompareDialog
+        v-model="compareDialogOpen"
+        :items="measurementsForCompare"
+        :devices="devices"
+        :members="membersList"
+        :templates="templates"
+      />
+      
       <ZenodoDialog
         v-model="zenodoDialogOpen"
         :measurements="measurementsForZenodo"

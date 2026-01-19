@@ -84,6 +84,32 @@
         </v-card-actions>
       </v-card>
     </v-dialog>
+    
+    <!-- dialog pro náhled (preview dialog) -->
+    <v-dialog v-model="previewDialog.open" max-width="90vw" max-height="90vh">
+      <v-card class="bg-black" height="90vh">
+        <v-toolbar density="compact" color="black">
+          <v-toolbar-title class="text-white text-caption">{{ previewDialog.title }}</v-toolbar-title>
+          <v-spacer />
+          <v-btn icon="mdi-close" variant="text" color="white" @click="previewDialog.open = false" />
+        </v-toolbar>
+        
+        <div class="d-flex align-center justify-center bg-grey-darken-4" style="height: calc(100% - 48px); overflow: hidden;">
+           <v-img 
+             v-if="previewDialog.type === 'image'" 
+             :src="previewDialog.src" 
+             max-height="100%" 
+             max-width="100%" 
+             contain 
+           />
+           <iframe 
+             v-else 
+             :src="previewDialog.src" 
+             style="width:100%; height:100%; border:none; background:white;"
+           ></iframe>
+        </div>
+      </v-card>
+    </v-dialog>
   </div>
 </template>
 
@@ -96,6 +122,7 @@ import {
   isImageType,
   type FileAttachment
 } from '@/composables/useAttachments'
+import { auth } from '@/stores/auth'
 
 const props = defineProps<{
   measurementId: number
@@ -157,20 +184,88 @@ function formatDate(timestamp: number): string {
   })
 }
 
+const previewDialog = ref({
+  open: false,
+  src: '',
+  type: 'image',
+  title: ''
+})
+
 function viewFile(attachment: FileAttachment) {
-  const url = getViewUrl(attachment)
-  window.open(url, '_blank')
+  // Use downloadUrl for fetching data (more reliable than viewUrl)
+  const url = getDownloadUrl(attachment)
+  
+  // Try renew token first
+  auth.renewToken().catch(() => {}).then(() => {
+      const token = auth.getToken()
+      if (!token) {
+        // If no token, standard open (likely to fail if protected, but nothing else to do)
+        window.open(url, '_blank')
+        return
+      }
+
+      fetch(url, {
+    headers: {
+      'Authorization': `Bearer ${token}`
+    }
+  })
+  .then(resp => {
+    if (!resp.ok) throw new Error(`HTTP error ${resp.status}`)
+    return resp.blob()
+  })
+  .then(blob => {
+    const objectUrl = URL.createObjectURL(blob)
+    
+    previewDialog.value = {
+      open: true,
+      src: objectUrl,
+      type: isImage(attachment.contentType) ? 'image' : 'other',
+      title: attachment.originalName
+    }
+  })
+  .catch(err => {
+    console.error('Fetch error:', err)
+    alert('Nepodařilo se načíst náhled souboru.\n' + err.message)
+  })
+  })
 }
 
 function downloadFile(attachment: FileAttachment) {
   const url = getDownloadUrl(attachment)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = attachment.originalName
-  link.target = '_blank'
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
+  
+  auth.renewToken().catch(() => {}).then(() => {
+      const token = auth.getToken()
+      if (!token) {
+         const link = document.createElement('a')
+         link.href = url
+         link.download = attachment.originalName
+         link.target = '_blank'
+         document.body.appendChild(link)
+         link.click()
+         document.body.removeChild(link)
+         return
+      }
+    
+      fetch(url, { headers: { 'Authorization': `Bearer ${token}` } })
+    .then(r => {
+      if (!r.ok) throw new Error('Download failed')
+      return r.blob()
+    })
+    .then(blob => {
+       const blobUrl = URL.createObjectURL(blob)
+       const link = document.createElement('a')
+       link.href = blobUrl
+       link.download = attachment.originalName
+       document.body.appendChild(link)
+       link.click()
+       document.body.removeChild(link)
+       setTimeout(() => URL.revokeObjectURL(blobUrl), 100)
+    })
+    .catch(e => {
+        console.error('Download error', e)
+        alert('Nepodařilo se stáhnout soubor.')
+    })
+  })
 }
 
 function confirmDelete(attachment: FileAttachment) {
@@ -257,7 +352,7 @@ defineExpose({ refresh })
 .attachment-item__thumbnail {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
 }
 
 .attachment-item__info {

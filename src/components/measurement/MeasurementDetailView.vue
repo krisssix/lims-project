@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { ref, watch, computed, nextTick, onMounted, onBeforeUnmount, toRaw } from 'vue'
-import EntityEditorDialog from '@/components/EntityEditorDialog.vue'
 import ChartPanel from '@/components/chart/ChartPanel.vue'
 import TemplateSelect from '@/components/measurement/TemplateSelect.vue'
 import MarkdownEditor from '@/components/editor/MarkdownEditor.vue'
@@ -18,7 +17,6 @@ import {
   computeBasicStats,
   detectOutliersIqr,
   validateField,
-  toDateMs,
   type MeasurementRecord,
   type RecordField
 } from '@/utils/measurement-record-helpers'
@@ -26,34 +24,20 @@ import { uploadFile, extractFilesFromRecords } from '@/services/api/file-upload'
 import { config } from '@/config'
 import { contrastText } from '@/utils/colorContrast'
 import { type FileAttachment } from '@/composables/useAttachments'
-import { auth } from '@/stores/auth'
 
 
-const props = defineProps<{
-  modelValue: boolean
+const props = withDefaults(defineProps<{
+  modelValue?: boolean
   item: MeasurementResponse | null
   devices: DeviceItem[]
   members: string[]
   templates: TemplateItem[]
   currentUsername?: string
-}>()
+}>(), {
+  modelValue: true
+})
 
-const emits = defineEmits<{
-  (e: 'update:modelValue', v: boolean): void
-  (e: 'save', payload: {
-    value: number
-    type: string
-    unit: string
-    timestamp: number
-    values: MeasuredValue[]
-    boardCardId: number | null
-    note: string | null
-    measuredByUsername: string | null
-  }): void
-  (e: 'delete'): void
-  (e: 'prev'): void
-  (e: 'next'): void
-}>()
+const emits = defineEmits(['update:modelValue', 'save', 'delete', 'prev', 'next'])
 
 
 const TYPE_LABEL: Record<ValueType, string> = {
@@ -62,7 +46,9 @@ const TYPE_LABEL: Record<ValueType, string> = {
   text: 'Text',
   file: 'Soubor',
   bool: 'Boolean',
-  date: 'Datum'
+  date: 'Datum',
+  time: 'Čas',
+  datetime: 'Datum a čas'
 }
 
 // pomocná funkce: získání správné zenodo url (sandbox vs produkce)
@@ -85,6 +71,7 @@ const dateYmd = ref<string>('')
 const timeHM = ref<string>('')
 
 function pad2(n: number): string { return String(n).padStart(2, '0') }
+function fmt2(n: unknown): string { return typeof n === 'number' ? n.toFixed(2) : String(n ?? '') }
 function toYmdLocal(d: Date): string { return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}` }
 function hmFromMs(ms: number): string {
   const d = new Date(ms)
@@ -320,6 +307,24 @@ function buildFrom(item: MeasurementResponse | null): void {
   })
   if (vals.length) {
     records.value = groupValuesToRecords(vals)
+    // Apply schema from template to set correct required/optional status
+    const tplFields = templateFieldsForCurrent()
+    if (tplFields.length > 0) {
+      const requiredMap = new Map<string, boolean>()
+      tplFields.forEach(f => requiredMap.set(f.name, !!f.required))
+      
+      records.value.forEach(r => {
+        r.fields.forEach(f => {
+          if (requiredMap.has(f.name)) {
+            f.required = requiredMap.get(f.name)!
+          } else {
+             // If field exists in data but not in template, default to false (optional)? 
+             // Or keep true? Usually false is safer to avoid red fields for extra data.
+             f.required = false 
+          }
+        })
+      })
+    }
   } else {
     const tplFields = templateFieldsForCurrent()
     if (tplFields.length) {
@@ -501,9 +506,24 @@ function updateField(field: RecordField, raw: unknown): void {
     case 'int': field.value = parseNumber(raw, true); break
     case 'bool': field.value = normalizeBool(raw); break
     case 'date': {
-      // Use robust parser
-      const ms = toDateMs(raw)
-      field.value = ms
+      if (raw === null || raw === '') { field.value = null; break }
+      if (typeof raw === 'number') { field.value = raw; break }
+      if (typeof raw === 'string') {
+        const m = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+        if (m) {
+          const y = +m[1]; const mo = +m[2]; const d = +m[3]
+          field.value = new Date(y, mo - 1, d, 0, 0, 0, 0).getTime()
+        } else {
+          const ms = Date.parse(raw)
+          field.value = Number.isNaN(ms) ? null : ms
+        }
+        break
+      }
+      if (raw instanceof Date) {
+        field.value = new Date(raw.getFullYear(), raw.getMonth(), raw.getDate(), 0, 0, 0, 0).getTime()
+        break
+      }
+      field.value = null
       break
     }
     case 'file': field.value = raw; break
@@ -518,10 +538,9 @@ function textModel(field: RecordField): string | number | null | undefined {
   return (field.value ?? null) as string | number | null | undefined
 }
 function dateModel(field: RecordField): string | null {
-  if (typeof field.value !== 'number') return (field.value as string | null | undefined) ?? null
-  const d = new Date(field.value)
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+  return typeof field.value === 'number'
+      ? new Date(field.value).toISOString().slice(0, 10)
+      : (field.value as string | null | undefined) ?? null
 }
 
 function fileModel(field: RecordField): File | null | undefined {
@@ -571,44 +590,7 @@ function clearExistingFile(field: RecordField): void {
 }
 
 function fieldError(field: RecordField): string | null {
-  // Validace probíhá při vytváření, v detailu už nepotřebujeme zobrazovat chyby
-  return null
-}
-
-const previewImage = ref({ show: false, src: '', title: '' })
-
-async function openPreview(field: RecordField): Promise<void> {
-  if (!hasExistingFileUrl(field)) return
-  
-  const rawUrl = getFileDisplayUrl(field)
-  if (!rawUrl) return
-
-  try {
-    const token = auth.getToken()
-    const resp = await fetch(rawUrl, {
-      headers: { Authorization: `Bearer ${token}` }
-    })
-    
-    if (!resp.ok) throw new Error('Failed to load file')
-    
-    const blob = await resp.blob()
-    const objectUrl = URL.createObjectURL(blob)
-    
-    if (isImageFile(field)) {
-      previewImage.value = {
-        show: true,
-        src: objectUrl,
-        title: getFileNameFromUrl(field)
-      }
-    } else {
-      window.open(objectUrl, '_blank')
-    }
-  } catch (e) {
-    console.error('Preview error:', e)
-    // Fallback
-    // window.open(rawUrl, '_blank') // This causes 401 page if url is protected.
-    alert('Nepodařilo se načíst náhled souboru.')
-  }
+  return validateField(field)
 }
 
 
@@ -649,7 +631,17 @@ const chartPoints = computed<number[]>(() => {
   const subsetRecords = records.value.filter(r => subset.includes(r.recordIndex))
   return extractSeries(subsetRecords, selectedField.value)
 })
-const statsObj = computed(() => computeBasicStats(chartPoints.value))
+const statsObj = computed(() => {
+  const pts = chartPoints.value
+  const outs = outliers.value
+  // Pokud existují outliery, vyřadíme je ze základních statistik, abychom měli "očistěná" data (např. průměr bez extrémů)
+  if (outs && outs.outlierIndexes.length > 0) {
+    const outSet = new Set(outs.outlierIndexes)
+    const filtered = pts.filter((_, i) => !outSet.has(i))
+    if (filtered.length > 0) return computeBasicStats(filtered)
+  }
+  return computeBasicStats(pts)
+})
 const outliers = computed(() => detectOutliersIqr(chartPoints.value))
 const statsSummary = computed<string[]>(() => {
   if (!numericFieldNames.value.length) return ['Bez numerických dat']
@@ -662,7 +654,8 @@ const statsSummary = computed<string[]>(() => {
 const isSaving = ref(false)
 const canSaveMeta = computed(() =>
     !!selectedTemplateName.value.trim() &&
-    !!selectedDeviceId.value
+    !!selectedDeviceId.value &&
+    invalidCount.value === 0
 )
 
 async function onSave(): Promise<void> {
@@ -804,6 +797,56 @@ watch(() => props.modelValue, v => {
 onMounted(() => { if (props.modelValue) window.addEventListener('keydown', handleKey) })
 onBeforeUnmount(() => window.removeEventListener('keydown', handleKey))
 
+const outlierPopover = ref({
+  show: false,
+  x: 0,
+  y: 0,
+  recordIndex: 0,
+  value: 0,
+  fieldName: ''
+})
+
+function onPointClick(payload: { event: MouseEvent; idx: number; val: number }): void {
+  const { event, idx, val } = payload
+  
+  // Mapování indexu bodu v grafu zpět na záznam
+  const subset = selectedRecordIndexes.value.size
+      ? Array.from(selectedRecordIndexes.value)
+      : records.value.map(r => r.recordIndex)
+  
+  const subsetRecords = records.value.filter(r => subset.includes(r.recordIndex))
+  const target = subsetRecords[idx]
+  
+  if (target) {
+    outlierPopover.value = {
+      show: true,
+      x: Math.min(event.clientX, window.innerWidth - 220), // Prevent overflow right
+      y: Math.min(event.clientY, window.innerHeight - 150), // Prevent overflow bottom
+      recordIndex: target.recordIndex,
+      value: val,
+      fieldName: selectedField.value || 'Hodnota'
+    }
+  }
+}
+
+const highlightedField = ref<string | null>(null)
+
+function navigateToOutlier(): void {
+  onSelectRecord(outlierPopover.value.recordIndex)
+  valuesCollapsed.value = false
+  
+  // Nastavíme highlight
+  highlightedField.value = outlierPopover.value.fieldName
+  setTimeout(() => { highlightedField.value = null }, 3000)
+  
+  outlierPopover.value.show = false
+  // Pokus o scroll na hodnoty
+  nextTick(() => {
+    const el = document.getElementById('section-values')
+    if (el) el.scrollIntoView({ behavior: 'smooth' })
+  })
+}
+
 
 const liveStatus = computed<string>(() => {
   const errs = invalidCount.value
@@ -813,34 +856,24 @@ const liveStatus = computed<string>(() => {
 </script>
 
 <template>
-  <EntityEditorDialog
-    :is-open="modelValue"
-    entity-label="měření"
-    mode="edit"
-    :saving="isSaving"
-    :deletable="true"
-    :width="'1280px'"
-    :max-height="'90vh'"
-    :title-extra="dateYmd ? `${dateYmd}${timeHM ? ' ' + timeHM : ''}` : ''"
-    @update:is-open="v => emits('update:modelValue', v)"
-    @save="onSave"
-    @delete="() => emits('delete')"
-    @cancel="() => emits('update:modelValue', false)"
-  >
-    <template #header-right>
-      <v-btn
-        icon="mdi-chevron-up"
-        variant="text"
-        title="Předchozí měření (Ctrl+←)"
-        @click="() => emits('prev')"
-      />
-      <v-btn
-        icon="mdi-chevron-down"
-        variant="text"
-        title="Další měření (Ctrl+→)"
-        @click="() => emits('next')"
-      />
-    </template>
+  <div class="measurement-detail-view d-flex flex-column h-100">
+    <!-- Top Navigation / Actions -->
+     <div class="d-flex align-center justify-end px-4 py-2 bg-grey-lighten-5 border-b">
+         <v-btn
+            icon="mdi-chevron-up"
+            variant="text"
+            density="comfortable"
+            title="Předchozí měření (Ctrl+←)"
+            @click="() => emits('prev')"
+          />
+          <v-btn
+            icon="mdi-chevron-down"
+            variant="text"
+            density="comfortable"
+            title="Další měření (Ctrl+→)"
+            @click="() => emits('next')"
+          />
+     </div>
 
     <v-toolbar
       density="compact"
@@ -853,66 +886,65 @@ const liveStatus = computed<string>(() => {
         Detail měření
       </v-toolbar-title>
       <v-spacer />
-      <v-btn
-        size="small"
-        :variant="metaCollapsed ? 'tonal' : 'flat'"
-        :color="metaCollapsed ? undefined : 'primary'"
-        :aria-expanded="!metaCollapsed"
-        aria-controls="section-meta"
-        title="Meta"
-        @click="toggleMeta"
-      >
-        Meta
-      </v-btn>
-      <v-btn
-        size="small"
-        :variant="valuesCollapsed ? 'tonal' : 'flat'"
-        :color="valuesCollapsed ? undefined : 'primary'"
-        class="ml-2"
-        :aria-expanded="!valuesCollapsed"
-        aria-controls="section-values"
-        title="Hodnoty"
-        @click="toggleValues"
-      >
-        Hodnoty
-        <v-badge
-          v-if="invalidCount > 0"
-          :content="invalidCount"
-          color="error"
-          inline
-          class="ml-2"
-          :title="`${invalidCount} neplatných`"
-        />
-      </v-btn>
-      <v-btn
-        size="small"
-        :variant="statsCollapsed ? 'tonal' : 'flat'"
-        :color="statsCollapsed ? undefined : 'primary'"
-        class="ml-2"
-        :aria-expanded="!statsCollapsed"
-        aria-controls="section-stats"
-        title="Statistika"
-        @click="toggleStats"
-      >
-        Statistika
-      </v-btn>
-      <v-btn
-        size="small"
-        :variant="attachmentsCollapsed ? 'tonal' : 'flat'"
-        :color="attachmentsCollapsed ? undefined : 'primary'"
-        class="ml-2"
-        :aria-expanded="!attachmentsCollapsed"
-        aria-controls="section-attachments"
-        title="Přílohy"
-        @click="toggleAttachments"
-      >
-        Přílohy
-      </v-btn>
+      <div class="d-flex align-center gap-3">
+        <v-btn
+          size="small"
+          :variant="metaCollapsed ? 'tonal' : 'flat'"
+          :color="metaCollapsed ? undefined : 'primary'"
+          :aria-expanded="!metaCollapsed"
+          aria-controls="section-meta"
+          title="Meta"
+          @click="toggleMeta"
+        >
+          Meta
+        </v-btn>
+        <v-btn
+          size="small"
+          :variant="valuesCollapsed ? 'tonal' : 'flat'"
+          :color="valuesCollapsed ? undefined : 'primary'"
+          :aria-expanded="!valuesCollapsed"
+          aria-controls="section-values"
+          title="Hodnoty"
+          @click="toggleValues"
+        >
+          Hodnoty
+          <v-badge
+            v-if="invalidCount > 0"
+            :content="invalidCount"
+            color="error"
+            inline
+            class="ml-2"
+            :title="`${invalidCount} neplatných`"
+          />
+        </v-btn>
+        <v-btn
+          size="small"
+          :variant="statsCollapsed ? 'tonal' : 'flat'"
+          :color="statsCollapsed ? undefined : 'primary'"
+          :aria-expanded="!statsCollapsed"
+          aria-controls="section-stats"
+          title="Statistika"
+          @click="toggleStats"
+        >
+          Statistika
+        </v-btn>
+        <v-btn
+          size="small"
+          :variant="attachmentsCollapsed ? 'tonal' : 'flat'"
+          :color="attachmentsCollapsed ? undefined : 'primary'"
+          :aria-expanded="!attachmentsCollapsed"
+          aria-controls="section-attachments"
+          title="Přílohy"
+          @click="toggleAttachments"
+        >
+          Přílohy
+        </v-btn>
+      </div>
     </v-toolbar>
 
     <div
-      class="detail-scroll"
-      style="height:720px; overflow:auto; padding-right:4px;"
+      class="detail-scroll flex-grow-1"
+      style="overflow-y:auto; padding-right:4px;"
       aria-live="polite"
       :aria-label="liveStatus"
     >
@@ -932,6 +964,9 @@ const liveStatus = computed<string>(() => {
             <v-chip size="small" variant="tonal">{{ selectedUsername || '—' }}</v-chip>
             <v-chip size="small" variant="tonal">{{ selectedDeviceId || '—' }}</v-chip>
             <v-chip size="small" variant="tonal">{{ selectedTemplateName || '—' }}</v-chip>
+            <v-chip v-if="dateYmd || timeHM" size="small" variant="tonal" color="primary">
+              {{ dateYmd || '—' }} {{ timeHM || '' }}
+            </v-chip>
           </div>
           <v-spacer />
           <v-btn
@@ -945,196 +980,217 @@ const liveStatus = computed<string>(() => {
           </v-btn>
         </div>
         <div v-show="!metaCollapsed" class="meta-content">
-          <div class="subsection-label">ZÁKLADNÍ INFORMACE</div>
-          <v-row class="mb-4">
-            <v-col cols="12" md="4">
-              <div class="field-label">Člen</div>
-              <v-select
-                v-model="selectedUsername"
-                :items="members"
-                variant="outlined"
-                density="comfortable"
-                hide-details="auto"
-                clearable
-                data-meta-first
-                placeholder="Vyberte člena..."
+          <!-- Základní informace -->
+          <div class="info-card">
+            <div class="info-card-header">
+              <v-icon size="18" color="primary">mdi-account-details</v-icon>
+              <span class="info-card-title">Základní informace</span>
+            </div>
+            <v-row class="mt-2">
+              <v-col cols="12" md="4">
+                <div class="field-label">Člen</div>
+                <v-select
+                  v-model="selectedUsername"
+                  :items="members"
+                  variant="outlined"
+                  density="comfortable"
+                  hide-details="auto"
+                  clearable
+                  data-meta-first
+                  placeholder="Vyberte člena..."
+                />
+              </v-col>
+              <v-col cols="12" md="4">
+                <div class="field-label">Přístroj</div>
+                <v-select
+                  v-model="selectedDeviceId"
+                  :items="devices"
+                  item-title="name"
+                  item-value="id"
+                  variant="outlined"
+                  density="comfortable"
+                  hide-details="auto"
+                  readonly
+                  disabled
+                  bg-color="grey-lighten-4"
+                >
+                  <template #selection="{ item }">
+                    <v-chip
+                      size="small"
+                      :color="item.raw?.color || 'primary'"
+                      variant="flat"
+                      :style="{ color: item.raw?.color ? contrastText(item.raw.color) : 'white' }"
+                    >
+                      {{ item.raw?.id }}
+                    </v-chip>
+                  </template>
+                </v-select>
+              </v-col>
+              <v-col cols="12" md="4">
+                <div class="field-label">Šablona</div>
+                <TemplateSelect
+                  v-model="selectedTemplateName"
+                  :items="templates"
+                  :device-id="selectedDeviceId"
+                  value-key="name"
+                  readonly
+                  disabled
+                />
+              </v-col>
+            </v-row>
+          </div>
+
+          <!-- Datum a čas měření -->
+          <div class="info-card">
+            <div class="info-card-header">
+              <v-icon size="18" color="primary">mdi-calendar-clock</v-icon>
+              <span class="info-card-title">Datum a čas měření</span>
+            </div>
+            <v-row class="mt-2">
+              <v-col cols="12" md="6">
+                <div class="field-label">Datum měření</div>
+                <v-text-field
+                  v-model="dateYmd"
+                  type="date"
+                  variant="outlined"
+                  density="comfortable"
+                  hide-details="auto"
+                />
+              </v-col>
+              <v-col cols="12" md="6">
+                <div class="field-label">Čas měření</div>
+                <v-text-field
+                  v-model="timeHM"
+                  type="time"
+                  variant="outlined"
+                  density="comfortable"
+                  hide-details="auto"
+                />
+              </v-col>
+            </v-row>
+          </div>
+
+          <!-- Datum a čas vložení -->
+          <div v-if="createdAtFormatted.date" class="info-card">
+            <div class="info-card-header">
+              <v-icon size="18" color="success">mdi-clock-plus-outline</v-icon>
+              <span class="info-card-title">Datum a čas vložení</span>
+            </div>
+            <v-row class="mt-2">
+              <v-col cols="12" md="6">
+                <div class="field-label">Datum vložení</div>
+                <v-text-field
+                  :model-value="createdAtFormatted.date"
+                  type="text"
+                  variant="outlined"
+                  density="comfortable"
+                  hide-details="auto"
+                  readonly
+                  bg-color="grey-lighten-4"
+                />
+              </v-col>
+              <v-col cols="12" md="6">
+                <div class="field-label">Čas vložení</div>
+                <v-text-field
+                  :model-value="createdAtFormatted.time"
+                  type="text"
+                  variant="outlined"
+                  density="comfortable"
+                  hide-details="auto"
+                  readonly
+                  bg-color="grey-lighten-4"
+                />
+              </v-col>
+            </v-row>
+          </div>
+
+          <!-- Datum a čas změny -->
+          <div v-if="updatedAtFormatted.date" class="info-card">
+            <div class="info-card-header">
+              <v-icon size="18" color="warning">mdi-clock-edit-outline</v-icon>
+              <span class="info-card-title">Datum a čas změny</span>
+            </div>
+            <v-row class="mt-2">
+              <v-col cols="12" md="6">
+                <div class="field-label">Datum změny</div>
+                <v-text-field
+                  :model-value="updatedAtFormatted.date"
+                  type="text"
+                  variant="outlined"
+                  density="comfortable"
+                  hide-details="auto"
+                  readonly
+                  bg-color="grey-lighten-4"
+                />
+              </v-col>
+              <v-col cols="12" md="6">
+                <div class="field-label">Čas změny</div>
+                <v-text-field
+                  :model-value="updatedAtFormatted.time"
+                  type="text"
+                  variant="outlined"
+                  density="comfortable"
+                  hide-details="auto"
+                  readonly
+                  bg-color="grey-lighten-4"
+                />
+              </v-col>
+            </v-row>
+          </div>
+
+          <!-- Poznámky -->
+          <div class="info-card">
+            <div class="info-card-header">
+              <v-icon size="18" color="primary">mdi-notebook-outline</v-icon>
+              <span class="info-card-title">Poznámky</span>
+            </div>
+            <div class="mt-2">
+              <MarkdownEditor
+                v-model="noteText"
+                :min-height="'150px'"
+                placeholder="Pište poznámky v markdown formátu..."
               />
-            </v-col>
-            <v-col cols="12" md="4">
-              <div class="field-label">Přístroj</div>
-              <v-select
-                v-model="selectedDeviceId"
-                :items="devices"
-                item-title="name"
-                item-value="id"
-                variant="outlined"
-                density="comfortable"
-                hide-details="auto"
-                readonly
-                disabled
-                bg-color="grey-lighten-4"
-              >
-                <template #selection="{ item }">
-                  <v-chip
-                    size="small"
-                    :color="item.raw?.color || 'primary'"
-                    variant="flat"
-                    :style="{ color: item.raw?.color ? contrastText(item.raw.color) : 'white' }"
+            </div>
+          </div>
+
+          <!-- Zenodo publikace -->
+          <div v-if="item?.zenodoDoi" class="info-card">
+            <div class="info-card-header">
+              <v-icon size="18" color="deep-purple">mdi-cloud-check</v-icon>
+              <span class="info-card-title">Zenodo publikace</span>
+            </div>
+            <v-alert
+              type="info"
+              variant="tonal"
+              color="deep-purple"
+              class="mt-2"
+              density="compact"
+            >
+              <div class="d-flex align-center justify-space-between flex-wrap" style="gap: 8px;">
+                <div>
+                  <strong>DOI:</strong>
+                  <a
+                    :href="getZenodoUrl(item.zenodoDoi)"
+                    target="_blank"
+                    class="text-decoration-none ml-2"
+                    style="font-family: monospace;"
                   >
-                    {{ item.raw?.id }}
-                  </v-chip>
-                </template>
-              </v-select>
-            </v-col>
-            <v-col cols="12" md="4">
-              <div class="field-label">Šablona</div>
-              <TemplateSelect
-                v-model="selectedTemplateName"
-                :items="templates"
-                :device-id="selectedDeviceId"
-                value-key="name"
-                readonly
-                disabled
-              />
-            </v-col>
-          </v-row>
-
-
-
-          <div class="subsection-label">DATUM A ČAS MĚŘENÍ</div>
-          <v-row class="mb-4">
-            <v-col cols="12" md="6">
-              <div class="field-label">Datum měření</div>
-              <v-text-field
-                v-model="dateYmd"
-                type="date"
-                variant="outlined"
-                density="comfortable"
-                hide-details="auto"
-              />
-            </v-col>
-            <v-col cols="12" md="6">
-              <div class="field-label">Čas měření</div>
-              <v-text-field
-                v-model="timeHM"
-                type="time"
-                variant="outlined"
-                density="comfortable"
-                hide-details="auto"
-              />
-            </v-col>
-          </v-row>
-
-
-
-          <div v-if="createdAtFormatted.date" class="subsection-label">DATUM A ČAS VLOŽENÍ</div>
-          <v-row v-if="createdAtFormatted.date" class="mb-4">
-            <v-col cols="12" md="6">
-              <div class="field-label">Datum vložení</div>
-              <v-text-field
-                :model-value="createdAtFormatted.date"
-                type="text"
-                variant="outlined"
-                density="comfortable"
-                hide-details="auto"
-                readonly
-                bg-color="grey-lighten-4"
-              />
-            </v-col>
-            <v-col cols="12" md="6">
-              <div class="field-label">Čas vložení</div>
-              <v-text-field
-                :model-value="createdAtFormatted.time"
-                type="text"
-                variant="outlined"
-                density="comfortable"
-                hide-details="auto"
-                readonly
-                bg-color="grey-lighten-4"
-              />
-            </v-col>
-          </v-row>
-
-
-
-          <div v-if="updatedAtFormatted.date" class="subsection-label">DATUM A ČAS ZMĚNY</div>
-          <v-row v-if="updatedAtFormatted.date" class="mb-4">
-            <v-col cols="12" md="6">
-              <div class="field-label">Datum změny</div>
-              <v-text-field
-                :model-value="updatedAtFormatted.date"
-                type="text"
-                variant="outlined"
-                density="comfortable"
-                hide-details="auto"
-                readonly
-                bg-color="grey-lighten-4"
-              />
-            </v-col>
-            <v-col cols="12" md="6">
-              <div class="field-label">Čas změny</div>
-              <v-text-field
-                :model-value="updatedAtFormatted.time"
-                type="text"
-                variant="outlined"
-                density="comfortable"
-                hide-details="auto"
-                readonly
-                bg-color="grey-lighten-4"
-              />
-            </v-col>
-          </v-row>
-
-
-
-          <div class="subsection-label d-flex align-center" style="gap: 6px;">
-            <v-icon size="16">mdi-notebook-outline</v-icon>
-            Poznámky
-          </div>
-          <MarkdownEditor
-            v-model="noteText"
-            :min-height="'150px'"
-            placeholder="Pište poznámky v markdown formátu..."
-          />
-
-
-
-          <div v-if="item?.zenodoDoi" class="subsection-label d-flex align-center mt-4" style="gap: 6px;">
-            <v-icon size="16" color="deep-purple">mdi-cloud-check</v-icon>
-            Zenodo publikace
-          </div>
-          <v-alert
-            v-if="item?.zenodoDoi"
-            type="info"
-            variant="tonal"
-            color="deep-purple"
-            class="mt-2"
-            density="compact"
-          >
-            <div class="d-flex align-center justify-space-between flex-wrap" style="gap: 8px;">
-              <div>
-                <strong>DOI:</strong>
-                <a
+                    {{ item.zenodoDoi }}
+                  </a>
+                </div>
+                <v-btn
                   :href="getZenodoUrl(item.zenodoDoi)"
                   target="_blank"
-                  class="text-decoration-none ml-2"
-                  style="font-family: monospace;"
+                  size="small"
+                  variant="tonal"
+                  color="deep-purple"
+                  prepend-icon="mdi-open-in-new"
                 >
-                  {{ item.zenodoDoi }}
-                </a>
+                  Otevřít v Zenodo
+                </v-btn>
               </div>
-              <v-btn
-                :href="getZenodoUrl(item.zenodoDoi)"
-                target="_blank"
-                size="small"
-                variant="tonal"
-                color="deep-purple"
-                prepend-icon="mdi-open-in-new"
-              >
-                Otevřít v Zenodo
-              </v-btn>
-            </div>
-          </v-alert>
+            </v-alert>
+          </div>
         </div>
       </section>
 
@@ -1350,7 +1406,9 @@ const liveStatus = computed<string>(() => {
             <div class="cell muted">
               Hodnota
             </div>
-
+            <div class="cell muted">
+              Stav
+            </div>
           </div>
 
           <transition-group
@@ -1361,7 +1419,7 @@ const liveStatus = computed<string>(() => {
               v-for="(field, idx) in currentBlockFields"
               :key="field.name"
               class="grid data-row"
-              :class="{'has-error': !!fieldError(field)}"
+              :class="{'has-error': !!fieldError(field), 'row-highlight-pulse': highlightedField === field.name}"
               :aria-label="`Field ${idx+1}: ${field.name} (${TYPE_LABEL[field.type]})`"
             >
               <div class="cell name name-with-chip">
@@ -1419,8 +1477,27 @@ const liveStatus = computed<string>(() => {
                 <v-text-field
                   v-else-if="field.type === 'date'"
                   :model-value="dateModel(field)"
+                  type="date"
+                  variant="outlined"
+                  density="comfortable"
+                  hide-details="auto"
+                  data-field-input
+                  @update:model-value="val => updateField(field, val)"
+                />
+                <v-text-field
+                  v-else-if="field.type === 'time'"
+                  :model-value="textModel(field)"
+                  type="time"
+                  variant="outlined"
+                  density="comfortable"
+                  hide-details="auto"
+                  data-field-input
+                  @update:model-value="val => updateField(field, val)"
+                />
+                <v-text-field
+                  v-else-if="field.type === 'datetime'"
+                  :model-value="textModel(field)"
                   type="datetime-local"
-                  step="1"
                   variant="outlined"
                   density="comfortable"
                   hide-details="auto"
@@ -1436,15 +1513,13 @@ const liveStatus = computed<string>(() => {
                       max-width="60"
                       max-height="60"
                       class="rounded border"
-                      style="cursor: pointer"
-                      @click="openPreview(field)"
+                      cover
                     />
                     <v-icon v-else size="24" color="grey">mdi-file-document-outline</v-icon>
                     <a
                       :href="getFileDisplayUrl(field)"
                       target="_blank"
                       class="text-primary text-decoration-none"
-                      @click.prevent="openPreview(field)"
                     >
                       {{ getFileNameFromUrl(field) }}
                     </a>
@@ -1482,7 +1557,28 @@ const liveStatus = computed<string>(() => {
                 />
               </div>
 
-
+              <div class="cell right">
+                <v-tooltip
+                  v-if="fieldError(field)"
+                  location="top"
+                >
+                  <template #activator="{ props: tp }">
+                    <v-icon
+                      v-bind="tp"
+                      size="18"
+                      color="error"
+                      icon="mdi-alert-circle-outline"
+                    />
+                  </template>
+                  <span>{{ fieldError(field) }}</span>
+                </v-tooltip>
+                <v-icon
+                  v-else
+                  size="18"
+                  color="green-darken-2"
+                  icon="mdi-check-circle-outline"
+                />
+              </div>
             </div>
           </transition-group>
         </div>
@@ -1529,26 +1625,14 @@ const liveStatus = computed<string>(() => {
           class="pa-4 rounded-lg"
           aria-label="Panel statistik"
         >
-          <div
-            class="d-flex align-center mb-3 flex-wrap"
-            style="gap:8px;"
-          >
-            <div class="text-caption font-weight-medium">
-              Numerická pole:
-            </div>
-            <div
-              class="d-flex align-center flex-wrap"
-              style="gap:6px;"
-            >
-            </div>
-          </div>
-
           <ChartPanel
             :chart-points="chartPoints"
             :stats="statsObj"
             :fields="numericFieldNames"
             :selected-field="selectedField"
+            :outliers="outliers"
             @select-field="f => (selectedField = f)"
+            @point-click="onPointClick"
           />
           <div
             v-if="outliers.outlierIndexes.length"
@@ -1685,7 +1769,7 @@ const liveStatus = computed<string>(() => {
 
       <section
         id="section-attachments"
-        class="mt-4"
+        class="attachments-section mt-4"
         :aria-hidden="attachmentsCollapsed"
       >
         <div class="section-header-row">
@@ -1703,32 +1787,46 @@ const liveStatus = computed<string>(() => {
           </v-btn>
         </div>
         <div v-show="!attachmentsCollapsed" class="attachments-content">
-          <FileUploader
-            v-if="item?.id"
-            :measurement-id="item.id"
-            class="mb-4"
-            @uploaded="onAttachmentUploaded"
-          />
-          <v-alert
-            v-else
-            type="info"
-            variant="tonal"
-            density="compact"
-            class="mb-4"
-          >
-            Uložte měření pro možnost přidávat přílohy.
-          </v-alert>
+          <div class="info-card">
+            <div class="info-card-header">
+              <v-icon size="18" color="primary">mdi-cloud-upload</v-icon>
+              <span class="info-card-title">Nahrát přílohy</span>
+            </div>
+            <div class="mt-2">
+              <FileUploader
+                v-if="item?.id"
+                :measurement-id="item.id"
+                @uploaded="onAttachmentUploaded"
+              />
+              <v-alert
+                v-else
+                type="info"
+                variant="tonal"
+                density="compact"
+              >
+                Uložte měření pro možnost přidávat přílohy.
+              </v-alert>
+            </div>
+          </div>
 
-          <AttachmentList
-            v-if="item?.id"
-            ref="attachmentListRef"
-            :measurement-id="item.id"
-          />
+          <div v-if="item?.id" class="info-card">
+            <div class="info-card-header">
+              <v-icon size="18" color="primary">mdi-file-multiple</v-icon>
+              <span class="info-card-title">Seznam příloh</span>
+            </div>
+            <div class="mt-2">
+              <AttachmentList
+                ref="attachmentListRef"
+                :measurement-id="item.id"
+              />
+            </div>
+          </div>
         </div>
       </section>
     </div>
 
-    <template #footer>
+    <!-- Footer -->
+    <div class="view-footer pa-3 border-t bg-white">
       <div class="d-flex align-center justify-space-between w-100">
         <div class="text-caption text-medium-emphasis">
           <span v-if="invalidCount > 0">
@@ -1761,22 +1859,75 @@ const liveStatus = computed<string>(() => {
           </v-btn>
         </div>
       </div>
-    </template>
-  </EntityEditorDialog>
+    </div>
 
-  <v-dialog v-model="previewImage.show" max-width="90vw" max-height="90vh">
-    <v-card class="bg-black">
-      <v-toolbar density="compact" color="black">
-        <v-toolbar-title class="text-white text-caption">{{ previewImage.title }}</v-toolbar-title>
-        <v-spacer />
-        <v-btn icon="mdi-close" variant="text" color="white" @click="previewImage.show = false" />
-      </v-toolbar>
-      <div class="d-flex align-center justify-center" style="height: calc(90vh - 48px); overflow: hidden;">
-        <v-img :src="previewImage.src" max-height="100%" max-width="100%" contain />
+    <!-- Outlier Detail Popover -->
+    <v-card
+      v-if="outlierPopover.show"
+      class="outlier-popover"
+      elevation="4"
+      :style="{
+        top: outlierPopover.y + 'px',
+        left: outlierPopover.x + 'px'
+      }"
+      v-click-outside="() => outlierPopover.show = false"
+    >
+      <div class="d-flex align-center justify-space-between mb-2">
+        <span class="text-subtitle-2 font-weight-bold">Detail outlieru</span>
+        <v-btn
+          icon="mdi-close"
+          size="x-small"
+          variant="text"
+          density="comfortable"
+          @click="outlierPopover.show = false"
+        />
+      </div>
+      
+      <div class="text-caption text-medium-emphasis mb-1">
+        {{ outlierPopover.fieldName }}
+      </div>
+      <div class="text-h6 font-weight-bold text-primary mb-2">
+        {{ fmt2(outlierPopover.value) }}
+      </div>
+      
+      <div class="d-flex align-center justify-space-between mt-3 gap-2">
+        <div class="text-caption">
+          Záznam #{{ outlierPopover.recordIndex }}
+        </div>
+        <v-btn
+          size="small"
+          color="primary"
+          variant="flat"
+          prepend-icon="mdi-target"
+          @click="navigateToOutlier"
+        >
+          Ukázat hodnotu
+        </v-btn>
       </div>
     </v-card>
-  </v-dialog>
+    
+  </div>
 </template>
+
+<style scoped>
+.outlier-popover {
+  position: fixed;
+  z-index: 9999; /* Above dialogs */
+  width: 240px;
+  background: white;
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(0,0,0,0.1);
+}
+
+.row-highlight-pulse {
+  animation: bg-pulse 3s ease-out;
+}
+@keyframes bg-pulse {
+  0% { background-color: rgba(var(--v-theme-primary), 0.25); }
+  100% { background-color: transparent; }
+}
+</style>
 
 <style scoped>
 .section-card {
@@ -1823,7 +1974,7 @@ const liveStatus = computed<string>(() => {
 
 .grid {
   display: grid;
-  grid-template-columns: 1fr minmax(240px, 1.5fr);
+  grid-template-columns: 1fr minmax(240px, 1.5fr) 72px;
   gap: 8px;
   align-items: center;
 }
@@ -2026,6 +2177,38 @@ const liveStatus = computed<string>(() => {
 
 .meta-content {
   margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.info-card {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 12px;
+  transition: all 0.2s ease;
+}
+
+.info-card:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.info-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 2px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.info-card-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #1e293b;
+  letter-spacing: 0.01em;
 }
 
 .subsection-label {
@@ -2043,5 +2226,49 @@ const liveStatus = computed<string>(() => {
   font-weight: 500;
   color: #374151;
   margin-bottom: 6px;
+}
+
+/* Toolbar spacing fix */
+.sticky-toolbar {
+  gap: 6px !important;
+}
+
+.sticky-toolbar .v-btn {
+  margin: 0 !important;
+}
+
+.attachments-section {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 12px 16px;
+}
+
+.attachments-content {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.meta-section {
+  background: #fafbfc;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 12px 16px;
+}
+
+.values-section {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 12px 16px;
+}
+
+.stats-section {
+  background: linear-gradient(135deg, #f0fdf4 0%, #f0f9ff 100%);
+  border: 1px solid #bbf7d0;
+  border-radius: 12px;
+  padding: 12px 16px;
 }
 </style>

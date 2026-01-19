@@ -3,9 +3,13 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useDeviceStore, type Device } from '@/stores/devices'
 import DeviceCreateDialog from '@/components/device/DeviceCreateDialog.vue'
 import DeviceDetailDialog from '@/components/device/DeviceDetailDialog.vue'
+import SearchBar from '@/components/ui/SearchBar.vue'
 
 const store = useDeviceStore()
 const errorText = computed(() => store.errorText)
+
+// View mode: 'grid' or 'table'
+const viewMode = ref<'grid' | 'table'>('table')
 
 // Přepínač aktivních
 const showOnlyActive = ref(true)
@@ -19,6 +23,14 @@ const filtered = computed<Device[]>(() => {
   if (! q) return base
   return base.filter(d => d.name.toLowerCase().includes(q) || d.code.toLowerCase().includes(q))
 })
+
+// Statistics
+const stats = computed(() => ({
+  total: baseList.value.length,
+  active: baseList.value.filter(d => d.active).length,
+  inactive: baseList.value.filter(d => !d.active).length,
+  filtered: filtered.value.length
+}))
 
 // Multi-select s Ctrl a Shift
 const selectedIds = ref<Set<number>>(new Set())
@@ -59,7 +71,7 @@ function selectRange(fromId: number | null, toId: number): void {
   }
 }
 
-function handleRowClick(device: Device, event: MouseEvent): void {
+function handleCardClick(device: Device, event: MouseEvent): void {
   if (event.shiftKey && lastClickedId.value !== null) {
     selectRange(lastClickedId.value, device.id)
   } else if (event.ctrlKey || event.metaKey) {
@@ -77,19 +89,14 @@ function handleRowClick(device: Device, event: MouseEvent): void {
   }
 }
 
-function handleCheckboxClick(device: Device, checked: boolean, event: MouseEvent): void {
-  if (event.shiftKey && lastClickedId.value !== null) {
-    selectRange(lastClickedId.value, device.id)
+function toggleSelection(device: Device): void {
+  const newSet = new Set(selectedIds.value)
+  if (newSet.has(device.id)) {
+    newSet.delete(device.id)
   } else {
-    const newSet = new Set(selectedIds.value)
-    if (checked) {
-      newSet.add(device.id)
-    } else {
-      newSet.delete(device.id)
-    }
-    selectedIds.value = newSet
+    newSet.add(device.id)
   }
-  lastClickedId.value = device.id
+  selectedIds.value = newSet
 }
 
 function isSelected(id: number): boolean {
@@ -107,8 +114,9 @@ function selectAll(): void {
 
 // Table headers for v-data-table
 const tableHeaders = [
+  { title: 'Kód přístroje', key: 'code', width: '150px', sortable: true },
   { title: 'Název přístroje', key: 'name', sortable: true },
-  { title: 'Kód přístroje', key: 'code', width: '220px', sortable: true },
+  { title: 'Stav', key: 'active', width: '120px', sortable: true },
 ]
 
 // Two-way binding for v-data-table selection
@@ -148,9 +156,7 @@ async function bulkDeactivate(): Promise<void> {
   if (selectedIds.value.size === 0 || bulkLoading.value) return
   bulkLoading.value = true
   try {
-    for (const id of selectedIds.value) {
-      await store.deactivateDevice(id)
-    }
+    await store.bulkDeactivate(Array.from(selectedIds.value))
     clearSelection()
   } finally {
     bulkLoading.value = false
@@ -161,9 +167,7 @@ async function bulkReactivate(): Promise<void> {
   if (selectedIds.value.size === 0 || bulkLoading.value) return
   bulkLoading.value = true
   try {
-    for (const id of selectedIds.value) {
-      await store.reactivateDevice(id)
-    }
+    await store.bulkReactivate(Array.from(selectedIds.value))
     clearSelection()
   } finally {
     bulkLoading.value = false
@@ -227,286 +231,484 @@ onBeforeUnmount(() => {
   window.removeEventListener('keydown', handleKey)
   window.removeEventListener('keyup', handleKeyUp)
 })
+
+// Helper to darken color for gradient
+function adjustColor(color: string): string {
+  // Simple darkening by reducing lightness
+  if (color.startsWith('#')) {
+    const r = parseInt(color.slice(1, 3), 16)
+    const g = parseInt(color.slice(3, 5), 16)
+    const b = parseInt(color.slice(5, 7), 16)
+    const darken = (val: number) => Math.max(0, Math.floor(val * 0.8))
+    return `#${darken(r).toString(16).padStart(2, '0')}${darken(g).toString(16).padStart(2, '0')}${darken(b).toString(16).padStart(2, '0')}`
+  }
+  return color
+}
 </script>
 
 <template>
-  <v-container fluid class="pa-0">
-    <!-- Unified top toolbar like Measurements/Reservations -->
-    <v-toolbar color="white" class="border-b-sm pl-3 pr-3" density="comfortable">
-      <v-btn
-        color="primary"
-        variant="flat"
-        prepend-icon="mdi-plus"
-        title="Vytvořit nový přístroj (N)"
-        @click="openCreate"
-      >
-        NOVÝ PŘÍSTROJ
-      </v-btn>
+  <v-container fluid class="pa-0" style="background: linear-gradient(to bottom, #f8fafc 0%, #f1f5f9 100%);">
+    <!-- Top Toolbar -->
+    <div class="top-toolbar">
+       <!-- Primary Action -->
+       <button class="btn-primary" @click="openCreate">
+         <i class="mdi mdi-plus"></i>
+         Nový přístroj
+       </button>
 
-      <v-divider vertical class="mx-3" />
+       <div class="view-selector-modern" style="margin-left: auto;">
+         <button
+           :class="['view-option-modern', { active: viewMode === 'table' }]"
+           @click="viewMode = 'table'"
+         >
+           <i class="mdi mdi-view-list"></i>
+           Tabulka
+         </button>
+         <button
+           :class="['view-option-modern', { active: viewMode === 'grid' }]"
+           @click="viewMode = 'grid'"
+         >
+           <i class="mdi mdi-view-grid"></i>
+           Karty
+         </button>
+       </div>
+    </div>
 
-      <!-- Bulk actions (visible when items selected) -->
-      <template v-if="selectedIds.size > 0">
-        <v-chip
-          color="primary"
-          variant="tonal"
-          closable
-          class="mr-2"
-          @click:close="clearSelection"
-        >
-          Vybráno: {{ selectedIds.size }}
-        </v-chip>
-        <v-btn
-          variant="tonal"
-          color="error"
-          size="small"
-          :disabled="!canDeactivate"
-          :loading="bulkLoading"
-          prepend-icon="mdi-close-circle-outline"
-          title="Deaktivovat vybrané (A)"
-          class="mr-2"
-          @click="bulkDeactivate"
-        >
-          Deaktivovat
-        </v-btn>
-        <v-btn
-          variant="tonal"
-          color="success"
-          size="small"
-          :disabled="!canReactivate"
-          :loading="bulkLoading"
-          prepend-icon="mdi-check-circle-outline"
-          title="Reaktivovat vybrané (R)"
-          @click="bulkReactivate"
-        >
-          Reaktivovat
-        </v-btn>
-        <v-divider vertical class="mx-3" />
-      </template>
-
-      <!-- Selection mode indicator -->
-      <v-fade-transition>
-        <v-chip
-          v-if="shiftPressed"
-          color="deep-purple"
-          variant="flat"
-          size="small"
-          prepend-icon="mdi-select-multiple"
-        >
-          Režim výběru rozsahu
-        </v-chip>
-      </v-fade-transition>
-
-      <v-spacer />
-    </v-toolbar>
-
-    <v-container fluid class="pa-4">
-
-    <!-- Error alert -->
-    <v-alert
-      v-if="errorText"
-      type="error"
-      variant="tonal"
-      class="mb-3"
-    >
-      {{ errorText }}
-    </v-alert>
-
-    <!-- Info about selection -->
-    <v-alert
-      type="info"
-      variant="tonal"
-      density="compact"
-      class="mb-3"
-    >
-      <template #prepend>
-        <v-icon>mdi-keyboard</v-icon>
-      </template>
-      <strong>Tip:</strong> Kliknutím otevřete detail.
-      <kbd>Ctrl</kbd>+klik pro výběr více přístrojů,
-      <kbd>Shift</kbd>+klik pro výběr rozsahu.
-    </v-alert>
-
-    <!-- Table Card -->
-    <v-sheet elevation="1" class="pa-4 rounded-xl">
-      <!-- Table Toolbar with Search and Filter -->
-      <div class="table-toolbar">
-        <!-- Search Bar -->
-        <v-text-field
-          v-model="filterText"
-          placeholder="Hledat podle názvu přístroje nebo kódu"
-          variant="solo-filled"
-          density="comfortable"
-          hide-details
-          bg-color="grey-lighten-4"
-          prepend-inner-icon="mdi-magnify"
-          clearable
-          class="search-bar"
-          @click:clear="filterText = ''"
-        />
-        
-        <!-- Active Toggle -->
-        <div class="filter-toggle">
-          <v-switch
-            v-model="showOnlyActive"
-            color="primary"
-            density="comfortable"
-            hide-details
-          >
-            <template #label>
-              <span class="text-body-2">Pouze aktivní</span>
-            </template>
-          </v-switch>
-        </div>
-      </div>
-
-      <!-- Data Table -->
-      <v-data-table
-        :items="filtered"
-        :headers="tableHeaders"
-        :items-per-page="15"
-        hover
-        class="modern-table elevation-0"
-        :class="{ 'shift-mode': shiftPressed }"
-        show-select
-        item-value="id"
-        v-model="selectedIdsArray"
-      >
-        <!-- Device name with status chip -->
-        <template #item.name="{ item }">
-          <div 
-            class="d-flex align-center ga-2 device-row-content"
-            @click="openDetail(item)"
-          >
-            <span class="font-weight-medium">{{ item.name }}</span>
-            <v-chip
-              size="small"
-              :color="item.active ? 'success' : 'grey'"
-              variant="flat"
-            >
-              <v-icon size="14" start>
-                {{ item.active ? 'mdi-check-circle' : 'mdi-close-circle' }}
-              </v-icon>
-              {{ item.active ? 'Aktivní' : 'Neaktivní' }}
-            </v-chip>
+     <v-container fluid class="pa-6">
+       <!-- Error Alert -->
+       <v-scroll-y-transition>
+         <v-alert
+           v-if="errorText"
+           type="error"
+           variant="tonal"
+           closable
+           rounded="lg"
+           class="mb-6"
+         >
+           {{ errorText }}
+         </v-alert>
+       </v-scroll-y-transition>
+       
+       <!-- Statistics Cards -->
+       <v-row class="mb-6">
+          <v-col cols="12" sm="6" md="4">
+             <v-card flat class="pa-4 rounded-xl border" style="background: #eff6ff;">
+                 <div class="text-h3 font-weight-bold" style="color: #3b82f6;">{{ stats.total }}</div>
+                 <div class="text-caption" style="color: #64748b;">Celkem přístrojů</div>
+             </v-card>
+          </v-col>
+          
+          <v-col cols="12" sm="6" md="4">
+             <v-card flat class="pa-4 rounded-xl border" style="background: #f0fdf4;">
+                 <div class="text-h3 font-weight-bold" style="color: #10b981;">{{ stats.active }}</div>
+                 <div class="text-caption" style="color: #64748b;">Aktivních</div>
+             </v-card>
+          </v-col>
+          
+           <v-col cols="12" sm="6" md="4">
+             <v-card flat class="pa-4 rounded-xl border" style="background: #fef2f2;">
+                 <div class="text-h3 font-weight-bold" style="color: #ef4444;">{{ stats.inactive }}</div>
+                 <div class="text-caption" style="color: #64748b;">Neaktivních</div>
+             </v-card>
+          </v-col>
+       </v-row>
+       
+       <!-- Content Card -->
+       <v-card flat class="rounded-xl overflow-hidden elevation-2" style="border: 1px solid #e2e8f0;">
+          <!-- Filter Toolbar -->
+          <div class="filter-toolbar-modern">
+              <div class="search-field-modern">
+                 <SearchBar v-model="filterText" placeholder="Hledat přístroje..." />
+              </div>
+              
+              <!-- Modern Toggle Switch -->
+              <div class="toggle-switch-wrapper">
+                <label class="switch-modern">
+                  <input type="checkbox" v-model="showOnlyActive">
+                  <span class="slider-modern"></span>
+                </label>
+                <span class="switch-label-modern">Pouze aktivní</span>
+              </div>
           </div>
-        </template>
-
-        <!-- Code chip with color -->
-        <template #item.code="{ item }">
-          <div class="d-flex justify-start">
-            <v-chip
-              size="small"
-              variant="flat"
-              :style="{ backgroundColor: item.color || '#1976D2', color: '#fff' }"
-            >
-              {{ item.code }}
-            </v-chip>
+          
+          <!-- Bulk Actions Header -->
+          <v-expand-transition>
+             <div v-if="selectedIds.size > 0" class="px-4 py-3 d-flex align-center" style="background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%); border-bottom: 1px solid #93c5fd;">
+                 <v-icon color="primary" class="mr-2">mdi-checkbox-marked-circle</v-icon>
+                 <span class="text-subtitle-2 text-primary font-weight-bold mr-4">
+                    {{ selectedIds.size }} {{ selectedIds.size === 1 ? 'přístroj vybrán' : selectedIds.size < 5 ? 'přístroje vybrány' : 'přístrojů vybráno' }}
+                 </span>
+                 <v-divider vertical class="mx-2"></v-divider>
+                 
+                 <v-btn
+                   size="small"
+                   variant="flat"
+                   color="error"
+                   prepend-icon="mdi-close-circle"
+                   rounded="lg"
+                   :loading="bulkLoading"
+                   :disabled="!canDeactivate"
+                   class="mr-2"
+                   @click="bulkDeactivate"
+                 >Deaktivovat</v-btn>
+                 
+                 <v-btn
+                   size="small"
+                   variant="flat"
+                   color="success"
+                   prepend-icon="mdi-check-circle"
+                   rounded="lg"
+                   :loading="bulkLoading"
+                   :disabled="!canReactivate"
+                   @click="bulkReactivate"
+                 >Aktivovat</v-btn>
+                 
+                 <v-spacer></v-spacer>
+                 <v-btn size="small" variant="text" rounded="lg" @click="clearSelection">
+                   <v-icon class="mr-1">mdi-close</v-icon>
+                   Zrušit výběr
+                 </v-btn>
+             </div>
+          </v-expand-transition>
+          
+          <!-- Grid View Content -->
+          <div v-if="viewMode === 'grid'" class="pa-4" style="min-height: 400px; background: #fafbfc;">
+             <div v-if="shiftPressed" class="text-center mb-4">
+                <v-chip color="secondary" size="small" prepend-icon="mdi-select-drag" rounded="lg">Režim výběru rozsahu (Shift)</v-chip>
+             </div>
+             
+             <v-row>
+                <v-col
+                  v-for="device in filtered"
+                  :key="device.id"
+                  cols="12" sm="6" md="4" lg="3" xl="2"
+                >
+                  <v-card
+                    flat
+                    class="device-card-modern"
+                    :class="{ 'device-card-selected': isSelected(device.id) }"
+                    @click="handleCardClick(device, $event)"
+                  >
+                     <div class="d-flex justify-space-between align-center px-3 pt-3">
+                        <v-checkbox-btn
+                           :model-value="isSelected(device.id)"
+                           @click.stop="toggleSelection(device)"
+                           density="compact"
+                           color="primary"
+                        ></v-checkbox-btn>
+                        
+                        <v-chip
+                           size="x-small"
+                           :color="device.active ? 'success' : 'grey'"
+                           variant="flat"
+                           rounded="lg"
+                        >
+                           {{ device.active ? 'Aktivní' : 'Neaktivní' }}
+                        </v-chip>
+                     </div>
+                     
+                     <v-card-text class="text-center pt-2 pb-4">
+                         <v-avatar
+                            :style="{ background: `linear-gradient(135deg, ${device.color || '#3b82f6'} 0%, ${adjustColor(device.color || '#3b82f6')} 100%)` }"
+                            size="64"
+                            class="mb-3 elevation-4"
+                         >
+                            <span class="text-h5 font-weight-bold text-white">{{ device.code }}</span>
+                         </v-avatar>
+                         
+                         <div class="text-subtitle-1 font-weight-bold text-truncate px-2">{{ device.name }}</div>
+                         <div class="text-caption text-medium-emphasis">{{ device.code }}</div>
+                     </v-card-text>
+                     
+                     <v-divider></v-divider>
+                     <v-card-actions>
+                        <v-btn block variant="text" size="small" color="primary" rounded="lg" @click.stop="openDetail(device)">
+                           <v-icon class="mr-1">mdi-eye</v-icon>
+                           Detail
+                        </v-btn>
+                     </v-card-actions>
+                  </v-card>
+                </v-col>
+                
+                <v-col cols="12" v-if="filtered.length === 0">
+                    <div class="text-center py-16">
+                       <v-avatar size="80" color="grey-lighten-3" class="mb-4">
+                         <v-icon size="48" color="grey-darken-1">mdi-flask-off</v-icon>
+                       </v-avatar>
+                       <div class="text-h6 text-grey-darken-2 mb-2">Žádné přístroje nenalezeny</div>
+                       <div class="text-body-2 text-grey">Zkuste upravit filtry nebo přidat nový přístroj</div>
+                    </div>
+                </v-col>
+             </v-row>
           </div>
-        </template>
-      </v-data-table>
-    </v-sheet>
+          
+          <!-- Table View Content -->
+          <v-data-table
+             v-else
+             :items="filtered"
+             :headers="tableHeaders"
+             :items-per-page="15"
+             show-select
+             hover
+             item-value="id"
+             v-model="selectedIdsArray"
+             density="comfortable"
+             class="device-data-table"
+          >
+             <template #item.name="{ item }">
+                <div class="d-flex align-center cursor-pointer font-weight-medium py-2" @click="openDetail(item)">
+                   {{ item.name }}
+                </div>
+             </template>
+             <template #item.active="{ item }">
+                <v-chip
+                   size="x-small"
+                   :color="item.active ? 'success' : 'grey'"
+                   variant="flat"
+                   rounded="lg"
+                >
+                   {{ item.active ? 'Aktivní' : 'Neaktivní' }}
+                </v-chip>
+             </template>
+             <template #item.code="{ item }">
+                <v-chip size="small" :color="item.color || 'blue'" variant="flat" class="font-weight-bold" rounded="lg">
+                   {{ item.code }}
+                </v-chip>
+             </template>
+              <template #no-data>
+                <div class="text-center py-12">
+                   <v-avatar size="64" color="grey-lighten-3" class="mb-3">
+                     <v-icon size="36" color="grey-darken-1">mdi-flask-off</v-icon>
+                   </v-avatar>
+                   <div class="text-h6 text-grey-darken-2">Žádné přístroje</div>
+                </div>
+             </template>
+          </v-data-table>
+       </v-card>
+     </v-container>
 
-    <!-- Empty state -->
-    <v-alert
-      v-if="filtered.length === 0"
-      type="info"
-      variant="tonal"
-      class="mt-4"
-    >
-      Žádné přístroje nenalezeny.
-    </v-alert>
-
-    <!-- Create Dialog -->
-    <DeviceCreateDialog
-      v-model="createDialogOpen"
-      @created="handleCreated"
-    />
-
-    <!-- Detail Dialog -->
-    <DeviceDetailDialog
-      v-model="detailOpen"
-      :device="detailDevice"
-      @updated="handleDetailClosed"
-      @deactivated="handleDetailClosed"
-      @reactivated="handleDetailClosed"
-    />
-    </v-container>
+     <!-- Dialogs -->
+     <DeviceCreateDialog
+       v-model="createDialogOpen"
+       @created="handleCreated"
+     />
+     <DeviceDetailDialog
+       v-model="detailOpen"
+       :device="detailDevice"
+       @updated="handleDetailClosed"
+       @deactivated="handleDetailClosed"
+       @reactivated="handleDetailClosed"
+     />
   </v-container>
 </template>
 
 <style scoped>
-/* Table Toolbar */
-.table-toolbar {
+/* Top Toolbar */
+.top-toolbar {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding-right: 12px;
-  margin-bottom: 16px;
+  gap: 16px;
+  padding: 24px 40px;
+  background: white;
+  border-bottom: 1px solid #e9ecef;
 }
 
-.search-bar {
-  flex: 1;
-  min-width: 240px;
-}
-
-.search-bar :deep(.v-field) {
-  border-radius: 12px;
-}
-
-.filter-toggle {
-  flex: 0 0 auto;
-  height: 44px;
-  padding: 0 12px;
-  border-radius: 12px;
-  background: rgba(0, 0, 0, 0.04);
-  border: 1px solid rgba(0, 0, 0, 0.06);
-  display: flex;
-  align-items: center;
-}
-
-/* Modern Table */
-.modern-table {
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-.modern-table :deep(th) {
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
-  color: #64748b;
-}
-
-.device-row-content {
+/* Modern Primary Button */
+.btn-primary-modern {
+  min-width: 140px;
+  height: 40px;
+  padding: 10px 24px;
+  border: none;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border-radius: 10px;
   cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
 }
 
-.device-row-content:hover {
-  color: #1976d2;
+.btn-primary-modern:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px rgba(102, 126, 234, 0.3);
 }
 
-kbd {
+.btn-primary-modern i {
+  font-size: 18px;
+}
+
+/* Modern View Selector */
+.view-selector-modern {
+  display: inline-flex;
+  background: #f8f9fa;
+  border-radius: 10px;
+  padding: 4px;
+  gap: 4px;
+}
+
+.view-option-modern {
+  padding: 8px 16px;
+  border: none;
+  background: transparent;
+  color: #6c757d;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.view-option-modern:hover {
+  background: #e9ecef;
+  color: #495057;
+}
+
+.view-option-modern.active {
+  background: white;
+  color: #667eea;
+  font-weight: 600;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.view-option-modern i {
+  font-size: 18px;
+}
+
+/* Modern Filter Toolbar */
+.filter-toolbar-modern {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 24px;
+  background: #f8f9fa;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.search-field-modern {
+  flex: 1;
+  max-width: 400px;
+}
+
+/* Modern Toggle Switch */
+.toggle-switch-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+}
+
+.switch-modern {
+  position: relative;
+  width: 48px;
+  height: 26px;
   display: inline-block;
-  padding: 2px 6px;
-  font-size: 0.75rem;
-  font-family: ui-monospace, monospace;
-  background: rgba(0, 0, 0, 0.08);
-  border-radius: 4px;
-  border: 1px solid rgba(0, 0, 0, 0.12);
 }
 
-/* Shift mode - fialové podbarvení */
-.shift-mode {
-  background-color: rgba(103, 58, 183, 0.04);
+.switch-modern input {
+  opacity: 0;
+  width: 0;
+  height: 0;
 }
 
-.shift-mode :deep(tr:hover) {
-  background-color: rgba(103, 58, 183, 0.08) !important;
+.slider-modern {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #ccc;
+  transition: 0.3s;
+  border-radius: 26px;
 }
 
-.shift-mode :deep(.v-data-table__selected) {
-  background-color: rgba(103, 58, 183, 0.15) !important;
+.slider-modern:before {
+  position: absolute;
+  content: "";
+  height: 20px;
+  width: 20px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: 0.3s;
+  border-radius: 50%;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+input:checked + .slider-modern {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+input:checked + .slider-modern:before {
+  transform: translateX(22px);
+}
+
+.switch-label-modern {
+  font-size: 13px;
+  color: #495057;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+/* Modern Device Cards */
+.device-card-modern {
+  border: 2px solid #e2e8f0;
+  border-radius: 16px;
+  background: white;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+  height: 100%;
+}
+
+.device-card-modern:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.12) !important;
+  border-color: #cbd5e1;
+}
+
+.device-card-selected {
+  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%) !important;
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1), 0 8px 16px rgba(59, 130, 246, 0.15) !important;
+}
+
+/* Responsive */
+@media (max-width: 1200px) {
+  .top-toolbar {
+    padding: 20px 24px;
+  }
+  
+  .filter-toolbar-modern {
+    padding: 16px 20px;
+  }
+}
+
+@media (max-width: 768px) {
+  .top-toolbar {
+    padding: 16px 20px;
+    flex-wrap: wrap;
+  }
+  
+  .filter-toolbar-modern {
+    padding: 16px 20px;
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .search-field-modern {
+    max-width: 100%;
+  }
+  
+  .toggle-switch-wrapper {
+    margin-left: 0;
+    justify-content: flex-start;
+  }
 }
 </style>

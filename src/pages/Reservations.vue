@@ -25,6 +25,7 @@ const HOURS_START = 0
 const HOURS_END = 24
 const GRID_MINUTES = 15
 const VIEWPORT_HEIGHT = 640
+const VIEWPORT_HEIGHT_TWO_WEEKS = 350 // 50% smaller for two-week view
 const HOUR_HEIGHT = 80
 const MIN_EVENT_PX = 24
 const DRAG_CLICK_THRESHOLD = 5
@@ -89,6 +90,14 @@ function toIsoLocal(d: Date) {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`
 }
 
+function startOfDay(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0)
+}
+
+function endOfDay(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999)
+}
+
 /* CONFLICT DIALOG CALLBACKS */
 
 
@@ -114,8 +123,19 @@ function onConfirmConflict(slot: { start: Date; end: Date }) {
     deviceCode: deviceId
   })
     .then(async () => {
+      // Navigate to the new date if different
+      const newDateYmd = toYmdLocal(slot.start)
+      if (selectedDate.value !== newDateYmd) {
+        selectedDate.value = newDateYmd
+      }
+      
       await nextTick()
-      await loadWeekFor(currentDay.value)
+      await loadWeekFor(slot.start)
+      
+      // Scroll to the new time and highlight the reservation
+      await nextTick()
+      scrollToTime(slot.start)
+      highlightReservation(reservationId)
     })
     .catch((e) => {
       console.error('Confirm-conflict update failed', e)
@@ -180,13 +200,71 @@ function openEditFromDto(raw: ReservationDto) { openEdit(dtoToResItem(raw)) }
 function askDeleteFromDto(raw: ReservationDto) { askDelete(dtoToResItem(raw)) }
 /* Date selection  */
 const selectedDate = ref<string | Date>(toYmdLocal(new Date()))
+const navigationStep = ref<'day' | 'week' | 'month'>('day')
+let isNavigating = false
+
 function addDays(n: number) {
+  isNavigating = true
   const d = normalizeToDate(selectedDate.value)
-  // Use week step (7 days) for week views, day step (1 day) for daily views
-  const step = viewMode.value.startsWith('week-') ? 7 : 1
-  d.setDate(d.getDate() + (n * step))
+  
+  if (navigationStep.value === 'month') {
+    // Go to first day of target month
+    d.setDate(1)
+    d.setMonth(d.getMonth() + n)
+    
+    // Calculate full month range for the new month
+    const newFrom = new Date(d)
+    const newTo = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999)
+    
+    // Update filter model explicitly to keep 'to' in sync
+    // IMPORTANT: Keep preset as 'thisMonth' so the UI button stays active
+    dateFilterModel.value = {
+      ...dateFilterModel.value,
+      from: newFrom,
+      to: newTo,
+      preset: 'thisMonth'
+    }
+    
+    selectedDate.value = toYmdLocal(d)
+    
+    nextTick(() => { isNavigating = false })
+    return
+  }
+
+  // Use week step (7 days) for week views OR if week navigation is active
+  const isWeekStep = viewMode.value.startsWith('week-') || navigationStep.value === 'week'
+  const step = isWeekStep ? 7 : 1
+  
+  // Calculate shift
+  const shiftDays = n * step
+  d.setDate(d.getDate() + shiftDays)
+  
+  // If we have a range defined (from & to), we should shift the 'to' date as well
+  if (dateFilterModel.value.from && dateFilterModel.value.to) {
+     const diffMs = dateFilterModel.value.to.getTime() - dateFilterModel.value.from.getTime()
+     const newFrom = new Date(d)
+     const newTo = new Date(d.getTime() + diffMs)
+     
+     // For week navigation, try to preserve the 'week' preset look if effective
+     let newPreset = dateFilterModel.value.preset
+     if (isWeekStep && (newPreset === 'thisWeek' || newPreset === 'nextWeek')) {
+        newPreset = 'thisWeek' 
+     } else {
+        newPreset = null
+     }
+
+     dateFilterModel.value = {
+       ...dateFilterModel.value,
+       from: newFrom,
+       to: newTo,
+       preset: newPreset
+     }
+  }
+
   selectedDate.value = toYmdLocal(d)
+  nextTick(() => { isNavigating = false })
 }
+
 function goToday() { selectedDate.value = toYmdLocal(new Date()) }
 const currentDay = computed<Date>(() => normalizeToDate(selectedDate.value))
 
@@ -196,6 +274,14 @@ const dateFilterModel = ref<DateFilter>({
   preset: null,
   from: normalizeToDate(selectedDate.value),
   to: null
+})
+
+// Update navigation mode based on preset
+watch(() => dateFilterModel.value.preset, (p) => {
+  if (isNavigating) return
+  if (p === 'thisMonth') navigationStep.value = 'month'
+  else if (p === 'thisWeek' || p === 'nextWeek') navigationStep.value = 'week'
+  else navigationStep.value = 'day'
 })
 
 // Sync selectedDate -> dateFilterModel
@@ -226,6 +312,7 @@ const fmtDetailTime  = (d: Date) => fmtDetailTimeFmt.format(d)
 /* Filters */
 const pickedMembers = ref<string[]>([])
 const pickedDevices = ref<string[]>([])
+const showTwoWeeks = ref(false)
 const membersList = computed<string[]>(() =>
   projectStore.projectMembers.map((m: { username: string }) => m.username)
 )
@@ -420,6 +507,30 @@ function scrollToHour(hour = 7) {
   const y = Math.max(0, Math.min(FULL_TRACK_HEIGHT.value - el.clientHeight, targetY))
   el.scrollTop = y
 }
+
+// Scroll to a specific time (smooth scroll)
+function scrollToTime(date: Date) {
+  const el = viewportDaily.value || viewportWeek.value
+  if (!el) return
+  const hour = date.getHours() + date.getMinutes() / 60
+  // Scroll a bit before the time so the event is visible
+  const targetHour = Math.max(0, hour - 1)
+  const targetY = targetHour * 60 * PX_PER_MIN.value
+  const y = Math.max(0, Math.min(FULL_TRACK_HEIGHT.value - el.clientHeight, targetY))
+  el.scrollTo({ top: y, behavior: 'smooth' })
+}
+
+// Highlight state for reservation
+const highlightedReservationId = ref<number | null>(null)
+
+// Highlight a reservation with flash animation
+function highlightReservation(reservationId: number) {
+  highlightedReservationId.value = reservationId
+  // Clear highlight after animation
+  setTimeout(() => {
+    highlightedReservationId.value = null
+  }, 2000)
+}
 /* Data structures */
 const eventsByDay = ref<Record<string, ResItem[]>>({})
 function dateKey(d: Date) { return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}` }
@@ -457,20 +568,86 @@ const weekDaysWork = computed<Date[]>(() => {
   const showNextWeek = viewMode.value === 'week-work' && isWeekend
   return weekRange(currentDay.value, showNextWeek).slice(0, 5)
 })
-const daysForView = computed<Date[]>(() =>
-  viewMode.value === 'week-work' ? weekDaysWork.value : weekDaysAll.value
-)
+
+// Week 2 (next week) for two-week view
+const week2DaysAll = computed<Date[]>(() => {
+  const lastDayOfWeek1 = weekDaysAll.value[weekDaysAll.value.length - 1]
+  if (!lastDayOfWeek1) return []
+  const nextMonday = new Date(lastDayOfWeek1)
+  nextMonday.setDate(lastDayOfWeek1.getDate() + 1)
+  return weekRange(nextMonday, false)
+})
+const week2DaysWork = computed<Date[]>(() => {
+  const lastDayOfWeek1 = weekDaysWork.value[weekDaysWork.value.length - 1]
+  if (!lastDayOfWeek1) return []
+  const nextMonday = new Date(lastDayOfWeek1)
+  nextMonday.setDate(lastDayOfWeek1.getDate() + 3) // Skip weekend (Fri + 3 = Mon)
+  return weekRange(nextMonday, false).slice(0, 5)
+})
+
+const daysForView = computed<Date[]>(() => {
+  // 1. Custom range logic (From user request: "zobrazení pouze těch dnl které jsou dané v časovém rozmezí")
+  if (dateFilterModel.value.preset === 'custom' && dateFilterModel.value.from && dateFilterModel.value.to) {
+    const s = startOfDay(dateFilterModel.value.from)
+    const e = endOfDay(dateFilterModel.value.to)
+    // Generate all days between from/to inclusive
+    const days: Date[] = []
+    const cur = new Date(s)
+    // Safety break loop
+    let safeGuard = 0
+    while (cur <= e && safeGuard < 366) {
+      days.push(new Date(cur))
+      cur.setDate(cur.getDate() + 1)
+      safeGuard++
+    }
+    return days
+  }
+
+  // 2. Default View logic
+  return viewMode.value === 'week-work' ? weekDaysWork.value : weekDaysAll.value
+})
+
+// Days for second week view (when showTwoWeeks is enabled)
+const daysForWeek2 = computed<Date[]>(() => {
+  return viewMode.value === 'week-work' ? week2DaysWork.value : week2DaysAll.value
+})
+
 const colsDevices = computed<number>(() => devicesToShow.value.length)
-const colsWeek = computed<number>(() => viewMode.value === 'week-work' ? 5 : 7)
+const colsWeek = computed<number>(() => daysForView.value.length)
 /* Load events */
 function resetAllDays(days: Date[]) {
   for (const d of days) eventsByDay.value[dateKey(d)] = []
 }
 async function loadWeekFor(date: Date) {
-  const days = weekRange(date)
+  // NOTE: When using custom range, loadWeekFor needs to respect that range too. 
+  // However, loadWeekFor is often called with `currentDay` (single date) when navigating or changing view.
+  // We need to decide if we fetch exactly daysForView or a standard week around `date`.
+  // Given the requirement "zobrazení pouze těch dnl", let's use daysForView if compatible with `date` (i.e. `date` falls within).
+  
+  let days: Date[]
+  const dateMs = date.getTime()
+  
+  // Check if `date` is within the current `daysForView` range. If so, reuse that range.
+  // Otherwise, fallback to standard week logic around `date`.
+  const currentViewDays = daysForView.value
+  const first = currentViewDays[0]
+  const last = currentViewDays[currentViewDays.length - 1]
+  
+  if (first && last && dateMs >= first.getTime() && dateMs <= last.getTime()) {
+     days = currentViewDays
+  } else {
+     // Fallback to standard 7 days if we navigate outside or if the custom range isn't active/applicable
+     days = weekRange(date)
+  }
+  
+  // If showTwoWeeks is enabled, also fetch data for week 2
+  if (showTwoWeeks.value && daysForWeek2.value.length > 0) {
+    days = [...days, ...daysForWeek2.value]
+  }
+  
   const from = new Date(days[0].getFullYear(), days[0].getMonth(), days[0].getDate(), 0, 0, 0, 0).getTime()
-  const last = days[days.length - 1]
-  const to = new Date(last.getFullYear(), last.getMonth(), last.getDate(), 23, 59, 59, 999).getTime()
+  const lastDay = days[days.length - 1]
+  const to = new Date(lastDay.getFullYear(), lastDay.getMonth(), lastDay.getDate(), 23, 59, 59, 999).getTime()
 
   // Fetch new data BEFORE clearing old data to avoid "blink"
   const data = await reservations.fetchByProject(projectId, from, to)
@@ -532,7 +709,7 @@ watch(selectedDate, async v => {
 })
 
 
-watch(viewMode, async () => {
+watch(viewMode, async (newMode, oldMode) => {
   // pokud běží drag, force ukončení
   if (drag.value) {
     drag.value.ghostEl.remove()
@@ -540,6 +717,45 @@ watch(viewMode, async () => {
     clearHighlight()
     window.removeEventListener('pointermove', onPointerMove)
   }
+  
+  // When switching TO daily-machines from any other view, reset to today
+  if (newMode === 'daily-machines' && oldMode !== 'daily-machines') {
+    const today = new Date()
+    selectedDate.value = toYmdLocal(today)
+    dateFilterModel.value = {
+      field: 'date',
+      preset: 'today',
+      from: today,
+      to: null
+    }
+    navigationStep.value = 'day'
+  }
+  
+  // When switching TO week views from daily-list, reset to this week
+  if ((newMode === 'week-work' || newMode === 'week-all') && oldMode === 'daily-list') {
+    const today = new Date()
+    // Calculate week start (Monday)
+    const dayOfWeek = today.getDay()
+    const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek
+    const weekStart = new Date(today)
+    weekStart.setDate(today.getDate() + diffToMonday)
+    weekStart.setHours(0, 0, 0, 0)
+    
+    // Calculate week end based on view mode
+    const weekEnd = new Date(weekStart)
+    weekEnd.setDate(weekStart.getDate() + (newMode === 'week-all' ? 6 : 4))
+    weekEnd.setHours(23, 59, 59, 999)
+    
+    selectedDate.value = toYmdLocal(today)
+    dateFilterModel.value = {
+      field: 'date',
+      preset: 'thisWeek',
+      from: weekStart,
+      to: weekEnd
+    }
+    navigationStep.value = 'week'
+  }
+  
   await nextTick()
   scrollToHour(7)
 })
@@ -554,10 +770,19 @@ type DailyListViewExposed = {
   removeReservation?: (id: number) => void
   usedDeviceCodes?: string[]
   usedUsernames?: string[]
+  highlightSeries?: (sid: string) => void
 }
 const dailyListRef = ref<DailyListViewExposed | null>(null)
 const isDailyList = computed(() => viewMode.value === 'daily-list')
 watch(isDailyList, async v => { if (v) { await nextTick(); dailyListRef.value?.loadListRange() } })
+
+// Reload data when showTwoWeeks changes
+watch(showTwoWeeks, async () => {
+  if (!isDailyList.value) {
+    await loadWeekFor(currentDay.value)
+  }
+})
+
 /* Filtering helpers */
 function filterItems(arr: ResItem[]): ResItem[] {
   return arr.filter(i => {
@@ -575,7 +800,12 @@ function itemsForDayDevice(deviceId: string) {
 const deviceColorOf = (id: string) => allDevices.value.find(d => d.id === id)?.color || 'primary'
 function eventBgClass(i: ResItem) {
   const color = deviceColorOf(i.deviceId)
-  return (color === 'primary' || color === 'secondary') ? `bg-${color}` : `bg-${color}-lighten-4`
+  const baseClass = (color === 'primary' || color === 'secondary') ? `bg-${color}` : `bg-${color}-lighten-4`
+  // Add highlight class if this reservation was just rescheduled
+  if (highlightedReservationId.value === i.id) {
+    return `${baseClass} event-highlighted`
+  }
+  return baseClass
 }
 function eventStyle(i: ResItem, left: number, width: number): Record<string, string> {
   const color = deviceColorOf(i.deviceId)
@@ -1003,6 +1233,26 @@ async function commitMove(d: DragState, x: number, y: number): Promise<void> {
     if (endDate.getTime() <= startDate.getTime()) return
     if (wouldConflict(d.id, d.origDeviceId, startDate, endDate, d.origDayKey)) {
         const req = { start: startDate, end: endDate }
+        pendingForcePayload.value = {
+           action: 'update_single',
+           id: d.id,
+           scope: 'single',
+           payload: {
+               startTime: req.start.getTime(),
+               endTime: req.end.getTime(),
+               deviceCode: d.origDeviceId
+           },
+           dragData: {
+             actionType: 'resize',
+             id: d.id,
+             item,
+             start: startDate,
+             end: endDate,
+             deviceId: d.origDeviceId,
+             origDayKey: d.origDayKey,
+             origDeviceId: d.origDeviceId
+           }
+        } as any
         openConflictDialog(d.origDeviceId, req, { reservationId: d.id, dayKey: d.origDayKey })
         return
     }
@@ -1115,7 +1365,7 @@ async function commitMove(d: DragState, x: number, y: number): Promise<void> {
                    startTime: startDate.getTime(),
                    endTime: endDate.getTime(),
                    projectId,
-                   username: sourceArr[idx].username ?? auth.user?.username ?? '',
+                   username: sourceArr[idx].username ?? auth.getUserInfo()?.preferredUsername ?? '',
                    note: sourceArr[idx].note,
                    recurrence: null
                }
@@ -1129,7 +1379,7 @@ async function commitMove(d: DragState, x: number, y: number): Promise<void> {
               startTime: startDate.getTime(),
               endTime: endDate.getTime(),
               projectId,
-              username: sourceArr[idx].username ?? auth.user?.username ?? '',
+              username: sourceArr[idx].username ?? auth.getUserInfo()?.preferredUsername ?? '',
               note: sourceArr[idx].note,
               recurrence: null
           })
@@ -1153,6 +1403,26 @@ async function commitMove(d: DragState, x: number, y: number): Promise<void> {
   // Move Logic
   if (wouldConflict(d.id, newDeviceId, startDate, endDate, newDayKey)) {
       const req = { start: startDate, end: endDate }
+      pendingForcePayload.value = {
+          action: 'update_single',
+          id: d.id,
+          scope: 'single',
+          payload: {
+              startTime: req.start.getTime(),
+              endTime: req.end.getTime(),
+              deviceCode: newDeviceId
+          },
+          dragData: {
+            actionType: 'move',
+            id: d.id,
+            item,
+            start: startDate,
+            end: endDate,
+            deviceId: newDeviceId,
+            origDayKey: d.origDayKey,
+            origDeviceId: d.origDeviceId
+          }
+      } as any
       openConflictDialog(newDeviceId, req, { reservationId: d.id, dayKey: d.origDayKey })
       return
   }
@@ -1523,14 +1793,19 @@ async function doSaveReservation(f: any, start: Date, end: Date, scope: 'single'
     if (editorMode.value === 'create') {
       const created = await reservations.createReservation(payload)
       await loadWeekFor(day)
-      if (isDailyList.value && dailyListRef.value?.addReservation) {
-        dailyListRef.value.addReservation({ ...created, id: created.id }) // simplify type check
+      if (created.seriesId && isDailyList.value && dailyListRef.value?.highlightSeries) {
+         // Reload list to fetch all series items, then highlight
+         await dailyListRef.value.loadListRange()
+         dailyListRef.value.highlightSeries(created.seriesId)
+      } else if (isDailyList.value && dailyListRef.value?.addReservation) {
+        // Single item optimisation
+        dailyListRef.value.addReservation({ ...created, id: created.id, seriesId: created.seriesId })
       }
     } else {
       const id = f.id
       if (scope === 'single') {
          // Standard update - MUST pass seriesId to preserve series link if only updating one instance
-         await reservations.updateReservation(id, { ...payload, seriesId: f.seriesId })
+         await reservations.updateReservation(id, { ...payload, seriesId: f.seriesId } as any)
       } else if (scope === 'series') {
          if (f.seriesId) await reservations.updateSeries(id, payload, 'series')
       } else if (scope === 'following') {
@@ -1545,9 +1820,10 @@ async function doSaveReservation(f: any, start: Date, end: Date, scope: 'single'
 
     editorOpen.value = false
     resForm.value = null
-  } catch (errObj: unknown) {
-    const err = errObj as { statusCode?: number; message?: string }
-    if (err.statusCode === 409) {
+  } catch (errObj: any) {
+    console.log('DEBUG: Save failed', errObj)
+    const err = errObj as { statusCode?: number; message?: string; response?: any }
+    if (err.statusCode === 409 || err.response?.status === 409) {
        // Conflict handling
        const deviceName = deviceNameById(f.deviceCode)
        conflictDeviceName.value = deviceName
@@ -1637,7 +1913,8 @@ async function executeDragAction(scope: 'single' | 'following' | 'series', p: an
   const payload = {
      startTime: p.start.getTime(),
      endTime: p.end.getTime(),
-     deviceCode: p.deviceId
+     deviceCode: p.deviceId,
+     force: p.force
   }
 
   // Optimistic update helper (reuse logic if needed)
@@ -1665,7 +1942,7 @@ async function executeDragAction(scope: 'single' | 'following' | 'series', p: an
   try {
 
      if (scope === 'single') {
-        await reservations.updateReservation(id, { ...payload, seriesId: item.seriesId })
+        await reservations.updateReservation(id, { ...payload, seriesId: item.seriesId } as any)
      } else if (scope === 'series') {
         if (item.seriesId) await reservations.updateSeries(id, payload, 'series')
      } else if (scope === 'following') {
@@ -1685,68 +1962,110 @@ async function executeDragAction(scope: 'single' | 'following' | 'series', p: an
      }
 
   } catch(e: any) {
-     console.error('Drag series action failed', e)
-     
      if (e.statusCode === 409) {
-        const msg = e.response?.data?.message || 'Kolize s jinou rezervací.'
-        // Ask user if they want to force update
-        if (confirm(`Aktualizace série selhala: ${msg}\n\nChcete provést změnu i přes kolizi?`)) {
-           try {
-              const forcePayload = { ...payload, force: true }
-              
-              if (scope === 'single') {
-                 await reservations.updateReservation(id, { ...forcePayload, seriesId: item.seriesId })
-              } else if (scope === 'series') {
-                 if (item.seriesId) await reservations.updateSeries(id, forcePayload, 'series')
-              } else if (scope === 'following') {
-                 if (item.seriesId) await reservations.updateSeries(id, forcePayload, 'following')
-              }
-
-              // Success path (Retry)
-              if (scope !== 'single') {
-                 await loadWeekFor(currentDay.value)
-                 if (isDailyList.value && dailyListRef.value?.loadAll) {
-                    await dailyListRef.value.loadAll()
-                 }
-              }
-
-              if (isDailyList.value && dailyListRef.value?.updateReservation) {
-                 dailyListRef.value.updateReservation(id, { startTime: payload.startTime, endTime: payload.endTime })
-              }
-              return
-           } catch (e2) {
-              console.error('Force update failed', e2)
-              alert('Nepodařilo se vynutit aktualizaci.')
-           }
-        }
+         // Logic to open Conflict Dialog
+         const deviceName = deviceNameById(payload.deviceCode)
+         conflictDeviceName.value = deviceName
+         
+         const s = new Date(payload.startTime)
+         const eTime = new Date(payload.endTime)
+         conflictRequested.value = { start: s, end: eTime }
+         
+         const dayBase = new Date(s)
+         dayBase.setHours(0,0,0,0)
+         const existingEvents = getEventsForDayDevice(dayBase, payload.deviceCode)
+         const gaps = buildDayGaps(existingEvents, dayBase)
+         const proposals = proposeSlotsAround({ start: s, end: eTime }, gaps)
+         
+         conflictProposals.value = proposals.map((slot, idx) => ({
+             slot,
+             label: idx === 0 ? 'Nejbližší po' : 'Nejbližší před'
+         }))
+         
+         const durationMs = eTime.getTime() - s.getTime()
+         conflictFallbackNext.value = firstGapNextDays(getEventsForDayDevice, dayBase, payload.deviceCode, durationMs, 30)
+         
+         conflictItems.value = existingEvents.filter(ev => {
+             const evStart = new Date(ev.start).getTime()
+             const evEnd = new Date(ev.end).getTime()
+             return evEnd > s.getTime() && evStart < eTime.getTime()
+         }).map(ev => ({
+             id: ev.id,
+             title: ev.title,
+             start: new Date(ev.start),
+             end: new Date(ev.end),
+             username: ev.username
+         }))
+         
+         conflictCtx.value = { reservationId: id, deviceId: payload.deviceCode, dayKey: dateKey(dayBase) }
+         
+         let actionType: 'create' | 'update_single' | 'update_series' = 'update_single'
+         if (scope === 'series' || scope === 'following') actionType = 'update_series'
+  
+         pendingForcePayload.value = {
+             action: actionType,
+             id: id,
+             scope: scope,
+             payload: {
+               title: item.title,
+               deviceCode: payload.deviceCode,
+               startTime: payload.startTime,
+               endTime: payload.endTime,
+               projectId,
+               username: item.username || '',
+               note: item.note || '',
+               recurrence: null 
+             }
+         }
+         
+         conflictOpen.value = true
+         return
      }
-     
-     // Rollback optimistic (or failed force)
+
+     console.error('Drag series action failed', e)
+     // Rollback logic
      await loadWeekFor(currentDay.value)
   }
 }
 
-
-// Force-create handler: creates reservation despite conflicts
 // Force-create handler: creates reservation despite conflicts
 async function onForceCreate() {
-  if (!pendingForcePayload.value) return
+  console.log('DEBUG: onForceCreate called', pendingForcePayload.value)
+  if (!pendingForcePayload.value) {
+    console.warn('DEBUG: No pending payload')
+    return
+  }
+  
+  // Check for series transition from Drag & Drop
+  const dd = (pendingForcePayload.value as any).dragData
+  if (dd && dd.item && dd.item.seriesId) {
+     console.log('DEBUG: Transitioning to Series Scope for Force', dd)
+     conflictOpen.value = false
+     pendingSaveForSeries.value = {
+        ...dd,
+        force: true // Pass force flag
+     }
+     seriesScopeMode.value = 'edit'
+     seriesScopeOpen.value = true
+     pendingForcePayload.value = null
+     return
+  }
+
   const { action, payload, id, scope } = pendingForcePayload.value
   
   // Add force flag
   const forcePayload = { ...payload, force: true }
+  console.log('DEBUG: Sending force payload', forcePayload)
 
   try {
     if (action === 'create') {
         const created = await reservations.createReservation(forcePayload)
+        console.log('DEBUG: Force create success', created)
         // Immediately add to daily list if active (optimistic-ish)
         if (isDailyList.value && dailyListRef.value?.addReservation) {
             dailyListRef.value.addReservation({ ...created, id: created.id })
         }
     } else if (action === 'update_single' && id) {
-        // Must preserve seriesId logic if we want to keep it linked (normally handled in saveReservation, 
-        // but here we are forcing. If backend handles it, good. 
-        // Actually, updateReservation backend ignores seriesId in payload usually, it relies on ID path param)
         await reservations.updateReservation(id, forcePayload)
     } else if (action === 'update_series' && id && scope && scope !== 'single') {
         await reservations.updateSeries(id, forcePayload, scope)
@@ -1761,11 +2080,52 @@ async function onForceCreate() {
     // Reload week to show changes
     await loadWeekFor(currentDay.value)
     if (isDailyList.value) await dailyListRef.value?.loadListRange()
-
-  } catch (e) {
+    
+  } catch (e: any) {
     console.error('Force-create failed', e)
+    const msg = e?.response?.data?.message || e?.message || 'Neznámá chyba'
+    alert(`Vytvoření s kolizí selhalo: ${msg}\n(Status: ${e?.statusCode || e?.response?.status})`)
   }
 }
+// Confirm/Use a Conflict Proposal
+async function handleConfirmConflict(slot: { start: Date; end: Date }) {
+  // CASE 1: Drag & Drop scenario - resForm is null, use conflictCtx
+  if (!resForm.value && conflictCtx.value) {
+    onConfirmConflict(slot)
+    return
+  }
+  
+  // CASE 2: Editor dialog scenario - resForm exists
+  if (!resForm.value) {
+    return
+  }
+
+  // Update form with the new slot
+  resForm.value.dateYmd = toYmdLocal(slot.start)
+  resForm.value.startHM = hmFromDate(slot.start)
+  resForm.value.endHM = hmFromDate(slot.end)
+  
+  // Close conflict dialog
+  conflictOpen.value = false
+  
+  // Actually save the reservation with the new time
+  await nextTick()
+  await saveReservation()
+}
+
+function handleSuggestNextDay() {
+  if (conflictFallbackNext.value) {
+    handleConfirmConflict(conflictFallbackNext.value.slot)
+  }
+}
+
+
+
+function onWeekDayDblClick(day: Date) {
+  selectedDate.value = toYmdLocal(day)
+  viewMode.value = 'daily-machines'
+}
+
 function openCreateFromToolbar() {
   const day = normalizeToDate(selectedDate.value)
   const start = new Date(day); start.setHours(9, 0, 0, 0)
@@ -1781,9 +2141,9 @@ watch(confirmDeleteOpen, v => {
 function onHotkeys(e: KeyboardEvent) {
   // Quick new
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'n') { e.preventDefault(); openCreateFromToolbar(); return }
-  // Datum navigace mimo editor
-  if (!editorOpen.value && e.key === 'ArrowLeft') { e.preventDefault(); addDays(-1); return }
-  if (!editorOpen.value && e.key === 'ArrowRight') { e.preventDefault(); addDays(1); return }
+  // Datum navigace mimo editor (skip if in daily-list - handled by DailyListView emit)
+  if (!editorOpen.value && viewMode.value !== 'daily-list' && e.key === 'ArrowLeft') { e.preventDefault(); addDays(-1); return }
+  if (!editorOpen.value && viewMode.value !== 'daily-list' && e.key === 'ArrowRight') { e.preventDefault(); addDays(1); return }
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 't') { e.preventDefault(); goToday(); return }
   // Editor
   if (confirmDeleteOpen.value) {
@@ -1881,6 +2241,7 @@ onBeforeUnmount(() => {
               :picked-devices="pickedDevices"
               :picked-members="pickedMembers"
               :include-weekends="(viewMode === 'daily-list' ? listIncludeWeekends : viewMode === 'week-all')"
+              :show-two-weeks="showTwoWeeks"
               @update:picked-devices="v => pickedDevices = v"
               @update:picked-members="v => pickedMembers = v"
               @update:include-weekends="v => {
@@ -1890,6 +2251,7 @@ onBeforeUnmount(() => {
                    viewMode = v ? 'week-all' : 'week-work'
                 }
               }"
+              @update:show-two-weeks="v => showTwoWeeks = v"
             />
           </div>
         </v-col>
@@ -1938,13 +2300,15 @@ onBeforeUnmount(() => {
                 :selected-date="selectedDate"
                 :filter-from="dateFilterModel.from ? toYmdLocal(dateFilterModel.from) : null"
                 :filter-to="dateFilterModel.to ? toYmdLocal(dateFilterModel.to) : null"
+                @navigate-date="addDays"
               />
+              <!-- Week 1 -->
               <WeekView
                 v-else
                 :days="daysForView"
                 :cols="colsWeek"
                 :tick-height="tickHeight"
-                :viewport-height="VIEWPORT_HEIGHT"
+                :viewport-height="showTwoWeeks ? VIEWPORT_HEIGHT_TWO_WEEKS : VIEWPORT_HEIGHT"
                 :full-track-height="FULL_TRACK_HEIGHT"
                 :date-key="dateKey"
                 :items-for-day="(d: Date) => itemsFor(d)"
@@ -1967,6 +2331,42 @@ onBeforeUnmount(() => {
                 :open-edit="openEdit"
                 :ask-delete="askDelete"
                 :set-viewport-ref="setWeekViewportRef"
+                :on-day-dbl-click="onWeekDayDblClick"
+              />
+              <!-- Separator between weeks -->
+              <div v-if="showTwoWeeks && !isDailyList && viewMode !== 'daily-machines'" 
+                   style="height: 24px; border-top: 2px solid #e5e7eb; margin: 16px 0; background: linear-gradient(to bottom, #f9fafb 0%, transparent 100%);">
+              </div>
+              <!-- Week 2 (when 2 weeks toggle is enabled) -->
+              <WeekView
+                v-if="showTwoWeeks && !isDailyList && viewMode !== 'daily-machines'"
+                :days="daysForWeek2"
+                :cols="daysForWeek2.length"
+                :tick-height="tickHeight"
+                :viewport-height="VIEWPORT_HEIGHT_TWO_WEEKS"
+                :full-track-height="FULL_TRACK_HEIGHT"
+                :date-key="dateKey"
+                :items-for-day="(d: Date) => itemsFor(d)"
+                :filter-items="filterItems"
+                :layout-for-day="layoutWeeklyByDay"
+                :event-bg-class="eventBgClass"
+                :event-style="eventStyle"
+                :fmt-time="fmtTime"
+                :fmt-detail-date="fmtDetailDate"
+                :fmt-detail-time="fmtDetailTime"
+                :initials="initials"
+                :device-color-of="deviceColorOf"
+                :device-name-of="deviceNameById"
+                :is-menu-open="isMenuOpen"
+                :set-menu-open="setMenuOpen"
+                :on-track-click="onTrackClick"
+                :on-event-pointer-down="onEventPointerDown"
+                :on-resize-pointer-down="onResizePointerDown"
+                :on-event-click="onEventClick"
+                :open-edit="openEdit"
+                :ask-delete="askDelete"
+                :set-viewport-ref="setWeekViewportRef"
+                :on-day-dbl-click="onWeekDayDblClick"
               />
             </v-card-text>
           </v-card>
@@ -2043,9 +2443,10 @@ onBeforeUnmount(() => {
         :fallback-next-day="conflictFallbackNext"
         :conflicts="conflictItems"
         :all-reservations="allReservationsForDevice"
+        :exclude-reservation-id="conflictCtx?.reservationId"
         @update:open="v => conflictOpen = v"
-        @confirm="onConfirmConflict"
-        @suggest-next-day="onSuggestNextDay"
+        @confirm="handleConfirmConflict"
+        @suggest-next-day="handleSuggestNextDay"
         @cancel="() => { conflictOpen = false; pendingForcePayload = null }"
         @force-create="onForceCreate"
 
@@ -2261,5 +2662,38 @@ onBeforeUnmount(() => {
 .filter-btn .arrow {
   color: #94a3b8;
   margin-left: 2px;
+}
+
+/* Highlight animation for rescheduled reservations */
+:deep(.event-highlighted) {
+  animation: highlight-pulse 2s ease-out;
+  z-index: 100 !important;
+}
+
+@keyframes highlight-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7), 0 0 20px 4px rgba(59, 130, 246, 0.5);
+    transform: scale(1.02);
+  }
+  20% {
+    box-shadow: 0 0 0 8px rgba(59, 130, 246, 0.4), 0 0 30px 8px rgba(59, 130, 246, 0.3);
+    transform: scale(1.03);
+  }
+  40% {
+    box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.3), 0 0 20px 4px rgba(59, 130, 246, 0.2);
+    transform: scale(1.01);
+  }
+  60% {
+    box-shadow: 0 0 0 6px rgba(59, 130, 246, 0.2), 0 0 15px 2px rgba(59, 130, 246, 0.1);
+    transform: scale(1.02);
+  }
+  80% {
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1), 0 0 10px 1px rgba(59, 130, 246, 0.05);
+    transform: scale(1.005);
+  }
+  100% {
+    box-shadow: none;
+    transform: scale(1);
+  }
 }
 </style>

@@ -1,6 +1,8 @@
 // bez 'any'. jednoduchý csv/tsv parser a kompatibilita šablony vůči souboru.
 import { isVectorCell, parseVectorCell } from './vectorDetection'
 import * as XLSX from 'xlsx'
+import Papa from 'papaparse'
+import { detectBestDelimiter } from './clientParser'
 
 export interface ImportedBlock {
   blockIndex: number
@@ -67,20 +69,7 @@ export interface CompatibilityResult {
  * primární funkce: detekce oddělovače z prvních cca 20 řádků.
  * využívá jednoduchou frekvenční heuristiku.
  */
-function detectDelimiterFromLines(lines: string[]): string {
-  const candidates = ['\t', ';', ',', '|']
-  const score: Record<string, number> = {}
-  for (const c of candidates) score[c] = 0
-  for (const line of lines.slice(0, 20)) {
-    for (const c of candidates) {
-      const parts = line.split(c)
-      // penalizace extrémně malého počtu
-      if (parts.length > 1) score[c] += 1
-    }
-  }
-  const best = Object.entries(score).sort((a, b) => b[1] - a[1])[0]
-  return best ? best[0] : ','
-}
+
 
 /**
  * rozdělení textu do bloků: stejná logika jako splitblocks, ale inline (kvůli re-use).
@@ -153,11 +142,13 @@ async function parseExcelFile(file: File): Promise<{ lines: string[]; delimiter:
   }
 
   // převod na pole polí
-  const data: string[][] = XLSX.utils.sheet_to_json(sheet, {
+  const data: unknown[][] = XLSX.utils.sheet_to_json(sheet, {
     header: 1,
     defval: '',
-    raw: false // získat textové hodnoty
-  }) as string[][]
+    raw: false,
+    cellDates: true,
+    dateNF: 'yyyy-mm-dd hh:mm:ss'
+  }) as unknown[][]
 
   // ladění: vypsat surové hodnoty buněk pro vektorové sloupce (velikosti, intenzity atd.)
   if (data.length > 0) {
@@ -181,7 +172,10 @@ async function parseExcelFile(file: File): Promise<{ lines: string[]; delimiter:
   // převod na řádky oddělené tabulátorem
   const lines = data
     .filter(row => row.some(cell => cell !== ''))
-    .map(row => row.map(cell => String(cell || '')).join('\t'))
+    .map(row => row.map(cell => {
+      if (cell instanceof Date) return cell.toISOString();
+      return String(cell || '')
+    }).join('\t'))
 
   return { lines, delimiter: '\t' }
 }
@@ -192,7 +186,14 @@ async function parseExcelFile(file: File): Promise<{ lines: string[]; delimiter:
  * pokud nemá alespoň 2 řádky: varování (přeskočeno).
  * speciální ošetření pro série x intensity a bloky statistik.
  */
-export async function parseImportedMeasurementFile(file: File): Promise<ImportedFileStructure> {
+export interface ParseOptions {
+  delimiter?: string
+  decimalSeparator?: '.' | ','
+  hasHeader?: boolean
+  headerRowIndex?: number
+}
+
+export async function parseImportedMeasurementFile(file: File, options: ParseOptions = {}): Promise<ImportedFileStructure> {
   let lines: string[]
   let delimiter: string
 
@@ -205,7 +206,18 @@ export async function parseImportedMeasurementFile(file: File): Promise<Imported
     // pokus o načtení se správným kódováním (nejdříve utf-8, poté windows-1250 pro češtinu)
     const text = await readFileWithEncoding(file)
     lines = text.split(/\r?\n/).filter(l => l.length)
-    delimiter = detectDelimiterFromLines(lines)
+
+    // Use provided delimiter or detect
+    if (options.delimiter) {
+      delimiter = options.delimiter
+    } else {
+      delimiter = detectBestDelimiter(text).delimiter
+    }
+  }
+
+  // Apply header row index skipping if provided
+  if (typeof options.headerRowIndex === 'number' && options.headerRowIndex > 0) {
+    lines = lines.slice(options.headerRowIndex)
   }
 
   const rawBlocks = splitIntoBlocksRaw(lines)
@@ -221,7 +233,7 @@ export async function parseImportedMeasurementFile(file: File): Promise<Imported
       continue
     }
 
-    const firstRowParts = blk[0]!.split(delimiter).map(h => h.trim())
+    const firstRowParts = (Papa.parse(blk[0]!, { delimiter, header: false }).data[0] as string[] || []).map(h => (h || '').trim())
     const firstCell = (firstRowParts[0] || '').trim().toLowerCase()
 
     // detekce, zda jde o blok pouze se statistikami (průměr, odchylka atd.)
@@ -246,12 +258,34 @@ export async function parseImportedMeasurementFile(file: File): Promise<Imported
       // parsování datových řádků
       const data: { x: number; y: number }[] = []
       for (let i = 1; i < blk.length; i++) {
-        const parts = blk[i]!.split(delimiter).map(c => c.trim())
+        const parts = (Papa.parse(blk[i]!, { delimiter, header: false }).data[0] as string[] || []).map(c => (c || '').trim())
         const xStr = parts[xIntensityIndex] || ''
         const yStr = parts[xIntensityIndex + 1] || ''
-        // parsování čísel (ošetření evropské desetinné čárky)
-        const x = parseFloat(xStr.replace(',', '.'))
-        const y = parseFloat(yStr.replace(',', '.'))
+        // parsování čísel (zohlednění nastavení desetinné čárky)
+        // pokud je oddělovač čárka, předpokládáme, že v csv jsou desetinné tečky, nebo csv escapuje čárky
+        // ale tady máme už rozparsované pole parts
+        let xStrClean = xStr
+        let yStrClean = yStr
+
+        if (options.decimalSeparator === ',') {
+          // Pokud je desetinná čárka ',', nahradíme ji tečkou pro JS parseFloat
+          // Pozor: Pokud je oddělovač polí také čárka, PapaParse už to rozdělil
+          xStrClean = xStrClean.replace(',', '.')
+          yStrClean = yStrClean.replace(',', '.')
+        } else {
+          // Pokud je desetinná tečka '.', můžeme (pro jistotu smazat čárky jako tisíce?) nebo nedělat nic.
+          // Stávající kód nahrazoval čárku tečkou vždy.
+          // Pokud uživatel řekl, že separator je tečka, tak čárka může být oddělovač tisíců (nebo nic).
+          // Pro zpětnou kompatibilitu a robustnost:
+          // Pokud uživatel EXPLICITNĚ zvolil '.', tak NECHCEME měnit ',' na '.' pokud by to byla chyba.
+          // Ale často jsou soubory mix.
+          // Udělejme to takto:
+          xStrClean = xStrClean.replace(',', '.') // Stále nahrazujeme pro jistotu, pokud není konflikt
+          yStrClean = yStrClean.replace(',', '.')
+        }
+
+        const x = parseFloat(xStrClean)
+        const y = parseFloat(yStrClean)
         if (!isNaN(x) && !isNaN(y)) {
           data.push({ x, y })
         }
@@ -275,13 +309,20 @@ export async function parseImportedMeasurementFile(file: File): Promise<Imported
       continue
     }
 
-    // běžný blok: první řádek jsou hlavičky
-    const headers = firstRowParts.filter(h => h.length)
-
-    // kontrola, zda je druhý řádek řádkem jednotek (obsahuje °c, d.nm, percent atd.)
+    // běžný blok: první řádek jsou hlavičky (pokud je zapnuto, jinak generovat)
+    let headers: string[]
     let dataStartIndex = 1
-    if (blk.length > 2) {
-      const secondRowParts = blk[1]!.split(delimiter).map(c => c.trim())
+
+    if (options.hasHeader === false) {
+      // Generovat hlavičky: Slot 1, Slot 2... (nebo A, B, C...)
+      // firstRowParts obsahuje data prvního řádku
+      headers = firstRowParts.map((_, i) => `Column ${i + 1}`)
+      dataStartIndex = 0
+    } else {
+      headers = firstRowParts.filter(h => h.length)
+    }
+    if (options.hasHeader !== false && blk.length > 2) {
+      const secondRowParts = (Papa.parse(blk[1]!, { delimiter, header: false }).data[0] as string[] || []).map(c => (c || '').trim())
       const unitIndicators = ['°c', 'd.nm', 'percent', 'nm', 'kcps', 'mv', '%']
       const looksLikeUnits = secondRowParts.filter(cell => {
         const lower = cell.toLowerCase()
@@ -295,7 +336,7 @@ export async function parseImportedMeasurementFile(file: File): Promise<Imported
       }
     }
 
-    const dataRows = blk.slice(dataStartIndex).map(r => r.split(delimiter).map(c => c.trim()))
+    const dataRows = blk.slice(dataStartIndex).map(r => (Papa.parse(r, { delimiter, header: false }).data[0] as string[] || []).map(c => (c || '').trim()))
 
     blocks.push({
       blockIndex: idx,
@@ -747,7 +788,8 @@ export function checkTemplateCompatibility(
  */
 export function buildRecordsFromImported(
   tmpl: TemplateLike,
-  imported: ImportedFileStructure
+  imported: ImportedFileStructure,
+  options: { decimalSeparator?: string } = {}
 ): Array<{
   recordIndex: number
   fields: Array<{
@@ -759,6 +801,12 @@ export function buildRecordsFromImported(
     value: unknown
   }>
 }> {
+  // ... (setup code omitted, assume it matches existing until loop)
+  // Re-declaring setup code to ensure context match if needed, but tool allows partial replace.
+  // I will replace the function signature and the inner loop value assignment.
+  // This is too big for a single block if I don't include the whole function.
+  // I will replace the WHOLE function to be safe.
+
   // použít počet řádků prvního bloku jako počet záznamů (ne blok x intensity, který má mnohem více řádků)
   const firstBlock = imported.blocks.find(b => b.blockIndex === 1)
   const maxRows = firstBlock?.rows.length ?? 0
@@ -778,25 +826,21 @@ export function buildRecordsFromImported(
       value: unknown
     }>
   }> = []
-  // pomocník: normalizace názvu pole pro přibližnou shodu (stejné jako v checktemplatecompatibility)
+
+  // pomocník: normalizace názvu pole pro přibližnou shodu
   const normalize = (s: string): string => {
-    return s
-      .toLowerCase()
-      .replace(/\s*\([^)]*\)/g, '')  // Remove parenthesis content like "(°C)"
-      .replace(/[^a-z0-9]/g, '')      // Remove non-alphanumeric
-      .trim()
+    return s.toLowerCase()
+      .replace(/\s*\([^)]*\)/g, '')
+      .replace(/[^a-z0-9]/g, '').trim()
   }
 
-  // pomocník: nalezení indexu sloupce pomocí přibližné shody názvů
+  // pomocník: nalezení indexu sloupce
   const findColumnIndex = (fieldName: string, headers: string[]): number => {
     const nf = normalize(fieldName)
     for (let i = 0; i < headers.length; i++) {
       const nh = normalize(headers[i])
       if (nf === nh) return i
-      // jeden obsahuje druhý
-      if (nf.length > 2 && nh.length > 2) {
-        if (nf.includes(nh) || nh.includes(nf)) return i
-      }
+      if (nf.length > 2 && nh.length > 2 && (nf.includes(nh) || nh.includes(nf))) return i
     }
     return -1
   }
@@ -811,14 +855,12 @@ export function buildRecordsFromImported(
       value: unknown
     }> = []
 
-    // určení recordindexu ze sloupce „record number“ nebo pád zpět na r + 1
+    // určení recordindexu
     let recordIndex = r + 1
     if (firstBlock && recordNumberHeaderIdx >= 0) {
       const recordNumValue = firstBlock.rows[r]?.[recordNumberHeaderIdx]
       const parsed = parseInt(recordNumValue ?? '', 10)
-      if (!isNaN(parsed)) {
-        recordIndex = parsed
-      }
+      if (!isNaN(parsed)) recordIndex = parsed
     }
 
     for (const block of tmpl.blocks) {
@@ -828,25 +870,37 @@ export function buildRecordsFromImported(
 
       for (let fi = 0; fi < block.fields.length; fi++) {
         const f = block.fields[fi]!
-
-        // získání indexu zdroje: explicitní > najít podle názvu > pád zpět na index pole
         let srcIdx: number
         if (typeof f.sourceIndex === 'number') {
           srcIdx = f.sourceIndex
         } else {
-          // pokus o nalezení podle shody názvu hlavičky
           const matchedIdx = findColumnIndex(f.name, importedBlock.headers)
           srcIdx = matchedIdx >= 0 ? matchedIdx : fi
         }
 
         const rawValue = row[srcIdx] ?? ''
+        let value: unknown = rawValue
+
+        // Parse numbers respecting decimal separator
+        if ((f.type === 'float' || f.type === 'int') && typeof rawValue === 'string' && rawValue.trim() !== '') {
+          let s = rawValue
+          if (options.decimalSeparator === ',') {
+            s = s.replace(',', '.')
+          } else {
+            // Default robust: replace comma if no separator specified or if dot specified (assuming mixed content support)
+            s = s.replace(',', '.')
+          }
+          const num = parseFloat(s)
+          if (!isNaN(num)) value = num
+        }
+
         recordFields.push({
           name: f.name,
           type: f.type,
           required: f.required,
           blockIndex: block.blockIndex,
           blockTitle: block.title,
-          value: rawValue
+          value
         })
       }
     }

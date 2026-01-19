@@ -24,9 +24,9 @@ function toggleRail() {
 
 const links: Array<{ title: string; componentName: ProjectRouteName; icon: string }> = [
   { title: 'Board',        componentName: 'Board',        icon: 'mdi-bulletin-board' },
-  { title: 'Měření',       componentName: 'Measurements', icon: 'mdi-flask-outline' },
-  { title: 'Rezervace',    componentName: 'Reservations', icon: 'mdi-calendar' },
   { title: 'Přístroje',    componentName: 'Devices',      icon: 'mdi-devices' },
+  { title: 'Rezervace',    componentName: 'Reservations', icon: 'mdi-calendar' },
+  { title: 'Měření',       componentName: 'Measurements', icon: 'mdi-flask-outline' },
   { title: 'Lidé a práce', componentName: 'PeopleWork',   icon: 'mdi-account-group-outline' },
   { title: 'Souhrn',       componentName: 'Summary',      icon: 'mdi-chart-bar' },
 ]

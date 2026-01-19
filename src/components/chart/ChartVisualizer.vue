@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import {
   type MultiSeriesItem,
   type StatsObj,
@@ -24,6 +24,7 @@ const props = withDefaults(
     showTrend?: boolean
     trendType?: 'linear' | 'logarithmic'
     focusMode?: boolean
+    sharedZoomLevel?: number | null  // For synced zoom across multiple charts
   }>(),
   {
     xLabels: undefined,
@@ -34,13 +35,51 @@ const props = withDefaults(
     showTrend: false,
     trendType: 'linear',
     focusMode: false,
+    sharedZoomLevel: null,
   }
 )
 
+const emit = defineEmits<{
+  (e: 'point-click', payload: { event: MouseEvent; idx: number; val: number }): void
+  (e: 'zoom-change', zoomLevel: number): void
+}>()
+
 /* -------------------------------------------------
-   SVG reference & export helpers
+   SVG reference & zoom state
    ------------------------------------------------- */
 const svgRef = ref<SVGSVGElement | null>(null)
+const zoomLevel = ref(1)
+const minZoom = 0.5
+const maxZoom = 3
+let isUpdatingFromExternal = false
+
+// Watch for external zoom level changes (synced from other charts)
+watch(() => props.sharedZoomLevel, (newLevel) => {
+  if (newLevel !== null && newLevel !== undefined && newLevel !== zoomLevel.value) {
+    isUpdatingFromExternal = true
+    zoomLevel.value = Math.min(maxZoom, Math.max(minZoom, newLevel))
+    isUpdatingFromExternal = false
+  }
+})
+
+function handleWheel(e: WheelEvent) {
+  if (!e.ctrlKey) return
+  e.preventDefault()
+  
+  const delta = e.deltaY > 0 ? -0.1 : 0.1
+  const newZoom = Math.min(maxZoom, Math.max(minZoom, zoomLevel.value + delta))
+  zoomLevel.value = newZoom
+  
+  // Emit zoom change for sync (only if not updating from external source)
+  if (!isUpdatingFromExternal) {
+    emit('zoom-change', newZoom)
+  }
+}
+
+function resetZoom() {
+  zoomLevel.value = 1
+  emit('zoom-change', 1)
+}
 
 function exportCsv() {
   const lines: string[] = []
@@ -178,18 +217,21 @@ const xLabelsSafe = computed<Array<number | string>>(() => {
   return xl && xl.length === pointCount.value ? xl : Array.from({ length: pointCount.value }, (_, i) => i)
 })
 /* -------------------------------------------------
-   Layout & scaling (dynamic width for scrolling)
+   Layout & scaling (dynamic width for scrolling + zoom)
    ------------------------------------------------- */
 const layout = computed(() => {
   const count = pointCount.value
-  // Base width for ≤25 points, then grow 4 px per extra point
-  const width = count <= 25 ? 110 : 10 + count * 4 + 10
+  // Base width minimum 528 (user preference), growing for larger datasets to maintain density
+  const baseWidth = Math.max(528, 10 + count * 4 + 10)
+  // Apply zoom to width (makes chart wider/narrower)
+  const width = baseWidth * zoomLevel.value
   return {
     width,
-    height: 100,
-    minX: 5,
-    maxX: width - 15,
-    viewBox: `-5 0 ${width} 100`,
+    height: 120,
+    minX: 20 * zoomLevel.value,
+    maxX: width - 15 * zoomLevel.value,
+    viewBox: `-5 0 ${width} 120`,
+    zoom: zoomLevel.value,
   }
 })
 function mapYValue(v: number): number {
@@ -479,16 +521,24 @@ function onMouseMoveLine(e: MouseEvent) {
   const el = e.currentTarget as SVGSVGElement
   const rect = el.getBoundingClientRect()
   const mouseX = e.clientX - rect.left
-  const { width, minX, maxX } = layout.value
-  const scale = width / rect.width
-  const svgX = mouseX * scale - 5 // compensate viewBox offset
+  const { width, height, minX, maxX } = layout.value
+  
+  // X calculation
+  const scaleX = width / rect.width
+  const svgX = mouseX * scaleX - 5 // compensate viewBox offset
   const n = props.series[0].points.length
   const totalW = maxX - minX
   let idx = Math.round(((svgX - minX) / totalW) * (n - 1))
   idx = Math.max(0, Math.min(n - 1, idx))
+  
   hoverIdx.value = idx
   hoverValue.value = props.series[0].points[idx]
   hoverXPercent.value = mapXValue(idx, n)
+  
+  // Y calculation for Mean hover
+  const scaleY = height / rect.height
+  const svgY = (e.clientY - rect.top) * scaleY
+  hoverYPercent.value = svgY
 }
 /* Histogram hover */
 function onMouseMoveHist(e: MouseEvent) {
@@ -509,13 +559,21 @@ function onMouseMoveHist(e: MouseEvent) {
 }
 /* Box‑plot hover */
 function onMouseMoveBox(e: MouseEvent) {
-  hoverYPercent.value = getMouseYPercent(e)
+  // Use SVG coordinates for consistency
+  const el = e.currentTarget as SVGSVGElement
+  const rect = el.getBoundingClientRect()
+  // Scale 0..100% of height to 0..layout.height
+  const { height } = layout.value
+  const scaleY = height / rect.height
+  const svgY = (e.clientY - rect.top) * scaleY
+  hoverYPercent.value = svgY
 }
 /* Leave handlers */
 function onMouseLeaveLine() {
   hoverXPercent.value = null
   hoverIdx.value = null
   hoverValue.value = null
+  hoverYPercent.value = null
 }
 function onMouseLeaveHist() {
   hoveredBin.value = null
@@ -535,12 +593,27 @@ const hoverMeanActive = computed<boolean>(() =>
   props.showHover &&
   meanY.value !== null &&
   hoverYPercent.value !== null &&
-  Math.abs(hoverYPercent.value - meanY.value) < 2
+  Math.abs(hoverYPercent.value - meanY.value) < 4 // increased from 2
+)
+const hoverMedianActive = computed<boolean>(() =>
+  props.activeTab === 'BOXPLOT' &&
+  props.showHover &&
+  box.value?.yMed !== undefined &&
+  hoverYPercent.value !== null &&
+  Math.abs(hoverYPercent.value - box.value.yMed) < 4
 )
 const hoverYValueLabel = computed<string | null>(() => {
   if (hoverYPercent.value == null) return null
-  const yNorm = 100 - hoverYPercent.value
-  const norm = (yNorm - 10) / 80
+  // svgY is 10..90 range typically (mapped y). 
+  // mapYValue does: 100 - (norm * 80 + 10). So 90 is min, 10 is max.
+  // Inverse: val = 100 - svgY.
+  // norm * 80 + 10 = val
+  // norm * 80 = val - 10
+  // norm = (val - 10) / 80
+  
+  const rawY = hoverYPercent.value
+  const norm = (100 - rawY - 10) / 80 // inverse mapYValue logic
+  
   const clamped = Math.max(0, Math.min(1, norm))
   const val = yMin.value + clamped * yRange.value
   return niceNumber(val)
@@ -577,6 +650,7 @@ const ariaLabel = computed(() => {
         :viewBox="layout.viewBox"
         :aria-label="ariaLabel"
         role="img"
+        @wheel="handleWheel"
         @mousemove="
           activeTab === 'HISTOGRAM'
             ? onMouseMoveHist($event)
@@ -598,8 +672,9 @@ const ariaLabel = computed(() => {
         <!-- Axes -->
         <g class="axes">
           <!-- X‑axis -->
+          <!-- X‑axis -->
           <line
-            :x1="5"
+            :x1="layout.minX"
             :x2="layout.maxX"
             y1="90"
             y2="90"
@@ -607,7 +682,7 @@ const ariaLabel = computed(() => {
             stroke-width="0.6"
           />
           <!-- Y‑axis -->
-          <line x1="5" x2="5" y1="10" y2="90" stroke="#9e9e9e" stroke-width="0.6" />
+          <line :x1="layout.minX" :x2="layout.minX" y1="10" y2="90" stroke="#9e9e9e" stroke-width="0.6" />
           <!-- Grid & ticks -->
           <template v-if="showGrid">
             <!-- Y‑grid -->
@@ -627,7 +702,7 @@ const ariaLabel = computed(() => {
               <text
                 v-for="i in 5"
                 :key="'y-label-' + i"
-                x="1"
+                :x="layout.minX - 2"
                 :y="90 - ((i - 1) / 4) * 80"
                 text-anchor="end"
                 font-size="3.5"
@@ -1081,8 +1156,16 @@ const ariaLabel = computed(() => {
             :y1="box.yMed"
             :y2="box.yMed"
             stroke="#e53935"
-            stroke-width="1.4"
+            :stroke-width="hoverMedianActive ? 2.5 : 1.4"
           />
+          <text
+            v-if="hoverMedianActive"
+            :x="box.center + 18"
+            :y="box.yMed + 1.5"
+            font-size="5"
+            fill="#e53935"
+            font-weight="bold"
+          >Medián: {{ fmt2(boxStats?.med) }}</text>
           <g v-if="outliers && outliers.outlierIndexes.length && series[0]">
             <circle
               v-for="idx in outliers.outlierIndexes"
@@ -1162,6 +1245,9 @@ const ariaLabel = computed(() => {
     <div class="d-flex align-center mr-4">
       <div class="legend-iqr"></div>IQR (50%)
     </div>
+    <div class="d-flex align-center mr-4">
+      <div class="legend-median"></div>Medián
+    </div>
     <div class="d-flex align-center">
       <div class="legend-outlier"></div>Odlehlá hodnota (Outlier)
     </div>
@@ -1187,7 +1273,7 @@ const ariaLabel = computed(() => {
 .chart-svg {
   width: 100%;
   height: 100%;
-  overflow: visible;
+  overflow: hidden;
 }
 /* -----------------------------------------------------------------
    Typography & axis styling
@@ -1209,6 +1295,12 @@ const ariaLabel = computed(() => {
   height: 12px;
   background: #c5e1a5;
   border: 1px solid #7cb342;
+  margin-right: 6px;
+}
+.legend-median {
+  width: 20px;
+  height: 2px;
+  background: #e53935;
   margin-right: 6px;
 }
 .legend-outlier {

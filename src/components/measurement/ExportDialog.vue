@@ -61,7 +61,7 @@ function handleExport(): void {
   const filename = customFilename.value.trim() || 
     `mereni_export_${new Date().toISOString().slice(0, 10)}`
   
-  // mapování measurementresponse na exportmeasurement (mapping data)
+  // mapování measurementresponse na exportmeasurement včetně values (mapping data with values)
   const exportData = props.measurements.map(m => ({
     id: m.id,
     type: m.type,
@@ -70,7 +70,8 @@ function handleExport(): void {
     timestamp: m.timestamp,
     measuredByUsername: (m as unknown as { measuredByUsername?: string }).measuredByUsername || null,
     note: (m as unknown as { note?: string }).note || null,
-    zenodoDoi: m.zenodoDoi || null
+    zenodoDoi: m.zenodoDoi || null,
+    values: m.values || []
   }))
   
   doExport(selectedFormat.value, exportData, columns.value, filename)

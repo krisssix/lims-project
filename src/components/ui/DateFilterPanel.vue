@@ -6,21 +6,6 @@ import FilterMultiSelect from '@/components/ui/FilterMultiSelect.vue'
 export type DateFilterField = 'date' | 'createdAt' | 'updatedAt'
 export type DateRangePreset = 'today' | 'thisWeek' | 'nextWeek' | 'thisMonth' | 'custom' | null
 
-function toggleMember(m: string) {
-  const current = props.pickedMembers || []
-  const newVal = current.includes(m)
-    ? current.filter(x => x !== m)
-    : [...current, m]
-  emit('update:pickedMembers', newVal)
-}
-function toggleDevice(id: string) {
-  const current = props.pickedDevices || []
-  const newVal = current.includes(id)
-    ? current.filter(x => x !== id)
-    : [...current, id]
-  emit('update:pickedDevices', newVal)
-}
-
 export interface DateFilter {
   field: DateFilterField
   preset: DateRangePreset
@@ -44,6 +29,7 @@ const props = defineProps<{
   pickedMembers?: string[]
   pickedTemplates?: string[]
   includeWeekends?: boolean
+  showTwoWeeks?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -52,6 +38,7 @@ const emit = defineEmits<{
   'update:pickedMembers': [value: string[]]
   'update:pickedTemplates': [value: string[]]
   'update:includeWeekends': [value: boolean]
+  'update:showTwoWeeks': [value: boolean]
   'close': []
 }>()
 
@@ -71,31 +58,40 @@ const memberSearch = ref('')
 const showMemberDropdown = ref(false)
 const showDeviceDropdown = ref(false)
 
+// --- Sync & Watchers ---
+
 watch(() => props.modelValue.field, (val) => {
   localField.value = val
 })
 
-// Auto-select today if current date matches
-watch(() => props.modelValue.from, (newFrom) => {
-  if (newFrom) {
-    const today = new Date()
-    const isToday = newFrom.toDateString() === today.toDateString()
+// Consolidated watcher for modelValue changes
+watch(() => props.modelValue, (newVal) => {
+  if (newVal.from) {
+    // 1. Sync calendar viewDate if month/year changed
+    const vY = viewDate.value.getFullYear()
+    const vM = viewDate.value.getMonth()
+    const dY = newVal.from.getFullYear()
+    const dM = newVal.from.getMonth()
+    if (vY !== dY || vM !== dM) {
+      viewDate.value = new Date(dY, dM, 1)
+    }
 
-    if (isToday && props.modelValue.preset !== 'today') {
-      // Only update preset, keep the dates
-      emit('update:modelValue', {
-        ...props.modelValue,
-        preset: 'today'
-      })
-    } else if (!isToday && props.modelValue.preset === 'today') {
-      // If date changed away from today, change preset to custom
-      emit('update:modelValue', {
-        ...props.modelValue,
-        preset: 'custom'
-      })
+    // 2. Auto-select today if current date matches (for immediate sync)
+    const today = new Date()
+    const isToday = newVal.from.toDateString() === today.toDateString()
+    // Check if it's a single day selection (to is null or same as from)
+    // NOTE: This check must be robust. If preset is 'thisWeek' or 'nextWeek', 'to' will differ from 'from', so isSingleDay is false.
+    // If preset is 'custom' and user selected range, isSingleDay is false.
+    // Only if user clicked single day or reset to today, isSingleDay is true.
+    const isSingleDay = !newVal.to || newVal.to.toDateString() === newVal.from.toDateString()
+
+    if (isToday && isSingleDay && newVal.preset !== 'today') {
+      emit('update:modelValue', { ...newVal, preset: 'today' })
+    } else if (!isToday && newVal.preset === 'today') {
+      emit('update:modelValue', { ...newVal, preset: 'custom' })
     }
   }
-}, { immediate: true })
+}, { deep: true, immediate: true })
 
 watch(() => props.includeWeekends, () => {
   if (props.modelValue.preset === 'thisWeek') selectThisWeek()
@@ -108,7 +104,6 @@ const dynamicHeaderLabel = computed(() => {
     return 'Všechna měření'
   }
 
-  // Format the date nicely for any selection (including today)
   const from = props.modelValue.from
   const to = props.modelValue.to
   const d1 = from.toLocaleDateString('cs-CZ', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
@@ -121,8 +116,11 @@ const dynamicHeaderLabel = computed(() => {
     }
   }
 
-  // For single day (today or custom) - just show the formatted date
   return d1
+})
+
+const headerFontSize = computed(() => {
+  return dynamicHeaderLabel.value.length > 30 ? '14px' : '18px'
 })
 
 // No auto-set on mount - show all measurements by default
@@ -181,7 +179,8 @@ const calendarDays = computed(() => {
   let weekEnd: Date | null = null
 
   // Highlight week in week views OR when 'thisWeek' or 'nextWeek' preset is selected
-  const isWeekView = props.viewMode === 'week-work' || props.viewMode === 'week-all'
+  // BUT NOT if we are in 'custom' mode (user manually selected range)
+  const isWeekView = (props.viewMode === 'week-work' || props.viewMode === 'week-all') && props.modelValue.preset !== 'custom'
   const isWeekPreset = props.modelValue.preset === 'thisWeek' || props.modelValue.preset === 'nextWeek'
 
   if (selectedDate && (isWeekView || isWeekPreset)) {
@@ -214,13 +213,25 @@ const calendarDays = computed(() => {
     monthEnd.setHours(23, 59, 59, 999)
   }
 
-  const days: Array<{ day: number; isCurrentMonth: boolean; isToday: boolean; isSelected: boolean; isWeekend: boolean; isInWeek: boolean; isInMonth: boolean; date: Date }> = []
+  // Calculate custom range for highlighting (any date range selection)
+  let rangeStart: Date | null = null
+  let rangeEnd: Date | null = null
+  
+  if (props.modelValue.from && props.modelValue.to) {
+    rangeStart = new Date(props.modelValue.from)
+    rangeStart.setHours(0, 0, 0, 0)
+    rangeEnd = new Date(props.modelValue.to)
+    rangeEnd.setHours(23, 59, 59, 999)
+  }
+
+  const days: Array<{ day: number; isCurrentMonth: boolean; isToday: boolean; isSelected: boolean; isWeekend: boolean; isInWeek: boolean; isInMonth: boolean; isInRange: boolean; isPendingStart: boolean; date: Date }> = []
 
   for (let i = startDayOfWeek - 1; i >= 0; i--) {
     const d = prevMonthLastDay - i
     const date = new Date(year, month - 1, d)
     const isInWeek = weekStart && weekEnd ? date >= weekStart && date <= weekEnd : false
     const isInMonth = monthStart && monthEnd ? date >= monthStart && date <= monthEnd : false
+    const isInRange = rangeStart && rangeEnd ? date >= rangeStart && date <= rangeEnd : false
     days.push({
       day: d,
       isCurrentMonth: false,
@@ -229,6 +240,8 @@ const calendarDays = computed(() => {
       isWeekend: false,
       isInWeek,
       isInMonth,
+      isInRange,
+      isPendingStart: false,
       date
     })
   }
@@ -239,9 +252,12 @@ const calendarDays = computed(() => {
     const dayOfWeek = date.getDay()
     const isWeekend = dayOfWeek === 0 || dayOfWeek === 6
     const isToday = date.toDateString() === today.toDateString()
-    const isSelected = props.modelValue.from && date.toDateString() === props.modelValue.from.toDateString()
+    // Highlight both From and To dates as specifically "selected" (dark blue)
+    const isSelected = (props.modelValue.from && date.toDateString() === props.modelValue.from.toDateString()) || (props.modelValue.to && date.toDateString() === props.modelValue.to.toDateString())
     const isInWeek = weekStart && weekEnd ? date >= weekStart && date <= weekEnd : false
     const isInMonth = monthStart && monthEnd ? date >= monthStart && date <= monthEnd : false
+    const isInRange = rangeStart && rangeEnd ? date >= rangeStart && date <= rangeEnd : false
+    const isPendingStart = pendingStart.value ? date.toDateString() === pendingStart.value.toDateString() : false
 
     days.push({
       day: d,
@@ -251,6 +267,8 @@ const calendarDays = computed(() => {
       isWeekend,
       isInWeek,
       isInMonth,
+      isInRange,
+      isPendingStart,
       date
     })
   }
@@ -260,6 +278,7 @@ const calendarDays = computed(() => {
     const date = new Date(year, month + 1, d)
     const isInWeek = weekStart && weekEnd ? date >= weekStart && date <= weekEnd : false
     const isInMonth = monthStart && monthEnd ? date >= monthStart && date <= monthEnd : false
+    const isInRange = rangeStart && rangeEnd ? date >= rangeStart && date <= rangeEnd : false
     days.push({
       day: d,
       isCurrentMonth: false,
@@ -268,6 +287,8 @@ const calendarDays = computed(() => {
       isWeekend: false,
       isInWeek,
       isInMonth,
+      isInRange,
+      isPendingStart: false,
       date
     })
   }
@@ -306,15 +327,41 @@ function endOfMonth(d: Date): Date {
 }
 
 function prevMonth() {
-  viewDate.value = new Date(viewDate.value.getFullYear(), viewDate.value.getMonth() - 1, 1)
+  const newDate = new Date(viewDate.value.getFullYear(), viewDate.value.getMonth() - 1, 1)
+  viewDate.value = newDate
+  
+  // If in month mode, update selection too
+  if (props.modelValue.preset === 'thisMonth') {
+    emit('update:modelValue', {
+      ...props.modelValue,
+      from: startOfMonth(newDate),
+      to: endOfMonth(newDate),
+      preset: 'thisMonth'
+    })
+  }
 }
 
 function nextMonth() {
-  viewDate.value = new Date(viewDate.value.getFullYear(), viewDate.value.getMonth() + 1, 1)
+  const newDate = new Date(viewDate.value.getFullYear(), viewDate.value.getMonth() + 1, 1)
+  viewDate.value = newDate
+  
+  // If in month mode, update selection too
+  if (props.modelValue.preset === 'thisMonth') {
+    emit('update:modelValue', {
+      ...props.modelValue,
+      from: startOfMonth(newDate),
+      to: endOfMonth(newDate),
+      preset: 'thisMonth'
+    })
+  }
 }
+
+// State for smart selection (1st click = start, 2nd click = end)
+const pendingStart = ref<Date | null>(null)
 
 function selectToday() {
   const today = new Date()
+  pendingStart.value = null // Clear pending on preset usage
   emit('update:modelValue', {
     field: localField.value,
     preset: 'today',
@@ -333,6 +380,7 @@ function selectThisWeek() {
   const addDays = (props.includeWeekends || props.viewMode === 'week-all') ? 6 : 4
   end.setDate(start.getDate() + addDays)
 
+  pendingStart.value = null // Clear pending
   emit('update:modelValue', {
     field: localField.value,
     preset: 'thisWeek',
@@ -351,6 +399,7 @@ function selectNextWeek() {
   const addDays = (props.includeWeekends || props.viewMode === 'week-all') ? 6 : 4
   end.setDate(start.getDate() + addDays)
 
+  pendingStart.value = null // Clear pending
   emit('update:modelValue', {
     field: localField.value,
     preset: 'nextWeek',
@@ -362,6 +411,7 @@ function selectNextWeek() {
 
 function selectThisMonth() {
   const today = new Date()
+  pendingStart.value = null
   emit('update:modelValue', {
     field: localField.value,
     preset: 'thisMonth',
@@ -371,17 +421,74 @@ function selectThisMonth() {
   emit('close')
 }
 
-function selectDay(date: Date) {
+function selectTwoWeeks() {
+  const today = new Date()
+  const start = startOfWeek(today)
+  const end = new Date(start)
+  // Add 13 days (Total 14 days)
+  end.setDate(start.getDate() + 13)
+
+  pendingStart.value = null
   emit('update:modelValue', {
     field: localField.value,
-    preset: 'custom',
-    from: startOfDay(date),
-    to: endOfDay(date)
+    preset: 'custom', // custom so it doesn't trigger "thisWeek" logic
+    from: start,
+    to: endOfDay(end)
   })
   emit('close')
 }
 
+function selectDay(date: Date) {
+  // For daily view, skip range selection - single click selects the day
+  if (props.viewMode === 'daily-machines') {
+    pendingStart.value = null
+    emit('update:modelValue', {
+      field: localField.value,
+      preset: 'custom',
+      from: startOfDay(date),
+      to: endOfDay(date)
+    })
+    emit('close')
+    return
+  }
+
+  // Smart selection logic for weekly views
+  if (pendingStart.value === null) {
+      // First click: Select start
+      pendingStart.value = date
+      emit('update:modelValue', {
+        field: localField.value,
+        preset: 'custom',
+        from: startOfDay(date),
+        to: endOfDay(date) // Initially single day
+      })
+  } else {
+      // Second click
+      if (date >= pendingStart.value) {
+          // Valid range: Start -> End
+          emit('update:modelValue', {
+            field: localField.value,
+            preset: 'custom',
+            from: startOfDay(pendingStart.value),
+            to: endOfDay(date)
+          })
+          pendingStart.value = null // Reset after range completion
+          emit('close')
+      } else {
+          // Clicked before start: Treat as new start
+          pendingStart.value = date
+          emit('update:modelValue', {
+            field: localField.value,
+            preset: 'custom',
+            from: startOfDay(date),
+            to: endOfDay(date)
+          })
+      }
+  }
+}
+
 function clearFilter() {
+  pendingStart.value = null
   emit('update:modelValue', {
     field: localField.value,
     preset: null,
@@ -403,6 +510,24 @@ function setField(newField: DateFilterField) {
       field: newField
     })
   }
+}
+
+// --- Helper Functions ---
+
+function toggleMember(m: string) {
+  const current = props.pickedMembers || []
+  const newVal = current.includes(m)
+    ? current.filter(x => x !== m)
+    : [...current, m]
+  emit('update:pickedMembers', newVal)
+}
+
+function toggleDevice(id: string) {
+  const current = props.pickedDevices || []
+  const newVal = current.includes(id)
+    ? current.filter(x => x !== id)
+    : [...current, id]
+  emit('update:pickedDevices', newVal)
 }
 
 const dateFromInput = computed({
@@ -458,10 +583,14 @@ const dateToInput = computed({
   <div class="date-filter-card">
     <!-- HEADER -->
     <div class="date-filter-header">
-      <div class="header-label">
+      <div
+        class="header-label"
+        :style="{ fontSize: headerFontSize }"
+      >
         <v-icon
           size="20"
-          class="header-icon"
+          :class="['header-icon', { 'mr-1': true }]"
+          :style="{ fontSize: headerFontSize === '14px' ? '18px' : '20px' }"
         >
           mdi-flask
         </v-icon>
@@ -581,8 +710,10 @@ const dateToInput = computed({
               'weekend': day.isWeekend && day.isCurrentMonth,
               'today': day.isToday,
               'selected': day.isSelected,
-              'in-week': day.isInWeek && day.isCurrentMonth,
-              'in-month': day.isInMonth && day.isCurrentMonth
+              'in-week': day.isInWeek,
+              'in-month': day.isInMonth && day.isCurrentMonth,
+              'in-range': day.isInRange,
+              'pending-start': day.isPendingStart && day.isCurrentMonth
             }
           ]"
           @click="selectDay(day.date)"
@@ -646,6 +777,17 @@ const dateToInput = computed({
 
     <!-- FILTER TOGGLE -->
     <div v-if="!hideFieldToggle" class="filter-type-section">
+      <!-- Hint when no date selected -->
+      <div v-if="!modelValue.from" class="filter-hint-banner">
+        <div class="hint-icon">
+          <v-icon size="18" color="white">mdi-information-outline</v-icon>
+        </div>
+        <div class="hint-content">
+          <div class="hint-title">Nejprve vyberte datum</div>
+          <div class="hint-text">Pro aktivaci filtrování klikněte na datum v kalendáři výše</div>
+        </div>
+      </div>
+      
       <div class="filter-section-title">
         <v-icon size="14" class="mr-1">mdi-filter-variant</v-icon>
         <span>Filtrovat podle</span>
@@ -656,7 +798,8 @@ const dateToInput = computed({
             <button
               v-bind="tooltipProps"
               type="button"
-              :class="['toggle-btn-light',{active:localField==='date'}]"
+              :class="['toggle-btn-light',{active:localField==='date', disabled: !modelValue.from}]"
+              :disabled="!modelValue.from"
               @click="setField('date')"
             >
               <v-icon size="16">mdi-flask</v-icon>
@@ -669,7 +812,8 @@ const dateToInput = computed({
             <button
               v-bind="tooltipProps"
               type="button"
-              :class="['toggle-btn-light',{active:localField==='createdAt'}]"
+              :class="['toggle-btn-light',{active:localField==='createdAt', disabled: !modelValue.from}]"
+              :disabled="!modelValue.from"
               @click="setField('createdAt')"
             >
               <v-icon size="16">mdi-plus</v-icon>
@@ -682,7 +826,8 @@ const dateToInput = computed({
             <button
               v-bind="tooltipProps"
               type="button"
-              :class="['toggle-btn-light',{active:localField==='updatedAt'}]"
+              :class="['toggle-btn-light',{active:localField==='updatedAt', disabled: !modelValue.from}]"
+              :disabled="!modelValue.from"
               @click="setField('updatedAt')"
             >
               <v-icon size="16">mdi-pencil</v-icon>
@@ -693,18 +838,32 @@ const dateToInput = computed({
       </div>
     </div>
 
-    <div>
+    <div class="toggles-section">
       <!-- Weekends Toggle (for week views) -->
       <label
         v-if="showWeekendToggle"
-        class="weekends-toggle-panel"
+        class="modern-toggle"
       >
         <input
           type="checkbox"
           :checked="includeWeekends"
           @change="emit('update:includeWeekends', ($event.target as HTMLInputElement).checked)"
         >
-        <span>Včetně víkendů</span>
+        <span class="toggle-slider"></span>
+        <span class="toggle-label">Včetně víkendů</span>
+      </label>
+      <!-- Two Weeks Toggle (for week views) -->
+      <label
+        v-if="showWeekendToggle"
+        class="modern-toggle"
+      >
+        <input
+          type="checkbox"
+          :checked="showTwoWeeks"
+          @change="emit('update:showTwoWeeks', ($event.target as HTMLInputElement).checked)"
+        >
+        <span class="toggle-slider"></span>
+        <span class="toggle-label">2 týdny</span>
       </label>
     </div>
     <!-- MANUAL RANGE -->
@@ -712,8 +871,18 @@ const dateToInput = computed({
       v-if="!hidePresets"
       class="manual-range-section"
     >
-      <div class="range-label">
-        Časové rozmezí
+      <div class="range-labels-row" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+        <div class="range-label" style="margin-bottom: 0;">
+          Časové rozmezí
+        </div>
+        <button
+          v-if="modelValue.from || modelValue.to"
+          type="button"
+          class="clear-filter-btn"
+          @click="clearFilter"
+        >
+          Vymazat filtr
+        </button>
       </div>
       <div class="range-inputs">
         <div class="range-field">
@@ -722,6 +891,7 @@ const dateToInput = computed({
             v-model="dateFromInput"
             type="date"
             class="date-input"
+            :max="dateToInput"
           >
         </div>
         <div class="range-separator">
@@ -735,6 +905,7 @@ const dateToInput = computed({
             v-model="dateToInput"
             type="date"
             class="date-input"
+            :min="dateFromInput"
           >
         </div>
       </div>
@@ -844,13 +1015,14 @@ const dateToInput = computed({
 }
 
 .header-label {
-  font-size: 14px;
   font-weight: 600;
   letter-spacing: 0.3px;
-  margin-bottom: 12px;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
+  transition: font-size 0.2s ease;
+  min-height: 28px;
 }
 
 .header-icon {
@@ -1529,10 +1701,11 @@ const dateToInput = computed({
 }
 
 .day-btn.selected {
-  background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%);
+  /* Use a Violet/Purple gradient to distinguish from the Blue "Today" color */
+  background: linear-gradient(135deg, #3b82f6 0%, #1751af 100%);
   color: white !important;
   font-weight: 700;
-  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
   transform: scale(1.05);
 }
 
@@ -1557,7 +1730,7 @@ const dateToInput = computed({
 }
 
 .day-btn.in-week.selected {
-  background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%);
+  background: linear-gradient(135deg, #3b82f6 0%, #1751af 100%);
   color: white !important;
 }
 
@@ -1578,7 +1751,28 @@ const dateToInput = computed({
 }
 
 .day-btn.in-month.selected {
-  background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%);
+  background: linear-gradient(135deg, #3b82f6 0%, #1751af 100%);
+  color: white !important;
+}
+
+/* Custom range highlighting (any date range) */
+.day-btn.in-range {
+  background: #dbeafe;
+  color: #1e40af;
+  font-weight: 600;
+  border-radius: 4px;
+}
+
+.day-btn.in-range:hover {
+  background: #bfdbfe;
+}
+
+.day-btn.in-range.today {
+  background: #93c5fd;
+}
+
+.day-btn.in-range.selected {
+  background: linear-gradient(135deg, #3b82f6 0%, #3b82f6 100%);
   color: white !important;
 }
 
@@ -1699,5 +1893,171 @@ const dateToInput = computed({
   color: #1e40af;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
   transform: translateY(-1px);
+}
+
+/* Filter hint banner */
+.filter-hint-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  margin-bottom: 12px;
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.2);
+  animation: fadeInSlide 0.3s ease-out;
+}
+
+@keyframes fadeInSlide {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.hint-icon {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+}
+
+.hint-content {
+  flex: 1;
+}
+
+.hint-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: white;
+  margin-bottom: 2px;
+  letter-spacing: 0.2px;
+}
+
+.hint-text {
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.9);
+  line-height: 1.4;
+}
+
+/* Disabled state for toggle buttons */
+.toggle-btn-light.disabled,
+.toggle-btn-light:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: transparent !important;
+  color: #9ca3af !important;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+.clear-filter-btn {
+  font-size: 11px;
+  font-weight: 600;
+  color: #3b82f6; 
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.clear-filter-btn:hover {
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.day-btn.pending-start {
+  background: var(--v-theme-primary);
+  color: white;
+  opacity: 0.6; /* Distinct from fully selected */
+  border: 2px dashed rgba(255,255,255,0.5);
+}
+
+.toggle-btn-light.disabled:hover,
+.toggle-btn-light:disabled:hover {
+  background: transparent !important;
+  color: #9ca3af !important;
+  transform: none !important;
+}
+
+/* Modern Toggle Switches */
+.toggles-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 16px;
+  background: white;
+}
+
+.modern-toggle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  user-select: none;
+  position: relative;
+}
+
+.modern-toggle input[type="checkbox"] {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-slider {
+  position: relative;
+  width: 44px;
+  height: 24px;
+  background: #e5e7eb;
+  border-radius: 12px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  flex-shrink: 0;
+}
+
+.toggle-slider::before {
+  content: '';
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  left: 3px;
+  top: 3px;
+  background: white;
+  border-radius: 50%;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.modern-toggle input[type="checkbox"]:checked + .toggle-slider {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+}
+
+.modern-toggle input[type="checkbox"]:checked + .toggle-slider::before {
+  transform: translateX(20px);
+}
+
+.modern-toggle:hover .toggle-slider {
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
+}
+
+.toggle-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: #374151;
+}
+
+.modern-toggle input[type="checkbox"]:checked ~ .toggle-label {
+  color: #1f2937;
+  font-weight: 600;
 }
 </style>

@@ -69,7 +69,7 @@ export function isExcelFile(file: File): boolean {
 /**
  * zparsování libovolného podporovaného souboru (csv, tsv, txt, excel) na mřížku
  */
-export async function parseFileToGrid(file: File): Promise<{
+export async function parseFileToGrid(file: File, options?: { delimiter?: string }): Promise<{
     success: boolean
     grid: (string | number)[][]
     sheetName?: string
@@ -92,7 +92,7 @@ export async function parseFileToGrid(file: File): Promise<{
     // pro textové soubory použít jednoduché parsování
     try {
         const text = await file.text()
-        const grid = parseTextToGrid(text)
+        const grid = parseTextToGrid(text, options?.delimiter)
         return { success: true, grid }
     } catch (err) {
         return {
@@ -106,19 +106,23 @@ export async function parseFileToGrid(file: File): Promise<{
 /**
  * zparsování textu (csv/tsv/txt) na mřížku
  */
-export function parseTextToGrid(text: string): (string | number)[][] {
+export function parseTextToGrid(text: string, forcedDelimiter?: string): (string | number)[][] {
     const lines = text.split(/\r?\n/)
     const grid: (string | number)[][] = []
 
     for (const line of lines) {
-        // detekce oddělovače
-        const tabCount = (line.match(/\t/g) || []).length
-        const commaCount = (line.match(/,/g) || []).length
-        const semicolonCount = (line.match(/;/g) || []).length
+        let delimiter = forcedDelimiter
 
-        let delimiter = '\t'
-        if (commaCount > tabCount && commaCount >= semicolonCount) delimiter = ','
-        if (semicolonCount > tabCount && semicolonCount >= commaCount) delimiter = ';'
+        if (!delimiter) {
+            // detekce oddělovače
+            const tabCount = (line.match(/\t/g) || []).length
+            const commaCount = (line.match(/,/g) || []).length
+            const semicolonCount = (line.match(/;/g) || []).length
+
+            delimiter = '\t'
+            if (commaCount > tabCount && commaCount >= semicolonCount) delimiter = ','
+            if (semicolonCount > tabCount && semicolonCount >= commaCount) delimiter = ';'
+        }
 
         const cells = line.split(delimiter).map(cell => {
             const trimmed = cell.trim()

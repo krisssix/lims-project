@@ -1,13 +1,15 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import Dialog from '@/components/Dialog.vue'
-import type { MappingModel } from '@/utils/import/importMapping'
+import type { MappingModel, MappingField } from '@/utils/import/importMapping'
 import { validateMapping, exportMapping } from '@/utils/import/importMapping'
 import { isEditableElement } from '@/components/ui/hotkeyGuard'
+import { useImportStore } from '@/stores/import'
 
 const props = defineProps<{
   modelValue: boolean
   mappingModel: MappingModel | null
+  templateId?: number | null
 }>()
 
 const emits = defineEmits<{
@@ -251,6 +253,25 @@ function focusFieldByIndex(idx: number): void {
       lastFocusedFieldPos.value = idx
     }
   })
+
+}
+
+const importStore = useImportStore()
+const savingMapping = ref<string | null>(null)
+
+async function saveLearnedMapping(field: MappingField, header: string) {
+  if (!props.templateId || !header || !field.fieldName) return
+  savingMapping.value = field.id
+  try {
+    await importStore.saveMappings(props.templateId, { [header]: field.fieldName })
+    // Update match source locally to show it's learned
+    field.matchSource = 'LEARNED'
+    field.confidence = 1.0
+  } catch (e) {
+    console.error('Failed to save learned mapping', e)
+  } finally {
+    savingMapping.value = null
+  }
 }
 
 function onApply(): void {
@@ -614,6 +635,22 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKey))
                   >
                     mdi-check-circle-outline
                   </v-icon>
+
+                  
+                  <!-- Tlačítko pro učení (Learn mapping button) -->
+                  <v-btn
+                    v-if="props.templateId && f.mappedSourceIndex != null && f.matchSource !== 'LEARNED'"
+                    icon
+                    size="x-small"
+                    variant="text"
+                    color="primary"
+                    class="ml-1"
+                    :loading="savingMapping === f.id"
+                    title="Uložit jako naučené mapování (synonymum) pro budoucí importy"
+                    @click="saveLearnedMapping(f, b.headers[f.mappedSourceIndex])"
+                  >
+                    <v-icon>mdi-brain-plus-outline</v-icon>
+                  </v-btn>
                 </div>
               </div>
             </transition-group>
@@ -715,6 +752,19 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKey))
                 Vytvořit odvozenou šablonu
               </v-btn>
             </div>
+
+            <!-- DC Alert -->
+            <v-alert
+              v-if="extraColumns.some(c => c.headerName === 'DC')"
+              type="warning"
+              variant="tonal"
+              density="compact"
+              class="mb-2"
+              icon="mdi-alert"
+            >
+              <strong>Pozor:</strong> Nalezen sloupec <strong>DC</strong> (Timestamp?), který není namapován.
+              Doporučujeme jej přidat do šablony, pokud se jedná o časovou značku.
+            </v-alert>
             
             <v-alert type="info" variant="tonal" class="mb-2" density="compact">
               Tyto sloupce nejsou v aktuální šabloně. Můžete vytvořit odvozenou šablonu s novými poli.

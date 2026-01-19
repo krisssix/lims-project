@@ -155,6 +155,8 @@ function close() {
   padding: 20px 24px;
   overflow-y: auto;
   flex: 1;
+  color: rgba(0, 0, 0, 0.87);
+  background: #ffffff;
 }
 
 /* patička (footer) */

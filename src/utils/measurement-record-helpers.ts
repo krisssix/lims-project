@@ -389,7 +389,7 @@ export interface IqrOutliers {
 }
 
 export function detectOutliersIqr(values: number[]): IqrOutliers {
-  if (values.length < 4) {
+  if (values.length < 2) {
     return {
       outlierIndexes: [],
       lowerFence: NaN,
@@ -552,7 +552,10 @@ export function setFieldValueInBlock(
  * validace jednoho pole podle jeho typu + required.
  */
 export function validateField(field: RecordField): string | null {
+  // Nepovinná pole nikdy nevrací chybu
   if (!field.required) return null
+
+  // Pro povinná pole kontrolujeme, zda jsou vyplněná
   switch (field.type) {
     case 'float':
       return toNumber(field.value, false) != null ? null : 'Neplatné číslo'
@@ -570,7 +573,7 @@ export function validateField(field: RecordField): string | null {
       return field.value != null ? null : 'Vyžadován soubor'
     case 'text':
     default: {
-      const s = (field.value == null ? '' : String(field.value)).trim()
+      const s = (field.value == null ? '' : String(field.value))
       return s.length ? null : 'Vyžadováno'
     }
   }

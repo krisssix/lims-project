@@ -34,6 +34,7 @@ const props = defineProps<{
   fallbackNextDay?:{ day:Date; slot:Slot } | null
   conflicts?:ConflictItem[]
   allReservations?:ConflictItem[]
+  excludeReservationId?:number | null  // ID of reservation being moved (to exclude from overlap checks)
 }>()
 
 const emit = defineEmits<{
@@ -74,13 +75,16 @@ const targetDayEnd = computed(() => {
   return d
 })
 
-// Rezervace POUZE pro cílový den
+// Rezervace POUZE pro cílový den (vyloučena přesouvaná rezervace)
 const reservationsOnTargetDay = computed<ConflictItem[]>(() => {
 const all = props.allReservations ?? []
   const dayStart = targetDay.value.getTime()
   const dayEnd = targetDayEnd.value.getTime()
+  const excludeId = props.excludeReservationId
 
   return all.filter(r => {
+    // Exclude the reservation being moved
+    if (excludeId && r.id === excludeId) return false
     const rStart = r.start.getTime()
     const rEnd = r.end.getTime()
     return rStart < dayEnd && rEnd > dayStart
@@ -159,7 +163,7 @@ const slotAfterConflict = computed<Slot | null>(() => {
 // ===== SMART SLOT FINDING =====
 
 // Helper: Get all gaps > 15min in a day
-function getGapsForDay(day: Date, reservations: ConflictItem[]): { start: number; end: number; duration: number }[] {
+function getGapsForDay(day: Date, reservations: ConflictItem[], excludeId?: number | null): { start: number; end: number; duration: number }[] {
   const dayStart = new Date(day)
   dayStart.setHours(0, 0, 0, 0)
   const dayEnd = new Date(day)
@@ -168,9 +172,11 @@ function getGapsForDay(day: Date, reservations: ConflictItem[]): { start: number
   const dayStartMs = dayStart.getTime()
   const dayEndMs = dayEnd.getTime()
 
-  // Filter reservations for this day
+  // Filter reservations for this day (exclude the reservation being moved)
   const relevant = reservations
     .filter(r => {
+      // Exclude the reservation being moved
+      if (excludeId && r.id === excludeId) return false
       const rs = r.start.getTime()
       const re = r.end.getTime()
       return rs < dayEndMs && re > dayStartMs
@@ -284,7 +290,7 @@ const adaptiveSuggestions = computed<Suggestion[]>(() => {
   }
 
   // 3. Smart Gaps (Alternatives + Shortening)
-  const gapsToday = getGapsForDay(targetDate, props.allReservations ?? [])
+  const gapsToday = getGapsForDay(targetDate, props.allReservations ?? [], props.excludeReservationId)
   
   for (const gap of gapsToday) {
     // Check if this gap is actually the space before/after main conflict we just handled
@@ -350,7 +356,7 @@ const adaptiveSuggestions = computed<Suggestion[]>(() => {
   // 4. Next Day
   const nextDay = new Date(targetDate)
   nextDay.setDate(nextDay.getDate() + 1)
-  const gapsNextDay = getGapsForDay(nextDay, props.allReservations ?? [])
+  const gapsNextDay = getGapsForDay(nextDay, props.allReservations ?? [], props.excludeReservationId)
 
   // (Optional: keep next day logic simple)
   if (gapsNextDay.length > 0) {
@@ -405,7 +411,7 @@ const adaptiveSuggestions = computed<Suggestion[]>(() => {
 // Use the new logic
 const suggestions = computed(() => adaptiveSuggestions.value)
 const availableSlotsOnTargetDay = computed<Slot[]>(() => 
-  getGapsForDay(targetDay.value, props.allReservations ?? [])
+  getGapsForDay(targetDay.value, props.allReservations ?? [], props.excludeReservationId)
     .filter(g => g.duration >= requestedDuration.value)
     .map(g => ({ start: new Date(g.start), end: new Date(g.end) }))
 )
@@ -822,7 +828,7 @@ onUnmounted(() => {
   align-items:flex-start;
   gap:14px;
   padding:20px;
-  background:linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+  background:linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
   color:white;
 }
 

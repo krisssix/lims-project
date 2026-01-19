@@ -113,6 +113,9 @@ export function useAttachments() {
         error.value = null
 
         try {
+            // Attempt to renew token
+            try { await auth.renewToken() } catch (err) { console.warn('Token renewal failed', err) }
+
             const token = auth.getToken()
             const response = await fetch(`${API_BASE_URL}measurements/${measurementId}/attachments`, {
                 method: 'GET',
@@ -158,6 +161,9 @@ export function useAttachments() {
 
         loading.value = true
         error.value = null
+
+        // Attempt to renew token
+        try { await auth.renewToken() } catch (err) { console.warn('Token renewal failed', err) }
 
         return new Promise((resolve, reject) => {
             const xhr = new XMLHttpRequest()

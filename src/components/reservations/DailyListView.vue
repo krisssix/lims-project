@@ -14,6 +14,8 @@ type ReservationDto = {
   username: string | null
   projectId: number
   note: string | null
+  seriesId?: string | null
+  createdAt?: number | null
 }
 
 type DailyListRow = {
@@ -47,11 +49,13 @@ const AUTO_REFRESH_MS = 15000
 const FOCUS_REFRESH_DEBOUNCE_MS = 350
 
 const DAILY_LIST_HEADERS: Header[] = [
-  { title: 'Stroj', key: 'device', width: 120 },
-  { title: 'Datum', key: 'date', width: 180 },
-  { title: 'Čas', key: 'time', width: 160 },
-  { title: 'Název', key: 'title', minWidth: 220 },
-  { title: 'Stav', key: 'status', width: 110 },
+  { title: 'Stroj', key: 'device', width: 120, sortable: true },
+  { title: 'Datum', key: 'date', width: 180, sortable: true },
+  { title: 'Čas', key: 'time', width: 160, sortable: false }, // Time is logically tied to date sort usually
+  { title: 'Název', key: 'title', minWidth: 220, sortable: true },
+  { title: 'Uživatel', key: 'username', width: 140, sortable: true },
+  { title: 'Vytvořeno', key: 'createdAt', width: 140, sortable: true },
+  { title: 'Stav', key: 'status', width: 110, sortable: true },
 ]
 const headersToUse = computed<Header[]>(() => props.headers?.length ? props.headers : DAILY_LIST_HEADERS)
 
@@ -59,6 +63,8 @@ const DEFAULT_DAYS = 60
 const listFrom = ref<string>(props.filterFrom || '')
 const listTo   = ref<string>(props.filterTo || '')
 const listSearch = ref<string>('')
+const sortBy = ref<string>('createdAt')
+const sortDesc = ref<boolean>(true)
 
 // Watch props
 watch(() => [props.filterFrom, props.filterTo], ([f, t]) => {
@@ -74,6 +80,9 @@ const listRaw = ref<ReservationDto[]>([])
 const devices = ref<DeviceResponse[]>([])
 const members = ref<string[]>([])
 
+// Local filters for devices and members
+const localFilterDevices = ref<string[]>([])
+const localFilterMembers = ref<string[]>([])
 
 
 // map device code -> color for chip rendering
@@ -90,7 +99,7 @@ const devicesForDialog = computed(() => {
   return devices.value.map(d => ({
     id: d.code,
     name: d.name,
-    color: d.color
+    color: d.color ?? '#9E9E9E'
   }))
 })
 
@@ -125,14 +134,20 @@ const listFiltered = computed<ReservationDto[]>(() => {
   
   let result = listRaw.value
   
-  // Filter by devices (if any selected)
-  if (props.deviceCodes?.length) {
-    result = result.filter(r => props.deviceCodes!.includes(r.deviceCode))
+  // Filter by devices (from props or local filter)
+  const deviceFilter = localFilterDevices.value.length > 0 
+    ? localFilterDevices.value 
+    : (props.deviceCodes?.length ? props.deviceCodes : [])
+  if (deviceFilter.length > 0) {
+    result = result.filter(r => deviceFilter.includes(r.deviceCode))
   }
   
-  // Filter by members (if any selected)
-  if (props.memberUsernames?.length) {
-    result = result.filter(r => r.username && props.memberUsernames!.includes(r.username))
+  // Filter by members (from props or local filter)
+  const memberFilter = localFilterMembers.value.length > 0
+    ? localFilterMembers.value
+    : (props.memberUsernames?.length ? props.memberUsernames : [])
+  if (memberFilter.length > 0) {
+    result = result.filter(r => r.username && memberFilter.includes(r.username))
   }
   
   // Filter by search text
@@ -153,7 +168,30 @@ const listFiltered = computed<ReservationDto[]>(() => {
 const tableItems = computed<DailyListRow[]>(() =>
   listFiltered.value
     .slice()
-    .sort((a, b) => b.startTime - a.startTime)  // Descending - newest first
+    .sort((a, b) => {
+      const field = sortBy.value
+      const desc = sortDesc.value ? -1 : 1
+      
+      let valA: any = a[field as keyof ReservationDto]
+      let valB: any = b[field as keyof ReservationDto]
+
+      // Special handling for computed/alias fields if needed, but for now strict DTO fields
+      if (field === 'device') valA = a.deviceCode; valB = b.deviceCode
+      if (field === 'date' || field === 'time') { valA = a.startTime; valB = b.startTime }
+      if (field === 'status') valA = getStatus(a.startTime, a.endTime, nowMs.value); valB = getStatus(b.startTime, b.endTime, nowMs.value)
+      if (field === 'createdAt') {
+         // Fallback to startTime if createdAt is missing
+         valA = a.createdAt || a.startTime
+         valB = b.createdAt || b.startTime
+      }
+
+      if (valA == null) return 1 * desc
+      if (valB == null) return -1 * desc
+      
+      if (valA > valB) return 1 * desc
+      if (valA < valB) return -1 * desc
+      return 0
+    })
     .map(i => {
       const s = new Date(i.startTime)
       const e = new Date(i.endTime)
@@ -224,13 +262,10 @@ async function confirmBulkDelete() {
   bulkDeleting.value = true
   try {
     const idsToDelete = Array.from(selectedIds.value)
-    // Delete all selected reservations sequentially
-    for (const id of idsToDelete) {
-      await del(`reservations/${id}`)
-      // Optimistic update - remove from local list
-      const idx = listRaw.value.findIndex(r => r.id === id)
-      if (idx >= 0) listRaw.value.splice(idx, 1)
-    }
+    // Delete all selected reservations in parallel for faster performance
+    await Promise.all(idsToDelete.map(id => del(`reservations/${id}`)))
+    // Remove all deleted items from local list at once
+    listRaw.value = listRaw.value.filter(r => !selectedIds.value.has(r.id))
     // Clear selection after successful delete
     selectedIds.value = new Set()
     bulkDeleteConfirmOpen.value = false
@@ -240,6 +275,15 @@ async function confirmBulkDelete() {
     await loadListRange()
   } finally {
     bulkDeleting.value = false
+  }
+}
+
+function editSelected() {
+  if (selectedIds.value.size !== 1) return
+  const id = Array.from(selectedIds.value)[0]
+  const row = listRaw.value.find(r => r.id === id)
+  if (row && props.openEdit) {
+    props.openEdit(row)
   }
 }
 
@@ -297,7 +341,9 @@ async function loadWithParams(fromMs: number, toMs: number, silent = false) {
       endTime: x.endTime,
       username: x.username ?? null,
       projectId: x.projectId,
-      note: x.note ?? null
+      note: x.note ?? null,
+      seriesId: x.seriesId ?? null,
+      createdAt: x.createdAt ?? null
     }))
     
     // Only update if data actually changed (prevents unnecessary re-renders)
@@ -399,11 +445,29 @@ watch(tableItems, (rows) => {
 
 const searchInput = ref<HTMLInputElement | null>(null)
 const selectedIndex = ref<number>(-1)
+const emit = defineEmits<{
+  (e: 'navigate-date', delta: number): void
+}>()
+
 function onKey(e: KeyboardEvent) {
   if (detailOpen.value) return
   const ctrl = e.ctrlKey || e.metaKey
   const alt = e.altKey
   const key = e.key.toLowerCase()
+
+  // Navigation emits (stop propagation to prevent global Reservations handler from firing too)
+  if (key === 'arrowleft') { 
+    e.preventDefault(); 
+    e.stopImmediatePropagation(); 
+    emit('navigate-date', -1); 
+    return 
+  }
+  if (key === 'arrowright') { 
+    e.preventDefault(); 
+    e.stopImmediatePropagation(); 
+    emit('navigate-date', 1); 
+    return 
+  }
 
   if (ctrl && key === 'enter') { e.preventDefault(); loadListRange(); return }
   if (key === '/' || (ctrl && key === 'l')) { e.preventDefault(); nextTick(() => searchInput.value?.focus()); return }
@@ -471,6 +535,7 @@ type ReservationPatchPayload = Partial<{
   deviceCode: string
   username: string | null
   note: string | null
+  createdAt: number
 }>
 
 async function saveInlineEdit() {
@@ -508,6 +573,7 @@ async function saveInlineEdit() {
       if (payload.endTime !== undefined)    updated.endTime = payload.endTime
       if (payload.username !== undefined)   updated.username = payload.username
       if (payload.note !== undefined)       updated.note = payload.note
+      if (payload.createdAt !== undefined)  updated.createdAt = payload.createdAt
       listRaw.value.splice(idx, 1, updated)
       detailItem.value = updated
       buildEditFormFrom(updated)
@@ -640,7 +706,7 @@ function addDays(d: Date, n: number): Date { const x = new Date(d); x.setDate(d.
 function startOfDayMs(ymd: string): number { const [y, m, d] = ymd.split('-').map(Number); return new Date(y, (m || 1) - 1, d || 1, 0, 0, 0, 0).getTime() }
 function endOfDayMs(ymd: string): number   { const [y, m, d] = ymd.split('-').map(Number); return new Date(y, (m || 1) - 1, d || 1, 23, 59, 59, 999).getTime() }
 function statusColor(status: StatusType): string { return status === 'done' ? 'green' : status === 'running' ? 'blue' : 'grey' }
-function statusLabel(status: StatusType): string { return status === 'plan' ? 'Čeká' : status === 'running' ? 'Probíhá' : 'Potvrzeno' }
+function statusLabel(status: StatusType): string { return status === 'plan' ? 'Čeká' : status === 'running' ? 'Probíhá' : 'Hotovo' }
 
 // Helper functions for new table design
 function getDeviceInitials(deviceCode: string): string {
@@ -690,6 +756,8 @@ function getStatusIcon(status: StatusType): string {
 }
 
 /* Direct list manipulation methods for immediate updates */
+const highlightedIds = ref<Set<number>>(new Set())
+
 function addReservation(item: { id: number; title: string; deviceCode: string; startTime: number; endTime: number; username: string | null; projectId: number; note: string | null }) {
   // Check if already exists
   const existingIdx = listRaw.value.findIndex(r => r.id === item.id)
@@ -699,6 +767,39 @@ function addReservation(item: { id: number; title: string; deviceCode: string; s
   } else {
     // Add new - tableItems computed will handle sorting
     listRaw.value.push({ ...item })
+  }
+
+  // Highlight new item
+  highlightedIds.value.add(item.id)
+  setTimeout(() => {
+    highlightedIds.value.delete(item.id)
+  }, 4000)
+  
+  // Scroll to the new item after next tick (so it renders first)
+  nextTick(() => {
+    scrollToReservation(item.id)
+  })
+}
+
+const highlightedSeriesId = ref<string | null>(null)
+function highlightSeries(seriesId: string) {
+  highlightedSeriesId.value = seriesId
+  setTimeout(() => { highlightedSeriesId.value = null }, 3500)
+  
+  // Scroll to first item in series
+  nextTick(() => {
+    const firstSeriesItem = tableItems.value.find(i => i._raw.seriesId === seriesId)
+    if (firstSeriesItem) {
+      scrollToReservation(firstSeriesItem.id)
+    }
+  })
+}
+
+// Scroll to a specific reservation row
+function scrollToReservation(id: number) {
+  const row = tableWrap.value?.querySelector(`[data-reservation-id="${id}"]`) as HTMLElement | null
+  if (row && tableWrap.value) {
+    row.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }
 }
 
@@ -735,7 +836,7 @@ const usedUsernames = computed<string[]>(() => {
   return Array.from(s)
 })
 
-defineExpose({ loadListRange, loadAll, addReservation, updateReservation, removeReservation, selectedIds, usedDeviceCodes, usedUsernames })
+defineExpose({ loadListRange, loadAll, addReservation, updateReservation, removeReservation, selectedIds, usedDeviceCodes, usedUsernames, highlightSeries })
 </script>
 
 <template>
@@ -764,6 +865,7 @@ defineExpose({ loadListRange, loadAll, addReservation, updateReservation, remove
       
       <!-- Search -->
       <div class="search-field">
+        <label>Hledat</label>
         <v-icon size="18" class="search-icon">mdi-magnify</v-icon>
         <input
           ref="searchInput"
@@ -832,21 +934,34 @@ defineExpose({ loadListRange, loadAll, addReservation, updateReservation, remove
                 <v-icon size="20" v-else color="grey-lighten-1">mdi-checkbox-blank-outline</v-icon>
               </div>
             </th>
-            <th style="width: 160px;">Přístroj</th>
-            <th style="width: 120px;">Datum</th>
-            <th style="width: 100px;">Čas</th>
-            <th style="width: auto;">Název</th>
-            <th style="width: 140px;">Uživatel</th>
-            <th style="width: 100px; text-align: center;">Stav</th>
-            <th style="width: 60px; text-align: center;">Akce</th>
+            
+            <th 
+              v-for="h in headersToUse" 
+              :key="h.key"
+              :style="{ width: h.width ? h.width + 'px' : 'auto', minWidth: h.minWidth ? h.minWidth + 'px' : undefined, cursor: h.sortable ? 'pointer' : 'default' }"
+              @click="h.sortable ? (sortBy === h.key ? sortDesc = !sortDesc : (sortBy = h.key, sortDesc = true)) : null"
+              class="header-cell"
+            >
+              <div class="d-flex align-center">
+                {{ h.title }}
+                <v-icon 
+                  v-if="sortBy === h.key" 
+                  size="14" 
+                  class="ml-1"
+                >
+                  {{ sortDesc ? 'mdi-arrow-down' : 'mdi-arrow-up' }}
+                </v-icon>
+              </div>
+            </th>
           </tr>
         </thead>
         <tbody>
           <tr
             v-for="(item, index) in visibleTableItems"
             :key="item.id"
+            :data-reservation-id="item.id"
             class="reservation-row"
-            :class="{ 'row-selected': selectedIds.has(item.id) }"
+            :class="{ 'row-selected': selectedIds.has(item.id), 'row-highlight': highlightedIds.has(item.id) || (highlightedSeriesId && item._raw.seriesId === highlightedSeriesId) }"
             @click="(e) => onRowClick(e, { item })"
             @dblclick="(e) => onRowDblClick(e, { item })"
           >
@@ -906,6 +1021,14 @@ defineExpose({ loadListRange, loadAll, addReservation, updateReservation, remove
               </div>
               <span v-else class="text-medium-emphasis">—</span>
             </td>
+
+            <!-- CreatedAt (new col) -->
+            <td class="time-cell">
+              <span v-if="item._raw.createdAt" :title="new Date(item._raw.createdAt).toLocaleString('cs-CZ')">
+                {{ formatDateShort(item._raw.createdAt) }} {{ new Date(item._raw.createdAt).toLocaleTimeString('cs-CZ', {hour:'2-digit', minute:'2-digit'}) }}
+              </span>
+              <span v-else class="text-medium-emphasis">—</span>
+            </td>
             
             <!-- Status -->
             <td style="text-align: center;">
@@ -919,35 +1042,17 @@ defineExpose({ loadListRange, loadAll, addReservation, updateReservation, remove
             </td>
             
             <!-- Actions -->
-            <td style="text-align: center;">
-              <v-menu>
-                <template #activator="{ props }">
-                  <button v-bind="props" class="action-menu-btn">
-                    <v-icon size="20">mdi-dots-vertical</v-icon>
-                  </button>
-                </template>
-                <v-list density="compact">
-                  <v-list-item @click="(e: any) => onRowClick(e, { item })">
-                    <template #prepend><v-icon size="18">mdi-pencil</v-icon></template>
-                    <v-list-item-title>Upravit</v-list-item-title>
-                  </v-list-item>
-                  <v-list-item @click="() => askDelete?.(item._raw)">
-                    <template #prepend><v-icon size="18" color="error">mdi-delete</v-icon></template>
-                    <v-list-item-title>Smazat</v-list-item-title>
-                  </v-list-item>
-                </v-list>
-              </v-menu>
-            </td>
+            <!-- Actions removed -->
           </tr>
           
           <tr v-if="visibleTableItems.length === 0 && !listLoading">
-            <td colspan="8" class="empty-state">
+            <td colspan="7" class="empty-state">
               Žádné rezervace.
             </td>
           </tr>
           
           <tr v-if="listLoading">
-            <td colspan="8" class="loading-state">
+            <td colspan="7" class="loading-state">
               <div class="loading-content">
                 <v-progress-circular indeterminate size="24" color="primary" class="mr-2" />
                 Načítám...
@@ -1056,6 +1161,15 @@ defineExpose({ loadListRange, loadAll, addReservation, updateReservation, remove
             Zrušit výběr
           </v-btn>
           <v-btn
+            v-if="selectedIds.size === 1"
+            size="small"
+            variant="text"
+            prepend-icon="mdi-pencil"
+            @click="editSelected"
+          >
+            Upravit
+          </v-btn>
+          <v-btn
             size="small"
             color="error"
             variant="flat"
@@ -1108,70 +1222,94 @@ defineExpose({ loadListRange, loadAll, addReservation, updateReservation, remove
 .compact-filter-bar {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 16px;
   flex-wrap: wrap;
-  padding: 12px 16px;
-  background: #f5f5f5;
-  border-bottom: 1px solid #e0e0e0;
+  padding: 24px 40px;
+  background: #f8f9fa;
+  border-bottom: 1px solid #e9ecef;
   margin-bottom: 0;
 }
 
 .filter-field {
   display: flex;
-  align-items: center;
-  gap: 6px;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .filter-field label {
-  font-size: 12px;
-  color: #757575;
-  font-weight: 500;
+  font-size: 13px;
+  font-weight: 600;
+  color: #495057;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .native-date-input {
-  height: 32px;
-  padding: 0 8px;
-  border: 1px solid #e0e0e0;
-  border-radius: 4px;
-  font-size: 13px;
+  height: 36px;
+  padding: 10px 14px;
+  border: 2px solid #e9ecef;
+  border-radius: 10px;
+  font-size: 14px;
   background: white;
-  color: #424242;
+  color: #212529;
+  transition: all 0.3s;
+}
+
+.native-date-input:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
 }
 
 .search-field {
   flex: 1;
   min-width: 200px;
-  max-width: 300px;
+  max-width: 400px;
   position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .search-icon {
   position: absolute;
-  left: 10px;
-  top: 50%;
-  transform: translateY(-50%);
-  color: #9e9e9e;
+  left: 14px;
+  bottom: 11px;
+  color: #6c757d;
+  pointer-events: none;
 }
 
 .native-search-input {
   width: 100%;
-  height: 32px;
-  padding: 0 12px 0 36px;
-  border: 1px solid #e0e0e0;
-  border-radius: 4px;
-  font-size: 13px;
+  height: 36px;
+  padding: 10px 14px 10px 40px;
+  border: 2px solid #e9ecef;
+  border-radius: 10px;
+  font-size: 14px;
   background: white;
-  color: #424242;
+  color: #212529;
+  transition: all 0.3s;
+}
+
+.native-search-input:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
 }
 
 .count-badge {
+  background:linear-gradient(135deg, #1976d2 0%, #1565c0 100%);
+  color: white;
+  padding: 10px 20px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
   margin-left: auto;
-  font-size: 13px;
-  color: #757575;
 }
 
 .count-badge strong {
-  color: #424242;
+  color: white;
 }
 
 /* Table */
@@ -1180,175 +1318,213 @@ defineExpose({ loadListRange, loadAll, addReservation, updateReservation, remove
   min-height: 400px;
   overflow: auto;
   position: relative;
+  padding: 0 40px 40px;
 }
 
 .reservations-table {
   width: 100%;
-  border-collapse: collapse;
-  background: white;
-  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 0 8px;
+  background: transparent;
 }
 
 .reservations-table thead tr {
-  background: #fafafa;
-  border-bottom: 2px solid #e0e0e0;
+  background: #f8f9fa;
 }
 
 .reservations-table th {
-  padding: 12px 16px;
+  padding: 16px;
   text-align: left;
   font-size: 12px;
-  font-weight: 600;
-  color: #616161;
+  font-weight: 700;
+  color: #495057;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  background: #f8f9fa;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.reservations-table th:first-child {
+  border-radius: 12px 0 0 12px;
+}
+
+.reservations-table th:last-child {
+  border-radius: 0 12px 12px 0;
 }
 
 .reservation-row {
-  border-bottom: 1px solid #f0f0f0;
+  background: white;
   cursor: pointer;
-  transition: background 0.15s;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
 }
 
 .reservation-row:hover {
-  background: #f5f5f5;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(102, 126, 234, 0.15);
 }
 
 .reservation-row.row-selected {
   background: #e3f2fd;
+  box-shadow: 0 4px 16px rgba(33, 150, 243, 0.2);
+}
+
+.reservation-row.row-highlight {
+  animation: highlight-list-row 3s ease-out forwards;
+}
+
+@keyframes highlight-list-row {
+  0% { 
+    background-color: #E3F2FD;
+    box-shadow: 0 8px 24px rgba(33, 150, 243, 0.3);
+  } 
+  100% { 
+    background-color: white;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  }
 }
 
 .reservations-table td {
-  padding: 12px 16px;
+  padding: 20px 16px;
+  border-top: 1px solid #f1f3f5;
+  border-bottom: 1px solid #f1f3f5;
+}
+
+.reservations-table td:first-child {
+  border-left: 1px solid #f1f3f5;
+  border-radius: 12px 0 0 12px;
+}
+
+.reservations-table td:last-child {
+  border-right: 1px solid #f1f3f5;
+  border-radius: 0 12px 12px 0;
 }
 
 /* Device Cell */
 .device-cell {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
 }
 
 .device-avatar {
-  width: 32px;
-  height: 32px;
-  border-radius: 6px;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
   color: white;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 11px;
-  font-weight: 600;
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
 }
 
 .device-name {
-  font-size: 13px;
-  font-weight: 500;
-  color: #424242;
+  font-size: 14px;
+  font-weight: 600;
+  color: #212529;
 }
 
 /* User Cell */
 .user-cell {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
 }
 
 .user-avatar {
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
   color: white;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 700;
+  flex-shrink: 0;
 }
 
 .user-name {
   font-size: 13px;
-  color: #616161;
+  font-weight: 500;
+  color: #495057;
 }
 
 /* Table Cells */
 .date-cell {
-  font-size: 13px;
-  color: #424242;
+  font-size: 14px;
+  font-weight: 500;
+  color: #495057;
 }
 
 .time-cell {
   font-size: 13px;
-  color: #616161;
+  font-weight: 500;
+  color: #6c757d;
 }
 
 .title-cell {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 500;
-  color: #424242;
+  color: #212529;
+}
+
+.title-cell i {
+  color: #adb5bd;
+  margin-left: 8px;
 }
 
 /* Status Chip */
 .status-chip {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 4px 10px;
-  border-radius: 12px;
-  font-size: 11px;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 12px;
   font-weight: 600;
 }
 
 .status-confirmed {
-  background: #e8f5e9;
-  color: #2e7d32;
+  background: #d4edda;
+  color: #155724;
 }
 
 .status-running {
-  background: #e3f2fd;
-  color: #1565c0;
+  background: #cce5ff;
+  color: #004085;
 }
 
 .status-pending {
-  background: #fff3e0;
-  color: #e65100;
+  background: #fff3cd;
+  color: #856404;
 }
 
-/* Action Menu Button */
-.action-menu-btn {
-  width: 32px;
-  height: 32px;
-  border: none;
-  background: transparent;
-  cursor: pointer;
-  border-radius: 50%;
-  display: flex;
+/* Checkbox */
+.checkbox-wrapper {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: background 0.15s;
-}
-
-.action-menu-btn:hover {
-  background: #e0e0e0;
 }
 
 /* Empty/Loading States */
 .empty-state,
 .loading-state {
-  padding: 32px;
+  padding: 48px 32px;
   text-align: center;
-  color: rgba(0, 0, 0, 0.55);
-}
-
-.loading-state {
-  text-align: center;
-  padding: 32px;
+  color: #6c757d;
+  font-size: 14px;
 }
 
 .loading-content {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 12px;
 }
 
 /* Sentinel */
@@ -1357,8 +1533,9 @@ defineExpose({ loadListRange, loadAll, addReservation, updateReservation, remove
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 12px 0 16px;
-  color: rgba(0, 0, 0, 0.55);
+  padding: 16px 0 24px;
+  color: #6c757d;
+  font-size: 14px;
 }
 
 /* Pagination Bar */
@@ -1366,65 +1543,74 @@ defineExpose({ loadListRange, loadAll, addReservation, updateReservation, remove
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 16px;
-  border-top: 1px solid #e0e0e0;
-  background: #fafafa;
+  padding: 24px 40px;
+  border-top: 1px solid #e9ecef;
+  background: #f8f9fa;
 }
 
 .pagination-info {
-  font-size: 13px;
-  color: #757575;
+  font-size: 14px;
+  color: #495057;
 }
 
 .pagination-info strong {
-  color: #424242;
+  color: #212529;
+  font-weight: 700;
 }
 
 .pagination-controls {
   display: flex;
-  gap: 4px;
+  gap: 8px;
 }
 
 .page-btn {
-  min-width: 80px;
-  height: 32px;
-  padding: 0 12px;
-  border: 1px solid #e0e0e0;
-  background: white;
-  color: #424242;
-  border-radius: 4px;
+  min-width: 120px;
+  height: 40px;
+  padding: 10px 24px;
+  border: none;
+  background:linear-gradient(135deg, #1976d2 0%, #1565c0 100%);
+  color: white;
+  border-radius: 10px;
   cursor: pointer;
-  font-size: 13px;
-  font-weight: 500;
-  transition: background 0.15s;
+  font-size: 14px;
+  font-weight: 600;
+  transition: all 0.3s ease;
 }
 
 .page-btn:hover:not(:disabled) {
-  background: #f5f5f5;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px rgba(102, 126, 234, 0.3);
 }
 
 .page-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+  transform: none;
 }
 
 .pagination-per-page {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  color: #757575;
+  gap: 10px;
+  font-size: 14px;
+  color: #495057;
 }
 
 .page-select {
-  height: 32px;
-  padding: 0 8px;
-  border: 1px solid #e0e0e0;
-  border-radius: 4px;
-  font-size: 13px;
+  height: 36px;
+  padding: 8px 12px;
+  border: 2px solid #e9ecef;
+  border-radius: 8px;
+  font-size: 14px;
   background: white;
-  color: #424242;
+  color: #212529;
   cursor: pointer;
+  transition: all 0.2s;
+}
+
+.page-select:focus {
+  outline: none;
+  border-color: #667eea;
 }
 
 /* Selection Action Bar */
@@ -1437,11 +1623,11 @@ defineExpose({ loadListRange, loadAll, addReservation, updateReservation, remove
   align-items: center;
   justify-content: space-between;
   gap: 24px;
-  padding: 12px 20px;
-  background: linear-gradient(135deg, #1e3a5f 0%, #2c5282 100%);
+  padding: 16px 24px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
-  border-radius: 12px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(102, 126, 234, 0.4);
   z-index: 1000;
   min-width: 400px;
 }
@@ -1449,19 +1635,20 @@ defineExpose({ loadListRange, loadAll, addReservation, updateReservation, remove
 .selection-info {
   display: flex;
   align-items: center;
-  font-size: 14px;
+  font-size: 15px;
+  font-weight: 600;
 }
 
 .selection-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
 }
 
 /* Slide up transition */
 .slide-up-enter-active,
 .slide-up-leave-active {
-  transition: all 0.3s ease;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .slide-up-enter-from,
@@ -1474,5 +1661,43 @@ defineExpose({ loadListRange, loadAll, addReservation, updateReservation, remove
 .slide-up-leave-from {
   opacity: 1;
   transform: translateX(-50%) translateY(0);
+}
+
+/* Responsive */
+@media (max-width: 1200px) {
+  .compact-filter-bar {
+    padding: 20px 24px;
+  }
+  
+  .table-wrap {
+    padding: 0 24px 24px;
+  }
+  
+  .pagination-bar {
+    padding: 20px 24px;
+  }
+}
+
+@media (max-width: 768px) {
+  .compact-filter-bar {
+    padding: 16px 20px;
+    gap: 12px;
+  }
+  
+  .table-wrap {
+    padding: 0 20px 20px;
+  }
+  
+  .pagination-bar {
+    padding: 16px 20px;
+    flex-direction: column;
+    gap: 12px;
+  }
+  
+  .selection-action-bar {
+    min-width: 90%;
+    flex-direction: column;
+    gap: 12px;
+  }
 }
 </style>

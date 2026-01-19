@@ -234,6 +234,64 @@ const gridOptions = [
   { mode:'MONTHLY', label: 'Měsíčně', icon:'mdi-calendar-month' },
   { mode:'YEARLY', label:'Ročně', icon: 'mdi-calendar-star' },
 ] as const
+
+// Výpočet počtu rezervací, které se vytvoří
+const estimatedCount = computed(() => {
+  const s = dialogState.value
+  if (s.mode === 'NONE') return 0
+  
+  // Pokud je nastavený počet opakování, vrátit přímo
+  if (s.endMode === 'COUNT' && s.count > 0) {
+    return s.count
+  }
+  
+  // Pokud je nastaveno datum ukončení
+  if (s.endMode === 'UNTIL' && s.untilDate) {
+    const start = props.startDate
+    const [year, month, day] = s.untilDate.split('-').map(Number)
+    const end = new Date(year, month - 1, day, 23, 59, 59)
+    
+    if (end <= start) return 0
+    
+    const diffMs = end.getTime() - start.getTime()
+    const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24))
+    
+    const interval = s.interval || 1
+    
+    switch (s.mode) {
+      case 'DAILY':
+        return Math.ceil(diffDays / interval)
+      case 'WEEKLY':
+        const weeksCount = Math.ceil(diffDays / 7 / interval)
+        const daysPerWeek = s.daysOfWeek.length || 1
+        return weeksCount * daysPerWeek
+      case 'WEEKDAY':
+        // 5 pracovních dnů za týden
+        return Math.ceil(diffDays / 7) * 5
+      case 'MONTHLY':
+        const diffMonths = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth())
+        return Math.ceil(diffMonths / interval) + 1
+      case 'YEARLY':
+        const diffYears = end.getFullYear() - start.getFullYear()
+        return Math.ceil(diffYears / interval) + 1
+      default:
+        return 0
+    }
+  }
+  
+  // Pro "nikdy nekončí" vrátit null (nekonečno)
+  return null
+})
+
+// Text pro zobrazení počtu
+const countDisplayText = computed(() => {
+  const count = estimatedCount.value
+  if (count === null) return 'Neomezený počet rezervací'
+  if (count === 0) return ''
+  if (count === 1) return '1 rezervace'
+  if (count >= 2 && count <= 4) return `${count} rezervace`
+  return `${count} rezervací`
+})
 </script>
 
 <template>
@@ -408,6 +466,14 @@ const gridOptions = [
                   />
                 </label>
               </div>
+            </div>
+          </Transition>
+
+          <!-- Info o počtu rezervací -->
+          <Transition name="fade">
+            <div v-if="dialogState.mode !== 'NONE' && countDisplayText" class="count-info">
+              <v-icon size="16" color="primary">mdi-information-outline</v-icon>
+              <span>Vytvoří se <strong>{{ countDisplayText }}</strong></span>
             </div>
           </Transition>
         </v-card-text>
@@ -763,6 +829,24 @@ const gridOptions = [
 
 .inline-input.date-input {
   width:130px;
+}
+
+/* Count Info */
+.count-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 10px;
+  margin-top: 16px;
+  font-size: 13px;
+  color: #1e40af;
+}
+
+.count-info strong {
+  font-weight: 600;
 }
 
 /* Footer */

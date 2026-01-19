@@ -96,7 +96,7 @@ function scoreDelimiter(lines: string[], delimiter: string): DelimiterScore {
     return { delimiter, avgCols, consistency, singleColumnRate, score }
 }
 
-function detectBestDelimiter(text: string): { delimiter: string; score: DelimiterScore } {
+export function detectBestDelimiter(text: string): { delimiter: string; score: DelimiterScore } {
     const lines = text.split(/\r?\n/).filter(l => l.trim())
 
     const scores = DELIMITER_CANDIDATES.map(d => scoreDelimiter(lines, d))
@@ -188,6 +188,14 @@ export function inferColumnType(samples: string[]): InferredType {
             floats++
             continue
         }
+    }
+
+    // Strict check: if a significant portion of samples are not defined types, fall back to text.
+    // This catches cases like 'HPLC_4805' mixed with numbers being detected as int/float due to loose threshold.
+    const definedTypesCount = dates + bools + ints + floats
+    // If ANY valid sample is unidentified (text), force text type.
+    if (validSamples.length > 0 && (validSamples.length - definedTypesCount) > 0) {
+        return 'text'
     }
 
     const threshold = validSamples.length * 0.6
@@ -365,6 +373,36 @@ export function parseWithOptions(text: string, opts: ParseOptions): ParseResult 
 }
 
 // ============ výchozí nastavení ============
+
+// ============ raw preview helper ============
+
+export function parseRawPreview(text: string, maxLines = 100): string[][] {
+    if (!text) return []
+
+    // Oříznutí textu pro preview (optimalizace)
+    let limitIndex = -1
+    let found = 0
+    for (let i = 0; i < text.length; i++) {
+        if (text[i] === '\n') {
+            found++
+            if (found >= maxLines) {
+                limitIndex = i
+                break
+            }
+        }
+    }
+    const previewText = limitIndex === -1 ? text : text.substring(0, limitIndex)
+
+    const { delimiter } = detectBestDelimiter(previewText)
+
+    const result = Papa.parse<string[]>(previewText, {
+        delimiter,
+        header: false,
+        skipEmptyLines: false
+    })
+
+    return result.data as string[][]
+}
 
 export const DEFAULT_PARSE_OPTIONS: ParseOptions = {
     delimiter: 'auto',

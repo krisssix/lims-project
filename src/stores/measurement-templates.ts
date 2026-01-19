@@ -78,6 +78,7 @@ export interface WizardTemplatePayload {
   templateId?: string
   changeDescription?: string
   createVersionType?: 'minor' | 'major'
+  status?: 'ACTIVE' | 'DRAFT'
 }
 
 /* obaly api (api wrappers) */

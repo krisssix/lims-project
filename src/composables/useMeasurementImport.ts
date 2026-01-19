@@ -61,12 +61,12 @@ export function useMeasurementImport() {
     /**
      * Parse file and get structure (without template compatibility check)
      */
-    async function parseImportFile(file: File): Promise<ImportedFileStructure | null> {
+    async function parseImportFile(file: File, options: any = {}): Promise<ImportedFileStructure | null> {
         importBusy.value = true
         importError.value = null
 
         try {
-            const structure = await parseImportedMeasurementFile(file)
+            const structure = await parseImportedMeasurementFile(file, options)
             importedStructure.value = structure
             return structure
         } catch (e) {

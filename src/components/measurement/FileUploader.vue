@@ -192,10 +192,10 @@ async function uploadSingleFile(file: File) {
 .drop-zone {
   border: 2px dashed rgba(var(--v-theme-on-surface), 0.2);
   border-radius: 12px;
-  padding: 32px 24px;
+  padding: 10px 24px;
   text-align: center;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   background: #2196f30d;
 }
 
@@ -207,7 +207,8 @@ async function uploadSingleFile(file: File) {
 .drop-zone--active {
   border-color: rgb(var(--v-theme-primary));
   background: rgba(var(--v-theme-primary), 0.1);
-  transform: scale(1.01);
+  padding: 24px 0px;
+  transform: scaleY(1.15);
 }
 
 .drop-zone--disabled {

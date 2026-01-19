@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import SearchBar from '@/components/ui/SearchBar.vue'
-import { type TemplateItem } from '@/types/measurement-ui'
+import { type TemplateItem, type TemplateStatus } from '@/types/measurement-ui'
 import { contrastText } from '@/utils/colorContrast'
 import { getRelativeTime, formatVersion } from '@/utils/versioning'
 
@@ -31,6 +31,15 @@ function formatDate(isoString: string | undefined): string {
     hour: '2-digit',
     minute: '2-digit'
   })
+}
+
+function getStatusColor(status?: TemplateStatus): string {
+  switch (status) {
+    case 'ACTIVE': return 'success'
+    case 'DRAFT': return 'grey'
+    case 'DEPRECATED': return 'error'
+    default: return 'grey'
+  }
 }
 
 const props = defineProps<{
@@ -92,36 +101,93 @@ const filtered = computed<TemplateItem[]>(() => {
     : props.templates
 })
 
-const includeDrafts = ref(false)
+const showVersions = ref(false)
+const expandedGroups = ref<Set<string>>(new Set())
+
+type TemplateGroup = {
+  groupKey: string
+  main: TemplateItem
+  versions: TemplateItem[]
+  activeVersion?: TemplateItem
+}
 
 // zobrazení aktivních šablon (nebo všech pokud jsou zahrnuty koncepty)
-const activeTemplates = computed<TemplateItem[]>(() => {
+// Grouped logic
+const groupedTemplates = computed<TemplateGroup[]>(() => {
+  const groups = new Map<string, TemplateItem[]>()
+  
+  // 1. Group by deviceId + name
+  filtered.value.forEach(t => {
+     const key = `${t.deviceId}|${t.name}`
+     if (!groups.has(key)) groups.set(key, [])
+     groups.get(key)!.push(t)
+  })
+
+  const result: TemplateGroup[] = []
+
+  groups.forEach((items, key) => {
+    // Sort items by version desc (newest first) for internal consistency
+    items.sort((a, b) => {
+       // Simple string compare for semantic version validation is tricky, 
+       // but assuming format x.y.z or date-based, simple string compare desc might approximate
+       // ideally use semver compare. For now relying on CreatedAt or Version string.
+       // Let's use UpdatedAt latest first.
+       return (b.updatedAt || '').localeCompare(a.updatedAt || '')
+    })
+
+    const activeVersion = items.find(i => i.status === 'ACTIVE')
+    // If we are NOT showing versions, we only want to show the 'main' item (Active preferred, else latest)
+    // AND we must filter out draft/deprecated if they are the only ones, unless logic says otherwise.
+    
+    // Logic as per user request: "included grouped in folders".
+    // If !showVersions: We mostly want to see active templates.
+    
+    let main: TemplateItem = activeVersion || items[0]
+    
+    if (!showVersions.value) {
+       if (!activeVersion) {
+         return 
+       }
+       main = activeVersion
+       result.push({ groupKey: key, main, versions: [main], activeVersion })
+    } else {
+       // Show versions is ON. Show the group.
+       result.push({ groupKey: key, main, versions: items, activeVersion })
+    }
+  })
+
+  // Sort groups
   const mult = sortDir.value === 'asc' ? 1 : -1
-
-  let result = filtered.value
-
-  // filtrování pouze aktivních
-  if (!includeDrafts.value) {
-    result = result.filter(t => !t.status || t.status === 'ACTIVE')
-  }
-
-  // řazení podle zařízení/názvu
   return result.sort((a, b) => {
     if (sortKey.value === 'device') {
-      const cmp = a.deviceId.localeCompare(b.deviceId, 'cs')
+      const cmp = a.main.deviceId.localeCompare(b.main.deviceId, 'cs')
       if (cmp !== 0) return cmp * mult
-      return a.name.localeCompare(b.name, 'cs') * mult
+      return a.main.name.localeCompare(b.main.name, 'cs') * mult
     } else {
-      const cmp = a.name.localeCompare(b.name, 'cs')
+      const cmp = a.main.name.localeCompare(b.main.name, 'cs')
       if (cmp !== 0) return cmp * mult
-      return a.deviceId.localeCompare(b.deviceId, 'cs') * mult
+      return a.main.deviceId.localeCompare(b.main.deviceId, 'cs') * mult
     }
   })
 })
 
+function toggleGroupExpanded(key: string) {
+  if (expandedGroups.value.has(key)) expandedGroups.value.delete(key)
+  else expandedGroups.value.add(key)
+}
+
+// Counts for "Select All"
+const totalSelectableItems = computed(() => {
+   let count = 0
+   groupedTemplates.value.forEach(g => {
+      if (showVersions.value) count += g.versions.length
+      else count += 1
+   })
+   return count
+})
 
 const selectedCount = computed(() => selection.value.size)
-const allSelected = computed(() => activeTemplates.value.length > 0 && selection.value.size === activeTemplates.value.length)
+const allSelected = computed(() => totalSelectableItems.value > 0 && selection.value.size === totalSelectableItems.value)
 const someSelected = computed(() => selection.value.size > 0)
 
 const selectedItems = computed(() => 
@@ -131,7 +197,6 @@ const selectedItems = computed(() =>
 const canSetToActive = computed(() => {
   if (selection.value.size === 0) return false
   return selectedItems.value.some(t => { 
-    // je neaktivní? (aktivní = explicitly ACTIVE nebo undefined/null)
     const isActive = !t.status || t.status === 'ACTIVE'
     return !isActive
   })
@@ -155,11 +220,41 @@ function toggleSelect(id: string) {
   }
 }
 
+function toggleGroupSelect(group: TemplateGroup) {
+  const allIds = getAllGroupIds(group)
+  const allSelected = isGroupFullySelected(group)
+  
+  if (allSelected) {
+     allIds.forEach(id => selection.value.delete(id))
+  } else {
+     allIds.forEach(id => selection.value.add(id))
+  }
+}
+
+function getAllGroupIds(group: TemplateGroup): string[] {
+  if (showVersions.value) return group.versions.map(v => v.id)
+  return [group.main.id]
+}
+
+function isGroupFullySelected(group: TemplateGroup): boolean {
+  const ids = getAllGroupIds(group)
+  return ids.every(id => selection.value.has(id))
+}
+
+function isGroupPartiallySelected(group: TemplateGroup): boolean {
+  const ids = getAllGroupIds(group)
+  const selected = ids.filter(id => selection.value.has(id))
+  return selected.length > 0 && selected.length < ids.length
+}
+
 function toggleAll() {
   if (allSelected.value) {
     selection.value.clear()
   } else {
-    activeTemplates.value.forEach(t => selection.value.add(t.id))
+    groupedTemplates.value.forEach(g => {
+       const ids = getAllGroupIds(g)
+       ids.forEach(id => selection.value.add(id))
+    })
   }
 }
 
@@ -265,23 +360,56 @@ function onKeydown(e: KeyboardEvent): void {
 onMounted(() => window.addEventListener('keydown', onKeydown))
 onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 
+const highlightedTemplateId = ref<string | null>(null)
+
+function highlightTemplate(id: string) {
+  highlightedTemplateId.value = id
+  
+  // Find group for this template
+  // If it's a version inside a collapsed group, expand it
+  const group = groupedTemplates.value.find(g => 
+      g.main.id === id || g.versions.some(v => v.id === id)
+  )
+  if (group) {
+      // If we are showing versions and the target is NOT the main one (or main is one of versions), expand
+      // Actually simpler: just ensure the group is expanded if we are targeting something inside it
+      // But only if versions view is active OR if we force it? 
+      // User implies "TemplateOverviewDialog", usually versions are hidden by default unless toggled.
+      // If target is inside a group that has multiple versions, we should probably toggle versions ON or just expand?
+      // Let's just expand if we are in versions mode.
+      if (showVersions.value && !expandedGroups.value.has(group.groupKey)) {
+          expandedGroups.value.add(group.groupKey)
+      }
+  }
+
+  // Focus
+  nextTick(() => {
+     focusSelected()
+  })
+
+  // Fade out
+  setTimeout(() => {
+      highlightedTemplateId.value = null
+  }, 3500)
+}
+
 watch(() => props.modelValue, v => {
-  if (v) void focusSelected()
+  if (v && props.selectedTemplateId) highlightTemplate(props.selectedTemplateId)
   else selection.value.clear()
 })
-watch(() => props.selectedTemplateId, () => {
-  if (props.modelValue) void focusSelected()
+watch(() => props.selectedTemplateId, (newId) => {
+  if (props.modelValue && newId) highlightTemplate(newId)
 })
 watch(() => props.templates, () => {
-  // odstranění neexistujících položek z výběru
+   // existing logic
   const existingIds = new Set(props.templates.map(t => t.id))
   for (const id of selection.value) {
     if (!existingIds.has(id)) {
       selection.value.delete(id)
     }
   }
-
-  if (props.modelValue && props.selectedTemplateId) void focusSelected()
+  // Try to re-highlight if reloaded
+  if (props.modelValue && props.selectedTemplateId) highlightTemplate(props.selectedTemplateId)
 })
 </script>
 
@@ -327,8 +455,8 @@ watch(() => props.templates, () => {
                 >
                   mdi-format-list-bulleted
                 </v-icon>
-                {{ activeTemplates.length }}
-                {{ activeTemplates.length === 1 ? 'šablona' : 'šablon' }}
+                {{ totalSelectableItems }}
+                {{ totalSelectableItems === 1 ? 'šablona' : 'šablon' }}
               </div>
             </div>
           </div>
@@ -364,8 +492,8 @@ watch(() => props.templates, () => {
 
            <div class="filter-toggle">
               <v-switch
-                v-model="includeDrafts"
-                label="Včetně konceptů"
+                v-model="showVersions"
+                label="Včetně verzí"
                 color="primary"
                 density="compact"
                 hide-details
@@ -467,112 +595,197 @@ watch(() => props.templates, () => {
              @update:model-value="toggleAll" 
            />
         </div>
-        <div class="th-col col-name" @click="toggleSort('name')">
-          Název šablony
-          <v-icon size="14" v-if="sortKey === 'name'">
-             {{ sortDir === 'asc' ? 'mdi-arrow-up' : 'mdi-arrow-down' }}
-          </v-icon>
-        </div>
         <div class="th-col col-device" @click="toggleSort('device')">
           Kód přístroje
           <v-icon size="14" v-if="sortKey === 'device'">
              {{ sortDir === 'asc' ? 'mdi-arrow-up' : 'mdi-arrow-down' }}
           </v-icon>
         </div>
-        <div class="th-col col-updated">
-           Poslední verze
+        <div class="th-col col-name" @click="toggleSort('name')">
+          Název šablony & Verze
+          <v-icon size="14" v-if="sortKey === 'name'">
+             {{ sortDir === 'asc' ? 'mdi-arrow-up' : 'mdi-arrow-down' }}
+          </v-icon>
         </div>
-        <div class="th-col col-actions">
-           <!-- Actions placeholder -->
+        <div class="th-col col-updated">
+           Poslední změna
         </div>
       </div>
 
 
       <div class="templates-content">
-        <div
-          v-for="tpl in activeTemplates"
-          :key="tpl.id"
-          :ref="el => setItemRef(tpl.id, el)"
-          class="template-table-row"
-          :class="{ 'row-selected': selection.has(tpl.id) }"
-          @click="triggerEdit(tpl)"
-        >
-
-           <div class="td-col col-check" @click.stop>
-              <v-checkbox 
-                :model-value="selection.has(tpl.id)"
-                density="compact" 
-                hide-details
-                @update:model-value="toggleSelect(tpl.id)"
-              />
-           </div>
-
-
-           <div class="td-col col-name">
-              <div 
-                class="template-icon-box mr-3"
-                :style="{ backgroundColor: lightBg(tpl.deviceColor) }"
-              >
-                <v-icon 
-                  size="18" 
-                  :style="{ color: tpl.deviceColor || '#6b7280' }"
-                >
-                  mdi-file-document-outline
-                </v-icon>
-              </div>
-              <span class="text-body-2 font-weight-bold text-high-emphasis">
-                {{ tpl.name }}
-              </span>
-           </div>
-
-
-           <div class="td-col col-device">
-              <div 
-                class="device-badge"
-                :style="{ 
-                  background: tpl.deviceColor || '#6b7280', 
-                  color: contrastText(tpl.deviceColor || '#6b7280') 
+        <template v-for="group in groupedTemplates" :key="group.groupKey">
+          
+          <!-- Group Header (Main Folder Row) -->
+          <div 
+            class="template-group-row" 
+            :class="{ 'group-expanded': group.versions.length > 1 && showVersions }"
+          >
+             <!-- Wrapper for the main row content -->
+             <div 
+               class="template-table-row group-main-row"
+               :class="{ 
+                 'row-selected': isGroupFullySelected(group),
+                 'row-partial': isGroupPartiallySelected(group),
+                 'row-highlight': highlightedTemplateId === group.main.id
                 }"
-              >
-                {{ tpl.deviceId }}
-              </div>
-           </div>
+                :ref="(el) => setItemRef(group.main.id, el)"
+                @click="showVersions && group.versions.length > 1 ? toggleGroupExpanded(group.groupKey) : triggerEdit(group.main)"
+             >
+                <div class="td-col col-check" @click.stop>
+                   <v-checkbox 
+                     :model-value="isGroupFullySelected(group)"
+                     :indeterminate="isGroupPartiallySelected(group)"
+                     density="compact" 
+                     hide-details
+                     @update:model-value="toggleGroupSelect(group)"
+                   />
+                </div>
 
+                <div class="td-col col-device">
+                    <div 
+                      class="device-badge"
+                      :style="{ 
+                        background: group.main.deviceColor || '#6b7280', 
+                        color: contrastText(group.main.deviceColor || '#6b7280') 
+                      }"
+                    >
+                      {{ group.main.deviceId }}
+                    </div>
+                </div>
 
-           <div class="td-col col-updated">
-               <div class="d-flex align-center">
-                 <v-chip
-                   size="x-small"
-                   color="success"
-                   variant="flat"
-                   class="mr-2"
-                 >
-                   v{{ formatVersion(tpl.version) }}
-                 </v-chip>
-                 <span class="text-caption text-medium-emphasis">
-                   {{ getRelativeTime(tpl.updatedAt || new Date().toISOString()) }}
-                 </span>
+                <div class="td-col col-name">
+                    <div class="d-flex align-center" style="width: 100%;">
+                       <div 
+                         class="template-icon-box mr-3"
+                         :style="{ backgroundColor: lightBg(group.main.deviceColor) }"
+                       >
+                         <!-- Folder icon if multiple versions and we are in version mode -->
+                         <v-icon 
+                           v-if="showVersions && group.versions.length > 1"
+                           size="18" 
+                           :class="{ 'rotate-90': expandedGroups.has(group.groupKey) }"
+                           style="transition: transform 0.2s;"
+                           :style="{ color: group.main.deviceColor || '#6b7280' }"
+                         >
+                           mdi-folder-outline
+                         </v-icon>
+                         <v-icon 
+                           v-else
+                           size="18" 
+                           :style="{ color: group.main.deviceColor || '#6b7280' }"
+                         >
+                           mdi-file-document-outline
+                         </v-icon>
+                       </div>
+                       
+                       <div class="d-flex flex-column">
+                          <span class="text-body-2 font-weight-bold text-high-emphasis">
+                            {{ group.main.name }}
+                          </span>
+                          <!-- Show version badges summary if multiple -->
+                          <div v-if="group.versions.length > 1 && !expandedGroups.has(group.groupKey) && showVersions" class="d-flex gap-1 mt-1">
+                             <v-chip size="x-small" label color="grey-lighten-2" class="px-1" style="height: 18px;">
+                                {{ group.versions.length }} verzí
+                             </v-chip>
+                             <v-chip v-if="group.activeVersion" size="x-small" color="success" class="px-1" style="height: 18px;">
+                                Active v{{ formatVersion(group.activeVersion.version) }}
+                             </v-chip>
+                          </div>
+                          <!-- Single version display -->
+                          <div v-else class="d-flex align-center mt-1">
+                             <v-chip size="x-small" :color="getStatusColor(group.main.status)" class="mr-2" style="height: 18px;">
+                                v{{ formatVersion(group.main.version) }}
+                             </v-chip>
+                             <v-chip v-if="group.main.status === 'ACTIVE'" size="x-small" color="success" variant="text" class="px-0 font-weight-bold" style="height: 18px;">
+                                (Aktivní)
+                             </v-chip>
+                          </div>
+                       </div>
+                        <!-- Expand indicator chevron -->
+                        <v-icon 
+                          v-if="showVersions && group.versions.length > 1"
+                          class="ml-auto text-medium-emphasis"
+                          size="20"
+                        >
+                          {{ expandedGroups.has(group.groupKey) ? 'mdi-chevron-up' : 'mdi-chevron-down' }}
+                        </v-icon>
+                    </div>
+                </div>
+
+                <div class="td-col col-updated">
+                   <span class="text-caption text-medium-emphasis">
+                     {{ getRelativeTime(group.main.updatedAt || new Date().toISOString()) }}
+                   </span>
+                </div>
+
+             </div>
+
+             <!-- Expanded Versions List -->
+             <v-expand-transition>
+               <div v-if="showVersions && group.versions.length > 1 && expandedGroups.has(group.groupKey)" class="group-versions-list">
+                  <div 
+                    v-for="ver in group.versions" 
+                    :key="ver.id"
+                    class="version-row"
+                    :class="{ 
+                        'row-selected': selection.has(ver.id),
+                        'row-highlight': highlightedTemplateId === ver.id
+                    }"
+                    :ref="(el) => setItemRef(ver.id, el)"
+                    @click.stop="triggerEdit(ver)"
+                  >
+                     <div class="td-col col-check" @click.stop>
+                         <v-checkbox 
+                           :model-value="selection.has(ver.id)"
+                           density="compact" 
+                           hide-details
+                           @update:model-value="toggleSelect(ver.id)"
+                         />
+                     </div>
+                     <div class="td-col col-device"></div> <!-- Empty indent -->
+                     <div class="td-col col-name pl-10">
+                        <!-- Connecting line visual could go here -->
+                        <div class="d-flex align-center">
+                           <v-chip 
+                              size="small" 
+                              :color="getStatusColor(ver.status)" 
+                              :variant="ver.status === 'ACTIVE' ? 'flat' : 'tonal'"
+                              class="mr-2"
+                           >
+                              v{{ formatVersion(ver.version) }}
+                              <v-icon end size="12" v-if="ver.status === 'ACTIVE'">mdi-check</v-icon>
+                           </v-chip>
+                           
+                           <span v-if="ver.status === 'ACTIVE'" class="text-caption font-weight-bold text-success mr-2">
+                             Aktivní
+                           </span>
+                           <span v-else-if="ver.status === 'DRAFT'" class="text-caption text-grey mr-2">
+                             Koncept
+                           </span>
+                           <span v-else-if="ver.status === 'DEPRECATED'" class="text-caption text-error mr-2">
+                             Zastaralé
+                           </span>
+
+                           <span v-if="ver.changeDescription" class="text-caption text-medium-emphasis text-truncate" style="max-width: 200px;">
+                             {{ ver.changeDescription }}
+                           </span>
+                        </div>
+                     </div>
+                     <div class="td-col col-updated">
+                        <span class="text-caption text-medium-emphasis">
+                          {{ getRelativeTime(ver.updatedAt || new Date().toISOString()) }}
+                        </span>
+                     </div>
+                  </div>
                </div>
-           </div>
+             </v-expand-transition>
+          </div>
 
-
-           <div class="td-col col-actions" @click.stop>
-              <v-btn 
-                icon 
-                variant="text" 
-                size="small" 
-                color="error"
-                @click="openDeleteDialog(tpl)"
-              >
-                 <v-icon>mdi-delete-outline</v-icon>
-              </v-btn>
-           </div>
-
-        </div>
-
-
+        </template>
+        
         <div
-          v-if="activeTemplates.length === 0"
+          v-if="groupedTemplates.length === 0"
           class="empty-state"
         >
           <v-icon
@@ -592,13 +805,6 @@ watch(() => props.templates, () => {
 
 
       <div class="templates-footer">
-        <button
-          type="button"
-          class="footer-btn secondary"
-          @click="close"
-        >
-          Zavřít
-        </button>
 
         <div style="flex: 1" />
 
@@ -799,333 +1005,324 @@ watch(() => props.templates, () => {
 .sort-btn {
   height:36px;
   padding:0 12px;
-  border:1px solid #e5e7eb;
-  border-radius: 8px;
+  border-radius:12px;
   background:white;
+  border:1px solid #e5e7eb;
+  color:#6b7280;
   cursor:pointer;
   display:flex;
   align-items:center;
   gap:6px;
   font-size:13px;
   font-weight:500;
-  color:#6b7280;
   transition:all 0.15s;
 }
 
 .sort-btn:hover {
-  border-color:#d1d5db;
   background:#f9fafb;
+  border-color:#d1d5db;
 }
 
 .sort-btn.active {
-  border-color:#1976d2;
-  background: #eff6ff;
-  color: #1976d2;
+  background:#eff6ff;
+  border-color:#bfdbfe;
+  color:#1e40af;
 }
 
-/* Header Actions (Bulk Operations) */
+/* Selected Header */
 .header-actions {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  background: white;
-  padding: 8px 16px; 
-  margin: 0 24px 8px 24px;
-  border-radius: 8px;
-  border: 1px solid #e5e7eb;
+  display:flex;
+  align-items:center;
+  padding:12px 24px;
+  background:#ebf5ff;
+  border-bottom:1px solid #d1e9ff;
+  flex-shrink:0;
+  justify-content:space-between;
 }
 
 .selected-count {
-  display: flex;
-  align-items: center;
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: #1976d2; 
-}
-.selected-count::before {
-  content: '';
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background-color: #1976d2;
-  margin-right: 8px;
+  font-weight:600;
+  color:#1e40af;
+  font-size:14px;
 }
 
 .bulk-actions-group {
-  display: flex;
-  align-items: center;
+  display:flex;
+  align-items:center;
   gap: 8px;
 }
 
-.divider-vertical {
-  width: 1px;
-  height: 24px;
-  background-color: #e5e7eb;
-  margin: 0 4px;
-}
-
 .bulk-action-btn {
-  height: 32px;
-  padding: 0 12px;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  transition: all 0.2s;
-  background: transparent;
+  display:flex;
+  align-items:center;
+  gap:6px;
+  padding:6px 12px;
+  border-radius:8px;
+  font-size:13px;
+  font-weight:500;
+  cursor:pointer;
+  transition:all 0.2s;
+  background: white;
+  border: 1px solid rgba(0,0,0,0.06);
 }
 .bulk-action-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-  filter: grayscale(100%);
+  filter: grayscale(1);
 }
 
-/* Active Status Button */
-.btn-active {
-  color: #059669; /* emerald-600 */
-  background: #ecfdf5; /* emerald-50 */
-  border-color: #a7f3d0;
-}
-.btn-active:hover {
-  background: #d1fae5;
-  border-color: #34d399;
-}
+.btn-active { color: #2e7d32; }
+.btn-active:hover:not(:disabled) { background: #e8f5e9; }
 
-/* Draft Status Button */
-.btn-draft {
-  color: #d97706; /* amber-600 */
-  background: #fffbeb; /* amber-50 */
-  border-color: #fde68a;
-}
-.btn-draft:hover {
-  background: #fef3c7;
-  border-color: #fcd34d;
-}
+.btn-draft { color: #616161; }
+.btn-draft:hover:not(:disabled) { background: #f5f5f5; }
 
-/* Deprecated Status Button */
-.btn-deprecated {
-  color: #4b5563; /* gray-600 */
-  background: #f3f4f6; /* gray-100 */
-  border-color: #e5e7eb;
-}
-.btn-deprecated:hover {
-  background: #e5e7eb;
-  border-color: #d1d5db;
-}
+.btn-deprecated { color: #c62828; }
+.btn-deprecated:hover:not(:disabled) { background: #ffebee; }
 
-/* Delete Button */
-.btn-delete {
-  color: #dc2626; /* red-600 */
-  background: #fef2f2; /* red-50 */
-  border-color: #fecaca;
-}
-.btn-delete:hover {
-  background: #fee2e2;
-  border-color: #fca5a5;
-  color: #b91c1c;
+.btn-delete { color: #c62828; border-color: #ffcdd2; }
+.btn-delete:hover:not(:disabled) { background: #ffebee; border-color: #ef9a9a; }
+
+.divider-vertical {
+  width: 1px;
+  height: 24px;
+  background: rgba(0,0,0,0.1);
+  margin: 0 4px;
 }
 
 /* Table Header */
 .table-header-row {
-  display: flex;
-  align-items: center;
-  padding: 10px 16px;
-  background: #f3f4f6;
-  border-bottom: 2px solid #e5e7eb;
-  font-size: 12px;
-  font-weight: 600;
-  text-transform: uppercase;
-  color: #6b7280;
-  letter-spacing: 0.03em;
+  display:flex;
+  padding:10px 24px;
+  background:#f9fafb;
+  border-bottom:1px solid #e5e7eb;
+  font-size:12px;
+  font-weight:600;
+  color:#6b7280;
+  text-transform:uppercase;
+  letter-spacing:0.04em;
+  flex-shrink:0;
 }
 
 .th-col {
-  padding: 0 8px;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  cursor: pointer;
-  user-select: none;
-}
-.th-col:hover {
-  color: #374151;
+  display:flex;
+  align-items:center;
+  gap:4px;
+  cursor:pointer;
 }
 
-.col-check { width: 40px; flex-shrink: 0; justify-content: center; cursor: default; }
-.col-name { flex: 1; min-width: 0; }
-.col-device { width: 140px; flex-shrink: 0; }
-.col-updated { width: 180px; flex-shrink: 0; }
-.col-actions { width: 60px; flex-shrink: 0; justify-content: flex-end; cursor: default; }
+.col-check { width: 40px; justify-content: center; cursor: default; }
+.col-device { width: 140px; }
+.col-name { flex:1; }
+.col-updated { width: 160px; }
 
-/* Content */
+/* Table Content */
 .templates-content {
   flex:1;
   overflow-y:auto;
-  min-height:0;
-  background: white;
+  background:white;
 }
 
 .template-table-row {
-  display: flex;
-  align-items: center;
-  padding: 12px 16px;
-  border-bottom: 1px solid #f3f4f6;
-  cursor: pointer;
-  transition: background 0.1s ease-in-out;
+  display:flex;
+  padding:12px 24px;
+  border-bottom:1px solid #f3f4f6;
+  align-items:center;
+  cursor:pointer;
+  transition:background-color 0.15s;
 }
 
 .template-table-row:hover {
-  background: #f9fafb;
+  background-color:#f9fafb;
 }
 
-.template-table-row.row-selected {
-  background: #eff6ff;
-  border-bottom-color: #dbeafe;
+.row-selected {
+  background-color:#eff6ff !important;
 }
 
 .td-col {
-  padding: 0 8px;
-  display: flex;
-  align-items: center;
+  display:flex;
+  align-items:center;
 }
 
-.col-check { display: flex; justify-content: center; }
+.device-badge {
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  padding:4px 8px;
+  border-radius:6px;
+  font-size:11px;
+  font-weight:700;
+  text-transform:uppercase;
+  letter-spacing:0.02em;
+}
 
 .template-icon-box {
   width:32px;
   height:32px;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink:0;
+  border-radius:8px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
 }
 
-.device-badge {
-  padding:4px 10px;
-  border-radius:6px;
-  font-size:11px;
-  font-weight: 700;
-  letter-spacing:0.5px;
-  flex-shrink:0;
-}
-
-/* Empty State */
 .empty-state {
-  padding: 64px 24px;
-  text-align: center;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  padding:60px 0;
+  color:#9ca3af;
 }
 
 .empty-title {
-  margin-top: 16px;
-  font-size: 18px;
-  font-weight: 600;
-  color: #374151;
+  margin-top:16px;
+  font-size:16px;
+  font-weight:600;
+  color:#374151;
 }
 
 .empty-subtitle {
-  margin-top: 6px;
-  font-size: 14px;
-  color: #9ca3af;
+  margin-top:4px;
+  font-size:13px;
 }
 
 /* Footer */
 .templates-footer {
-  padding: 16px 24px;
-  background: #f9fafb;
-  border-top: 1px solid #e5e7eb;
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  flex-shrink: 0;
+  padding:16px 24px;
+  background:white;
+  border-top:1px solid #e5e7eb;
+  display:flex;
+  align-items:center;
+  flex-shrink:0;
 }
 
 .footer-btn {
-  height: 40px;
-  padding: 0 20px;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  transition: all 0.2s;
-  border: 1px solid transparent;
-}
-
-.footer-btn.secondary {
-  background: white;
-  border-color: #d1d5db;
-  color: #374151;
-}
-
-.footer-btn.secondary:hover {
-  background: #f3f4f6;
-  border-color: #9ca3af;
+  height:40px;
+  padding:0 16px;
+  border-radius:10px;
+  font-size:14px;
+  font-weight:600;
+  cursor:pointer;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  border:none;
+  transition:all 0.2s;
 }
 
 .footer-btn.primary {
-  background: #1976d2;
-  color: white;
-  box-shadow: 0 2px 4px rgba(25, 118, 210, 0.2);
+  background:linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  color:white;
+  box-shadow:0 4px 12px rgba(37, 99, 235, 0.2);
 }
 
 .footer-btn.primary:hover {
-  background: #1565c0;
-  box-shadow: 0 4px 8px rgba(25, 118, 210, 0.3);
-  transform: translateY(-1px);
+  box-shadow:0 6px 16px rgba(37, 99, 235, 0.3);
+  transform:translateY(-1px);
+}
+
+.footer-btn.secondary {
+  background:#f3f4f6;
+  color:#4b5563;
+}
+
+.footer-btn.secondary:hover {
+  background:#e5e7eb;
+  color:#111827;
 }
 
 /* Responsive */
-@media (max-width:900px) {
-  .templates-toolbar {
-    flex-direction:column;
-    align-items:stretch;
+@media (max-width: 600px) {
+  .col-updated, .col-device {
+    display:none;
   }
-
-  .toolbar-actions {
-    width:100%;
-    justify-content:space-between;
-  }
-
-  .sort-btn {
-    flex:1;
-  }
-}
-
-@media (max-width:600px) {
+  
   .templates-header {
-    padding:16px 20px;
+    padding:16px;
   }
-
-  .templates-toolbar {
-    padding:12px 20px;
+  
+  .header-left {
+    gap: 8px;
   }
-
-  .table-header-row {
-    display: none; /* Hide header on mobile if needed, or adapt */
-  }
-
-  .templates-footer {
-    padding:12px 20px;
-  }
-
+  
   .header-title {
     font-size:16px;
   }
+}
 
-  .header-subtitle {
+@media (max-height: 700px) {
+  .templates-dialog-card {
+    height: 100vh;
+    border-radius: 0;
+  }
+  
+  .filter-toggle {
+    display: none; /* Hide toggle on very small screens if needed, or adjust styling */
+  }
+  
+  .filter-toggle :deep(.v-switch .v-label) {
     font-size:12px;
   }
 }
+/* Group / Version Styles */
+.template-group-row {
+  border-bottom: 1px solid #f3f4f6;
+  transition: background-color 0.2s;
+}
+.template-group-row:last-child {
+  border-bottom: none;
+}
+.template-group-row.group-expanded {
+  background-color: #f9fafb;
+}
+
+.group-main-row {
+  /* Inherits .template-table-row styles generally, but might need tweaks */
+}
+.row-partial {
+  background-color: #f0f9ff !important;
+}
+
+.group-versions-list {
+  background-color: #f9fafb;
+  border-top: 1px solid #e5e7eb;
+}
+
+.version-row {
+  display: flex;
+  align-items: center;
+  padding: 8px 16px; /* slightly less padding than main row */
+  cursor: pointer;
+  transition: background-color 0.15s;
+  border-bottom: 1px solid #f3f4f6;
+}
+.version-row:last-child {
+  border-bottom: none;
+}
+.version-row:hover {
+  background-color: #f3f4f6;
+}
+.version-row.row-selected {
+  background-color: #eff6ff;
+}
+
+.rotate-90 {
+  transform: rotate(90deg);
+}
+
+.gap-1 {
+  gap: 4px;
+}
+
+@keyframes highlight-pulse-row {
+  0% { background-color: rgba(37, 99, 235, 0.05); }
+  20% { background-color: rgba(37, 99, 235, 0.2); }
+  100% { background-color: transparent; }
+}
+
+.row-highlight {
+  animation: highlight-pulse-row 3s ease-out forwards;
+}
+
 </style>

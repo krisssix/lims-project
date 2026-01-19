@@ -205,6 +205,42 @@ export const useDeviceStore = defineStore('devices', () => {
     }
   }
 
+  async function bulkDeactivate(ids: number[]): Promise<void> {
+    errorText.value = null
+    try {
+      await post('devices/bulk-deactivate', ids, undefined)
+      // update local
+      const newAll = allDevices.value.map(d => {
+        if (ids.includes(d.id)) {
+          return { ...d, active: false }
+        }
+        return d
+      })
+      setAllDevices(newAll)
+      setDevicesActive(newAll)
+    } catch (e: unknown) {
+      errorText.value = (e as { message?: string })?.message || 'Hromadná deaktivace selhala'
+    }
+  }
+
+  async function bulkReactivate(ids: number[]): Promise<void> {
+    errorText.value = null
+    try {
+      await post('devices/bulk-reactivate', ids, undefined)
+      // update local
+      const newAll = allDevices.value.map(d => {
+        if (ids.includes(d.id)) {
+          return { ...d, active: true }
+        }
+        return d
+      })
+      setAllDevices(newAll)
+      setDevicesActive(newAll)
+    } catch (e: unknown) {
+      errorText.value = (e as { message?: string })?.message || 'Hromadná reaktivace selhala'
+    }
+  }
+
   return {
     devices,        // aktivní
     allDevices,     // všichni
@@ -216,6 +252,8 @@ export const useDeviceStore = defineStore('devices', () => {
     createDevice,
     updateDevice,
     deactivateDevice,
-    reactivateDevice
+    reactivateDevice,
+    bulkDeactivate,
+    bulkReactivate
   }
 })

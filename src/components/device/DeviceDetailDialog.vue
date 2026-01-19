@@ -142,44 +142,46 @@ function onKeydown(e: KeyboardEvent): void {
     :hide-footer="true"
     @keydown="onKeydown"
   >
-    <template #content>
-      <div class="pa-4">
-        <!-- záhlaví (header) -->
-        <div class="d-flex align-center mb-4">
-          <div
-            class="d-flex align-center"
-            style="gap: 12px;"
+    <template #header>
+      <div class="d-flex align-center w-100">
+        <div
+          class="d-flex align-center"
+          style="gap: 12px;"
+        >
+          <v-avatar
+            size="48"
+            :color="formColor"
+            variant="flat"
           >
-            <v-avatar
-              size="48"
-              :color="formColor"
-              variant="flat"
+            <v-icon
+              size="24"
+              color="white"
             >
-              <v-icon
-                size="24"
-                color="white"
-              >
-                mdi-microscope
-              </v-icon>
-            </v-avatar>
-            <div>
-              <div class="text-h6">
-                Detail přístroje
-              </div>
-              <div class="text-caption text-medium-emphasis">
-                Kód: <strong>{{ device?.code }}</strong>
-              </div>
+              mdi-microscope
+            </v-icon>
+          </v-avatar>
+          <div>
+            <div class="text-h6">
+              Detail přístroje
+            </div>
+            <div class="text-caption text-medium-emphasis">
+              Kód: <strong>{{ device?.code }}</strong>
             </div>
           </div>
-          <v-spacer />
-          <v-chip
-            :color="isActive ? 'success' : 'grey'"
-            variant="flat"
-            size="small"
-          >
-            {{ isActive ? 'Aktivní' : 'Neaktivní' }}
-          </v-chip>
         </div>
+        <v-spacer />
+        <v-chip
+          :color="isActive ? 'success' : 'grey'"
+          variant="flat"
+          size="small"
+        >
+          {{ isActive ? 'Aktivní' : 'Neaktivní' }}
+        </v-chip>
+      </div>
+    </template>
+
+    <template #content>
+      <div class="pa-4">
 
         <!-- upozornění na chybu (error alert) -->
         <v-alert
@@ -326,7 +328,7 @@ function onKeydown(e: KeyboardEvent): void {
           class="d-flex align-center"
           style="gap: 12px;"
         >
-          <!-- deaktivovat / reaktivovat (deactivate / reactivate) -->
+          <!-- deaktivovat / aktivovat -->
           <v-btn
             v-if="isActive"
             variant="tonal"
@@ -345,7 +347,7 @@ function onKeydown(e: KeyboardEvent): void {
             prepend-icon="mdi-check-circle-outline"
             @click="reactivate"
           >
-            Reaktivovat
+            Aktivovat
           </v-btn>
 
           <v-spacer />
@@ -378,6 +380,10 @@ function onKeydown(e: KeyboardEvent): void {
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+.text-body-2 {
+  color: black;
 }
 
 .form-field {

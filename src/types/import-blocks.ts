@@ -23,6 +23,7 @@ export interface DetectedBlock {
     action?: BlockAction // co s tímto blokem udělat
     horizontalSeries?: HorizontalSeriesInfo // pro transponovaná data sérií
     vectorColumnIndices?: number[] // indexy sloupců, které obsahují vektorová data
+    originSheetName?: string // from which excel sheet
 }
 
 /**

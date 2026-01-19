@@ -55,7 +55,7 @@ const props = defineProps<{
   devices: DeviceItem[]
   templates: TemplateItem[]
   templateById: Map<string, TemplateItem>
-  initialTemplateId?: string | null
+  initialTemplateId?: string | number | null
   members?: Array<{ username: string }>
   /** id boardcard pro propojení s měřením */
   boardCardId?: number | null
@@ -71,7 +71,7 @@ const props = defineProps<{
 
 const emits = defineEmits<{
   (e: 'update:modelValue', v: boolean): void
-  (e: 'save', payload: MeasurementRequest): void
+  (e: 'save', payload: MeasurementRequest, attachments?: File[]): void
   (e: 'createTemplate', deviceCode: string): void
   (e: 'createTemplateFromClipboard', deviceCode: string): void
   (e: 'deriveTemplate', templateId: string): void
@@ -81,6 +81,7 @@ const showSuccessToast = ref(false)
 const showValidationError = ref(false)
 const validationErrorMessage = ref('')
 const lastCreatedMeasurementId = ref<number | null>(null)
+const genericAttachments = ref<File[]>([])
 
 const showClearAllWarning = ref(false)
 const showApplyDataWarning = ref(false)
@@ -187,6 +188,12 @@ watch(() => props.duplicateFrom, (source) => {
   })
 }, { immediate: true })
 
+watch(() => props.initialTemplateId, (newId) => {
+  if (newId) {
+    selectedTemplateId.value = String(newId)
+  }
+}, { immediate: true })
+
 /* validace kroku 1 */
 const canProceedToData = computed(() => !!selectedDeviceId.value && !!selectedTemplateId.value)
 
@@ -208,6 +215,10 @@ const currentBlockIndex = ref<number>(0)
 const selectedTemplate = computed<TemplateItem | null>(() => {
   if (!selectedTemplateId.value) return null
   return props.templateById.get(selectedTemplateId.value) ?? null
+})
+const selectedDeviceObj = computed<DeviceItem | null>(() => {
+  if (!selectedDeviceId.value) return null
+  return props.devices.find(d => d.id === selectedDeviceId.value) ?? null
 })
 const templateBlocks = computed<TemplateBlockRow[]>(() => {
   const tpl = selectedTemplate.value
@@ -350,16 +361,17 @@ function dateModel(field: RecordField): string | null {
 }
 function timeModel(field: RecordField): string | null {
   const val = field.value
-  // pokud je to již číslo (epocha v ms), extrahovat čas jako hh:mm
+  // pokud je to již číslo (epocha v ms), extrahovat čas jako hh:mm:ss
   if (typeof val === 'number') {
     const d = new Date(val)
-    return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`
+    return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}:${d.getSeconds().toString().padStart(2, '0')}`
   }
   // pokud je to řetězec, zkusit zparsovat jako český datum
   if (typeof val === 'string' && val.trim()) {
     const parsed = parseCzechDate(val)
     if (parsed.success && parsed.hours !== null && parsed.minutes !== null) {
-      return `${parsed.hours.toString().padStart(2, '0')}:${parsed.minutes.toString().padStart(2, '0')}`
+      const sec = parsed.seconds ?? 0
+      return `${parsed.hours.toString().padStart(2, '0')}:${parsed.minutes.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`
     }
   }
   return null
@@ -559,7 +571,7 @@ function nextBlock(): void { if (currentBlockIndex.value < templateBlocks.value.
 /* sledování externího výběru šablony (např. po vytvoření nové šablony) */
 watch(() => props.initialTemplateId, (newId) => {
   if (newId && props.modelValue) {
-    selectedTemplateId.value = newId
+    selectedTemplateId.value = String(newId)
   }
 })
 
@@ -953,9 +965,9 @@ function updateTimeField(field: RecordField, timeStr: string): void {
     datePart = new Date().toISOString().slice(0, 10)
   }
   // spojení data a času do epoch milisekund
-  const [hours, minutes] = (timeStr || '00:00').split(':').map(Number)
+  const [hours, minutes, seconds] = (timeStr || '00:00:00').split(':').map(Number)
   const [year, month, day] = datePart.split('-').map(Number)
-  const combined = new Date(year, month - 1, day, hours || 0, minutes || 0, 0)
+  const combined = new Date(year, month - 1, day, hours || 0, minutes || 0, seconds || 0)
   field.value = combined.getTime()
 }
 
@@ -1135,6 +1147,41 @@ function applyGridPickerValues(values: (string | number)[]): void {
   }
 }
 
+const showManualGridPicker = ref(false)
+const manualGridPickerData = ref<{
+  recordIndex: number
+  blockIndex: number
+  fields: Array<{ name: string; type: string; required: boolean; value: unknown }>
+} | null>(null)
+
+// Parsing options state
+const importParsingDelimiter = ref<string>('')
+const importParsingDecimalSeparator = ref<'.' | ','>('.')
+const importParsingHasHeader = ref(true)
+const importParsingHeaderRowIndex = ref(0) // 0-based index
+
+// Header Picker state
+const showHeaderPicker = ref(false)
+const headerPickerRawGrid = ref<(string | number)[][]>([])
+
+async function openHeaderPicker() {
+  if (!importedFile.value) return
+  
+  // Need to parse to grid raw first to show in picker
+  const result = await parseFileToGrid(importedFile.value, { delimiter: importParsingDelimiter.value })
+  if (result.success) {
+    headerPickerRawGrid.value = result.grid
+    showHeaderPicker.value = true
+  }
+}
+
+function handleHeaderPicked(result: { tableHeaders: string[], seriesHeaders: string[], headerRowIndex: number | null }) {
+  if (result.headerRowIndex !== null) {
+    importParsingHeaderRowIndex.value = result.headerRowIndex
+    analyzeImport() // Re-analyze with new header row
+  }
+}
+
 const seriesData = ref<SeriesData[]>([])
 const recordOptions = computed(() =>
   records.value.map(r => ({
@@ -1305,6 +1352,7 @@ function toggleImportPanel(): void {
   if (!selectedTemplate.value) return
   importPanelOpen.value = !importPanelOpen.value
 }
+
 function resetImport(): void {
   composableResetImport()
 }
@@ -1545,6 +1593,9 @@ function clearAll(): void {
 }
 function onImportFilePicked(f: File | null): void {
   composableOnImportFilePicked(f)
+  if (f) {
+    analyzeImport()
+  }
 }
 function buildTemplateLike(): TemplateLike | null {
   const tpl = selectedTemplate.value
@@ -1557,7 +1608,7 @@ function buildTemplateLike(): TemplateLike | null {
       name: f.name,
       type: f.type,
       required: f.required,
-      sourceIndex: i,
+      // sourceIndex removed to allow name-based matching
       orderIndex: f.orderIndex
     }))
   }))
@@ -1565,15 +1616,20 @@ function buildTemplateLike(): TemplateLike | null {
 }
 async function analyzeImport(): Promise<void> {
   if (!importedFile.value) return
-  if (!selectedTemplate.value) {
-    importError.value = 'Nejprve vyberte šablonu.'
-    return
-  }
   importBusy.value = true
   importError.value = null
   try {
-    const structure = await parseImportedMeasurementFile(importedFile.value)
+    const structure = await parseImportedMeasurementFile(importedFile.value, {
+      delimiter: importParsingDelimiter.value,
+      decimalSeparator: importParsingDecimalSeparator.value,
+      hasHeader: importParsingHasHeader.value,
+      headerRowIndex: importParsingHeaderRowIndex.value
+    })
     importedStructure.value = structure
+
+    if (!selectedTemplate.value) {
+      return
+    }
 
     // synchronizace importovaných sérií se sériemi definovanými v šabloně
     // vyplnit existující série šablony importovanými daty, nevytvářet nové série
@@ -1773,7 +1829,9 @@ function doApplyImport(): void {
     }))
   }
 
-  const recs = buildRecordsFromImported(tmpl, adjustedStructure)
+  const recs = buildRecordsFromImported(tmpl, adjustedStructure, {
+    decimalSeparator: importParsingDecimalSeparator.value
+  })
   console.log('[doApplyImport] Built records:', recs.length)
   if (recs.length > 0) {
     console.log('[doApplyImport] First record:', recs[0])
@@ -2374,6 +2432,8 @@ async function onSave(): Promise<void> {
       .filter(f => f.type === 'float' || f.type === 'int')
       .map(f => toNumber(f.value, f.type === 'int'))
       .find(n => n != null && Number.isFinite(n))
+
+    const dateField = records.value.flatMap(r => r.fields).find(f => f.type === 'date')
     const tpl = selectedTemplateId.value ? props.templateById.get(selectedTemplateId.value) : null
     if (!tpl) return
 
@@ -2424,10 +2484,10 @@ async function onSave(): Promise<void> {
       note: measurementNote.value || null,
       series: seriesPayload.length > 0 ? seriesPayload : undefined
     }
-    emits('save', payload)
+    emits('save', payload, genericAttachments.value)
     showSuccessToast.value = true
     clearDraft()
-    wizardStep.value = 1
+    // wizardStep.value = 1 // Nechat na zavření dialogu, jinak problikne krok 1 před zavřením
   } finally {
     saving.value = false
   }
@@ -2513,6 +2573,49 @@ defineExpose({
 
           <v-window-item :value="2">
             <div class="pa-1">
+              <!-- Info bar: Selected Device & Template -->
+              <div class="d-flex align-center justify-space-between mb-4 pa-3 bg-grey-lighten-4 rounded border">
+                <div class="d-flex align-center flex-wrap" style="gap: 16px; row-gap: 8px;">
+                  <!-- Device -->
+                  <div class="d-flex align-center">
+                    <span class="text-caption text-medium-emphasis mr-2">Přístroj:</span>
+                    <div class="d-flex align-center">
+                      <v-chip
+                        v-if="selectedDeviceObj"
+                        size="small"
+                        :color="selectedDeviceObj.color || 'primary'"
+                        variant="flat"
+                        class="mr-2"
+                      >
+                        {{ selectedDeviceObj.code || selectedDeviceObj.id }}
+                      </v-chip>
+                      <span class="text-body-2 font-weight-medium">{{ selectedDeviceObj?.name || selectedDeviceId }}</span>
+                    </div>
+                  </div>
+
+                  <v-divider vertical style="height: 20px" class="mx-2" />
+
+                  <!-- Template -->
+                  <div class="d-flex align-center">
+                    <span class="text-caption text-medium-emphasis mr-2">Šablona:</span>
+                    <div class="d-flex align-center">
+                      <v-icon size="small" color="secondary" class="mr-2">mdi-file-document-multiple-outline</v-icon>
+                      <span class="text-body-2 font-weight-medium">{{ selectedTemplate?.name || '---' }}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <v-btn
+                  variant="text"
+                  density="compact"
+                  size="small"
+                  color="primary"
+                  @click="goToPrevStep"
+                >
+                  Změnit
+                </v-btn>
+              </div>
+
               <ImportPanel
                 v-if="selectedTemplateId"
                 :imported-file="importedFile"
@@ -2535,6 +2638,12 @@ defineExpose({
                 @update:rowOffset="(offset: number) => importRowOffset = offset"
                 :mapping-auto-applied="mappingAutoApplied"
                 :learned-mappings-available="learnedMappingsAvailable"
+                
+                v-model:parsingDelimiter="importParsingDelimiter"
+                v-model:parsingDecimalSeparator="importParsingDecimalSeparator"
+                v-model:parsingHasHeader="importParsingHasHeader"
+                v-model:parsingHeaderRowIndex="importParsingHeaderRowIndex"
+                @pick-header-row="openHeaderPicker"
               />
 
               <!-- odstraněno: tlačítko "mapovat data ručně" (požadavek uživatele) -->
@@ -2627,10 +2736,36 @@ defineExpose({
                 </div>
               </div>
 
+              <div class="attachments-section-wrapper mt-4">
+                <div class="notes-header mb-2">
+                  <div class="notes-title">
+                    <v-icon size="15" color="white">mdi-paperclip</v-icon>
+                    <span>Přílohy</span>
+                  </div>
+                </div>
+                <div class="bg-white rounded pa-4 border">
+                  <v-file-input
+                    v-model="genericAttachments"
+                    label="Vybrat soubory..."
+                    multiple
+                    chips
+                    show-size
+                    variant="outlined"
+                    prepend-icon=""
+                    prepend-inner-icon="mdi-paperclip"
+                    hide-details
+                  ></v-file-input>
+                  <div class="text-caption text-grey mt-2">
+                    Můžete nahrát libovolné přílohy (obrázky, PDF, dokumenty). Budou nahrány po uložení měření.
+                  </div>
+                </div>
+              </div>
+
 
               <MappingWizardDialog
                 v-model="mappingOpen"
                 :mapping-model="mappingModel"
+                :template-id="selectedTemplateId ? Number(selectedTemplateId) : null"
                 @apply-mapping="onApplyMapping"
                 @derive-template="onDeriveTemplate"
               />
@@ -2641,6 +2776,13 @@ defineExpose({
                 :target-field-name="gridPickerTargetField"
                 :record-count="records.length"
                 @apply="applyGridPickerValues"
+              />
+
+              <ManualHeaderPickerDialog
+                v-model="showHeaderPicker"
+                :raw-grid="headerPickerRawGrid"
+                :no-header-mode="false"
+                @apply="handleHeaderPicked"
               />
 
               <!-- Type Change Confirmation Dialog -->

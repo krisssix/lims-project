@@ -16,11 +16,13 @@ const props = defineProps<{
   xLabels?: Array<number | string>
   outliers?: OutliersMeta | null
   multiSeries?: MultiSeriesItem[] | null
+  sharedZoomLevel?: number | null  // For synced zoom across multiple charts
 }>()
 
 const emit = defineEmits<{
   (e: 'select-field', field: string): void
   (e: 'point-click', payload: { event: MouseEvent; idx: number; val: number }): void
+  (e: 'zoom-change', zoomLevel: number): void
 }>()
 
 /* -------------------------------------------------
@@ -107,8 +109,14 @@ function triggerPng() {
 watch(
   () => props.fields,
   (fList) => {
-    if (!props.selectedField && fList.length) nextTick(() => onSelectField(fList[0]!))
-  }
+    // If we have fields, and either no selection or invalid selection, defaults to first
+    if (fList.length > 0) {
+      if (!props.selectedField || !fList.includes(props.selectedField)) {
+        nextTick(() => onSelectField(fList[0]))
+      }
+    }
+  },
+  { immediate: true }
 )
 
 /* -------------------------------------------------
@@ -192,7 +200,6 @@ const liveStatus = computed<string>(() => {
   return parts.join('. ')
 })
 
-
 const displayOptions = computed(() => [
   {
     label: 'Mřížka',
@@ -223,6 +230,12 @@ const displayOptions = computed(() => [
     shortcut: 'Alt+T',
   },
 ])
+
+// Menu state for the field selector
+const isFieldMenuOpen = ref(false)
+function openFieldSelect() {
+  isFieldMenuOpen.value = true
+}
 </script>
 
 <template>
@@ -230,6 +243,7 @@ const displayOptions = computed(() => [
     <!-- Compact field selector -->
     <div class="field-selector-compact">
       <v-select
+        v-model:menu="isFieldMenuOpen"
         :model-value="selectedField"
         :items="fields"
         label="Vyberte pole pro vizualizaci"
@@ -339,8 +353,17 @@ const displayOptions = computed(() => [
       <!-- Chart and stats layout -->
       <div class="chart-content-layout">
         <!-- Main chart area -->
-        <div class="chart-area-main">
+        <div class="chart-area-main" style="position: relative;">
+          <!-- Empty state button -->
+          <div v-if="!seriesEnhanced.length" class="no-data-overlay">
+            <div class="text-medium-emphasis mb-4">Žádná data pro graf</div>
+            <v-btn color="primary" prepend-icon="mdi-tag-multiple" @click="openFieldSelect">
+              Vybrat pole pro vizualizaci
+            </v-btn>
+          </div>
+
           <ChartVisualizer
+            v-else
             ref="visualizerRef"
             :series="seriesEnhanced"
             :active-tab="activeTab"
@@ -353,7 +376,9 @@ const displayOptions = computed(() => [
             :show-trend="showTrend"
             :trend-type="trendType"
             :focus-mode="false"
+            :shared-zoom-level="sharedZoomLevel"
             @point-click="(p) => emit('point-click', p)"
+            @zoom-change="(z) => emit('zoom-change', z)"
           />
         </div>
 
@@ -399,7 +424,8 @@ const displayOptions = computed(() => [
   display: flex;
   flex-direction: column;
   gap: 12px;
-  height: 100%;
+  /* Remove fixed height to allow natural flow */
+  /* height: 100%; */
 }
 
 /* -----------------------------------------------------------------
@@ -430,14 +456,16 @@ const displayOptions = computed(() => [
    Main chart container
    ----------------------------------------------------------------- */
 .chart-main-container {
-  flex: 1;
+  /* Flex 1 was causing it to expand. Removed to respect max-height */
+  /* flex: 1; */
   display: flex;
   flex-direction: column;
   background: linear-gradient(to bottom, #f9fafb, #ffffff);
   border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: 8px;
   overflow: hidden;
-  min-height: 0;
+  /* height: 380px; Removed fixed height to allow natural flow */
+  min-height: 380px;
 }
 
 /* -----------------------------------------------------------------
@@ -474,6 +502,7 @@ const displayOptions = computed(() => [
 .chart-content-layout {
   flex: 1;
   display: flex;
+  flex-direction: column; 
   gap: 12px;
   padding: 12px;
   min-height: 0;
@@ -488,14 +517,27 @@ const displayOptions = computed(() => [
   flex-direction: column;
 }
 
+/* No data overlay */
+.no-data-overlay {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.5);
+}
+
 .stats-sidebar-compact {
-  width: 240px;
+  width: 100%;
+  max-height: 160px;
   flex-shrink: 0;
   overflow-y: auto;
+  border-top: 1px solid rgba(0,0,0,0.06);
+  padding-top: 12px;
 }
 
 .stats-sidebar-compact :deep(.stats-grid) {
-  grid-template-columns: 1fr;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   gap: 8px;
 }
 
@@ -507,10 +549,7 @@ const displayOptions = computed(() => [
   border: 1px solid rgba(0, 0, 0, 0.06);
 }
 
-.stats-sidebar-compact :deep(.stat-item:nth-child(n)) {
-  border-right: none;
-  border-bottom: none;
-}
+
 
 /* -----------------------------------------------------------------
    Series legend compact
@@ -586,6 +625,11 @@ const displayOptions = computed(() => [
 
   .stats-sidebar-compact :deep(.stats-grid) {
     grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .chart-main-container {
+    height: auto;
+    min-height: 400px;
   }
 }
 

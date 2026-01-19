@@ -17,6 +17,12 @@ const props = defineProps<{
   mappingApplied?: boolean  // Whether user has applied custom mapping
   mappingAutoApplied?: boolean  // Whether mapping was auto-applied from learned
   learnedMappingsAvailable?: boolean  // Whether learned mappings are available for this import
+  
+  // Parsing options
+  parsingDelimiter?: string
+  parsingDecimalSeparator?: '.' | ','
+  parsingHasHeader?: boolean
+  parsingHeaderRowIndex?: number
 }>()
 const emits = defineEmits<{
   (e: 'pick-file', f: File | null): void
@@ -27,6 +33,13 @@ const emits = defineEmits<{
   (e: 'open-mapping'): void
   (e: 'clear-all'): void
   (e: 'update:rowOffset', offset: number): void
+  
+  // New emits for parsing options
+  (e: 'update:parsingDelimiter', val: string): void
+  (e: 'update:parsingDecimalSeparator', val: '.' | ','): void
+  (e: 'update:parsingHasHeader', val: boolean): void
+  (e: 'update:parsingHeaderRowIndex', val: number): void
+  (e: 'pick-header-row'): void
 }>()
 
 const fileInputRef = ref<HTMLInputElement | null>(null)
@@ -87,13 +100,26 @@ const hasInput = computed(() => {
 const canAnalyze = computed(() => hasInput.value && !props.importBusy)
 
 const delimiterLabel = computed(() => {
-  const d = props.importedStructure?.delimiter
+  const d = props.parsingDelimiter ?? props.importedStructure?.delimiter
   if (d === ',') return 'Čárka (,)'
   if (d === ';') return 'Středník (;)'
   if (d === '\t') return 'Tabulátor'
   if (d === '|') return 'Svislítko (|)'
-  return d ? `"${d}"` : 'Neznámý'
+  return d ? `"${d}"` : 'Auto'
 })
+
+const delimiterOptions = [
+  { title: 'Auto', value: '' },
+  { title: 'Čárka (,)', value: ',' },
+  { title: 'Středník (;)', value: ';' },
+  { title: 'Tabulátor', value: '\t' },
+  { title: 'Svislítko (|)', value: '|' }
+]
+
+const decimalSeparatorOptions = [
+  { title: 'Tečka (.)', value: '.' },
+  { title: 'Čárka (,)', value: ',' }
+]
 
 
 function openFileChooser(): void {
@@ -347,31 +373,76 @@ function analyze(): void {
           </div>
           
           <div class="settings-row">
-            <!-- Delimiter info -->
+            <!-- Delimiter -->
             <div class="setting-item">
               <span class="setting-label">Oddělovač</span>
-              <span class="value-badge">{{ delimiterLabel }}</span>
+              <div style="width: 120px;">
+                <v-select
+                  :model-value="props.parsingDelimiter || ''"
+                  :items="delimiterOptions"
+                  density="compact"
+                  variant="outlined"
+                  hide-details
+                  item-title="title"
+                  item-value="value"
+                  bg-color="white"
+                  style="font-size: 13px;"
+                  @update:model-value="v => emits('update:parsingDelimiter', v)"
+                />
+              </div>
             </div>
 
             <div class="setting-divider"></div>
 
-            <!-- Skip rows -->
+            <!-- Decimal Separator -->
             <div class="setting-item">
-              <span class="setting-label">Přeskočit</span>
-              <div class="stepper-control">
-                <button 
-                  type="button" 
-                  class="stepper-btn"
-                  :disabled="localRowOffset <= 0"
-                  @click="updateRowOffset(localRowOffset - 1)"
-                >−</button>
-                <span class="stepper-value">{{ localRowOffset }}</span>
-                <button 
-                  type="button" 
-                  class="stepper-btn"
-                  :disabled="localRowOffset >= totalRowCount - 1"
-                  @click="updateRowOffset(localRowOffset + 1)"
-                >+</button>
+              <span class="setting-label">Desetinná čárka</span>
+              <div style="width: 110px;">
+                 <v-select
+                  :model-value="props.parsingDecimalSeparator || '.'"
+                  :items="decimalSeparatorOptions"
+                  density="compact"
+                  variant="outlined"
+                  hide-details
+                  item-title="title"
+                  item-value="value"
+                  bg-color="white"
+                  style="font-size: 13px;"
+                  @update:model-value="v => emits('update:parsingDecimalSeparator', v)"
+                />
+              </div>
+            </div>
+
+            <div class="setting-divider"></div>
+
+            <!-- Skip rows / Header Row Picker -->
+            <div class="setting-item">
+              <span class="setting-label">Začátek dat</span>
+              <div class="d-flex align-center ga-2">
+                 <div class="stepper-control">
+                  <button 
+                    type="button" 
+                    class="stepper-btn"
+                    :disabled="(props.parsingHeaderRowIndex || 0) <= 0"
+                    @click="emits('update:parsingHeaderRowIndex', (props.parsingHeaderRowIndex || 0) - 1)"
+                  >−</button>
+                  <span class="stepper-value" style="min-width: 40px; font-size: 12px;">
+                    {{ (props.parsingHeaderRowIndex || 0) + 1 }}. řádek
+                  </span>
+                  <button 
+                    type="button" 
+                    class="stepper-btn"
+                    :disabled="(props.parsingHeaderRowIndex || 0) >= totalRowCount - 1"
+                    @click="emits('update:parsingHeaderRowIndex', (props.parsingHeaderRowIndex || 0) + 1)"
+                  >+</button>
+                </div>
+                 <v-btn
+                  size="x-small"
+                  variant="tonal"
+                  icon="mdi-target"
+                  title="Vybrat řádek kliknutím"
+                  @click="emits('pick-header-row')"
+                />
               </div>
             </div>
             
@@ -379,9 +450,26 @@ function analyze(): void {
             
             <!-- Header checkbox -->
             <label class="checkbox-item">
-              <input type="checkbox" checked>
+              <input 
+                type="checkbox" 
+                :checked="props.parsingHasHeader !== false"
+                @change="e => emits('update:parsingHasHeader', (e.target as HTMLInputElement).checked)"
+              >
               <span class="setting-label">Hlavička</span>
             </label>
+            
+            <!-- Re-analyze button (shown only if settings differ from detected/current) -->
+             <v-btn
+              v-if="true" 
+              size="small"
+              variant="text"
+              color="primary"
+              prepend-icon="mdi-refresh"
+              class="ml-auto"
+              @click="analyze"
+            >
+              Přegenerovat
+            </v-btn>
           </div>
         </div>
         

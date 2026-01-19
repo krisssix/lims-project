@@ -50,6 +50,7 @@ const props = withDefaults(defineProps<{
   onEventClick: (id: number, e: MouseEvent) => void
   openEdit: (i: ResItem) => void
   askDelete: (i: ResItem) => void
+  onDayDblClick?: (d: Date) => void
 
   // ref callback
   setViewportRef: (el: HTMLElement | null) => void
@@ -85,6 +86,10 @@ function onDayHeaderClick(d: Date, _ev?: MouseEvent) {
       viewportEl.value.focus()
     }
   }
+}
+
+function onDayHeaderDblClick(d: Date, _ev?: MouseEvent) {
+  props.onDayDblClick?.(d)
 }
 
 function onTrackClickWithFocus(e: MouseEvent, day: Date) {
@@ -287,6 +292,7 @@ function deviceEventStyle(deviceId: string): { backgroundColor: string; color: s
         tabindex="0"
         :aria-pressed="isFocused(d)"
         @click="(ev) => onDayHeaderClick(d, ev)"
+        @dblclick="(ev) => onDayHeaderDblClick(d, ev)"
         @keydown.enter.prevent="onDayHeaderClick(d)"
         @keydown.space.prevent="onDayHeaderClick(d)"
       >

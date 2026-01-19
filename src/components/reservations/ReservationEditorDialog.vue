@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import Dialog from '@/components/Dialog.vue'
 import RecurrenceEditor from '@/components/reservations/RecurrenceEditor.vue'
 import type { RecurrenceRequest } from '@/stores/reservations'
@@ -69,7 +69,50 @@ const durationStr = computed(() => {
   return `${m}min`
 })
 
-function onSave() { emit('save') }
+
+
+const errors = ref<Record<string, string>>({})
+
+function validate(): boolean {
+  errors.value = {}
+  let isValid = true
+
+  if (!props.title?.trim()) {
+    errors.value.title = 'Název je povinný'
+    isValid = false
+  }
+  if (!props.deviceCode) {
+    errors.value.deviceCode = 'Vyberte přístroj'
+    isValid = false
+  }
+  if (!props.username) {
+    errors.value.username = 'Vyberte člena'
+    isValid = false
+  }
+  if (!props.dateYmd) {
+    errors.value.dateYmd = 'Vyberte datum'
+    isValid = false
+  }
+  if (!props.startHM) {
+    errors.value.startHM = 'Zadejte začátek'
+    isValid = false
+  }
+  if (!props.endHM) {
+    errors.value.endHM = 'Zadejte konec'
+    isValid = false
+  } else if (props.startHM && props.endHM <= props.startHM) {
+    errors.value.endHM = 'Konec musí být po začátku'
+    isValid = false
+  }
+
+  return isValid
+}
+
+function onSave() { 
+  if (validate()) {
+    emit('save') 
+  }
+}
 function onDelete() { emit('delete') }
 function onClose() {
   emit('update:modelValue', false)
@@ -105,6 +148,27 @@ function setDuration(minutes: number) {
   const mStr = m.toString().padStart(2, '0')
   emit('update:endHM', `${hStr}:${mStr}`)
 }
+
+// Watch startHM and auto-adjust endHM if it becomes <= startHM
+watch(() => props.startHM, (newStart) => {
+  if (!newStart || !props.endHM) return
+  
+  // Parse times
+  const [sh, sm] = newStart.split(':').map(Number)
+  const [eh, em] = props.endHM.split(':').map(Number)
+  const startMins = sh * 60 + sm
+  const endMins = eh * 60 + em
+  
+  // If end is now <= start, set end to start + 1 hour
+  if (endMins <= startMins) {
+    let newEndMins = startMins + 60
+    if (newEndMins >= 24 * 60) newEndMins = 24 * 60 - 1 // Cap at 23:59
+    
+    const h = Math.floor(newEndMins / 60)
+    const m = newEndMins % 60
+    emit('update:endHM', `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`)
+  }
+})
 </script>
 
 <template>
@@ -128,10 +192,12 @@ function setDuration(minutes: number) {
             @input="e => emit('update:title', (e.target as HTMLInputElement).value)"
             placeholder="Název rezervace..." 
             class="custom-input"
+            :class="{ 'input-error': errors.title }"
             @focus="focusInput"
             @blur="blurInput"
             autofocus
           >
+          <div v-if="errors.title" class="error-msg">{{ errors.title }}</div>
         </div>
       </div>
 
@@ -143,16 +209,21 @@ function setDuration(minutes: number) {
           <label class="field-label">Přístroj</label>
           <v-menu>
             <template #activator="{ props }">
-              <div class="custom-select" v-bind="props">
-                <div 
-                  class="device-badge"
-                  :style="{ background: selectedDevice?.color ? `var(--v-theme-${selectedDevice.color})` : '#3f51b5' }"
+              <div class="custom-select" :class="{ 'input-error': errors.deviceCode }" v-bind="props">
+                <v-chip
+                  v-if="selectedDevice"
+                  :color="selectedDevice.color"
+                  size="small"
+                  variant="flat"
+                  class="mr-2"
                 >
-                  {{ selectedDevice?.code || '??' }}
-                </div>
+                  {{ selectedDevice.id }}
+                </v-chip>
+                <v-icon v-else class="mr-2" color="grey-lighten-1">mdi-flask-empty-outline</v-icon>
                 <span class="select-text">{{ selectedDevice?.name || 'Vyberte přístroj' }}</span>
                 <v-icon color="#9ca3af">mdi-chevron-down</v-icon>
               </div>
+              <div v-if="errors.deviceCode" class="error-msg">{{ errors.deviceCode }}</div>
             </template>
             <v-list density="compact" class="py-0">
                <v-list-item
@@ -175,13 +246,14 @@ function setDuration(minutes: number) {
           <label class="field-label">Člen</label>
           <v-menu>
             <template #activator="{ props }">
-               <div class="custom-select" v-bind="props">
+               <div class="custom-select" :class="{ 'input-error': errors.username }" v-bind="props">
                 <div class="member-avatar">
                    {{ selectedUserInitial }}
                 </div>
                 <span class="select-text">{{ username || 'Vyberte uživatele' }}</span>
                 <v-icon color="#9ca3af">mdi-chevron-down</v-icon>
               </div>
+              <div v-if="errors.username" class="error-msg">{{ errors.username }}</div>
             </template>
              <v-list density="compact" class="py-0">
                <v-list-item
@@ -216,9 +288,11 @@ function setDuration(minutes: number) {
               :value="dateYmd"
               @input="e => emit('update:dateYmd', (e.target as HTMLInputElement).value)"
               class="custom-input"
+              :class="{ 'input-error': errors.dateYmd }"
               @focus="focusInput"
               @blur="blurInput"
             >
+            <div v-if="errors.dateYmd" class="error-msg">{{ errors.dateYmd }}</div>
           </div>
         </div>
 
@@ -259,9 +333,11 @@ function setDuration(minutes: number) {
               :value="startHM"
               @input="e => emit('update:startHM', (e.target as HTMLInputElement).value)"
               class="custom-input"
+              :class="{ 'input-error': errors.startHM }"
               @focus="focusInput"
               @blur="blurInput"
             >
+            <div v-if="errors.startHM" class="error-msg">{{ errors.startHM }}</div>
           </div>
 
           <!-- SEPARATOR -->
@@ -275,11 +351,14 @@ function setDuration(minutes: number) {
             <input 
               type="time" 
               :value="endHM"
+              :min="startHM"
               @input="e => emit('update:endHM', (e.target as HTMLInputElement).value)"
               class="custom-input"
+              :class="{ 'input-error': errors.endHM }"
               @focus="focusInput"
               @blur="blurInput"
             >
+            <div v-if="errors.endHM" class="error-msg">{{ errors.endHM }}</div>
           </div>
 
           <!-- DÉLKA BADGE / TOGGLE -->
@@ -399,7 +478,18 @@ function setDuration(minutes: number) {
   color: rgb(55, 65, 81); 
   transition: 0.15s; 
   outline: none; 
+  outline: none; 
   box-shadow: none;
+}
+.input-error {
+  border-color: #ef4444 !important;
+  background-color: #fef2f2 !important;
+}
+.error-msg {
+  color: #ef4444;
+  font-size: 11px;
+  margin-top: 4px;
+  margin-left: 4px;
 }
 .custom-textarea {
   width: 100%; 

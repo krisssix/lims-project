@@ -64,6 +64,9 @@ export async function uploadFile(file: File): Promise<UploadResult> {
     formData.append('file', file)
 
     try {
+        // Try renew
+        try { await auth.renewToken() } catch (err) { console.warn('Token update failed', err) }
+
         const headers: Record<string, string> = {}
         if (auth.isAuthenticated && auth.token.value) {
             headers['Authorization'] = `Bearer ${auth.token.value}`

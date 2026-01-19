@@ -35,15 +35,22 @@ const normalizedCode = computed(() =>
   formCode.value.trim().toUpperCase().replace(/[^A-Z0-9_]/g, '_').replace(/_+/g, '_')
 )
 
+const isDuplicateCode = computed(() => {
+  if (!normalizedCode.value) return false
+  return store.allDevices.some(d => d.code === normalizedCode.value)
+})
+
 const isValid = computed(() =>
   /^[A-Z0-9_]{3,}$/.test(normalizedCode.value) &&
-  formName.value.trim().length >= 3
+  formName.value.trim().length >= 3 &&
+  !isDuplicateCode.value
 )
 
 const codeError = computed(() => {
   if (!touched.value || !formCode.value) return null
   if (normalizedCode.value.length < 3) return 'Minimálně 3 znaky'
   if (!/^[A-Z0-9_]+$/.test(normalizedCode.value)) return 'Pouze A-Z, 0-9 a _'
+  if (isDuplicateCode.value) return 'Tento kód je již obsazen'
   return null
 })
 

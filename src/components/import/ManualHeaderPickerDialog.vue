@@ -5,11 +5,18 @@ import Dialog from '@/components/Dialog.vue'
 const props = defineProps<{
   modelValue: boolean
   rawGrid: (string | number)[][]
+  fileName?: string
 }>()
 
 const emits = defineEmits<{
   (e: 'update:modelValue', v: boolean): void
-  (e: 'apply', result: { tableHeaders: string[], seriesHeaders: string[], headerRowIndex: number | null }): void
+  (e: 'apply', result: { 
+    tableHeaders: string[], 
+    seriesHeaders: string[], 
+    unitHeaders?: string[],
+    seriesUnitHeaders?: string[],
+    headerRowIndex: number | null 
+  }): void
 }>()
 
 // režim výběru: 'cell' | 'row' | 'column'
@@ -25,6 +32,7 @@ const lastClickedCell = ref<{ row: number; col: number } | null>(null)
 // přiřazení: které buňky jdou do hlaviček tabulky a které do sérií
 const tableCells = ref<Set<string>>(new Set())
 const seriesCells = ref<Set<string>>(new Set())
+const unitCells = ref<Set<string>>(new Set())
 
 // reference na kontejner pro posun (scroll container)
 const gridContainerRef = ref<HTMLElement | null>(null)
@@ -35,6 +43,7 @@ watch(() => props.modelValue, (open) => {
     selectedCells.value = new Set()
     tableCells.value = new Set()
     seriesCells.value = new Set()
+    unitCells.value = new Set()
     lastClickedCell.value = null
     selectionMode.value = 'cell'
     noHeaderMode.value = false
@@ -212,23 +221,38 @@ const selectedValues = computed(() => {
 })
 
 // přiřazení vybraných buněk do tabulky
+// přiřazení vybraných buněk do jednotek
+function assignSelectedToUnits(): void {
+  selectedCells.value.forEach(key => {
+    tableCells.value.delete(key)
+    seriesCells.value.delete(key)
+    unitCells.value.add(key)
+  })
+  tableCells.value = new Set(tableCells.value)
+  seriesCells.value = new Set(seriesCells.value)
+  unitCells.value = new Set(unitCells.value)
+}
+
 function assignSelectedToTable(): void {
   selectedCells.value.forEach(key => {
     seriesCells.value.delete(key)
+    unitCells.value.delete(key)
     tableCells.value.add(key)
   })
   tableCells.value = new Set(tableCells.value)
   seriesCells.value = new Set(seriesCells.value)
+  unitCells.value = new Set(unitCells.value)
 }
 
-// přiřazení vybraných buněk do série
 function assignSelectedToSeries(): void {
   selectedCells.value.forEach(key => {
     tableCells.value.delete(key)
+    unitCells.value.delete(key)
     seriesCells.value.add(key)
   })
   tableCells.value = new Set(tableCells.value)
   seriesCells.value = new Set(seriesCells.value)
+  unitCells.value = new Set(unitCells.value)
 }
 
 // zrušení výběru (clear selection)
@@ -287,10 +311,63 @@ const canApply = computed(() => tableHeaders.value.length > 0 || seriesHeaders.v
 
 // použití výběru
 function applySelection(): void {
+  // Map units to their columns
+  const unitMap = new Map<number, string>()
+  unitCells.value.forEach(key => {
+    const [r, c] = key.split(',').map(Number)
+    unitMap.set(c, getCellValue(r, c).trim())
+  })
+
+  // Get table headers and their corresponding units
+  const tableResult: string[] = []
+  const unitResult: string[] = []
+  
+  if (noHeaderMode.value) {
+    const cols = new Set<number>()
+    tableCells.value.forEach(key => cols.add(Number(key.split(',')[1])))
+    Array.from(cols).sort((a, b) => a - b).forEach(c => {
+      tableResult.push(renamedHeaders.value.get(c) || colLetter(c))
+      unitResult.push(unitMap.get(c) || '')
+    })
+  } else {
+    tableCells.value.forEach(key => {
+      const [r, c] = key.split(',').map(Number)
+      const val = getCellValue(r, c)
+      if (val.trim()) {
+        tableResult.push(val.trim())
+        unitResult.push(unitMap.get(c) || '')
+      }
+    })
+  }
+
+  // Same for series
+  const seriesResult: string[] = []
+  const seriesUnitResult: string[] = []
+  
+  if (noHeaderMode.value) {
+    const cols = new Set<number>()
+    seriesCells.value.forEach(key => cols.add(Number(key.split(',')[1])))
+    Array.from(cols).sort((a, b) => a - b).forEach(c => {
+      seriesResult.push(renamedHeaders.value.get(c) || colLetter(c))
+      seriesUnitResult.push(unitMap.get(c) || '')
+    })
+  } else {
+    seriesCells.value.forEach(key => {
+      const [r, c] = key.split(',').map(Number)
+      const val = getCellValue(r, c)
+      if (val.trim()) {
+        seriesResult.push(val.trim())
+        seriesUnitResult.push(unitMap.get(c) || '')
+      }
+    })
+  }
+
   emits('apply', {
-    tableHeaders: tableHeaders.value,
-    seriesHeaders: seriesHeaders.value,
-    headerRowIndex: null // v režimu bez hlavičky (a aktuálním smíšeném režimu) nevracíme index konkrétního řádku hlavičky
+    tableHeaders: tableResult,
+    seriesHeaders: seriesResult,
+    unitHeaders: unitResult,
+    seriesUnitHeaders: seriesUnitResult,
+    headerRowIndex: null
   })
   emits('update:modelValue', false)
 }
@@ -306,6 +383,10 @@ function isCellTable(r: number, c: number): boolean {
 
 function isCellSeries(r: number, c: number): boolean {
   return seriesCells.value.has(`${r},${c}`)
+}
+
+function isCellUnit(r: number, c: number): boolean {
+  return unitCells.value.has(`${r},${c}`)
 }
 
 // písmena sloupců: a, b, c... (col letter)
@@ -333,6 +414,9 @@ function colLetter(idx: number): string {
           <v-icon color="primary">mdi-table-headers-eye</v-icon>
           <div>
             <div class="text-h6">Ruční výběr hlaviček</div>
+            <div v-if="fileName" class="text-subtitle-2 text-primary font-weight-bold mb-1" style="max-width: 400px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+              {{ fileName }}
+            </div>
             <div class="text-caption text-medium-emphasis">
               Klikni na buňky, řádky nebo sloupce. Shift+klik pro rozsah. Ctrl+klik pro přidání.
             </div>
@@ -374,6 +458,16 @@ function colLetter(idx: number): string {
             >
               → Datová série
             </v-btn>
+            <v-btn
+              size="small"
+              color="purple"
+              variant="flat"
+              :disabled="selectedCells.size === 0"
+              prepend-icon="mdi-format-subscript"
+              @click="assignSelectedToUnits"
+            >
+              → Jednotky
+            </v-btn>
             
              <!-- tlačítko přejmenovat pro režim bez hlavičky -->
              <v-btn
@@ -395,15 +489,6 @@ function colLetter(idx: number): string {
             </v-btn>
 
             <v-divider vertical class="mx-2" style="height: 24px;" />
-             <v-checkbox
-              v-model="noHeaderMode"
-              label="Bez hlavičky (No Header)"
-              density="compact"
-              hide-details
-              color="warning"
-              class="mr-2"
-            />
-            <v-divider vertical class="mx-2" style="height: 24px;" />
             <v-btn
               size="small"
               variant="text"
@@ -415,19 +500,6 @@ function colLetter(idx: number): string {
           </div>
         </div>
 
-        <!-- upozornění pro režim bez hlavičky (no header mode) -->
-        <v-alert
-          v-if="noHeaderMode"
-          type="warning"
-          variant="tonal"
-          density="compact"
-          icon="mdi-alert-circle-outline"
-          class="flex-grow-0"
-        >
-          <strong>Režim bez hlavičky:</strong> V tomto režimu nejsou data brána jako hlavičky. 
-          Vyberte sloupce a přiřaďte je k Tabulce nebo Térii (sloupce budou použity jako pole). 
-          Názvy sloupců (A, B...) můžete přejmenovat.
-        </v-alert>
 
         <!-- kontejner mřížky (grid container) -->
         <div ref="gridContainerRef" class="grid-container">
@@ -466,6 +538,7 @@ function colLetter(idx: number): string {
                     'is-selected': isCellSelected(rowIdx, colIdx - 1),
                     'is-table': isCellTable(rowIdx, colIdx - 1),
                     'is-series': isCellSeries(rowIdx, colIdx - 1),
+                    'is-unit': isCellUnit(rowIdx, colIdx - 1),
                     'is-empty': !getCellValue(rowIdx, colIdx - 1)
                   }"
                   @click="handleCellClick(rowIdx, colIdx - 1, $event)"
@@ -591,6 +664,10 @@ function colLetter(idx: number): string {
   flex-direction: column;
   height: 70vh;
   gap: 12px;
+}
+
+.text-caption-white {
+  color: white !important;
 }
 
 .selection-toolbar {
@@ -747,5 +824,11 @@ function colLetter(idx: number): string {
   padding: 12px;
   text-align: center;
   width: 100%;
+}
+.data-grid td.is-unit {
+  background-color: rgba(156, 39, 176, 0.2) !important;
+  color: #7b1fa2;
+  font-weight: 600;
+  box-shadow: inset 0 0 0 2px #9c27b0;
 }
 </style>
