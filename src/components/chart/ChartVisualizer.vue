@@ -649,7 +649,19 @@ const ariaLabel = computed(() => {
     >
       Žádná data pro graf
     </div>
-    <!-- Scrollable wrapper – horizontal scrolling for wide charts -->
+    
+    <div class="d-flex justify-end mb-1" v-if="zoomLevel !== 1">
+      <v-btn
+        size="small"
+        variant="text"
+        color="primary"
+        prepend-icon="mdi-magnify-minus-outline"
+        @click="resetZoom"
+      >
+        Resetovat přiblížení
+      </v-btn>
+    </div>
+
     <div class="chart-wrapper">
       <svg
         ref="svgRef"

@@ -257,7 +257,7 @@ function adjustColor(color: string): string {
     <div class="top-toolbar">
       <!-- Primary Action -->
       <button
-        class="btn-primary-modern"
+        class="btn-primary"
         @click="openCreate"
       >
         <i class="mdi mdi-plus" />

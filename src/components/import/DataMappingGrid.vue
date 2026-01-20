@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /**
  * datamappinggrid: interaktivní mřížka pro mapování sloupců importovaných dat na pole šablony.
- * 
+ *
  * použití:
  * : kliknutím na buňky vyberete hlavičky (žluté)
  * : kliknutí + šipky pro výběr rozsahů dat (modré/zelené)
@@ -87,21 +87,21 @@ function parseKey(key: string): { row: number; col: number } {
 
 // kontrola stavu buňky pro aktuální pole
 function getCellStatus(row: number, col: number): 'header' | 'data' | 'other-header' | 'other-data' | null {
-  const key = cellKey(row, col)
+  //const key = cellKey(row, col)
   const activeMapping = fieldMappings.value[activeFieldIndex.value]
-  
+
   // kontrola, zda je to hlavička pro aktivní pole
-  if (activeMapping?.headerCell && 
-      activeMapping.headerCell.row === row && 
+  if (activeMapping?.headerCell &&
+      activeMapping.headerCell.row === row &&
       activeMapping.headerCell.col === col) {
     return 'header'
   }
-  
+
   // kontrola, zda jsou to data pro aktivní pole
   if (activeMapping?.dataCells.some(c => c.row === row && c.col === col)) {
     return 'data'
   }
-  
+
   // kontrola, zda je namapováno k jinému poli
   for (let i = 0; i < fieldMappings.value.length; i++) {
     if (i === activeFieldIndex.value) continue
@@ -113,7 +113,7 @@ function getCellStatus(row: number, col: number): 'header' | 'data' | 'other-hea
       return 'other-data'
     }
   }
-  
+
   return null
 }
 
@@ -122,9 +122,9 @@ function handleCellClick(row: number, col: number, event: MouseEvent): void {
   event.preventDefault()
   event.stopPropagation()
   console.log('[DataMappingGrid] Cell clicked:', { row, col, shiftKey: event.shiftKey, ctrlKey: event.ctrlKey })
-  
+
   const key = cellKey(row, col)
-  
+
   if (event.shiftKey && anchorCell.value) {
     // výběr rozsahu od kotvy k aktuální pozici
     selectRange(anchorCell.value.row, anchorCell.value.col, row, col)
@@ -141,7 +141,7 @@ function handleCellClick(row: number, col: number, event: MouseEvent): void {
     selectedCells.value = new Set([key])
     anchorCell.value = { row, col }
   }
-  
+
   cursorCell.value = { row, col }
   gridRef.value?.focus()
   console.log('[DataMappingGrid] Selection updated:', { selectedCount: selectedCells.value.size, cursor: cursorCell.value })
@@ -154,7 +154,7 @@ function selectRange(r1: number, c1: number, r2: number, c2: number): void {
   const endRow = Math.max(r1, r2)
   const startCol = Math.min(c1, c2)
   const endCol = Math.max(c1, c2)
-  
+
   for (let r = startRow; r <= endRow; r++) {
     for (let c = startCol; c <= endCol; c++) {
       selectedCells.value.add(cellKey(r, c))
@@ -166,11 +166,11 @@ function selectRange(r1: number, c1: number, r2: number, c2: number): void {
 // obsluha událostí klávesnice
 function handleKeydown(event: KeyboardEvent): void {
   if (!cursorCell.value) return
-  
+
   const { row, col } = cursorCell.value
   let newRow = row
   let newCol = col
-  
+
   switch (event.key) {
     case 'ArrowUp':
       newRow = Math.max(0, row - 1)
@@ -200,9 +200,9 @@ function handleKeydown(event: KeyboardEvent): void {
     default:
       return
   }
-  
+
   event.preventDefault()
-  
+
   if (event.shiftKey && event.ctrlKey) {
     // rozšíření výběru k okraji
     if (event.key === 'ArrowRight') {
@@ -225,17 +225,17 @@ function handleKeydown(event: KeyboardEvent): void {
     selectedCells.value = new Set([cellKey(newRow, newCol)])
     anchorCell.value = { row: newRow, col: newCol }
   }
-  
+
   cursorCell.value = { row: newRow, col: newCol }
 }
 
 // použití aktuálního výběru pro aktivní pole
 function applySelectionToField(): void {
   if (selectedCells.value.size === 0) return
-  
+
   const mapping = fieldMappings.value[activeFieldIndex.value]
   if (!mapping) return
-  
+
   if (selectMode.value === 'header') {
     // použití první vybrané buňky jako hlavičky
     const firstKey = Array.from(selectedCells.value)[0]
@@ -281,7 +281,7 @@ function autoMapColumns(): void {
       break
     }
   }
-  
+
   // namapování každého pole na sloupec
   for (let i = 0; i < fieldMappings.value.length && i < maxCols.value; i++) {
     const mapping = fieldMappings.value[i]
@@ -413,7 +413,7 @@ onBeforeUnmount(() => {
                 </div>
               </div>
             </div>
-            
+
             <div class="panel-actions">
               <v-btn
                 size="small"
@@ -451,7 +451,7 @@ onBeforeUnmount(() => {
                   pro pole: <strong>{{ activeField.name }}</strong>
                 </span>
               </div>
-              
+
               <div
                 class="d-flex align-center"
                 style="gap: 8px;"

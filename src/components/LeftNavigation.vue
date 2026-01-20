@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
+import { computed, ref} from 'vue'
 import { useRoute, useRouter, type RouteRecordName, type RouteLocationRaw } from 'vue-router'
 
 type ProjectRouteName = 'Board' | 'Measurements' | 'Devices' | 'Reservations' | 'PeopleWork' | 'Summary'

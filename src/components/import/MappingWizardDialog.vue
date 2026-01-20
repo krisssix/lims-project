@@ -3,7 +3,7 @@ import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import Dialog from '@/components/Dialog.vue'
 import type { MappingModel, MappingField } from '@/utils/import/importMapping'
 import { validateMapping, exportMapping } from '@/utils/import/importMapping'
-import { isEditableElement } from '@/components/ui/hotkeyGuard'
+//import { isEditableElement } from '@/components/ui/hotkeyGuard'
 import { useImportStore } from '@/stores/import'
 
 const props = defineProps<{
@@ -48,7 +48,7 @@ watch(() => props.mappingModel, () => {
 
 function toggleFieldEnabled(fieldId: string, event?: MouseEvent): void {
   const isShift = event?.shiftKey ?? false
-  
+
   if (isShift && lastClickedFieldId.value && props.mappingModel) {
     // shift + klik: přepnutí rozsahu (toggle range)
     const allFieldIds: string[] = []
@@ -57,7 +57,7 @@ function toggleFieldEnabled(fieldId: string, event?: MouseEvent): void {
         allFieldIds.push(f.id)
       }
     }
-    
+
     const startIdx = allFieldIds.indexOf(lastClickedFieldId.value)
     const endIdx = allFieldIds.indexOf(fieldId)
     if (startIdx >= 0 && endIdx >= 0) {
@@ -66,7 +66,7 @@ function toggleFieldEnabled(fieldId: string, event?: MouseEvent): void {
       // standardní shift-select se obvykle synchronizuje s cílovým stavem kliknuté položky.
       // při kliknutí na fieldid stav invertujeme.
       const targetState = !enabledFields.value.has(fieldId)
-      
+
       for (let i = from; i <= to; i++) {
         const id = allFieldIds[i]
         if (targetState) {
@@ -84,7 +84,7 @@ function toggleFieldEnabled(fieldId: string, event?: MouseEvent): void {
       enabledFields.value.add(fieldId)
     }
   }
-  
+
   lastClickedFieldId.value = fieldId
   // vynucení aktualizace reaktivity pro set (set reactivity update)
   enabledFields.value = new Set(enabledFields.value)
@@ -115,7 +115,7 @@ const totalFieldsCount = computed(() => {
 const extraColumns = computed<Array<{ blockIndex: number; headerIndex: number; headerName: string }>>(() => {
   if (!props.mappingModel) return []
   const extras: Array<{ blockIndex: number; headerIndex: number; headerName: string }> = []
-  
+
   // sběr všech indexů použitých v polích (fields)
   const fieldUsedIndices = new Set<number>()
   for (const block of props.mappingModel.blocks) {
@@ -125,7 +125,7 @@ const extraColumns = computed<Array<{ blockIndex: number; headerIndex: number; h
       }
     }
   }
-  
+
   // sběr všech indexů použitých v sériích (series)
   const seriesUsedIndices = new Set<number>()
   if (props.mappingModel.seriesBlocks) {
@@ -137,7 +137,7 @@ const extraColumns = computed<Array<{ blockIndex: number; headerIndex: number; h
       }
     }
   }
-  
+
   // známé vzory názvů sloupců sérií k vyloučení (case-insensitive)
   const seriesPatterns = [
     /^sizes?$/i, /^intensit/i, /^volumes?$/i, /^numbers?$/i,
@@ -145,11 +145,11 @@ const extraColumns = computed<Array<{ blockIndex: number; headerIndex: number; h
     /^x$/i, /^y$/i, /^c$/i, /^d$/i, // běžné názvy os sérií
     /percent/i, /\%/
   ]
-  
+
   function isSeriesColumn(headerName: string): boolean {
     return seriesPatterns.some(pattern => pattern.test(headerName))
   }
-  
+
   for (const block of props.mappingModel.blocks) {
     for (let i = 0; i < block.headers.length; i++) {
       const headerName = block.headers[i]
@@ -159,7 +159,7 @@ const extraColumns = computed<Array<{ blockIndex: number; headerIndex: number; h
       if (seriesUsedIndices.has(i)) continue
       // Skip if header matches known series patterns
       if (isSeriesColumn(headerName)) continue
-      
+
       extras.push({
         blockIndex: block.blockIndex,
         headerIndex: i,
@@ -172,20 +172,20 @@ const extraColumns = computed<Array<{ blockIndex: number; headerIndex: number; h
 
 // odeslání požadavku na odvození šablony (derive template): rodič otevře templatewizarddialog s těmito extra sloupci
 function emitDeriveTemplate(): void {
-  const cols = extraColumns.value.map(c => ({ 
-    name: c.headerName, 
-    headerIndex: c.headerIndex 
+  const cols = extraColumns.value.map(c => ({
+    name: c.headerName,
+    headerIndex: c.headerIndex
   }))
-  
+
   emits('deriveTemplate', {
     newTemplateName: '', // rodič vygeneruje název pomocí generateDerivedName v TemplateWizardDialog
     extraColumns: cols
   })
 }
 
-function currentBlock() {
+/*function currentBlock() {
   return props.mappingModel?.blocks.find(b => b.blockIndex === activeBlockIndex.value) || null
-}
+}*/
 
 function recomputeValidation(): void {
   if (props.mappingModel) {
@@ -222,7 +222,7 @@ function setSeriesColumnMapping(seriesIdx: number, columnId: string, sourceIndex
   if (!props.mappingModel?.seriesBlocks) return
   const series = props.mappingModel.seriesBlocks[seriesIdx]
   if (!series) return
-  
+
   const col = series.columns.find(c => c.id === columnId)
   if (col) {
     col.mappedSourceIndex = sourceIndex
@@ -330,13 +330,13 @@ function normalizeForMatch(s: string): string {
 function computeNumberedHeaderItems(headers: string[]): Array<{ title: string; value: number }> {
   const counts = new Map<string, number>()
   const baseCount = new Map<string, number>()
-  
+
   // první průchod: spočítání výskytů každého základního názvu (base name)
   for (const h of headers) {
     const base = h.trim()
     baseCount.set(base, (baseCount.get(base) ?? 0) + 1)
   }
-  
+
   // druhý průchod: generování očíslovaných názvů
   return headers.map((h, i) => {
     const base = h.trim()
@@ -678,7 +678,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKey))
                     mdi-check-circle-outline
                   </v-icon>
 
-                  
+
                   <!-- Tlačítko pro učení (Learn mapping button) -->
                   <v-btn
                     v-if="props.templateId && f.mappedSourceIndex != null && f.matchSource !== 'LEARNED'"
@@ -697,7 +697,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKey))
               </div>
             </transition-group>
           </div>
-          
+
           <!-- sekce mapování sérií (series mapping section) -->
           <div
             v-if="mappingModel.seriesBlocks && mappingModel.seriesBlocks.length"
@@ -718,7 +718,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKey))
                 Datové série
               </div>
             </div>
-            
+
             <div
               v-for="(series, sIdx) in mappingModel.seriesBlocks"
               :key="sIdx"
@@ -744,7 +744,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKey))
                   {{ series.columns.length }} sloupců
                 </v-chip>
               </div>
-              
+
               <div class="mapping-grid header-row">
                 <div class="cell muted">
                   #
@@ -759,7 +759,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKey))
                   Preview
                 </div>
               </div>
-              
+
               <div
                 v-for="(col, colIdx) in series.columns"
                 :key="col.id"
@@ -852,7 +852,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKey))
               <strong>Pozor:</strong> Nalezen sloupec <strong>DC</strong> (Timestamp?), který není namapován.
               Doporučujeme jej přidat do šablony, pokud se jedná o časovou značku.
             </v-alert>
-            
+
             <v-alert
               type="info"
               variant="tonal"
@@ -861,7 +861,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKey))
             >
               Tyto sloupce nejsou v aktuální šabloně. Můžete vytvořit odvozenou šablonu s novými poli.
             </v-alert>
-            
+
             <div class="extra-columns-list">
               <v-chip
                 v-for="(col, idx) in extraColumns"
@@ -902,12 +902,12 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKey))
 }
 .data-row:hover { background: #f9fafc; }
 .row-invalid { background: #fff6f6; }
-.row-disabled { 
-  opacity: 0.5; 
+.row-disabled {
+  opacity: 0.5;
   background: #f5f5f5;
 }
-.row-disabled .field-label { 
-  text-decoration: line-through; 
+.row-disabled .field-label {
+  text-decoration: line-through;
 }
 .checkbox-cell {
   display: flex;

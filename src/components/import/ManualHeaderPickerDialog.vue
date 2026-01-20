@@ -10,12 +10,12 @@ const props = defineProps<{
 
 const emits = defineEmits<{
   (e: 'update:modelValue', v: boolean): void
-  (e: 'apply', result: { 
-    tableHeaders: string[], 
-    seriesHeaders: string[], 
+  (e: 'apply', result: {
+    tableHeaders: string[],
+    seriesHeaders: string[],
     unitHeaders?: string[],
     seriesUnitHeaders?: string[],
-    headerRowIndex: number | null 
+    headerRowIndex: number | null
   }): void
 }>()
 
@@ -82,14 +82,14 @@ const maxCols = computed(() => {
 // obsluha kliknutí na buňku s podporou shiftu (shift-click)
 function handleCellClick(rowIdx: number, colIdx: number, event: MouseEvent): void {
   const cellKey = `${rowIdx},${colIdx}`
-  
+
   if (event.shiftKey && lastClickedCell.value) {
     // výběr rozsahu (range selection)
     const startRow = Math.min(lastClickedCell.value.row, rowIdx)
     const endRow = Math.max(lastClickedCell.value.row, rowIdx)
     const startCol = Math.min(lastClickedCell.value.col, colIdx)
     const endCol = Math.max(lastClickedCell.value.col, colIdx)
-    
+
     for (let r = startRow; r <= endRow; r++) {
       for (let c = startCol; c <= endCol; c++) {
         selectedCells.value.add(`${r},${c}`)
@@ -108,7 +108,7 @@ function handleCellClick(rowIdx: number, colIdx: number, event: MouseEvent): voi
     // nahrazení výběru jedinou buňkou
     selectedCells.value = new Set([cellKey])
   }
-  
+
   lastClickedCell.value = { row: rowIdx, col: colIdx }
 }
 
@@ -116,7 +116,7 @@ function handleCellClick(rowIdx: number, colIdx: number, event: MouseEvent): voi
 function handleRowClick(rowIdx: number, event: MouseEvent): void {
   const row = props.rawGrid[rowIdx]
   if (!row) return
-  
+
   if (event.shiftKey && lastClickedCell.value) {
     const startRow = Math.min(lastClickedCell.value.row, rowIdx)
     const endRow = Math.max(lastClickedCell.value.row, rowIdx)
@@ -140,7 +140,7 @@ function handleRowClick(rowIdx: number, event: MouseEvent): void {
       selectedCells.value.add(`${rowIdx},${c}`)
     }
   }
-  
+
   selectedCells.value = new Set(selectedCells.value)
   lastClickedCell.value = { row: rowIdx, col: 0 }
 }
@@ -173,7 +173,7 @@ function handleColClick(colIdx: number, event: MouseEvent): void {
       }
     }
   }
-  
+
   selectedCells.value = new Set(selectedCells.value)
   selectedCells.value = new Set(selectedCells.value)
   lastClickedCell.value = { row: 0, col: colIdx }
@@ -193,7 +193,7 @@ function handleHeaderCellClick(colIdx: number, event: MouseEvent) {
     // pokud je režim bez hlavičky (no header mode), vybíráme sloupec koncepčně.
     // nejdříve ho vybereme.
     handleColClick(colIdx, event)
-    
+
     // kontrola, zda otevřít dialog přejmenování: pouze při výběru jednoho sloupce?
     // použijme explicitní tlačítko „Přejmenovat“ nebo ikonu v buňce hlavičky.
     return
@@ -210,7 +210,7 @@ function getCellValue(rowIdx: number, colIdx: number): string {
 }
 
 // získání vybraných hodnot jako pole řetězců
-const selectedValues = computed(() => {
+/*const selectedValues = computed(() => {
   const values: string[] = []
   selectedCells.value.forEach(key => {
     const [r, c] = key.split(',').map(Number)
@@ -218,7 +218,7 @@ const selectedValues = computed(() => {
     if (val.trim()) values.push(val.trim())
   })
   return [...new Set(values)] // odstranění duplicit
-})
+})*/
 
 // přiřazení vybraných buněk do tabulky
 // přiřazení vybraných buněk do jednotek
@@ -321,7 +321,7 @@ function applySelection(): void {
   // Get table headers and their corresponding units
   const tableResult: string[] = []
   const unitResult: string[] = []
-  
+
   if (noHeaderMode.value) {
     const cols = new Set<number>()
     tableCells.value.forEach(key => cols.add(Number(key.split(',')[1])))
@@ -343,7 +343,7 @@ function applySelection(): void {
   // Same for series
   const seriesResult: string[] = []
   const seriesUnitResult: string[] = []
-  
+
   if (noHeaderMode.value) {
     const cols = new Set<number>()
     seriesCells.value.forEach(key => cols.add(Number(key.split(',')[1])))
@@ -496,7 +496,7 @@ function colLetter(idx: number): string {
             >
               → Jednotky
             </v-btn>
-            
+
             <!-- tlačítko přejmenovat pro režim bez hlavičky -->
             <v-btn
               v-if="noHeaderMode && selectedCells.size > 0"

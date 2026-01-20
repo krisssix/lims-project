@@ -2277,7 +2277,8 @@ onBeforeUnmount(() => {
             <DateFilterPanel
               :model-value="dateFilterModel"
               :hide-presets="viewMode === 'daily-machines'"
-              :hide-field-toggle="true"
+              :hide-field-toggle="false"
+              :hide-filter-type-buttons="true"
               :show-date-label="viewMode === 'daily-machines'"
               :show-range-presets="viewMode === 'daily-list'"
               :view-mode="viewMode"

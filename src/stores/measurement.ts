@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { get, post, del, patch } from '@/services/api/api-requests'
 
-export type ValueType = 'float' | 'int' | 'text' | 'file' | 'bool' | 'date'
+export type ValueType = 'float' | 'int' | 'text' | 'file' | 'bool' | 'date' | 'time' | 'datetime'
 
 export interface MeasuredValue {
   orderIndex: number

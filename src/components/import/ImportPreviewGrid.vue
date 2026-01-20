@@ -39,12 +39,12 @@ const delimiterLabel = computed(() => {
   }
 })
 
-const headerLabel = computed(() => {
+/*const headerLabel = computed(() => {
   if (props.usedHeaderRow === null || props.usedHeaderRow === undefined) {
     return 'Bez hlavičky'
   }
   return `Řádek ${props.usedHeaderRow}`
-})
+})*/
 
 const hasMoreRows = computed(() => props.rows.length > maxRowsLimit.value)
 const hasMoreCols = computed(() => {
@@ -125,8 +125,8 @@ function getRowIndex(visualIndex: number): number {
             <th class="preview-header-cell row-num-cell">
               {{ props.usedHeaderRow ?? '#' }}
             </th>
-            <th 
-              v-for="(h, i) in displayHeaders" 
+            <th
+              v-for="(h, i) in displayHeaders"
               :key="'h-' + i"
               class="preview-header-cell"
             >
@@ -149,8 +149,8 @@ function getRowIndex(visualIndex: number): number {
             <td class="preview-cell row-num-cell">
               {{ getRowIndex(ri) }}
             </td>
-            <td 
-              v-for="(cell, ci) in row" 
+            <td
+              v-for="(cell, ci) in row"
               :key="'c-' + ci"
               class="preview-cell"
               :title="cell"

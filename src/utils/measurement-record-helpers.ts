@@ -9,7 +9,7 @@
 
 import { parseCzechDate } from '@/utils/czechDateParser'
 
-export type ValueType = 'float' | 'int' | 'text' | 'file' | 'bool' | 'date'
+export type ValueType = 'float' | 'int' | 'text' | 'file' | 'bool' | 'date' | 'time' | 'datetime'
 
 export interface RecordField {
   name: string
@@ -99,6 +99,7 @@ export function flattenRecords(records: MeasurementRecord[]): MeasuredValue[] {
           mv.boolValue = normalizeBool(f.value)
           break
         case 'date':
+        case 'datetime':
           mv.dateValue = toDateMs(f.value)
           break
         case 'file':
@@ -107,6 +108,7 @@ export function flattenRecords(records: MeasurementRecord[]): MeasuredValue[] {
               ? String((f.value as { name?: unknown }).name)
               : (typeof f.value === 'string' ? f.value : null)
           break
+        case 'time':
         case 'text':
         default:
           mv.textValue = f.value != null ? String(f.value) : null
@@ -147,7 +149,7 @@ export function groupValuesToRecords(values: MeasuredValue[]): MeasurementRecord
           ? v.numberValue
           : v.type === 'bool'
             ? v.boolValue
-            : v.type === 'date'
+            : v.type === 'date' || v.type === 'datetime'
               ? v.dateValue
               : v.type === 'file'
                 ? v.fileUrl
@@ -297,9 +299,11 @@ function initialValueForType(t: ValueType): unknown {
     case 'bool':
       return null
     case 'date':
+    case 'datetime':
       return null
     case 'file':
       return null
+    case 'time':
     case 'text':
     default:
       return ''

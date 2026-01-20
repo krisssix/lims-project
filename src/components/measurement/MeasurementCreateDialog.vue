@@ -1,4 +1,5 @@
 <script setup lang="ts">
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import Dialog from '@/components/Dialog.vue'
 import ConfirmDialog from '@/components/ui/ConfirmDialog.vue'
@@ -540,7 +541,7 @@ function goToFirstInvalidField(): boolean {
 
         // zjištění, do kterého bloku toto pole patří
         const blockIdx = templateBlocks.value.findIndex(b => b.blockIndex === (field.blockIndex ?? 1))
-        console.warn('[DEBUG goToFirstInvalidField] Block index for field:', blockIdx, 'Template blocks:', templateBlocks.value.map(b => ({ blockIndex: b.blockIndex, title: b.title })))
+        
 
         // navigace na daný záznam a blok
         currentRecordIndex.value = record.recordIndex
@@ -593,7 +594,7 @@ function initDialog(): void {
   wizardStep.value = 1
   selectedMember.value = membersList.value.length ? membersList.value[0]! : ''
   selectedDeviceId.value = ''
-  selectedTemplateId.value = props.initialTemplateId ?? null
+  selectedTemplateId.value = props.initialTemplateId != null ? String(props.initialTemplateId) : null
   records.value = []
   currentRecordIndex.value = 1
   currentBlockIndex.value = 0
@@ -609,9 +610,9 @@ function initDialog(): void {
 
 /* přechody mezi kroky */
 function goToNextStep(): void {
-  console.warn('[DEBUG goToNextStep] Current step:', wizardStep.value)
-  console.warn('[DEBUG goToNextStep] Records count:', records.value.length)
-  console.warn('[DEBUG goToNextStep] Series data:', JSON.stringify(seriesData.value, null, 2))
+  
+  
+  
 
   if (wizardStep.value === 1) {
     if (!canProceedToData.value) return
@@ -627,7 +628,7 @@ function goToNextStep(): void {
       // inicializace dat sérií z bloků sérií v šabloně (pokud existují)
       // vytvoří prázdné položky sérií se správnou strukturou podle definice v šabloně
       const seriesBlocks = templateSeriesBlocks.value
-      console.warn('[DEBUG goToNextStep] Series blocks from template:', seriesBlocks)
+      
       if (seriesBlocks.length > 0) {
         seriesData.value = seriesBlocks.map((block, idx) => {
           // převod polí bloku na definice sloupců
@@ -656,7 +657,7 @@ function goToNextStep(): void {
             data: emptyRows
           }
         })
-        console.warn('[DEBUG goToNextStep] Initialized series data:', seriesData.value)
+        
       } else {
         seriesData.value = []
       }
@@ -674,15 +675,15 @@ function goToNextStep(): void {
     // povolení zobrazení validace sérií
     showSeriesValidation.value = true
 
-    console.warn('[DEBUG goToNextStep] Step 2 -> 3 validation')
-    console.warn('[DEBUG goToNextStep] invalidTotal:', invalidTotal.value)
-    console.warn('[DEBUG goToNextStep] seriesHasAnyData:', seriesHasAnyData.value)
-    console.warn('[DEBUG goToNextStep] seriesHasIncompleteData:', seriesHasIncompleteData.value)
-    console.warn('[DEBUG goToNextStep] seriesIsEmpty:', seriesIsEmpty.value)
+    
+    
+    
+    
+    
 
     // kontrola validace - pokud je neplatná, přejít na první chybu
     if (invalidTotal.value > 0) {
-      console.warn('[DEBUG goToNextStep] Validation failed, finding first invalid field...')
+      
       goToFirstInvalidField()
       return
     }
@@ -700,7 +701,7 @@ function goToNextStep(): void {
       return
     }
 
-    console.warn('[DEBUG goToNextStep] Validation passed, going to step 3')
+    
     wizardStep.value = 3
   }
 }
@@ -793,7 +794,7 @@ function getDraftInfo(): { savedAt: Date; templateId: number | null } | null {
     const stored = localStorage.getItem(DRAFT_STORAGE_KEY)
     if (!stored) return null
     const draft = JSON.parse(stored) as MeasurementDraft
-    return { savedAt: new Date(draft.savedAt), templateId: draft.templateId }
+    return { savedAt: new Date(draft.savedAt), templateId: draft.templateId != null ? Number(draft.templateId) : null }
   } catch {
     return null
   }
@@ -1167,7 +1168,7 @@ const headerPickerRawGrid = ref<(string | number)[][]>([])
 
 async function openHeaderPicker() {
   if (!importedFile.value) return
-  
+
   // Need to parse to grid raw first to show in picker
   const result = await parseFileToGrid(importedFile.value, { delimiter: importParsingDelimiter.value })
   if (result.success) {
@@ -1433,8 +1434,8 @@ async function applyTemplateUpdate(updateTemplate: boolean): Promise<void> {
 
       const newBlocks = currentTpl.blocks?.map(b => ({
         blockIndex: b.blockIndex,
-        title: b.title,
-        kind: b.kind,
+        title: b.title || '',
+        kind: b.kind as 'table' | 'stats' | 'series' | 'kv' | undefined,
         fields: b.fields.map(f => {
           let type = f.type
           let required = f.required
@@ -1993,6 +1994,16 @@ function doApplyImport(): void {
           }
         }
 
+        const newData: Record<string, number | string | null>[] = []
+        for (let i = 0; i < maxRows; i++) {
+          const row: Record<string, number | string | null> = {}
+          for (const col of templateColumns) {
+            const vals = columnDataMap.get(col.name)
+            row[col.name] = vals && i < vals.length ? vals[i] : null
+          }
+          newData.push(row)
+        }
+
         allSeries.push({
           seriesType: templateSeriesBlocks.value[0]?.title || 'Datová série',
           seriesName: templateSeriesBlocks.value[0]?.title || 'Datová série',
@@ -2404,6 +2415,7 @@ async function onSave(): Promise<void> {
     if (filesToUpload.length > 0) {
       // Upload files and store their URLs back into records
       for (const fileInfo of filesToUpload) {
+        const record = records.value.find(r => r.recordIndex === fileInfo.recordIndex)
         const result = await uploadFile(fileInfo.file)
         if (result.success) {
           if (record) {
@@ -2416,7 +2428,6 @@ async function onSave(): Promise<void> {
           }
         } else {
           console.error(`Failed to upload file ${fileInfo.file.name}:`, result.error)
-          const record = records.value.find(r => r.recordIndex === fileInfo.recordIndex)
           if (record) {
             const field = record.fields.find(
               f => f.name === fileInfo.fieldName && (f.blockIndex ?? 1) === fileInfo.blockIndex
@@ -2667,7 +2678,7 @@ defineExpose({
                 @analyze="analyzeImport"
                 @analyze-text="handlePastedText"
                 @apply="applyImportedRecords"
-                
+
                 @reset="resetImport"
                 @open-mapping="openMappingWizard"
                 @clear-all="() => { console.log('[TEMPLATE] clear-all received'); clearAll() }"

@@ -18,6 +18,7 @@ const props = defineProps<{
   modelValue: DateFilter
   hidePresets?: boolean
   hideFieldToggle?: boolean
+  hideFilterTypeButtons?: boolean
   showDateLabel?: boolean
   headerLabel?: string
   headerIcon?: string
@@ -871,74 +872,76 @@ const dateToInput = computed({
         </div>
       </div>
       
-      <div class="filter-section-title">
-        <v-icon
-          size="14"
-          class="mr-1"
-        >
-          mdi-filter-variant
-        </v-icon>
-        <span>Filtrovat podle</span>
-      </div>
-      <div class="field-toggle-light">
-        <v-tooltip
-          text="Filtrování podle data vložení."
-          location="top"
-        >
-          <template #activator="{props:tooltipProps}">
-            <button
-              v-bind="tooltipProps"
-              type="button"
-              :class="['toggle-btn-light',{active:localField==='createdAt', disabled: !modelValue.from}]"
-              :disabled="!modelValue.from"
-              @click="setField('createdAt')"
-            >
-              <v-icon size="16">
-                mdi-plus
-              </v-icon>
-              <span>Data vložení</span>
-            </button>
-          </template>
-        </v-tooltip>
-        <v-tooltip
-          text="Filtrování podle data měření."
-          location="top"
-        >
-          <template #activator="{props:tooltipProps}">
-            <button
-              v-bind="tooltipProps"
-              type="button"
-              :class="['toggle-btn-light',{active:localField==='date', disabled: !modelValue.from}]"
-              :disabled="!modelValue.from"
-              @click="setField('date')"
-            >
-              <v-icon size="16">
-                mdi-flask
-              </v-icon>
-              <span>Data měření</span>
-            </button>
-          </template>
-        </v-tooltip>
-        <v-tooltip
-          text="Filtrování podle data změny."
-          location="top"
-        >
-          <template #activator="{props:tooltipProps}">
-            <button
-              v-bind="tooltipProps"
-              type="button"
-              :class="['toggle-btn-light',{active:localField==='updatedAt', disabled: !modelValue.from}]"
-              :disabled="!modelValue.from"
-              @click="setField('updatedAt')"
-            >
-              <v-icon size="16">
-                mdi-pencil
-              </v-icon>
-              <span>Data změny</span>
-            </button>
-          </template>
-        </v-tooltip>
-      </div>
+      <template v-if="!hideFilterTypeButtons">
+        <div class="filter-section-title">
+          <v-icon
+            size="14"
+            class="mr-1"
+          >
+            mdi-filter-variant
+          </v-icon>
+          <span>Filtrovat podle</span>
+        </div>
+        <div class="field-toggle-light">
+          <v-tooltip
+            text="Filtrování podle data vložení."
+            location="top"
+          >
+            <template #activator="{props:tooltipProps}">
+              <button
+                v-bind="tooltipProps"
+                type="button"
+                :class="['toggle-btn-light',{active:localField==='createdAt', disabled: !modelValue.from}]"
+                :disabled="!modelValue.from"
+                @click="setField('createdAt')"
+              >
+                <v-icon size="16">
+                  mdi-plus
+                </v-icon>
+                <span>Data vložení</span>
+              </button>
+            </template>
+          </v-tooltip>
+          <v-tooltip
+            text="Filtrování podle data měření."
+            location="top"
+          >
+            <template #activator="{props:tooltipProps}">
+              <button
+                v-bind="tooltipProps"
+                type="button"
+                :class="['toggle-btn-light',{active:localField==='date', disabled: !modelValue.from}]"
+                :disabled="!modelValue.from"
+                @click="setField('date')"
+              >
+                <v-icon size="16">
+                  mdi-flask
+                </v-icon>
+                <span>Data měření</span>
+              </button>
+            </template>
+          </v-tooltip>
+          <v-tooltip
+            text="Filtrování podle data změny."
+            location="top"
+          >
+            <template #activator="{props:tooltipProps}">
+              <button
+                v-bind="tooltipProps"
+                type="button"
+                :class="['toggle-btn-light',{active:localField==='updatedAt', disabled: !modelValue.from}]"
+                :disabled="!modelValue.from"
+                @click="setField('updatedAt')"
+              >
+                <v-icon size="16">
+                  mdi-pencil
+                </v-icon>
+                <span>Data změny</span>
+              </button>
+            </template>
+          </v-tooltip>
+        </div>
+      </template>
     </div>
 
     <div class="toggles-section">

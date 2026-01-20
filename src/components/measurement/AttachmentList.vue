@@ -123,7 +123,7 @@
         </v-card-actions>
       </v-card>
     </v-dialog>
-    
+
     <!-- dialog pro náhled (preview dialog) -->
     <v-dialog
       v-model="previewDialog.open"
@@ -149,21 +149,21 @@
             @click="previewDialog.open = false"
           />
         </v-toolbar>
-        
+
         <div
           class="d-flex align-center justify-center bg-grey-darken-4"
           style="height: calc(100% - 48px); overflow: hidden;"
         >
-          <v-img 
-            v-if="previewDialog.type === 'image'" 
-            :src="previewDialog.src" 
-            max-height="100%" 
-            max-width="100%" 
-            contain 
+          <v-img
+            v-if="previewDialog.type === 'image'"
+            :src="previewDialog.src"
+            max-height="100%"
+            max-width="100%"
+            contain
           />
-          <iframe 
-            v-else 
-            :src="previewDialog.src" 
+          <iframe
+            v-else
+            :src="previewDialog.src"
             style="width:100%; height:100%; border:none; background:white;"
           />
         </div>
@@ -198,7 +198,7 @@ const {
   fetchAttachments,
   deleteAttachment,
   getDownloadUrl,
-  getViewUrl
+  //getViewUrl
 } = useAttachments()
 
 const deleteDialog = ref(false)
@@ -253,7 +253,7 @@ const previewDialog = ref({
 function viewFile(attachment: FileAttachment) {
   // Use downloadUrl for fetching data (more reliable than viewUrl)
   const url = getDownloadUrl(attachment)
-  
+
   // Try renew token first
   auth.renewToken().catch(() => {}).then(() => {
       const token = auth.getToken()
@@ -274,7 +274,7 @@ function viewFile(attachment: FileAttachment) {
   })
   .then(blob => {
     const objectUrl = URL.createObjectURL(blob)
-    
+
     previewDialog.value = {
       open: true,
       src: objectUrl,
@@ -291,7 +291,7 @@ function viewFile(attachment: FileAttachment) {
 
 function downloadFile(attachment: FileAttachment) {
   const url = getDownloadUrl(attachment)
-  
+
   auth.renewToken().catch(() => {}).then(() => {
       const token = auth.getToken()
       if (!token) {
@@ -304,7 +304,7 @@ function downloadFile(attachment: FileAttachment) {
          document.body.removeChild(link)
          return
       }
-    
+
       fetch(url, { headers: { 'Authorization': `Bearer ${token}` } })
     .then(r => {
       if (!r.ok) throw new Error('Download failed')

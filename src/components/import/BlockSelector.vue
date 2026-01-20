@@ -6,7 +6,7 @@
  */
 import { computed } from 'vue'
 import type { DetectedBlock, BlockAction } from '@/types/import-blocks'
-import { getBlockTypeLabel } from '@/types/import-blocks'
+//import { getBlockTypeLabel } from '@/types/import-blocks'
 
 const props = defineProps<{
   blocks: DetectedBlock[]
@@ -119,13 +119,13 @@ function truncate(text: string, maxLen: number): string {
       </v-btn>
     </div>
 
-    
+
     <div class="block-list">
       <div
         v-for="block in sortedBlocks"
         :key="block.id"
         class="block-item"
-        :class="{ 
+        :class="{
           'selected': selectedBlockId === block.id,
           'is-included': isBlockIncluded(block.id),
           'is-excluded': !isBlockIncluded(block.id)
@@ -142,7 +142,7 @@ function truncate(text: string, maxLen: number): string {
             @update:model-value="val => onCheckboxChange(block.id, !!val)"
             @click.stop
           />
-          
+
           <!-- ikona a informace o bloku -->
           <v-icon
             :color="getBlockColor(block.type)"
@@ -151,7 +151,7 @@ function truncate(text: string, maxLen: number): string {
           >
             {{ getBlockIcon(block.type) }}
           </v-icon>
-          
+
           <div class="block-info">
             <div class="block-title">
               {{ block.description }}
@@ -161,18 +161,18 @@ function truncate(text: string, maxLen: number): string {
               <span v-if="block.columnCount">, {{ block.columnCount }} sloupců</span>
             </div>
           </div>
-          
+
           <v-spacer />
-          
+
           <!-- spolehlivost (confidence) -->
-          <span 
+          <span
             class="confidence text-caption"
             :style="{ color: `rgb(var(--v-theme-${getConfidenceColor(block.confidence)}))` }"
             :title="`Spolehlivost: ${Math.round(block.confidence * 100)}%`"
           >
             {{ getConfidenceLabel(block.confidence) }}
           </span>
-          
+
           <!-- výběr typu (editovatelný) -->
           <v-select
             :model-value="block.type === 'table' || block.type === 'series' ? block.type : 'table'"
@@ -211,7 +211,7 @@ function truncate(text: string, maxLen: number): string {
             </template>
           </v-select>
         </div>
-        
+
         <!-- upravitelný popis při výběru -->
         <div
           v-if="selectedBlockId === block.id && isBlockIncluded(block.id)"
@@ -229,7 +229,7 @@ function truncate(text: string, maxLen: number): string {
           />
         </div>
 
-        
+
         <!-- náhled bloku (rozbalitelný) -->
         <v-expand-transition>
           <div

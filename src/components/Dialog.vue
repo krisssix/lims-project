@@ -1,12 +1,11 @@
 <script setup lang="ts">
-import { computed } from "vue";
 
 const props = defineProps<{
     isOpen: boolean,
     width?: string | number,
     hideFooter?: boolean,
     maxHeight?: string | number,
-    
+
     // nové vzhledové vlastnosti (aesthetic props)
     title?: string,
     subtitle?: string,
