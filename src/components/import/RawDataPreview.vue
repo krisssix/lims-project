@@ -96,7 +96,12 @@ watch(() => props.selectedBlockId, async (blockId) => {
 <template>
   <div class="raw-preview">
     <div class="raw-header d-flex align-center mb-2">
-      <v-icon size="16" class="mr-2">mdi-file-document-outline</v-icon>
+      <v-icon
+        size="16"
+        class="mr-2"
+      >
+        mdi-file-document-outline
+      </v-icon>
       <span class="text-subtitle-2">Raw data</span>
       <span class="text-caption text-medium-emphasis ml-2">
         ({{ displayRows.length }} řádků, nezměněno)
@@ -112,7 +117,10 @@ watch(() => props.selectedBlockId, async (blockId) => {
       </v-btn>
     </div>
     
-    <div ref="containerRef" class="raw-container">
+    <div
+      ref="containerRef"
+      class="raw-container"
+    >
       <div
         v-for="row in visibleRows"
         :key="row.index"
@@ -134,7 +142,10 @@ watch(() => props.selectedBlockId, async (blockId) => {
         </v-chip>
       </div>
       
-      <div v-if="!expanded && hasMore" class="more-indicator">
+      <div
+        v-if="!expanded && hasMore"
+        class="more-indicator"
+      >
         + {{ displayRows.length - visibleRows.length }} dalších řádků...
       </div>
     </div>

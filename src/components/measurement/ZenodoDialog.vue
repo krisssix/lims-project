@@ -288,7 +288,12 @@ watch(() => props.modelValue, (v) => {
   >
     <v-card class="zenodo-dialog">
       <v-card-title class="dialog-header">
-        <v-icon color="deep-purple" class="mr-2">mdi-cloud-upload</v-icon>
+        <v-icon
+          color="deep-purple"
+          class="mr-2"
+        >
+          mdi-cloud-upload
+        </v-icon>
         Publikovat do Zenodo
         <v-chip 
           v-if="useSandbox" 
@@ -313,7 +318,12 @@ watch(() => props.modelValue, (v) => {
           }"
         >
           <div class="step-number">
-            <v-icon v-if="step < currentStep" size="16">mdi-check</v-icon>
+            <v-icon
+              v-if="step < currentStep"
+              size="16"
+            >
+              mdi-check
+            </v-icon>
             <span v-else>{{ step }}</span>
           </div>
           <span class="step-label">
@@ -323,8 +333,10 @@ watch(() => props.modelValue, (v) => {
       </div>
 
       <v-card-text class="dialog-content">
-
-        <div v-if="currentStep === 1" class="step-content">
+        <div
+          v-if="currentStep === 1"
+          class="step-content"
+        >
           <p class="text-body-2 text-medium-emphasis mb-4">
             Pro publikaci do Zenodo potřebujete Access Token. 
             <a 
@@ -382,7 +394,10 @@ watch(() => props.modelValue, (v) => {
         </div>
 
 
-        <div v-if="currentStep === 2" class="step-content">
+        <div
+          v-if="currentStep === 2"
+          class="step-content"
+        >
           <v-text-field
             v-model="title"
             label="Název datasetu *"
@@ -495,7 +510,10 @@ watch(() => props.modelValue, (v) => {
         </div>
 
 
-        <div v-if="currentStep === 3" class="step-content">
+        <div
+          v-if="currentStep === 3"
+          class="step-content"
+        >
           <p class="text-body-2 text-medium-emphasis mb-4">
             Vyberte, které sloupce chcete zahrnout do exportovaného CSV souboru.
           </p>
@@ -521,13 +539,21 @@ watch(() => props.modelValue, (v) => {
             class="mt-4"
           />
 
-          <v-alert type="info" variant="tonal" class="mt-4" density="compact">
+          <v-alert
+            type="info"
+            variant="tonal"
+            class="mt-4"
+            density="compact"
+          >
             Export bude obsahovat {{ props.measurements.length }} měření.
           </v-alert>
         </div>
 
 
-        <div v-if="currentStep === 4" class="step-content">
+        <div
+          v-if="currentStep === 4"
+          class="step-content"
+        >
           <!-- výběr verze při detekci existujícího zenodo id -->
           <v-alert 
             v-if="hasExistingZenodo && !publishedDeposition && !isPublishing" 
@@ -552,19 +578,28 @@ watch(() => props.modelValue, (v) => {
                 density="compact"
               >
                 <v-btn :value="true">
-                  <v-icon start>mdi-update</v-icon>
+                  <v-icon start>
+                    mdi-update
+                  </v-icon>
                   Nová verze (v2)
                 </v-btn>
                 <v-btn :value="false">
-                  <v-icon start>mdi-plus</v-icon>
+                  <v-icon start>
+                    mdi-plus
+                  </v-icon>
                   Nový záznam
                 </v-btn>
               </v-btn-toggle>
             </div>
           </v-alert>
 
-          <div v-if="!publishedDeposition && !isPublishing" class="publish-preview">
-            <h4 class="text-subtitle-1 mb-3">Náhled publikace</h4>
+          <div
+            v-if="!publishedDeposition && !isPublishing"
+            class="publish-preview"
+          >
+            <h4 class="text-subtitle-1 mb-3">
+              Náhled publikace
+            </h4>
             
             <div class="preview-item">
               <strong>Název:</strong> {{ title }}
@@ -580,7 +615,10 @@ watch(() => props.modelValue, (v) => {
             </div>
             <div class="preview-item">
               <strong>Prostředí:</strong> 
-              <v-chip :color="useSandbox ? 'warning' : 'success'" size="small">
+              <v-chip
+                :color="useSandbox ? 'warning' : 'success'"
+                size="small"
+              >
                 {{ useSandbox ? 'Sandbox' : 'Produkce' }}
               </v-chip>
             </div>
@@ -596,7 +634,10 @@ watch(() => props.modelValue, (v) => {
             </v-alert>
           </div>
 
-          <div v-if="isPublishing" class="publishing-progress">
+          <div
+            v-if="isPublishing"
+            class="publishing-progress"
+          >
             <v-progress-linear
               :model-value="publishProgress"
               color="deep-purple"
@@ -604,12 +645,25 @@ watch(() => props.modelValue, (v) => {
               rounded
               class="mb-3"
             />
-            <p class="text-center text-body-2">{{ publishStatus }}</p>
+            <p class="text-center text-body-2">
+              {{ publishStatus }}
+            </p>
           </div>
 
-          <div v-if="publishedDeposition" class="publish-success">
-            <v-icon size="64" color="success" class="mb-3">mdi-check-circle</v-icon>
-            <h4 class="text-h6 mb-2">Úspěšně publikováno!</h4>
+          <div
+            v-if="publishedDeposition"
+            class="publish-success"
+          >
+            <v-icon
+              size="64"
+              color="success"
+              class="mb-3"
+            >
+              mdi-check-circle
+            </v-icon>
+            <h4 class="text-h6 mb-2">
+              Úspěšně publikováno!
+            </h4>
             <p class="text-body-2 text-medium-emphasis mb-3">
               Váš dataset byl publikován do Zenodo.
             </p>
@@ -649,7 +703,10 @@ watch(() => props.modelValue, (v) => {
       </v-card-text>
 
       <v-card-actions class="dialog-actions">
-        <v-btn variant="text" @click="cancel">
+        <v-btn
+          variant="text"
+          @click="cancel"
+        >
           {{ publishedDeposition ? 'Zavřít' : 'Zrušit' }}
         </v-btn>
         <v-spacer />
@@ -669,8 +726,8 @@ watch(() => props.modelValue, (v) => {
           variant="flat"
           :disabled="
             (currentStep === 1 && !canProceedStep1) ||
-            (currentStep === 2 && !canProceedStep2) ||
-            (currentStep === 3 && !canProceedStep3)
+              (currentStep === 2 && !canProceedStep2) ||
+              (currentStep === 3 && !canProceedStep3)
           "
           @click="nextStep"
         >

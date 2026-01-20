@@ -96,7 +96,9 @@ const TYPE_LABEL: Record<ValueType, string> = {
   text: 'Text',
   file: 'Soubor',
   bool: 'Boolean',
-  date: 'Datum'
+  date: 'Datum',
+  time: 'Čas',
+  datetime: 'Datum a čas'
 }
 
 function pad2(n: number): string { return String(n).padStart(2, '0') }
@@ -399,9 +401,19 @@ onBeforeUnmount(() => {
     <v-card class="d-flex flex-column h-100 compare-dialog">
       <!-- Toolbar with gradient -->
       <div class="compare-toolbar">
-        <v-btn icon="mdi-close" variant="text" color="white" @click="emits('update:modelValue', false)" />
+        <v-btn
+          icon="mdi-close"
+          variant="text"
+          color="white"
+          @click="emits('update:modelValue', false)"
+        />
         <div class="toolbar-title">
-          <v-icon class="mr-2" color="white">mdi-compare</v-icon>
+          <v-icon
+            class="mr-2"
+            color="white"
+          >
+            mdi-compare
+          </v-icon>
           <span>Porovnání měření ({{ items.length }})</span>
         </div>
         
@@ -409,7 +421,10 @@ onBeforeUnmount(() => {
         
         <!-- Sync scroll toggle -->
         <div class="sync-toggle">
-          <v-icon size="20" :color="syncScrollEnabled ? 'white' : 'rgba(255,255,255,0.6)'">
+          <v-icon
+            size="20"
+            :color="syncScrollEnabled ? 'white' : 'rgba(255,255,255,0.6)'"
+          >
             {{ syncScrollEnabled ? 'mdi-link-variant' : 'mdi-link-variant-off' }}
           </v-icon>
           <span :class="syncScrollEnabled ? 'text-white' : 'text-white-60'">
@@ -426,7 +441,10 @@ onBeforeUnmount(() => {
 
         <!-- Sync tabs toggle -->
         <div class="sync-toggle">
-          <v-icon size="20" :color="syncTabsEnabled ? 'white' : 'rgba(255,255,255,0.6)'">
+          <v-icon
+            size="20"
+            :color="syncTabsEnabled ? 'white' : 'rgba(255,255,255,0.6)'"
+          >
             {{ syncTabsEnabled ? 'mdi-tab' : 'mdi-tab-remove' }}
           </v-icon>
           <span :class="syncTabsEnabled ? 'text-white' : 'text-white-60'">
@@ -443,7 +461,10 @@ onBeforeUnmount(() => {
 
         <!-- Sync zoom toggle -->
         <div class="sync-toggle">
-          <v-icon size="20" :color="syncZoomEnabled ? 'white' : 'rgba(255,255,255,0.6)'">
+          <v-icon
+            size="20"
+            :color="syncZoomEnabled ? 'white' : 'rgba(255,255,255,0.6)'"
+          >
             {{ syncZoomEnabled ? 'mdi-magnify-plus-outline' : 'mdi-magnify-minus-outline' }}
           </v-icon>
           <span :class="syncZoomEnabled ? 'text-white' : 'text-white-60'">
@@ -473,10 +494,18 @@ onBeforeUnmount(() => {
           <!-- Panel header with accent -->
           <div class="panel-header">
             <div class="panel-header-content">
-              <div class="d-flex align-center" style="gap: 10px;">
-                <div class="panel-number">{{ panelIndex + 1 }}</div>
+              <div
+                class="d-flex align-center"
+                style="gap: 10px;"
+              >
+                <div class="panel-number">
+                  {{ panelIndex + 1 }}
+                </div>
                 <div class="flex-grow-1">
-                  <div class="d-flex align-center flex-wrap" style="gap: 6px;">
+                  <div
+                    class="d-flex align-center flex-wrap"
+                    style="gap: 6px;"
+                  >
                     <v-chip
                       :color="getDevice(state.item.unit)?.color || 'primary'"
                       variant="elevated"
@@ -484,16 +513,32 @@ onBeforeUnmount(() => {
                       class="elevation-2"
                       :style="{ color: getDevice(state.item.unit)?.color ? contrastText(getDevice(state.item.unit)!.color) : 'white' }"
                     >
-                      <v-icon start size="14">mdi-chip</v-icon>
+                      <v-icon
+                        start
+                        size="14"
+                      >
+                        mdi-chip
+                      </v-icon>
                       {{ state.item.unit }}
                     </v-chip>
                     <span class="measurement-id">Měření #{{ state.item.id }}</span>
                   </div>
                   <div class="panel-meta">
-                    <v-icon size="12" class="mr-1">mdi-calendar-clock</v-icon>
+                    <v-icon
+                      size="12"
+                      class="mr-1"
+                    >
+                      mdi-calendar-clock
+                    </v-icon>
                     {{ formatDateTime(state.item.timestamp as number) }}
-                    <span v-if="state.item.measuredByUsername" class="ml-2">
-                      <v-icon size="12" class="mr-1">mdi-account</v-icon>
+                    <span
+                      v-if="state.item.measuredByUsername"
+                      class="ml-2"
+                    >
+                      <v-icon
+                        size="12"
+                        class="mr-1"
+                      >mdi-account</v-icon>
                       {{ state.item.measuredByUsername }}
                     </span>
                   </div>
@@ -503,44 +548,43 @@ onBeforeUnmount(() => {
           </div>
 
           <!-- Sticky section tabs -->
-          <div class="section-tabs">
-            <v-btn
-              size="small"
-              :variant="state.activeTab === 'meta' ? 'flat' : 'text'"
-              :color="state.activeTab === 'meta' ? 'primary' : undefined"
-              class="tab-btn"
-              @click="handleTabChange(panelIndex, 'meta')"
-            >
-              <v-icon start size="16">mdi-information-outline</v-icon>
-              Metadata
-            </v-btn>
-            <v-btn
-              size="small"
-              :variant="state.activeTab === 'values' ? 'flat' : 'text'"
-              :color="state.activeTab === 'values' ? 'primary' : undefined"
-              class="tab-btn"
-              @click="handleTabChange(panelIndex, 'values')"
-            >
-              <v-icon start size="16">mdi-table-large</v-icon>
-              Hodnoty
-              <v-badge
-                v-if="state.records.length > 1"
-                :content="state.records.length"
-                color="primary"
-                inline
-                class="ml-1"
-              />
-            </v-btn>
-            <v-btn
-              size="small"
-              :variant="state.activeTab === 'stats' ? 'flat' : 'text'"
-              :color="state.activeTab === 'stats' ? 'primary' : undefined"
-              class="tab-btn"
-              @click="handleTabChange(panelIndex, 'stats')"
-            >
-              <v-icon start size="16">mdi-chart-line</v-icon>
-              Statistika
-            </v-btn>
+          <div class="tabs-container-modern">
+            <div class="inspector-tabs-modern">
+              <button 
+                class="tab-btn-modern" 
+                :class="{ active: state.activeTab === 'meta' }"
+                @click="handleTabChange(panelIndex, 'meta')"
+              >
+                <v-icon size="18">
+                  mdi-information-outline
+                </v-icon>
+                <span>Meta</span>
+              </button>
+              <button 
+                class="tab-btn-modern" 
+                :class="{ active: state.activeTab === 'values' }"
+                @click="handleTabChange(panelIndex, 'values')"
+              >
+                <v-icon size="18">
+                  mdi-table
+                </v-icon>
+                <span>Hodnoty</span>
+                <span
+                  v-if="state.records.length > 1"
+                  class="tab-badge-modern"
+                >{{ state.records.length }}</span>
+              </button>
+              <button 
+                class="tab-btn-modern" 
+                :class="{ active: state.activeTab === 'stats' }"
+                @click="handleTabChange(panelIndex, 'stats')"
+              >
+                <v-icon size="18">
+                  mdi-chart-line
+                </v-icon>
+                <span>Statistika</span>
+              </button>
+            </div>
           </div>
 
           <!-- Scrollable content -->
@@ -550,48 +594,98 @@ onBeforeUnmount(() => {
             @scroll="(e) => onScroll(panelIndex, e)"
           >
             <!-- Meta section -->
-            <div v-show="state.activeTab === 'meta'" class="content-card mb-3">
+            <div
+              v-show="state.activeTab === 'meta'"
+              class="content-card mb-3"
+            >
               <div class="card-content">
                 <div class="info-grid">
                   <div class="info-item">
-                    <div class="info-label">Šablona</div>
-                    <div class="info-value">{{ state.item.type }}</div>
+                    <div class="info-label">
+                      Šablona
+                    </div>
+                    <div class="info-value">
+                      {{ state.item.type }}
+                    </div>
                   </div>
-                  <div v-if="state.item.createdAt" class="info-item">
-                    <div class="info-label">Vytvořeno</div>
-                    <div class="info-value">{{ formatDateTime(state.item.createdAt as number) }}</div>
+                  <div
+                    v-if="state.item.createdAt"
+                    class="info-item"
+                  >
+                    <div class="info-label">
+                      Vytvořeno
+                    </div>
+                    <div class="info-value">
+                      {{ formatDateTime(state.item.createdAt as number) }}
+                    </div>
                   </div>
-                  <div v-if="state.item.updatedAt" class="info-item">
-                    <div class="info-label">Upraveno</div>
-                    <div class="info-value">{{ formatDateTime(state.item.updatedAt as number) }}</div>
+                  <div
+                    v-if="state.item.updatedAt"
+                    class="info-item"
+                  >
+                    <div class="info-label">
+                      Upraveno
+                    </div>
+                    <div class="info-value">
+                      {{ formatDateTime(state.item.updatedAt as number) }}
+                    </div>
                   </div>
                 </div>
 
-                <div v-if="state.item.note" class="note-section">
+                <div
+                  v-if="state.item.note"
+                  class="note-section"
+                >
                   <div class="note-label">
-                    <v-icon size="14" class="mr-1">mdi-note-text</v-icon>
+                    <v-icon
+                      size="14"
+                      class="mr-1"
+                    >
+                      mdi-note-text
+                    </v-icon>
                     Poznámka
                   </div>
-                  <div class="note-content">{{ state.item.note }}</div>
+                  <div class="note-content">
+                    {{ state.item.note }}
+                  </div>
                 </div>
               </div>
             </div>
 
             <!-- Values section -->
-            <div v-show="state.activeTab === 'values'" class="content-card mb-3">
+            <div
+              v-show="state.activeTab === 'values'"
+              class="content-card mb-3"
+            >
               <div class="card-header">
-                <div class="d-flex align-center" style="gap: 8px;">
+                <div
+                  class="d-flex align-center"
+                  style="gap: 8px;"
+                >
                   <div class="header-icon">
-                    <v-icon size="16">mdi-table-large</v-icon>
+                    <v-icon size="16">
+                      mdi-table-large
+                    </v-icon>
                   </div>
                   <span class="header-title">Hodnoty</span>
-                  <v-chip size="x-small" variant="elevated" class="ml-1" style="height: 18px;">
+                  <v-chip
+                    size="x-small"
+                    variant="elevated"
+                    class="ml-1"
+                    style="height: 18px;"
+                  >
                     {{ state.records.length }}
                   </v-chip>
                 </div>
                 
-                <div class="d-flex align-center" style="gap: 4px;">
-                  <div v-if="state.records.length > 1" class="record-nav">
+                <div
+                  class="d-flex align-center"
+                  style="gap: 4px;"
+                >
+                  <div
+                    v-if="state.records.length > 1"
+                    class="record-nav"
+                  >
                     <v-btn
                       icon="mdi-chevron-left"
                       size="x-small"
@@ -613,7 +707,10 @@ onBeforeUnmount(() => {
 
               <div class="card-content">
                 <!-- Block tabs -->
-                <div v-if="getTemplateBlocks(state.item, templates).length > 1" class="block-tabs">
+                <div
+                  v-if="getTemplateBlocks(state.item, templates).length > 1"
+                  class="block-tabs"
+                >
                   <v-chip
                     v-for="(block, idx) in getTemplateBlocks(state.item, templates)"
                     :key="block.id"
@@ -635,13 +732,22 @@ onBeforeUnmount(() => {
                   >
                     <div class="value-name">
                       <span>{{ field.name }}</span>
-                      <v-chip size="x-small" variant="tonal" color="primary" class="ml-2" style="height: 16px; font-size: 0.65rem;">
+                      <v-chip
+                        size="x-small"
+                        variant="tonal"
+                        color="primary"
+                        class="ml-2"
+                        style="height: 16px; font-size: 0.65rem;"
+                      >
                         {{ TYPE_LABEL[field.type] }}
                       </v-chip>
                     </div>
                     <div class="value-content">
                       <!-- File -->
-                      <div v-if="field.type === 'file' && hasExistingFileUrl(field)" class="file-preview">
+                      <div
+                        v-if="field.type === 'file' && hasExistingFileUrl(field)"
+                        class="file-preview"
+                      >
                         <v-img
                           v-if="isImageFile(field.value)"
                           :src="getFileDisplayUrl(field.value)"
@@ -650,29 +756,59 @@ onBeforeUnmount(() => {
                           class="rounded"
                           cover
                         />
-                        <v-icon v-else size="18" color="grey-darken-1">mdi-file</v-icon>
-                        <a :href="getFileDisplayUrl(field.value)" target="_blank" class="file-link">
+                        <v-icon
+                          v-else
+                          size="18"
+                          color="grey-darken-1"
+                        >
+                          mdi-file
+                        </v-icon>
+                        <a
+                          :href="getFileDisplayUrl(field.value)"
+                          target="_blank"
+                          class="file-link"
+                        >
                           {{ getFileNameFromUrl(field.value) }}
                         </a>
                       </div>
                       <!-- Boolean -->
-                      <div v-else-if="field.type === 'bool'" class="bool-value">
-                        <v-icon :color="field.value ? 'success' : 'grey'" size="18">
+                      <div
+                        v-else-if="field.type === 'bool'"
+                        class="bool-value"
+                      >
+                        <v-icon
+                          :color="field.value ? 'success' : 'grey'"
+                          size="18"
+                        >
                           {{ field.value ? 'mdi-check-circle' : 'mdi-close-circle' }}
                         </v-icon>
                         <span>{{ field.value ? 'Ano' : 'Ne' }}</span>
                       </div>
                       <!-- Number with highlight -->
-                      <div v-else-if="field.type === 'float' || field.type === 'int'" class="number-value">
+                      <div
+                        v-else-if="field.type === 'float' || field.type === 'int'"
+                        class="number-value"
+                      >
                         {{ formatFieldValue(field) }}
                       </div>
                       <!-- Other -->
-                      <span v-else class="text-value">{{ formatFieldValue(field) }}</span>
+                      <span
+                        v-else
+                        class="text-value"
+                      >{{ formatFieldValue(field) }}</span>
                     </div>
                   </div>
                   
-                  <div v-if="getCurrentBlockFields(state).length === 0" class="empty-state">
-                    <v-icon size="32" color="grey-lighten-1">mdi-table-off</v-icon>
+                  <div
+                    v-if="getCurrentBlockFields(state).length === 0"
+                    class="empty-state"
+                  >
+                    <v-icon
+                      size="32"
+                      color="grey-lighten-1"
+                    >
+                      mdi-table-off
+                    </v-icon>
                     <span class="text-caption text-grey mt-2">Žádné hodnoty</span>
                   </div>
                 </div>
@@ -680,11 +816,19 @@ onBeforeUnmount(() => {
             </div>
 
             <!-- Statistics section -->
-            <div v-show="state.activeTab === 'stats'" class="content-card">
+            <div
+              v-show="state.activeTab === 'stats'"
+              class="content-card"
+            >
               <div class="card-header">
-                <div class="d-flex align-center" style="gap: 8px;">
+                <div
+                  class="d-flex align-center"
+                  style="gap: 8px;"
+                >
                   <div class="header-icon">
-                    <v-icon size="16">mdi-chart-line</v-icon>
+                    <v-icon size="16">
+                      mdi-chart-line
+                    </v-icon>
                   </div>
                   <span class="header-title">Statistika</span>
                 </div>
@@ -702,8 +846,16 @@ onBeforeUnmount(() => {
                     @zoom-change="(zoomLevel) => handleZoomChange(panelIndex, zoomLevel)"
                   />
                 </div>
-                <div v-else class="empty-state">
-                  <v-icon size="32" color="grey-lighten-1">mdi-chart-bar-stacked</v-icon>
+                <div
+                  v-else
+                  class="empty-state"
+                >
+                  <v-icon
+                    size="32"
+                    color="grey-lighten-1"
+                  >
+                    mdi-chart-bar-stacked
+                  </v-icon>
                   <span class="text-caption text-grey mt-2">Žádná numerická data</span>
                 </div>
               </div>
@@ -799,23 +951,71 @@ onBeforeUnmount(() => {
   padding: 16px 16px 12px 16px;
 }
 
-/* Sticky section tabs */
-.section-tabs {
-  display: flex;
-  gap: 4px;
+/* Modern Tabs styling to match unified UI */
+.tabs-container-modern {
   padding: 8px 12px;
   background: white;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.12);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
   position: sticky;
   top: 0;
   z-index: 10;
   flex-shrink: 0;
 }
 
-.tab-btn {
-  text-transform: none;
-  letter-spacing: normal;
-  font-weight: 500;
+.inspector-tabs-modern {
+  display: flex;
+  background: #f1f5f9;
+  padding: 4px;
+  gap: 4px;
+  border-radius: 10px;
+}
+
+.tab-btn-modern {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 12px;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #64748b;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  white-space: nowrap;
+}
+
+.tab-btn-modern:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: #1e293b;
+}
+
+.tab-btn-modern.active {
+  background: #1976d2;
+  color: white;
+  box-shadow: 0 2px 4px rgba(25, 118, 210, 0.25);
+}
+
+.tab-badge-modern {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  background: rgba(0, 0, 0, 0.2);
+  color: white;
+  border-radius: 9px;
+  font-size: 0.65rem;
+  font-weight: 700;
+}
+
+.tab-btn-modern.active .tab-badge-modern {
+  background: rgba(255, 255, 255, 0.25);
 }
 
 .panel-number {

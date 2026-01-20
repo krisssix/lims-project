@@ -314,27 +314,42 @@ const countDisplayText = computed(() => {
       >
         <v-icon 
           size="18" 
-          :color="hasRecurrence ?  'primary' :undefined"
+          :color="hasRecurrence ? 'primary' :undefined"
         >
           mdi-repeat
         </v-icon>
         <span class="trigger-text">{{ displayText }}</span>
-        <v-icon size="16" class="trigger-chevron">mdi-chevron-down</v-icon>
+        <v-icon
+          size="16"
+          class="trigger-chevron"
+        >
+          mdi-chevron-down
+        </v-icon>
       </button>
     </slot>
 
     <!-- Dialog -->
-    <v-dialog v-model="dialogOpen" max-width="400" :persistent="false">
+    <v-dialog
+      v-model="dialogOpen"
+      max-width="400"
+      :persistent="false"
+    >
       <v-card class="dialog-card">
         <!-- Header -->
         <div class="dialog-header">
           <div class="header-left">
             <div class="header-icon">
-              <v-icon size="20">mdi-repeat</v-icon>
+              <v-icon size="20">
+                mdi-repeat
+              </v-icon>
             </div>
             <div class="header-text">
-              <div class="header-title">Opakování</div>
-              <div class="header-subtitle">Nastavte pravidla opakování</div>
+              <div class="header-title">
+                Opakování
+              </div>
+              <div class="header-subtitle">
+                Nastavte pravidla opakování
+              </div>
             </div>
           </div>
           <v-btn 
@@ -357,15 +372,22 @@ const countDisplayText = computed(() => {
               :class="{ active:dialogState.mode === opt.mode }"
               @click="dialogState.mode = opt.mode"
             >
-              <v-icon :size="22">{{ opt.icon }}</v-icon>
+              <v-icon :size="22">
+                {{ opt.icon }}
+              </v-icon>
               <span>{{ opt.label }}</span>
             </button>
           </div>
 
           <!-- Weekly Days Selector -->
           <Transition name="fade">
-            <div v-if="dialogState.mode === 'WEEKLY'" class="days-section">
-              <div class="section-label">Opakovat ve dnech</div>
+            <div
+              v-if="dialogState.mode === 'WEEKLY'"
+              class="days-section"
+            >
+              <div class="section-label">
+                Opakovat ve dnech
+              </div>
               <div class="days-grid">
                 <button
                   v-for="d in weekDays"
@@ -397,41 +419,50 @@ const countDisplayText = computed(() => {
                 min="1"
                 max="99"
                 class="interval-input"
-              />
+              >
               <span class="interval-unit">{{ unitLabel }}</span>
             </div>
           </Transition>
 
           <!-- End Conditions -->
           <Transition name="fade">
-            <div v-if="dialogState.mode !== 'NONE'" class="end-section">
+            <div
+              v-if="dialogState.mode !== 'NONE'"
+              class="end-section"
+            >
               <div class="section-divider">
                 <span>Ukončení</span>
               </div>
 
               <div class="end-options">
                 <!-- Never -->
-                <label class="end-option" :class="{ active: dialogState.endMode === 'NEVER' }">
+                <label
+                  class="end-option"
+                  :class="{ active: dialogState.endMode === 'NEVER' }"
+                >
                   <input 
+                    v-model="dialogState.endMode" 
                     type="radio" 
-                    value="NEVER" 
-                    v-model="dialogState.endMode"
-                  />
+                    value="NEVER"
+                  >
                   <div class="radio-indicator">
-                    <div class="radio-dot"></div>
+                    <div class="radio-dot" />
                   </div>
                   <span class="end-label">Nikdy nekončí</span>
                 </label>
 
                 <!-- Count -->
-                <label class="end-option" :class="{ active:dialogState.endMode === 'COUNT' }">
+                <label
+                  class="end-option"
+                  :class="{ active:dialogState.endMode === 'COUNT' }"
+                >
                   <input 
+                    v-model="dialogState.endMode" 
                     type="radio" 
-                    value="COUNT" 
-                    v-model="dialogState.endMode"
-                  />
+                    value="COUNT"
+                  >
                   <div class="radio-indicator">
-                    <div class="radio-dot"></div>
+                    <div class="radio-dot" />
                   </div>
                   <span class="end-label">Po</span>
                   <input
@@ -442,19 +473,22 @@ const countDisplayText = computed(() => {
                     class="inline-input"
                     :disabled="dialogState.endMode !== 'COUNT'"
                     @focus="dialogState.endMode = 'COUNT'"
-                  />
+                  >
                   <span class="end-label">opakováních</span>
                 </label>
 
                 <!-- Until Date -->
-                <label class="end-option" :class="{ active:dialogState.endMode === 'UNTIL' }">
+                <label
+                  class="end-option"
+                  :class="{ active:dialogState.endMode === 'UNTIL' }"
+                >
                   <input 
+                    v-model="dialogState.endMode" 
                     type="radio" 
-                    value="UNTIL" 
-                    v-model="dialogState.endMode"
-                  />
+                    value="UNTIL"
+                  >
                   <div class="radio-indicator">
-                    <div class="radio-dot"></div>
+                    <div class="radio-dot" />
                   </div>
                   <span class="end-label">Dne</span>
                   <input
@@ -463,7 +497,7 @@ const countDisplayText = computed(() => {
                     class="inline-input date-input"
                     :disabled="dialogState.endMode !== 'UNTIL'"
                     @focus="dialogState.endMode = 'UNTIL'"
-                  />
+                  >
                 </label>
               </div>
             </div>
@@ -471,8 +505,16 @@ const countDisplayText = computed(() => {
 
           <!-- Info o počtu rezervací -->
           <Transition name="fade">
-            <div v-if="dialogState.mode !== 'NONE' && countDisplayText" class="count-info">
-              <v-icon size="16" color="primary">mdi-information-outline</v-icon>
+            <div
+              v-if="dialogState.mode !== 'NONE' && countDisplayText"
+              class="count-info"
+            >
+              <v-icon
+                size="16"
+                color="primary"
+              >
+                mdi-information-outline
+              </v-icon>
               <span>Vytvoří se <strong>{{ countDisplayText }}</strong></span>
             </div>
           </Transition>
@@ -480,7 +522,10 @@ const countDisplayText = computed(() => {
 
         <!-- Footer -->
         <v-card-actions class="dialog-footer">
-          <v-btn variant="text" @click="closeDialog">
+          <v-btn
+            variant="text"
+            @click="closeDialog"
+          >
             Zrušit
           </v-btn>
           <v-spacer />

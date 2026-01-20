@@ -8,8 +8,14 @@ defineProps<{
 }>()
 </script>
 <template>
-  <section class="modern-section stats-section" :class="{ 'stats-compact': compact }">
-    <div v-if="!compact" class="section-header">
+  <section
+    class="modern-section stats-section"
+    :class="{ 'stats-compact': compact }"
+  >
+    <div
+      v-if="!compact"
+      class="section-header"
+    >
       <v-icon
         size="18"
         color="primary"
@@ -20,15 +26,26 @@ defineProps<{
         Statistické ukazatele
       </h3>
     </div>
-    <div v-if="compact" class="compact-header">
-      <v-icon size="14" color="primary">mdi-chart-box-outline</v-icon>
+    <div
+      v-if="compact"
+      class="compact-header"
+    >
+      <v-icon
+        size="14"
+        color="primary"
+      >
+        mdi-chart-box-outline
+      </v-icon>
       <span>Statistika</span>
     </div>
     <div
       v-if="stats"
       class="stats-content"
     >
-      <div class="stats-grid" :class="{ 'stats-grid-compact': compact }">
+      <div
+        class="stats-grid"
+        :class="{ 'stats-grid-compact': compact }"
+      >
         <div class="stat-item">
           <div class="stat-label">
             <v-icon

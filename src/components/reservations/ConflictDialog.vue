@@ -586,25 +586,37 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <v-dialog v-model="isOpen" max-width="460" :persistent="false">
-
+  <v-dialog
+    v-model="isOpen"
+    max-width="460"
+    :persistent="false"
+  >
     <v-card class="conflict-dialog">
-
       <!-- Header -->
       <header class="dialog-header">
         <div class="header-icon">
-          <v-icon size="24">mdi-calendar-alert</v-icon>
+          <v-icon size="24">
+            mdi-calendar-alert
+          </v-icon>
         </div>
         <div class="header-content">
-          <h2 class="header-title">Kolize rezervace</h2>
+          <h2 class="header-title">
+            Kolize rezervace
+          </h2>
           <p class="header-subtitle">
-            <v-icon size="14">mdi-flask-outline</v-icon>
+            <v-icon size="14">
+              mdi-flask-outline
+            </v-icon>
             {{ deviceName }}
             <span class="header-divider">•</span>
-            <v-icon size="14">mdi-calendar</v-icon>
+            <v-icon size="14">
+              mdi-calendar
+            </v-icon>
             {{ formatDayShort(requested.start) }}
             <span class="header-divider">•</span>
-            <v-icon size="14">mdi-clock-outline</v-icon>
+            <v-icon size="14">
+              mdi-clock-outline
+            </v-icon>
             {{ formatTimeRange(requested) }}
             <span class="duration-chip">{{ formatDuration(requested) }}</span>
           </p>
@@ -619,7 +631,10 @@ onUnmounted(() => {
       </header>
 
       <!-- Conflict Info -->
-      <div v-if="mainConflict" class="conflict-banner">
+      <div
+        v-if="mainConflict"
+        class="conflict-banner"
+      >
         <div class="conflict-avatar">
           {{ getInitials(mainConflict.username || mainConflict.title) }}
         </div>
@@ -634,7 +649,12 @@ onUnmounted(() => {
 
       <!-- Target day info -->
       <div class="target-day-info">
-        <v-icon size="16" color="primary">mdi-calendar-search</v-icon>
+        <v-icon
+          size="16"
+          color="primary"
+        >
+          mdi-calendar-search
+        </v-icon>
         <span>Volné sloty pro <strong>{{ formatDayShort(targetDay) }}</strong></span>
         <v-chip
           v-if="availableSlotsOnTargetDay.length === 0"
@@ -668,24 +688,34 @@ onUnmounted(() => {
       <!-- Suggestions -->
       <section class="suggestions-section">
         <h3 class="section-title">
-          <v-icon size="16" color="amber">mdi-lightbulb-on-outline</v-icon>
+          <v-icon
+            size="16"
+            color="amber"
+          >
+            mdi-lightbulb-on-outline
+          </v-icon>
           Doporučené alternativy
         </h3>
 
         <div class="suggestions-list">
           <button
             v-for="(suggestion, idx) in suggestions"
-           :key="suggestion.id"
+            :key="suggestion.id"
             type="button"
             class="suggestion-card"
-           :class="{
+            :class="{
               'is-selected':idx === selectedIdx,
               'is-shortened':suggestion.id === 'shortened'
             }"
             @click="selectSuggestion(idx)"
           >
-            <div class="suggestion-icon" :class="{ 'icon-warning': suggestion.id === 'shortened' }">
-              <v-icon size="20">{{ suggestion.icon }}</v-icon>
+            <div
+              class="suggestion-icon"
+              :class="{ 'icon-warning': suggestion.id === 'shortened' }"
+            >
+              <v-icon size="20">
+                {{ suggestion.icon }}
+              </v-icon>
             </div>
 
             <div class="suggestion-content">
@@ -710,8 +740,16 @@ onUnmounted(() => {
         </div>
 
         <!-- Empty state -->
-        <div v-if="suggestions.length === 0" class="empty-suggestions">
-          <v-icon size="32" color="grey-lighten-1">mdi-calendar-remove</v-icon>
+        <div
+          v-if="suggestions.length === 0"
+          class="empty-suggestions"
+        >
+          <v-icon
+            size="32"
+            color="grey-lighten-1"
+          >
+            mdi-calendar-remove
+          </v-icon>
           <span>Na tento den nejsou žádné volné sloty</span>
         </div>
 
@@ -721,24 +759,32 @@ onUnmounted(() => {
         <button
           type="button"
           class="suggestion-card custom-picker-toggle"
-         :class="{ 'is-selected':showCustomPicker }"
+          :class="{ 'is-selected':showCustomPicker }"
           @click="toggleCustomPicker"
         >
           <div class="suggestion-icon custom">
-            <v-icon size="20">mdi-calendar-edit</v-icon>
+            <v-icon size="20">
+              mdi-calendar-edit
+            </v-icon>
           </div>
           <div class="suggestion-content">
             <span class="suggestion-label">Vlastní datum a čas</span>
             <span class="suggestion-sublabel">Vybrat v kalendáři</span>
           </div>
-          <v-icon size="18":class="{ 'rotate-90' :showCustomPicker }">
+          <v-icon
+            size="18"
+            :class="{ 'rotate-90' :showCustomPicker }"
+          >
             mdi-chevron-right
           </v-icon>
         </button>
 
         <!-- Custom Picker Expanded -->
         <v-expand-transition>
-          <div v-if="showCustomPicker" class="custom-picker-panel">
+          <div
+            v-if="showCustomPicker"
+            class="custom-picker-panel"
+          >
             <div class="picker-inputs">
               <v-text-field
                 v-model="customDate"
@@ -757,8 +803,13 @@ onUnmounted(() => {
                 hide-details
               />
             </div>
-            <div v-if="customSlot" class="picker-preview">
-              <v-icon size="16">mdi-calendar-check</v-icon>
+            <div
+              v-if="customSlot"
+              class="picker-preview"
+            >
+              <v-icon size="16">
+                mdi-calendar-check
+              </v-icon>
               {{ formatFullDate(customSlot.start) }}, {{ formatTimeRange(customSlot) }}
             </div>
           </div>
@@ -767,8 +818,16 @@ onUnmounted(() => {
 
       <!-- Summary -->
       <v-expand-transition>
-        <div v-if="activeSlot" class="summary-banner">
-          <v-icon size="18" color="success">mdi-check-circle</v-icon>
+        <div
+          v-if="activeSlot"
+          class="summary-banner"
+        >
+          <v-icon
+            size="18"
+            color="success"
+          >
+            mdi-check-circle
+          </v-icon>
           <div class="summary-content">
             <span class="summary-title">Nová rezervace</span>
             <span class="summary-detail">
@@ -781,7 +840,11 @@ onUnmounted(() => {
 
       <!-- Actions -->
       <footer class="dialog-footer">
-        <v-btn variant="text" color="grey" @click="cancel">
+        <v-btn
+          variant="text"
+          color="grey"
+          @click="cancel"
+        >
           Zrušit
         </v-btn>
 
@@ -799,7 +862,7 @@ onUnmounted(() => {
           <v-btn
             variant="flat"
             color="primary"
-           :disabled="!canConfirm"
+            :disabled="!canConfirm"
             prepend-icon="mdi-check"
             @click="confirm"
           >
@@ -810,7 +873,6 @@ onUnmounted(() => {
           </v-btn>
         </div>
       </footer>
-
     </v-card>
   </v-dialog>
 </template>

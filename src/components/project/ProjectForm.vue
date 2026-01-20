@@ -146,109 +146,151 @@ function boardTemplateSelected(value){
 
 <template>
   <v-form v-model="projectStore.isProjectFormValid">
-
-  <!-- NAME -->
-  <v-text-field hide-details :rules="[emptyRuleString]" v-model="blankProjectMembers.project.name" color="primary" class="pt-5" label="Název" variant="outlined"></v-text-field>
-
-  <!-- DESCRIPTION -->
-  <v-textarea hide-details :rules="[emptyRuleString]" v-model="blankProjectMembers.project.description" color="primary" class="pt-5" label="Popis" variant="outlined"></v-textarea>
-
-  <!-- START DATE -->
-  <v-dialog
-    v-model="showDateStartPicker"
-    width="auto"
-  >
-    <v-card title="Datum zahájení">
-
-    <v-date-picker
+    <!-- NAME -->
+    <v-text-field
+      v-model="blankProjectMembers.project.name"
+      hide-details
+      :rules="[emptyRuleString]"
       color="primary"
-      show-adjacent-months
-      hide-header
-      first-day-of-week="1"
-      :max="maxStartDate"
-      v-model="startDateDatePicker"
-      @update:modelValue="(value)=>{
-          blankProjectMembers.project.startDate = convertToTimestamp(value)
-          startDateTextField = formatDateFromTimestamp(value)
-          showDateStartPicker = false
-        }"
+      class="pt-5"
+      label="Název"
+      variant="outlined"
     />
-      <v-card-actions>
-        <v-spacer/>
-        <v-btn @click="today()" variant="outlined" color="primary">
-          Dnes
-        </v-btn>
-      </v-card-actions>
-    </v-card>
-  </v-dialog>
 
-  <v-text-field
-    :rules="[emptyRuleString]"
-    hide-details
-    @click="showDateStartPicker = true"
-    class="pt-5"
-    variant="outlined"
-    readonly
-    prepend-inner-icon="mdi-calendar-month-outline"
-    label="Datum zahájení"
-    color="primary"
-    :model-value="startDateTextField"
-  />
+    <!-- DESCRIPTION -->
+    <v-textarea
+      v-model="blankProjectMembers.project.description"
+      hide-details
+      :rules="[emptyRuleString]"
+      color="primary"
+      class="pt-5"
+      label="Popis"
+      variant="outlined"
+    />
 
-  <!-- END DATE -->
+    <!-- START DATE -->
+    <v-dialog
+      v-model="showDateStartPicker"
+      width="auto"
+    >
+      <v-card title="Datum zahájení">
+        <v-date-picker
+          v-model="startDateDatePicker"
+          color="primary"
+          show-adjacent-months
+          hide-header
+          first-day-of-week="1"
+          :max="maxStartDate"
+          @update:model-value="(value)=>{
+            blankProjectMembers.project.startDate = convertToTimestamp(value)
+            startDateTextField = formatDateFromTimestamp(value)
+            showDateStartPicker = false
+          }"
+        />
+        <v-card-actions>
+          <v-spacer />
+          <v-btn
+            variant="outlined"
+            color="primary"
+            @click="today()"
+          >
+            Dnes
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
 
-  <v-text-field
-    :rules="[emptyRuleString]"
-    hide-details
-    class="pt-5"
-    @click="showDateEndPicker = true"
-    variant="outlined"
-    readonly
-    prepend-inner-icon="mdi-calendar-month-outline"
-    label="Datum ukončení"
-    color="primary"
-    :model-value="endDateTextField"
-  />
+    <v-text-field
+      :rules="[emptyRuleString]"
+      hide-details
+      class="pt-5"
+      variant="outlined"
+      readonly
+      prepend-inner-icon="mdi-calendar-month-outline"
+      label="Datum zahájení"
+      color="primary"
+      :model-value="startDateTextField"
+      @click="showDateStartPicker = true"
+    />
 
-  <v-dialog
-    v-model="showDateEndPicker"
-    width="auto"
+    <!-- END DATE -->
 
-  >
-    <v-card title="Datum ukončení">
-      <v-date-picker
-        color="primary"
-        show-adjacent-months
-        hide-header
-        first-day-of-week="1"
-        :min="minEndDate"
-        v-model="endDateDatePicker"
-        @update:modelValue="(value)=>{
-          blankProjectMembers.project.endDate = convertToTimestamp(value)
-          endDateTextField = formatDateFromTimestamp(value)
-          showDateEndPicker = false
-        }"
-      />
-    </v-card>
-  </v-dialog>
+    <v-text-field
+      :rules="[emptyRuleString]"
+      hide-details
+      class="pt-5"
+      variant="outlined"
+      readonly
+      prepend-inner-icon="mdi-calendar-month-outline"
+      label="Datum ukončení"
+      color="primary"
+      :model-value="endDateTextField"
+      @click="showDateEndPicker = true"
+    />
 
-  <!-- USERS -->
-    <h5 class="pt-5">Uživatelé</h5>
+    <v-dialog
+      v-model="showDateEndPicker"
+      width="auto"
+    >
+      <v-card title="Datum ukončení">
+        <v-date-picker
+          v-model="endDateDatePicker"
+          color="primary"
+          show-adjacent-months
+          hide-header
+          first-day-of-week="1"
+          :min="minEndDate"
+          @update:model-value="(value)=>{
+            blankProjectMembers.project.endDate = convertToTimestamp(value)
+            endDateTextField = formatDateFromTimestamp(value)
+            showDateEndPicker = false
+          }"
+        />
+      </v-card>
+    </v-dialog>
+
+    <!-- USERS -->
+    <h5 class="pt-5">
+      Uživatelé
+    </h5>
     <v-row class="pt-5">
       <v-col cols="6">
         <div v-if="blankProjectMembers.members.length > 0">
-          <v-row v-for="member in blankProjectMembers.members" :key="member.username">
+          <v-row
+            v-for="member in blankProjectMembers.members"
+            :key="member.username"
+          >
             <v-col align-self="center">
               <div class="d-flex flex-row align-center">
-                <v-icon icon="mdi-account-circle" size="x-large" color="grey-darken-1" />
-                <span class="pl-2 pr-2">{{member.username}}</span>
-                <div style="width: 12px;height: 12px" class="rounded-circle " :class="member.color"  />
+                <v-icon
+                  icon="mdi-account-circle"
+                  size="x-large"
+                  color="grey-darken-1"
+                />
+                <span class="pl-2 pr-2">{{ member.username }}</span>
+                <div
+                  style="width: 12px;height: 12px"
+                  class="rounded-circle "
+                  :class="member.color"
+                />
               </div>
             </v-col>
             <v-col align-self="center">
               <div class="d-flex flex-row align-center">
-                <v-text-field hide-details :rules="[ruleNumber]" class="pr-2" variant="outlined" v-model="member.salary" label="Plat" suffix="Kč"></v-text-field>
-                <v-btn @click="userRemoved(member)" icon="mdi-close"  variant="text" />
+                <v-text-field
+                  v-model="member.salary"
+                  hide-details
+                  :rules="[ruleNumber]"
+                  class="pr-2"
+                  variant="outlined"
+                  label="Plat"
+                  suffix="Kč"
+                />
+                <v-btn
+                  icon="mdi-close"
+                  variant="text"
+                  @click="userRemoved(member)"
+                />
               </div>
             </v-col>
           </v-row>
@@ -256,47 +298,69 @@ function boardTemplateSelected(value){
 
         <v-combobox
           ref="usersSelector"
+          v-model="search"
           :class="blankProjectMembers.members.length > 0 ? 'pt-5' : ''"
           variant="outlined"
           label="Jméno uživatele"
           :items="fetchedUsers"
           item-title="username"
-          v-model="search"
           return-object
-          @update:modelValue="selected => {
+          @update:model-value="selected => {
             userSelected(selected)
           }"
         />
       </v-col>
     </v-row>
 
-  <!-- COLOR -->
-  <h5>Barva</h5>
-  <div class="d-flex flex-row ga-4 pt-5">
-    <div @click="selectColor('deep-orange-darken-3')" class="circleSize rounded-circle bg-deep-orange-darken-3 " :class="isSelected('deep-orange-darken-3')" />
-    <div @click="selectColor('light-green-darken-3')" class="circleSize rounded-circle bg-light-green-darken-3 " :class="isSelected('light-green-darken-3')"/>
-    <div @click="selectColor('teal-darken-3')" class="circleSize rounded-circle bg-teal-darken-3 " :class="isSelected('teal-darken-3')"/>
-    <div @click="selectColor('deep-purple-darken-3')" class="circleSize rounded-circle bg-deep-purple-darken-3 " :class="isSelected('deep-purple-darken-3')"/>
-    <div @click="selectColor('purple-darken-3')" class="circleSize rounded-circle bg-purple-darken-3 " :class="isSelected('purple-darken-3')"/>
-  </div>
+    <!-- COLOR -->
+    <h5>Barva</h5>
+    <div class="d-flex flex-row ga-4 pt-5">
+      <div
+        class="circleSize rounded-circle bg-deep-orange-darken-3 "
+        :class="isSelected('deep-orange-darken-3')"
+        @click="selectColor('deep-orange-darken-3')"
+      />
+      <div
+        class="circleSize rounded-circle bg-light-green-darken-3 "
+        :class="isSelected('light-green-darken-3')"
+        @click="selectColor('light-green-darken-3')"
+      />
+      <div
+        class="circleSize rounded-circle bg-teal-darken-3 "
+        :class="isSelected('teal-darken-3')"
+        @click="selectColor('teal-darken-3')"
+      />
+      <div
+        class="circleSize rounded-circle bg-deep-purple-darken-3 "
+        :class="isSelected('deep-purple-darken-3')"
+        @click="selectColor('deep-purple-darken-3')"
+      />
+      <div
+        class="circleSize rounded-circle bg-purple-darken-3 "
+        :class="isSelected('purple-darken-3')"
+        @click="selectColor('purple-darken-3')"
+      />
+    </div>
 
     <!-- BOARD TEMPLATE -->
-    <h5 class="pt-5">Šablona projektu</h5>
+    <h5 class="pt-5">
+      Šablona projektu
+    </h5>
     <v-select
       :rules="[emptyRule]"
       :model-value="boardTemplate"
       class="pt-5"
       :items="boardTemplateVariants"
-      @update:model-value="(value) => {boardTemplateSelected(value)}"
       item-title="title"
       item-value="value"
       variant="outlined"
       hide-details
-    ></v-select>
-</v-form>
+      @update:model-value="(value) => {boardTemplateSelected(value)}"
+    />
+  </v-form>
 </template>
 
-<style scoped >
+<style scoped>
 
 .selectedProjectColorBorder{
   border: #000000 solid 4px;

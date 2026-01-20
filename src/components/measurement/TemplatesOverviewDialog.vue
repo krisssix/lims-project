@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import SearchBar from '@/components/ui/SearchBar.vue'
+import ModernSwitch from '@/components/ui/ModernSwitch.vue'
 import { type TemplateItem, type TemplateStatus } from '@/types/measurement-ui'
 import { contrastText } from '@/utils/colorContrast'
 import { getRelativeTime, formatVersion } from '@/utils/versioning'
@@ -421,7 +422,6 @@ watch(() => props.templates, () => {
     @update:model-value="v => emits('update:modelValue', v)"
   >
     <div class="templates-dialog-card">
-
       <v-snackbar
         v-if="notification"
         v-model="notification.show"
@@ -474,32 +474,25 @@ watch(() => props.templates, () => {
 
 
       <div class="templates-toolbar">
-         <v-progress-linear
-            v-if="loading"
-            indeterminate
-            absolute
-            bottom
-            color="primary"
-            height="3"
-            style="z-index: 10;"
-         />
+        <v-progress-linear
+          v-if="loading"
+          indeterminate
+          absolute
+          bottom
+          color="primary"
+          height="3"
+          style="z-index: 10;"
+        />
         <SearchBar
           v-model="search"
           placeholder="Hledat šablony podle názvu, zařízení nebo verze..."
           style="flex: 1;"
         />
         <div class="toolbar-actions">
-
-           <div class="filter-toggle">
-              <v-switch
-                v-model="showVersions"
-                label="Včetně verzí"
-                color="primary"
-                density="compact"
-                hide-details
-                inset
-              />
-           </div>
+          <ModernSwitch
+            v-model="showVersions"
+            label="Včetně verzí"
+          />
 
           <button
             type="button"
@@ -539,249 +532,333 @@ watch(() => props.templates, () => {
       </div>
 
 
-      <div class="header-actions" v-if="selectedCount > 0">
-         <div class="selected-count">
-           Vybráno {{ selectedCount }}
-         </div>
-         <div class="bulk-actions-group">
-             <button 
-                class="bulk-action-btn btn-active" 
-                @click="bulkSetStatus('ACTIVE')" 
-                title="Nastavit jako Aktivní"
-                :disabled="loading || !canSetToActive"
-              >
-                <v-icon size="18">mdi-check-circle-outline</v-icon>
-                Aktivní
-             </button>
-             <button 
-                class="bulk-action-btn btn-draft" 
-                @click="bulkSetStatus('DRAFT')" 
-                title="Nastavit jako Koncept"
-                :disabled="loading || !canSetToDraft"
-              >
-                <v-icon size="18">mdi-pencil-outline</v-icon>
-                Koncept
-             </button>
-              <button 
-                class="bulk-action-btn btn-deprecated" 
-                @click="bulkSetStatus('DEPRECATED')" 
-                title="Nastavit jako Zastaralé"
-                :disabled="loading || !canSetToDeprecated"
-              >
-                <v-icon size="18">mdi-archive-outline</v-icon>
-                Zastaralé
-             </button>
-             <div class="divider-vertical"></div>
-             <button 
-               class="bulk-action-btn btn-delete"
-               @click="openBulkDeleteDialog"
-               title="Smazat vybrané"
-               :disabled="loading"
-             >
-               <v-icon size="18">mdi-delete</v-icon>
-               Smazat
-             </button>
-         </div>
+      <div
+        v-if="selectedCount > 0"
+        class="header-actions"
+      >
+        <div class="selected-count">
+          Vybráno {{ selectedCount }}
+        </div>
+        <div class="bulk-actions-group">
+          <button 
+            class="bulk-action-btn btn-active" 
+            title="Nastavit jako Aktivní" 
+            :disabled="loading || !canSetToActive"
+            @click="bulkSetStatus('ACTIVE')"
+          >
+            <v-icon size="18">
+              mdi-check-circle-outline
+            </v-icon>
+            Aktivní
+          </button>
+          <button 
+            class="bulk-action-btn btn-draft" 
+            title="Nastavit jako Koncept" 
+            :disabled="loading || !canSetToDraft"
+            @click="bulkSetStatus('DRAFT')"
+          >
+            <v-icon size="18">
+              mdi-pencil-outline
+            </v-icon>
+            Koncept
+          </button>
+          <button 
+            class="bulk-action-btn btn-deprecated" 
+            title="Nastavit jako Zastaralé" 
+            :disabled="loading || !canSetToDeprecated"
+            @click="bulkSetStatus('DEPRECATED')"
+          >
+            <v-icon size="18">
+              mdi-archive-outline
+            </v-icon>
+            Zastaralé
+          </button>
+          <div class="divider-vertical" />
+          <button 
+            class="bulk-action-btn btn-delete"
+            title="Smazat vybrané"
+            :disabled="loading"
+            @click="openBulkDeleteDialog"
+          >
+            <v-icon size="18">
+              mdi-delete
+            </v-icon>
+            Smazat
+          </button>
+        </div>
       </div>
 
 
       <div class="table-header-row">
         <div class="th-col col-check">
-           <v-checkbox 
-             :model-value="allSelected"
-             :indeterminate="someSelected && !allSelected"
-             density="compact" 
-             hide-details
-             @update:model-value="toggleAll" 
-           />
+          <v-checkbox 
+            :model-value="allSelected"
+            :indeterminate="someSelected && !allSelected"
+            density="compact" 
+            hide-details
+            @update:model-value="toggleAll" 
+          />
         </div>
-        <div class="th-col col-device" @click="toggleSort('device')">
+        <div
+          class="th-col col-device"
+          @click="toggleSort('device')"
+        >
           Kód přístroje
-          <v-icon size="14" v-if="sortKey === 'device'">
-             {{ sortDir === 'asc' ? 'mdi-arrow-up' : 'mdi-arrow-down' }}
+          <v-icon
+            v-if="sortKey === 'device'"
+            size="14"
+          >
+            {{ sortDir === 'asc' ? 'mdi-arrow-up' : 'mdi-arrow-down' }}
           </v-icon>
         </div>
-        <div class="th-col col-name" @click="toggleSort('name')">
+        <div
+          class="th-col col-name"
+          @click="toggleSort('name')"
+        >
           Název šablony & Verze
-          <v-icon size="14" v-if="sortKey === 'name'">
-             {{ sortDir === 'asc' ? 'mdi-arrow-up' : 'mdi-arrow-down' }}
+          <v-icon
+            v-if="sortKey === 'name'"
+            size="14"
+          >
+            {{ sortDir === 'asc' ? 'mdi-arrow-up' : 'mdi-arrow-down' }}
           </v-icon>
         </div>
         <div class="th-col col-updated">
-           Poslední změna
+          Poslední změna
         </div>
       </div>
 
 
       <div class="templates-content">
-        <template v-for="group in groupedTemplates" :key="group.groupKey">
-          
+        <template
+          v-for="group in groupedTemplates"
+          :key="group.groupKey"
+        >
           <!-- Group Header (Main Folder Row) -->
           <div 
             class="template-group-row" 
             :class="{ 'group-expanded': group.versions.length > 1 && showVersions }"
           >
-             <!-- Wrapper for the main row content -->
-             <div 
-               class="template-table-row group-main-row"
-               :class="{ 
-                 'row-selected': isGroupFullySelected(group),
-                 'row-partial': isGroupPartiallySelected(group),
-                 'row-highlight': highlightedTemplateId === group.main.id
-                }"
-                :ref="(el) => setItemRef(group.main.id, el)"
-                @click="showVersions && group.versions.length > 1 ? toggleGroupExpanded(group.groupKey) : triggerEdit(group.main)"
-             >
-                <div class="td-col col-check" @click.stop>
-                   <v-checkbox 
-                     :model-value="isGroupFullySelected(group)"
-                     :indeterminate="isGroupPartiallySelected(group)"
-                     density="compact" 
-                     hide-details
-                     @update:model-value="toggleGroupSelect(group)"
-                   />
+            <!-- Wrapper for the main row content -->
+            <div 
+              :ref="(el) => setItemRef(group.main.id, el)"
+              class="template-table-row group-main-row"
+              :class="{ 
+                'row-selected': isGroupFullySelected(group),
+                'row-partial': isGroupPartiallySelected(group),
+                'row-highlight': highlightedTemplateId === group.main.id
+              }"
+              @click="showVersions && group.versions.length > 1 ? toggleGroupExpanded(group.groupKey) : triggerEdit(group.main)"
+            >
+              <div
+                class="td-col col-check"
+                @click.stop
+              >
+                <v-checkbox 
+                  :model-value="isGroupFullySelected(group)"
+                  :indeterminate="isGroupPartiallySelected(group)"
+                  density="compact" 
+                  hide-details
+                  @update:model-value="toggleGroupSelect(group)"
+                />
+              </div>
+
+              <div class="td-col col-device">
+                <div 
+                  class="device-badge"
+                  :style="{ 
+                    background: group.main.deviceColor || '#6b7280', 
+                    color: contrastText(group.main.deviceColor || '#6b7280') 
+                  }"
+                >
+                  {{ group.main.deviceId }}
                 </div>
+              </div>
 
-                <div class="td-col col-device">
-                    <div 
-                      class="device-badge"
-                      :style="{ 
-                        background: group.main.deviceColor || '#6b7280', 
-                        color: contrastText(group.main.deviceColor || '#6b7280') 
-                      }"
-                    >
-                      {{ group.main.deviceId }}
-                    </div>
-                </div>
-
-                <div class="td-col col-name">
-                    <div class="d-flex align-center" style="width: 100%;">
-                       <div 
-                         class="template-icon-box mr-3"
-                         :style="{ backgroundColor: lightBg(group.main.deviceColor) }"
-                       >
-                         <!-- Folder icon if multiple versions and we are in version mode -->
-                         <v-icon 
-                           v-if="showVersions && group.versions.length > 1"
-                           size="18" 
-                           :class="{ 'rotate-90': expandedGroups.has(group.groupKey) }"
-                           style="transition: transform 0.2s;"
-                           :style="{ color: group.main.deviceColor || '#6b7280' }"
-                         >
-                           mdi-folder-outline
-                         </v-icon>
-                         <v-icon 
-                           v-else
-                           size="18" 
-                           :style="{ color: group.main.deviceColor || '#6b7280' }"
-                         >
-                           mdi-file-document-outline
-                         </v-icon>
-                       </div>
-                       
-                       <div class="d-flex flex-column">
-                          <span class="text-body-2 font-weight-bold text-high-emphasis">
-                            {{ group.main.name }}
-                          </span>
-                          <!-- Show version badges summary if multiple -->
-                          <div v-if="group.versions.length > 1 && !expandedGroups.has(group.groupKey) && showVersions" class="d-flex gap-1 mt-1">
-                             <v-chip size="x-small" label color="grey-lighten-2" class="px-1" style="height: 18px;">
-                                {{ group.versions.length }} verzí
-                             </v-chip>
-                             <v-chip v-if="group.activeVersion" size="x-small" color="success" class="px-1" style="height: 18px;">
-                                Active v{{ formatVersion(group.activeVersion.version) }}
-                             </v-chip>
-                          </div>
-                          <!-- Single version display -->
-                          <div v-else class="d-flex align-center mt-1">
-                             <v-chip size="x-small" :color="getStatusColor(group.main.status)" class="mr-2" style="height: 18px;">
-                                v{{ formatVersion(group.main.version) }}
-                             </v-chip>
-                             <v-chip v-if="group.main.status === 'ACTIVE'" size="x-small" color="success" variant="text" class="px-0 font-weight-bold" style="height: 18px;">
-                                (Aktivní)
-                             </v-chip>
-                          </div>
-                       </div>
-                        <!-- Expand indicator chevron -->
-                        <v-icon 
-                          v-if="showVersions && group.versions.length > 1"
-                          class="ml-auto text-medium-emphasis"
-                          size="20"
-                        >
-                          {{ expandedGroups.has(group.groupKey) ? 'mdi-chevron-up' : 'mdi-chevron-down' }}
-                        </v-icon>
-                    </div>
-                </div>
-
-                <div class="td-col col-updated">
-                   <span class="text-caption text-medium-emphasis">
-                     {{ getRelativeTime(group.main.updatedAt || new Date().toISOString()) }}
-                   </span>
-                </div>
-
-             </div>
-
-             <!-- Expanded Versions List -->
-             <v-expand-transition>
-               <div v-if="showVersions && group.versions.length > 1 && expandedGroups.has(group.groupKey)" class="group-versions-list">
+              <div class="td-col col-name">
+                <div
+                  class="d-flex align-center"
+                  style="width: 100%;"
+                >
                   <div 
-                    v-for="ver in group.versions" 
-                    :key="ver.id"
-                    class="version-row"
-                    :class="{ 
-                        'row-selected': selection.has(ver.id),
-                        'row-highlight': highlightedTemplateId === ver.id
-                    }"
-                    :ref="(el) => setItemRef(ver.id, el)"
-                    @click.stop="triggerEdit(ver)"
+                    class="template-icon-box mr-3"
+                    :style="{ backgroundColor: lightBg(group.main.deviceColor) }"
                   >
-                     <div class="td-col col-check" @click.stop>
-                         <v-checkbox 
-                           :model-value="selection.has(ver.id)"
-                           density="compact" 
-                           hide-details
-                           @update:model-value="toggleSelect(ver.id)"
-                         />
-                     </div>
-                     <div class="td-col col-device"></div> <!-- Empty indent -->
-                     <div class="td-col col-name pl-10">
-                        <!-- Connecting line visual could go here -->
-                        <div class="d-flex align-center">
-                           <v-chip 
-                              size="small" 
-                              :color="getStatusColor(ver.status)" 
-                              :variant="ver.status === 'ACTIVE' ? 'flat' : 'tonal'"
-                              class="mr-2"
-                           >
-                              v{{ formatVersion(ver.version) }}
-                              <v-icon end size="12" v-if="ver.status === 'ACTIVE'">mdi-check</v-icon>
-                           </v-chip>
-                           
-                           <span v-if="ver.status === 'ACTIVE'" class="text-caption font-weight-bold text-success mr-2">
-                             Aktivní
-                           </span>
-                           <span v-else-if="ver.status === 'DRAFT'" class="text-caption text-grey mr-2">
-                             Koncept
-                           </span>
-                           <span v-else-if="ver.status === 'DEPRECATED'" class="text-caption text-error mr-2">
-                             Zastaralé
-                           </span>
-
-                           <span v-if="ver.changeDescription" class="text-caption text-medium-emphasis text-truncate" style="max-width: 200px;">
-                             {{ ver.changeDescription }}
-                           </span>
-                        </div>
-                     </div>
-                     <div class="td-col col-updated">
-                        <span class="text-caption text-medium-emphasis">
-                          {{ getRelativeTime(ver.updatedAt || new Date().toISOString()) }}
-                        </span>
-                     </div>
+                    <!-- Folder icon if multiple versions and we are in version mode -->
+                    <v-icon 
+                      v-if="showVersions && group.versions.length > 1"
+                      size="18" 
+                      :class="{ 'rotate-90': expandedGroups.has(group.groupKey) }"
+                      style="transition: transform 0.2s;"
+                      :style="{ color: group.main.deviceColor || '#6b7280' }"
+                    >
+                      mdi-folder-outline
+                    </v-icon>
+                    <v-icon 
+                      v-else
+                      size="18" 
+                      :style="{ color: group.main.deviceColor || '#6b7280' }"
+                    >
+                      mdi-file-document-outline
+                    </v-icon>
                   </div>
-               </div>
-             </v-expand-transition>
-          </div>
+                       
+                  <div class="d-flex flex-column">
+                    <span class="text-body-2 font-weight-bold text-high-emphasis">
+                      {{ group.main.name }}
+                    </span>
+                    <!-- Show version badges summary if multiple -->
+                    <div
+                      v-if="group.versions.length > 1 && !expandedGroups.has(group.groupKey) && showVersions"
+                      class="d-flex gap-1 mt-1"
+                    >
+                      <v-chip
+                        size="x-small"
+                        label
+                        color="grey-lighten-2"
+                        class="px-1"
+                        style="height: 18px;"
+                      >
+                        {{ group.versions.length }} verzí
+                      </v-chip>
+                      <v-chip
+                        v-if="group.activeVersion"
+                        size="x-small"
+                        color="success"
+                        class="px-1"
+                        style="height: 18px;"
+                      >
+                        Active v{{ formatVersion(group.activeVersion.version) }}
+                      </v-chip>
+                    </div>
+                    <!-- Single version display -->
+                    <div
+                      v-else
+                      class="d-flex align-center mt-1"
+                    >
+                      <v-chip
+                        size="x-small"
+                        :color="getStatusColor(group.main.status)"
+                        class="mr-2"
+                        style="height: 18px;"
+                      >
+                        v{{ formatVersion(group.main.version) }}
+                      </v-chip>
+                      <v-chip
+                        v-if="group.main.status === 'ACTIVE'"
+                        size="x-small"
+                        color="success"
+                        variant="text"
+                        class="px-0 font-weight-bold"
+                        style="height: 18px;"
+                      >
+                        (Aktivní)
+                      </v-chip>
+                    </div>
+                  </div>
+                  <!-- Expand indicator chevron -->
+                  <v-icon 
+                    v-if="showVersions && group.versions.length > 1"
+                    class="ml-auto text-medium-emphasis"
+                    size="20"
+                  >
+                    {{ expandedGroups.has(group.groupKey) ? 'mdi-chevron-up' : 'mdi-chevron-down' }}
+                  </v-icon>
+                </div>
+              </div>
 
+              <div class="td-col col-updated">
+                <span class="text-caption text-medium-emphasis">
+                  {{ getRelativeTime(group.main.updatedAt || new Date().toISOString()) }}
+                </span>
+              </div>
+            </div>
+
+            <!-- Expanded Versions List -->
+            <v-expand-transition>
+              <div
+                v-if="showVersions && group.versions.length > 1 && expandedGroups.has(group.groupKey)"
+                class="group-versions-list"
+              >
+                <div 
+                  v-for="ver in group.versions" 
+                  :key="ver.id"
+                  :ref="(el) => setItemRef(ver.id, el)"
+                  class="version-row"
+                  :class="{ 
+                    'row-selected': selection.has(ver.id),
+                    'row-highlight': highlightedTemplateId === ver.id
+                  }"
+                  @click.stop="triggerEdit(ver)"
+                >
+                  <div
+                    class="td-col col-check"
+                    @click.stop
+                  >
+                    <v-checkbox 
+                      :model-value="selection.has(ver.id)"
+                      density="compact" 
+                      hide-details
+                      @update:model-value="toggleSelect(ver.id)"
+                    />
+                  </div>
+                  <div class="td-col col-device" /> <!-- Empty indent -->
+                  <div class="td-col col-name pl-10">
+                    <!-- Connecting line visual could go here -->
+                    <div class="d-flex align-center">
+                      <v-chip 
+                        size="small" 
+                        :color="getStatusColor(ver.status)" 
+                        :variant="ver.status === 'ACTIVE' ? 'flat' : 'tonal'"
+                        class="mr-2"
+                      >
+                        v{{ formatVersion(ver.version) }}
+                        <v-icon
+                          v-if="ver.status === 'ACTIVE'"
+                          end
+                          size="12"
+                        >
+                          mdi-check
+                        </v-icon>
+                      </v-chip>
+                           
+                      <span
+                        v-if="ver.status === 'ACTIVE'"
+                        class="text-caption font-weight-bold text-success mr-2"
+                      >
+                        Aktivní
+                      </span>
+                      <span
+                        v-else-if="ver.status === 'DRAFT'"
+                        class="text-caption text-grey mr-2"
+                      >
+                        Koncept
+                      </span>
+                      <span
+                        v-else-if="ver.status === 'DEPRECATED'"
+                        class="text-caption text-error mr-2"
+                      >
+                        Zastaralé
+                      </span>
+
+                      <span
+                        v-if="ver.changeDescription"
+                        class="text-caption text-medium-emphasis text-truncate"
+                        style="max-width: 200px;"
+                      >
+                        {{ ver.changeDescription }}
+                      </span>
+                    </div>
+                  </div>
+                  <div class="td-col col-updated">
+                    <span class="text-caption text-medium-emphasis">
+                      {{ getRelativeTime(ver.updatedAt || new Date().toISOString()) }}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </v-expand-transition>
+          </div>
         </template>
         
         <div
@@ -805,7 +882,6 @@ watch(() => props.templates, () => {
 
 
       <div class="templates-footer">
-
         <div style="flex: 1" />
 
         <button
@@ -828,12 +904,16 @@ watch(() => props.templates, () => {
     >
       <v-card>
         <v-card-title class="d-flex align-center text-error">
-          <v-icon class="mr-2">mdi-delete-alert</v-icon>
+          <v-icon class="mr-2">
+            mdi-delete-alert
+          </v-icon>
           Smazat šablonu
         </v-card-title>
         <v-card-text>
           <p>Opravdu chcete smazat šablonu <strong>"{{ deleteTarget?.name }}"</strong>?</p>
-          <p class="text-medium-emphasis text-caption mt-2">Tato akce je nevratná.</p>
+          <p class="text-medium-emphasis text-caption mt-2">
+            Tato akce je nevratná.
+          </p>
         </v-card-text>
         <v-card-actions>
           <v-spacer />
@@ -861,12 +941,16 @@ watch(() => props.templates, () => {
     >
       <v-card>
         <v-card-title class="d-flex align-center text-error">
-          <v-icon class="mr-2">mdi-delete-sweep</v-icon>
+          <v-icon class="mr-2">
+            mdi-delete-sweep
+          </v-icon>
           Smazat vybrané šablony?
         </v-card-title>
         <v-card-text>
           <p>Chystáte se smazat <strong>{{ selection.size }}</strong> šablon.</p>
-          <p class="text-medium-emphasis text-caption mt-2">Tato akce je nevratná.</p>
+          <p class="text-medium-emphasis text-caption mt-2">
+            Tato akce je nevratná.
+          </p>
         </v-card-text>
         <v-card-actions>
           <v-spacer />

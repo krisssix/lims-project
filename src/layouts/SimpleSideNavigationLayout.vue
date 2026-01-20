@@ -5,7 +5,7 @@
   <AppToolbar :is-projects-screen="false" />
   <LeftNavigation />
   <v-main>
-      <router-view />
+    <router-view />
   </v-main>
 </template>
 

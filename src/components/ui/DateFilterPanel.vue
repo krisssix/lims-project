@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
 import FilterMultiSelect from '@/components/ui/FilterMultiSelect.vue'
+import ModernSwitch from '@/components/ui/ModernSwitch.vue'
 
 // Types
 export type DateFilterField = 'date' | 'createdAt' | 'updatedAt'
@@ -57,6 +58,7 @@ const deviceSearch = ref('')
 const memberSearch = ref('')
 const showMemberDropdown = ref(false)
 const showDeviceDropdown = ref(false)
+const isRangeSelectMode = ref(false)
 
 // --- Sync & Watchers ---
 
@@ -94,9 +96,25 @@ watch(() => props.modelValue, (newVal) => {
 }, { deep: true, immediate: true })
 
 watch(() => props.includeWeekends, () => {
-  if (props.modelValue.preset === 'thisWeek') selectThisWeek()
-  if (props.modelValue.preset === 'nextWeek') selectNextWeek()
-})
+   if (props.modelValue.preset === 'thisWeek') selectThisWeek()
+   if (props.modelValue.preset === 'nextWeek') selectNextWeek()
+ })
+ 
+ // Reset range selection mode if switching to daily-machines
+ watch(() => props.viewMode, (val) => {
+   if (val === 'daily-machines') {
+     isRangeSelectMode.value = false
+     pendingStart.value = null
+   }
+ })
+ 
+ // Mutual exclusion: when showTwoWeeks is enabled, disable range mode
+ watch(() => props.showTwoWeeks, (val) => {
+   if (val && isRangeSelectMode.value) {
+     isRangeSelectMode.value = false
+     pendingStart.value = null
+   }
+ })
 
 // Dynamic header label based on current selection
 const dynamicHeaderLabel = computed(() => {
@@ -362,8 +380,12 @@ const pendingStart = ref<Date | null>(null)
 function selectToday() {
   const today = new Date()
   pendingStart.value = null // Clear pending on preset usage
+  
+  // Update local field to reflect the change visually immediately
+  localField.value = 'createdAt'
+
   emit('update:modelValue', {
-    field: localField.value,
+    field: 'createdAt',
     preset: 'today',
     from: startOfDay(today),
     to: endOfDay(today)
@@ -438,54 +460,77 @@ function selectTwoWeeks() {
   emit('close')
 }
 
-function selectDay(date: Date) {
-  // For daily view, skip range selection - single click selects the day
-  if (props.viewMode === 'daily-machines') {
-    pendingStart.value = null
-    emit('update:modelValue', {
-      field: localField.value,
-      preset: 'custom',
-      from: startOfDay(date),
-      to: endOfDay(date)
-    })
-    emit('close')
+function selectWeekOf(date: Date) {
+     const start = startOfWeek(date)
+     const end = new Date(start)
+     const addDays = (props.includeWeekends || props.viewMode === 'week-all') ? 6 : 4
+     end.setDate(start.getDate() + addDays)
+ 
+     pendingStart.value = null
+     emit('update:modelValue', {
+       field: localField.value,
+       preset: 'custom',
+       from: start,
+       to: endOfDay(end)
+     })
+     emit('close')
+ }
+ 
+ function selectDay(date: Date) {
+   // For daily view, skip range selection - single click selects the day
+   if (props.viewMode === 'daily-machines') {
+     pendingStart.value = null
+     emit('update:modelValue', {
+       field: localField.value,
+       preset: 'custom',
+       from: startOfDay(date),
+       to: endOfDay(date)
+     })
+     emit('close')
+     return
+   }
+ 
+  if (!isRangeSelectMode.value) {
+    // Standard mode: Selecting a day selects the whole week
+    selectWeekOf(date)
     return
   }
 
-  // Smart selection logic for weekly views
-  if (pendingStart.value === null) {
-      // First click: Select start
-      pendingStart.value = date
-      emit('update:modelValue', {
-        field: localField.value,
-        preset: 'custom',
-        from: startOfDay(date),
-        to: endOfDay(date) // Initially single day
-      })
-  } else {
-      // Second click
-      if (date >= pendingStart.value) {
-          // Valid range: Start -> End
-          emit('update:modelValue', {
-            field: localField.value,
-            preset: 'custom',
-            from: startOfDay(pendingStart.value),
-            to: endOfDay(date)
-          })
-          pendingStart.value = null // Reset after range completion
-          emit('close')
-      } else {
-          // Clicked before start: Treat as new start
-          pendingStart.value = date
-          emit('update:modelValue', {
-            field: localField.value,
-            preset: 'custom',
-            from: startOfDay(date),
-            to: endOfDay(date)
-          })
-      }
-  }
-}
+   // Manual Range Mode (Smart selection logic)
+   if (pendingStart.value === null) {
+       // First click: Select start
+       pendingStart.value = date
+       // Visual feedback: select just this day temporarily
+       emit('update:modelValue', {
+         field: localField.value,
+         preset: 'custom',
+         from: startOfDay(date),
+         to: endOfDay(date)
+       })
+   } else {
+       // Second click
+       if (date >= pendingStart.value) {
+           // Valid range: Start -> End
+           emit('update:modelValue', {
+             field: localField.value,
+             preset: 'custom',
+             from: startOfDay(pendingStart.value),
+             to: endOfDay(date)
+           })
+           pendingStart.value = null // Reset after range completion
+           emit('close')
+       } else {
+           // Clicked before start: Treat as new start
+           pendingStart.value = date
+           emit('update:modelValue', {
+             field: localField.value,
+             preset: 'custom',
+             from: startOfDay(date),
+             to: endOfDay(date)
+           })
+       }
+   }
+ }
 
 function clearFilter() {
   pendingStart.value = null
@@ -776,38 +821,70 @@ const dateToInput = computed({
 
 
     <!-- FILTER TOGGLE -->
-    <div v-if="!hideFieldToggle" class="filter-type-section">
-      <!-- Hint when no date selected -->
-      <div v-if="!modelValue.from" class="filter-hint-banner">
+    <div
+      v-if="!hideFieldToggle"
+      class="filter-type-section"
+    >
+      <!-- Hint when custom range mode is active -->
+      <div
+        v-if="isRangeSelectMode"
+        class="filter-hint-banner range-mode-hint"
+      >
         <div class="hint-icon">
-          <v-icon size="18" color="white">mdi-information-outline</v-icon>
+          <v-icon
+            size="18"
+            color="white"
+          >
+            mdi-cursor-pointer
+          </v-icon>
         </div>
         <div class="hint-content">
-          <div class="hint-title">Nejprve vyberte datum</div>
-          <div class="hint-text">Pro aktivaci filtrování klikněte na datum v kalendáři výše</div>
+          <div class="hint-title">
+            {{ pendingStart ? 'Nyní vyberte konec rozmezí' : 'Vyberte časové rozmezí' }}
+          </div>
+          <div class="hint-text">
+            {{ pendingStart ? 'Klikněte na koncové datum v kalendáři' : 'Klikněte na počáteční datum v kalendáři' }}
+          </div>
+        </div>
+      </div>
+
+      <!-- Hint when no date selected -->
+      <div
+        v-else-if="!modelValue.from"
+        class="filter-hint-banner"
+      >
+        <div class="hint-icon">
+          <v-icon
+            size="18"
+            color="white"
+          >
+            mdi-information-outline
+          </v-icon>
+        </div>
+        <div class="hint-content">
+          <div class="hint-title">
+            Nejprve vyberte datum
+          </div>
+          <div class="hint-text">
+            Pro aktivaci filtrování klikněte na datum v kalendáři výše
+          </div>
         </div>
       </div>
       
       <div class="filter-section-title">
-        <v-icon size="14" class="mr-1">mdi-filter-variant</v-icon>
+        <v-icon
+          size="14"
+          class="mr-1"
+        >
+          mdi-filter-variant
+        </v-icon>
         <span>Filtrovat podle</span>
       </div>
       <div class="field-toggle-light">
-        <v-tooltip text="Filtrování podle data měření." location="top">
-          <template #activator="{props:tooltipProps}">
-            <button
-              v-bind="tooltipProps"
-              type="button"
-              :class="['toggle-btn-light',{active:localField==='date', disabled: !modelValue.from}]"
-              :disabled="!modelValue.from"
-              @click="setField('date')"
-            >
-              <v-icon size="16">mdi-flask</v-icon>
-              <span>Data měření</span>
-            </button>
-          </template>
-        </v-tooltip>
-        <v-tooltip text="Filtrování podle data vložení." location="top">
+        <v-tooltip
+          text="Filtrování podle data vložení."
+          location="top"
+        >
           <template #activator="{props:tooltipProps}">
             <button
               v-bind="tooltipProps"
@@ -816,12 +893,36 @@ const dateToInput = computed({
               :disabled="!modelValue.from"
               @click="setField('createdAt')"
             >
-              <v-icon size="16">mdi-plus</v-icon>
+              <v-icon size="16">
+                mdi-plus
+              </v-icon>
               <span>Data vložení</span>
             </button>
           </template>
         </v-tooltip>
-        <v-tooltip text="Filtrování podle data změny." location="top">
+        <v-tooltip
+          text="Filtrování podle data měření."
+          location="top"
+        >
+          <template #activator="{props:tooltipProps}">
+            <button
+              v-bind="tooltipProps"
+              type="button"
+              :class="['toggle-btn-light',{active:localField==='date', disabled: !modelValue.from}]"
+              :disabled="!modelValue.from"
+              @click="setField('date')"
+            >
+              <v-icon size="16">
+                mdi-flask
+              </v-icon>
+              <span>Data měření</span>
+            </button>
+          </template>
+        </v-tooltip>
+        <v-tooltip
+          text="Filtrování podle data změny."
+          location="top"
+        >
           <template #activator="{props:tooltipProps}">
             <button
               v-bind="tooltipProps"
@@ -830,7 +931,9 @@ const dateToInput = computed({
               :disabled="!modelValue.from"
               @click="setField('updatedAt')"
             >
-              <v-icon size="16">mdi-pencil</v-icon>
+              <v-icon size="16">
+                mdi-pencil
+              </v-icon>
               <span>Data změny</span>
             </button>
           </template>
@@ -840,39 +943,75 @@ const dateToInput = computed({
 
     <div class="toggles-section">
       <!-- Weekends Toggle (for week views) -->
-      <label
+      <v-tooltip
         v-if="showWeekendToggle"
-        class="modern-toggle"
+        text="Zobrazí v kalendáři i sobotu a neděli"
+        location="top"
       >
-        <input
-          type="checkbox"
-          :checked="includeWeekends"
-          @change="emit('update:includeWeekends', ($event.target as HTMLInputElement).checked)"
-        >
-        <span class="toggle-slider"></span>
-        <span class="toggle-label">Včetně víkendů</span>
-      </label>
+        <template #activator="{ props: tooltipProps }">
+          <div v-bind="tooltipProps">
+            <ModernSwitch
+              :model-value="includeWeekends"
+              label="Včetně víkendů"
+              @update:model-value="v => emit('update:includeWeekends', v)"
+            />
+          </div>
+        </template>
+      </v-tooltip>
+
+      <!-- CUSTOM RANGE SELECT MODE -->
+      <v-tooltip
+        v-if="viewMode !== 'daily-machines'"
+        text="Umožní vybrat libovolný rozsah dat kliknutím na začátek a konec v kalendáři"
+        location="top"
+      >
+        <template #activator="{ props: tooltipProps }">
+          <div v-bind="tooltipProps">
+            <ModernSwitch
+              :model-value="isRangeSelectMode"
+              label="Vlastní časové rozmezí"
+              @update:model-value="v => { 
+                isRangeSelectMode = v; 
+                pendingStart = null; 
+                // Mutual exclusion: disable 2-weeks when enabling custom range
+                if (v && showTwoWeeks) emit('update:showTwoWeeks', false);
+              }"
+            />
+          </div>
+        </template>
+      </v-tooltip>
+
       <!-- Two Weeks Toggle (for week views) -->
-      <label
+      <v-tooltip
         v-if="showWeekendToggle"
-        class="modern-toggle"
+        :text="isRangeSelectMode ? 'Nejprve vypněte Vlastní rozmezí' : 'Zobrazí dva týdny najednou pod sebou'"
+        location="top"
       >
-        <input
-          type="checkbox"
-          :checked="showTwoWeeks"
-          @change="emit('update:showTwoWeeks', ($event.target as HTMLInputElement).checked)"
-        >
-        <span class="toggle-slider"></span>
-        <span class="toggle-label">2 týdny</span>
-      </label>
+        <template #activator="{ props: tooltipProps }">
+          <div v-bind="tooltipProps">
+            <ModernSwitch
+              :model-value="showTwoWeeks"
+              label="2 týdny"
+              :disabled="isRangeSelectMode"
+              @update:model-value="v => emit('update:showTwoWeeks', v)"
+            />
+          </div>
+        </template>
+      </v-tooltip>
     </div>
     <!-- MANUAL RANGE -->
     <div
       v-if="!hidePresets"
       class="manual-range-section"
     >
-      <div class="range-labels-row" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-        <div class="range-label" style="margin-bottom: 0;">
+      <div
+        class="range-labels-row"
+        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;"
+      >
+        <div
+          class="range-label"
+          style="margin-bottom: 0;"
+        >
           Časové rozmezí
         </div>
         <button
@@ -917,12 +1056,17 @@ const dateToInput = computed({
       class="filters-section"
     >
       <div class="filter-section-title">
-        <v-icon size="16">mdi-filter-variant</v-icon>
+        <v-icon size="16">
+          mdi-filter-variant
+        </v-icon>
         <span>Filtry</span>
       </div>
 
       <!-- Device filter -->
-      <div v-if="devices?.length" class="filter-row">
+      <div
+        v-if="devices?.length"
+        class="filter-row"
+      >
         <FilterMultiSelect
           :model-value="pickedDevices || []"
           :items="devices"
@@ -936,7 +1080,10 @@ const dateToInput = computed({
       </div>
 
       <!-- Templates filter (for measurements) -->
-      <div v-if="templates?.length" class="filter-row">
+      <div
+        v-if="templates?.length"
+        class="filter-row"
+      >
         <FilterMultiSelect
           :model-value="pickedTemplates || []"
           :items="templates"
@@ -950,7 +1097,10 @@ const dateToInput = computed({
       </div>
 
       <!-- Member filter -->
-      <div v-if="members?.length" class="filter-row">
+      <div
+        v-if="members?.length"
+        class="filter-row"
+      >
         <FilterMultiSelect
           :model-value="pickedMembers || []"
           :items="members.map(m => ({ id: m, name: m }))"
@@ -1949,6 +2099,12 @@ const dateToInput = computed({
   line-height: 1.4;
 }
 
+/* Range mode hint - purple gradient to differentiate from info hint */
+.filter-hint-banner.range-mode-hint {
+  background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+  box-shadow: 0 2px 8px rgba(139, 92, 246, 0.25);
+}
+
 /* Disabled state for toggle buttons */
 .toggle-btn-light.disabled,
 .toggle-btn-light:disabled {
@@ -1999,65 +2155,4 @@ const dateToInput = computed({
   background: white;
 }
 
-.modern-toggle {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  cursor: pointer;
-  user-select: none;
-  position: relative;
-}
-
-.modern-toggle input[type="checkbox"] {
-  position: absolute;
-  opacity: 0;
-  width: 0;
-  height: 0;
-}
-
-.toggle-slider {
-  position: relative;
-  width: 44px;
-  height: 24px;
-  background: #e5e7eb;
-  border-radius: 12px;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  flex-shrink: 0;
-}
-
-.toggle-slider::before {
-  content: '';
-  position: absolute;
-  width: 18px;
-  height: 18px;
-  left: 3px;
-  top: 3px;
-  background: white;
-  border-radius: 50%;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-}
-
-.modern-toggle input[type="checkbox"]:checked + .toggle-slider {
-  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-}
-
-.modern-toggle input[type="checkbox"]:checked + .toggle-slider::before {
-  transform: translateX(20px);
-}
-
-.modern-toggle:hover .toggle-slider {
-  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
-}
-
-.toggle-label {
-  font-size: 14px;
-  font-weight: 500;
-  color: #374151;
-}
-
-.modern-toggle input[type="checkbox"]:checked ~ .toggle-label {
-  color: #1f2937;
-  font-weight: 600;
-}
 </style>

@@ -112,7 +112,7 @@ export const useBoardStore = defineStore('board', ()=>{
   }
 
   async function listsOrderChanged(changedLists){
-    let data = changedLists.map(list => {
+    const data = changedLists.map(list => {
       return {
         boardListId: list.id,
         newOrder: list.listOrder
@@ -129,7 +129,7 @@ export const useBoardStore = defineStore('board', ()=>{
   }
 
   async function cardsOrderChanged(changedCards){
-    let data = changedCards.map(card => {
+    const data = changedCards.map(card => {
       return {
         cardId: card.id,
         boardListId: card.boardListId,

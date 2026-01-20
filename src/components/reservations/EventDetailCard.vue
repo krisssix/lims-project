@@ -112,7 +112,11 @@ function onCloseMouseDown(ev: MouseEvent) {
         </div>
 
         <div class="d-flex align-center text-medium-emphasis mt-1">
-          <v-icon size="18" class="mr-2" icon="mdi-calendar-clock" />
+          <v-icon
+            size="18"
+            class="mr-2"
+            icon="mdi-calendar-clock"
+          />
           <div class="text-body-2">
             {{ fmtDetailDate(new Date(item.start)) }} ·
             {{ fmtDetailTime(new Date(item.start)) }} – {{ fmtDetailTime(new Date(item.end)) }}
@@ -120,7 +124,11 @@ function onCloseMouseDown(ev: MouseEvent) {
         </div>
 
         <div class="d-flex align-center text-medium-emphasis mt-2">
-          <v-icon size="18" class="mr-2" icon="mdi-account-outline" />
+          <v-icon
+            size="18"
+            class="mr-2"
+            icon="mdi-account-outline"
+          />
           <div class="text-body-2">
             {{ item.username ?? '—' }}
           </div>
@@ -130,8 +138,15 @@ function onCloseMouseDown(ev: MouseEvent) {
           v-if="item.note && item.note.trim().length"
           class="d-flex align-center text-medium-emphasis mt-2"
         >
-          <v-icon size="18" class="mr-2" icon="mdi-text" />
-          <div class="text-body-2 text-ellipsis" :title="item.note">
+          <v-icon
+            size="18"
+            class="mr-2"
+            icon="mdi-text"
+          />
+          <div
+            class="text-body-2 text-ellipsis"
+            :title="item.note"
+          >
             {{ item.note }}
           </div>
         </div>

@@ -27,46 +27,72 @@ function close() {
 <template>
   <v-dialog
     :model-value="isOpen"
-    @update:model-value="v => emit('update:isOpen', v)"
     :width="width || '500px'"
     scrollable
     persistent
+    @update:model-value="v => emit('update:isOpen', v)"
   >
-    <div class="dialog-card" :style="{ maxHeight: props.maxHeight || '90vh' }">
-      
+    <div
+      class="dialog-card"
+      :style="{ maxHeight: props.maxHeight || '90vh' }"
+    >
       <!-- záhlaví (header) -->
-      <div class="dialog-header text-left" v-if="title || $slots.header || icon">
+      <div
+        v-if="title || $slots.header || icon"
+        class="dialog-header text-left"
+      >
         <slot name="header">
-           <div class="header-row">
-             <div class="header-left">
-               <div class="header-icon" v-if="icon">
-                 <v-icon size="24" color="white">{{ icon }}</v-icon>
-               </div>
-               <div class="header-text">
-                 <div class="header-title">{{ title }}</div>
-                 <div class="header-subtitle" v-if="subtitle">
-                   {{ subtitle }}
-                 </div>
-               </div>
-             </div>
-             <button type="button" class="close-btn" @click="close">
-               <v-icon size="18">mdi-close</v-icon>
-             </button>
-           </div>
+          <div class="header-row">
+            <div class="header-left">
+              <div
+                v-if="icon"
+                class="header-icon"
+              >
+                <v-icon
+                  size="24"
+                  color="white"
+                >
+                  {{ icon }}
+                </v-icon>
+              </div>
+              <div class="header-text">
+                <div class="header-title">
+                  {{ title }}
+                </div>
+                <div
+                  v-if="subtitle"
+                  class="header-subtitle"
+                >
+                  {{ subtitle }}
+                </div>
+              </div>
+            </div>
+            <button
+              type="button"
+              class="close-btn"
+              @click="close"
+            >
+              <v-icon size="18">
+                mdi-close
+              </v-icon>
+            </button>
+          </div>
         </slot>
       </div>
 
       <!-- obsah (content) -->
       <div class="dialog-content text-left">
-        <slot name="content"></slot>
-        <slot></slot>
+        <slot name="content" />
+        <slot />
       </div>
 
       <!-- patička (footer) -->
-      <div class="dialog-footer" v-if="!hideFooter || $slots.footer">
-        <slot name="footer"></slot>
+      <div
+        v-if="!hideFooter || $slots.footer"
+        class="dialog-footer"
+      >
+        <slot name="footer" />
       </div>
-
     </div>
   </v-dialog>
 </template>

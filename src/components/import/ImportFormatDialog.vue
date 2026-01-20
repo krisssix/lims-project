@@ -143,7 +143,9 @@ function close(): void {
   >
     <template #header>
       <div class="text-h6 d-flex align-center">
-        <v-icon class="mr-2">mdi-cog</v-icon>
+        <v-icon class="mr-2">
+          mdi-cog
+        </v-icon>
         Nastavení formátu souboru
       </div>
     </template>
@@ -152,7 +154,11 @@ function close(): void {
       <div class="pa-4">
         <!-- volby formátu -->
         <v-row class="mb-4">
-          <v-col cols="12" sm="6" md="3">
+          <v-col
+            cols="12"
+            sm="6"
+            md="3"
+          >
             <v-select
               v-model="localOptions.delimiter"
               :items="delimiterOptions"
@@ -165,7 +171,11 @@ function close(): void {
             />
           </v-col>
           
-          <v-col cols="12" sm="6" md="3">
+          <v-col
+            cols="12"
+            sm="6"
+            md="3"
+          >
             <v-select
               v-model="localOptions.decimal"
               :items="decimalOptions"
@@ -178,7 +188,11 @@ function close(): void {
             />
           </v-col>
           
-          <v-col cols="12" sm="6" md="3">
+          <v-col
+            cols="12"
+            sm="6"
+            md="3"
+          >
             <v-select
               v-model="localOptions.header"
               :items="headerOptions"
@@ -192,7 +206,11 @@ function close(): void {
             />
           </v-col>
           
-          <v-col cols="12" sm="6" md="3">
+          <v-col
+            cols="12"
+            sm="6"
+            md="3"
+          >
             <v-switch
               v-model="localOptions.skipEmptyLines"
               label="Přeskočit prázdné"
@@ -205,7 +223,10 @@ function close(): void {
 
         <!-- vlastní řádek hlavičky -->
         <v-row class="mb-4">
-          <v-col cols="12" class="d-flex align-center ga-3">
+          <v-col
+            cols="12"
+            class="d-flex align-center ga-3"
+          >
             <v-checkbox
               v-model="useCustomHeaderRow"
               label="Vlastní řádek hlavičky"
@@ -251,11 +272,14 @@ function close(): void {
             <span>
               <strong>
                 {{ previewResult.status === 'SUCCESS' ? 'Úspěch' : 
-                   previewResult.status === 'PARTIAL' ? 'Částečně' : 'Selhalo' }}:
+                  previewResult.status === 'PARTIAL' ? 'Částečně' : 'Selhalo' }}:
               </strong>
               {{ previewResult.headers.length }} polí, {{ previewResult.metrics.totalRows }} řádků
             </span>
-            <span v-if="previewResult.reasons.length" class="text-caption">
+            <span
+              v-if="previewResult.reasons.length"
+              class="text-caption"
+            >
               {{ previewResult.reasons.join(', ') }}
             </span>
           </div>
@@ -273,7 +297,10 @@ function close(): void {
 
         <!-- tlačítka v patičce -->
         <div class="d-flex justify-end ga-2 mt-4">
-          <v-btn variant="text" @click="close">
+          <v-btn
+            variant="text"
+            @click="close"
+          >
             Zrušit
           </v-btn>
           <v-btn
@@ -290,7 +317,10 @@ function close(): void {
   </Dialog>
 
   <!-- dialog pro potvrzení přepsání -->
-  <v-dialog v-model="showConfirmOverwrite" max-width="450">
+  <v-dialog
+    v-model="showConfirmOverwrite"
+    max-width="450"
+  >
     <v-card>
       <v-card-title class="text-h6">
         Přepsat existující pole?
@@ -300,10 +330,17 @@ function close(): void {
       </v-card-text>
       <v-card-actions>
         <v-spacer />
-        <v-btn variant="text" @click="showConfirmOverwrite = false">
+        <v-btn
+          variant="text"
+          @click="showConfirmOverwrite = false"
+        >
           Zrušit
         </v-btn>
-        <v-btn color="primary" variant="flat" @click="doApply">
+        <v-btn
+          color="primary"
+          variant="flat"
+          @click="doApply"
+        >
           Přepsat pole
         </v-btn>
       </v-card-actions>

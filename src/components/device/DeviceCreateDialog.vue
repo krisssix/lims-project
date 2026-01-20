@@ -160,36 +160,52 @@ watch(formName, () => {
 <template>
   <v-dialog
     :model-value="modelValue"
-    @update:model-value="v => emit('update:modelValue', v)"
     max-width="560px"
     :persistent="false"
+    @update:model-value="v => emit('update:modelValue', v)"
   >
     <div class="device-editor-card">
-
       <!-- záhlaví (header) -->
       <div class="device-header">
         <div class="header-row">
           <div class="header-left">
             <div class="header-icon">
-              <v-icon size="24" color="white">mdi-devices</v-icon>
+              <v-icon
+                size="24"
+                color="white"
+              >
+                mdi-devices
+              </v-icon>
             </div>
             <div class="header-text">
-              <div class="header-title">Vytvořit nový přístroj</div>
+              <div class="header-title">
+                Vytvořit nový přístroj
+              </div>
               <div class="header-subtitle">
-                <v-icon size="14" class="mr-1">mdi-plus-circle-outline</v-icon>
+                <v-icon
+                  size="14"
+                  class="mr-1"
+                >
+                  mdi-plus-circle-outline
+                </v-icon>
                 Přidejte nový měřicí přístroj do systému
               </div>
             </div>
           </div>
-          <button type="button" class="close-btn" @click="close">
-            <v-icon size="18">mdi-close</v-icon>
+          <button
+            type="button"
+            class="close-btn"
+            @click="close"
+          >
+            <v-icon size="18">
+              mdi-close
+            </v-icon>
           </button>
         </div>
       </div>
 
       <!-- obsah formuláře (form content) -->
       <div class="device-content">
-
         <!-- upozornění na chybu (error alert) -->
         <v-alert
           v-if="errorText"
@@ -205,12 +221,22 @@ watch(formName, () => {
 
         <!-- kód přístroje (device code) -->
         <div class="form-group">
-          <label class="form-label" :class="{ 'label-error':codeError }">
+          <label
+            class="form-label"
+            :class="{ 'label-error':codeError }"
+          >
             Kód přístroje
-            <span v-if="codeError" class="label-error-text">: {{ codeErrorMessage }}</span>
+            <span
+              v-if="codeError"
+              class="label-error-text"
+            >: {{ codeErrorMessage }}</span>
           </label>
           <div class="input-wrapper">
-            <v-icon size="18" class="input-icon" :class="{ 'icon-error':codeError, 'icon-success':codeIsValid }">
+            <v-icon
+              size="18"
+              class="input-icon"
+              :class="{ 'icon-error':codeError, 'icon-success':codeIsValid }"
+            >
               {{ codeIsValid ? 'mdi-check-circle' :'mdi-code-tags' }}
             </v-icon>
             <input
@@ -223,20 +249,35 @@ watch(formName, () => {
             >
           </div>
           <div class="field-hint">
-            <v-icon size="14" class="mr-1">mdi-information-outline</v-icon>
+            <v-icon
+              size="14"
+              class="mr-1"
+            >
+              mdi-information-outline
+            </v-icon>
             Min. 3 znaky (A-Z, 0-9, _) : automaticky převedeno na UPPERCASE
           </div>
         </div>
 
         <!-- název přístroje (device name) -->
         <div class="form-group">
-          <label class="form-label" :class="{ 'label-error':nameError }">
+          <label
+            class="form-label"
+            :class="{ 'label-error':nameError }"
+          >
             Název přístroje
-            <span v-if="nameError" class="label-error-text">: minimálně 3 znaky</span>
+            <span
+              v-if="nameError"
+              class="label-error-text"
+            >: minimálně 3 znaky</span>
           </label>
           <div class="input-wrapper">
-            <v-icon size="18" class="input-icon" :class="{ 'icon-error':nameError, 'icon-success':nameIsValid }">
-              {{ nameIsValid ?  'mdi-check-circle' :'mdi-tag-text' }}
+            <v-icon
+              size="18"
+              class="input-icon"
+              :class="{ 'icon-error':nameError, 'icon-success':nameIsValid }"
+            >
+              {{ nameIsValid ? 'mdi-check-circle' :'mdi-tag-text' }}
             </v-icon>
             <input
               ref="nameInputRef"
@@ -248,18 +289,25 @@ watch(formName, () => {
             >
           </div>
           <div class="field-hint">
-            <v-icon size="14" class="mr-1">mdi-information-outline</v-icon>
+            <v-icon
+              size="14"
+              class="mr-1"
+            >
+              mdi-information-outline
+            </v-icon>
             Popisný název přístroje (min.3 znaky)
           </div>
         </div>
 
         <!-- barva a stav (color & status) -->
         <div class="form-row-2">
-
           <!-- barva (color) -->
           <div class="form-group">
             <label class="form-label">
-              <v-icon size="16" class="mr-1">mdi-palette</v-icon>
+              <v-icon
+                size="16"
+                class="mr-1"
+              >mdi-palette</v-icon>
               Barva
             </label>
             <ColorPickerInput
@@ -271,7 +319,10 @@ watch(formName, () => {
           <!-- stav (status) -->
           <div class="form-group">
             <label class="form-label">
-              <v-icon size="16" class="mr-1">mdi-power</v-icon>
+              <v-icon
+                size="16"
+                class="mr-1"
+              >mdi-power</v-icon>
               Stav
             </label>
             <div class="status-toggle">
@@ -281,21 +332,31 @@ watch(formName, () => {
                 :class="{ active:active }"
                 @click="active = !active"
               >
-                <v-icon size="18" :color="active ? '#22c55e' :'#9ca3af'">
+                <v-icon
+                  size="18"
+                  :color="active ? '#22c55e' :'#9ca3af'"
+                >
                   {{ active ? 'mdi-check-circle' :'mdi-circle-outline' }}
                 </v-icon>
                 <span>{{ active ? 'Aktivní' :'Neaktivní' }}</span>
               </button>
             </div>
           </div>
-
         </div>
 
         <!-- náhled (preview) -->
         <v-expand-transition>
-          <div v-if="normalizedCode || formName" class="preview-section">
+          <div
+            v-if="normalizedCode || formName"
+            class="preview-section"
+          >
             <div class="preview-header">
-              <v-icon size="16" class="mr-1">mdi-eye-outline</v-icon>
+              <v-icon
+                size="16"
+                class="mr-1"
+              >
+                mdi-eye-outline
+              </v-icon>
               <span>Náhled přístroje</span>
             </div>
             <div class="preview-content">
@@ -310,20 +371,25 @@ watch(formName, () => {
                 class="preview-status"
                 :class="{ 'status-active':active, 'status-inactive':!active }"
               >
-                <v-icon size="12">{{ active ? 'mdi-check-circle' :'mdi-circle-outline' }}</v-icon>
+                <v-icon size="12">
+                  {{ active ? 'mdi-check-circle' :'mdi-circle-outline' }}
+                </v-icon>
                 {{ active ? 'Aktivní' :'Neaktivní' }}
               </div>
             </div>
           </div>
         </v-expand-transition>
-
       </div>
 
       <!-- patička (footer) -->
       <div class="device-footer">
-        <div style="flex:1;"></div>
+        <div style="flex:1;" />
 
-        <button type="button" class="footer-btn secondary" @click="close">
+        <button
+          type="button"
+          class="footer-btn secondary"
+          @click="close"
+        >
           Zrušit
         </button>
 
@@ -333,12 +399,23 @@ watch(formName, () => {
           :disabled="saving || !isValid"
           @click="save"
         >
-          <v-progress-circular v-if="saving" indeterminate size="16" width="2" color="white" class="mr-2" />
-          <v-icon v-else size="18">mdi-check</v-icon>
+          <v-progress-circular
+            v-if="saving"
+            indeterminate
+            size="16"
+            width="2"
+            color="white"
+            class="mr-2"
+          />
+          <v-icon
+            v-else
+            size="18"
+          >
+            mdi-check
+          </v-icon>
           Vytvořit přístroj
         </button>
       </div>
-
     </div>
   </v-dialog>
 </template>

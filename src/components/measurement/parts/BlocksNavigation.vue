@@ -13,7 +13,10 @@ const emits = defineEmits<{
 </script>
 
 <template>
-  <div v-if="templateBlocks.length > 1" class="blocks-nav">
+  <div
+    v-if="templateBlocks.length > 1"
+    class="blocks-nav"
+  >
     <div class="blocks-tabs">
       <button
         v-for="(block, idx) in templateBlocks"

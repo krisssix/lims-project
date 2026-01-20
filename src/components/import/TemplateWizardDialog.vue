@@ -9,7 +9,6 @@
   >
     <template #content>
       <div class="pa-4">
-
         <!-- upozornění na informace o verzi (pouze v režimu úprav) -->
         <v-alert
           v-if="versionInfoText"
@@ -112,21 +111,44 @@
         <div v-show="mainTab === 'structure'">
           <!-- sekce importu -->
           <div class="import-section mb-4">
-            <div class="d-flex align-center mb-2" style="gap: 8px;">
+            <div
+              class="d-flex align-center mb-2"
+              style="gap: 8px;"
+            >
               <div class="section-badge import-badge">
-                <v-icon size="16">mdi-file-import</v-icon>
+                <v-icon size="16">
+                  mdi-file-import
+                </v-icon>
               </div>
               <span class="text-subtitle-2">Import ze souboru</span>
               <v-tooltip location="right">
                 <template #activator="{ props: tooltipProps }">
-                  <v-icon size="16" color="grey" v-bind="tooltipProps">mdi-help-circle-outline</v-icon>
+                  <v-icon
+                    size="16"
+                    color="grey"
+                    v-bind="tooltipProps"
+                  >
+                    mdi-help-circle-outline
+                  </v-icon>
                 </template>
                 <span>Nahrajte soubor (CSV, Excel) a systém automaticky rozpozná sloupce a vytvoří strukturu šablony.</span>
               </v-tooltip>
               <v-fade-transition>
-                <div v-if="currentFileName" class="ml-4 text-body-2 text-medium-emphasis d-flex align-center" :title="currentFileName">
-                   <v-icon size="16" class="mr-1">mdi-file-document-outline</v-icon>
-                   <span class="font-weight-medium text-truncate" style="max-width: 400px; display: inline-block;">{{ currentFileName }}</span>
+                <div
+                  v-if="currentFileName"
+                  class="ml-4 text-body-2 text-medium-emphasis d-flex align-center"
+                  :title="currentFileName"
+                >
+                  <v-icon
+                    size="16"
+                    class="mr-1"
+                  >
+                    mdi-file-document-outline
+                  </v-icon>
+                  <span
+                    class="font-weight-medium text-truncate"
+                    style="max-width: 400px; display: inline-block;"
+                  >{{ currentFileName }}</span>
                 </div>
               </v-fade-transition>
             </div>
@@ -139,7 +161,9 @@
               style="background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%); border: 1px solid #c7d2fe;"
             >
               <template #prepend>
-                <v-icon color="blue-darken-2">mdi-lightbulb-on-outline</v-icon>
+                <v-icon color="blue-darken-2">
+                  mdi-lightbulb-on-outline
+                </v-icon>
               </template>
               <strong class="mr-1">Automatické vytvoření šablony:</strong> Nahrajte soubor nebo vložte data ze schránky a systém automaticky rozpozná hlavičky sloupců a vytvoří strukturu šablony.
             </v-alert>
@@ -173,7 +197,7 @@
               >
                 Vymazat
               </v-btn>
-              
+
               <!-- Excel sheet selector (multi-sheet support) -->
               <v-select
                 v-if="excelSheetNames.length > 1"
@@ -301,7 +325,7 @@
                   >
                     Upravit formát
                   </v-btn>
-                  
+
                   <v-btn
                     size="small"
                     variant="outlined"
@@ -433,7 +457,7 @@
                             Data od
                           </v-btn>
                         </v-btn-group>
-                        
+
                         <v-btn-group
                           variant="outlined"
                           density="compact"
@@ -449,13 +473,18 @@
                                 :variant="rowDesignationMode === 'header_col' ? 'flat' : 'outlined'"
                                 @click="setRowDesignationMode('header_col')"
                               >
-                                <v-icon start size="16">mdi-format-columns</v-icon>
+                                <v-icon
+                                  start
+                                  size="16"
+                                >
+                                  mdi-format-columns
+                                </v-icon>
                                 Sloupec názvů
                               </v-btn>
                             </template>
                             <span>Použijte, pokud jsou názvy polí v jednom sloupci (svisle).</span>
                           </v-tooltip>
-                          
+
                           <v-tooltip location="top">
                             <template #activator="{ props: tooltipProps }">
                               <v-btn
@@ -465,7 +494,12 @@
                                 :variant="rowDesignationMode === 'units_col' ? 'flat' : 'outlined'"
                                 @click="setRowDesignationMode('units_col')"
                               >
-                                <v-icon start size="16">mdi-unfold-more-vertical</v-icon>
+                                <v-icon
+                                  start
+                                  size="16"
+                                >
+                                  mdi-unfold-more-vertical
+                                </v-icon>
                                 Sloupec jednotek
                               </v-btn>
                             </template>
@@ -508,7 +542,7 @@
                                 v-for="(header, idx) in previewHeaders"
                                 :key="'h-' + idx"
                                 class="preview-th"
-                                :class="{ 
+                                :class="{
                                   'highlighted': highlightedColumns.has(idx),
                                   'col-manual-header': getColumnType(idx) === 'header',
                                   'col-manual-units': getColumnType(idx) === 'units'
@@ -530,7 +564,7 @@
                                 'row-data': getRowType(effectiveDataStartRow + ri) === 'data',
                                 'is-selectable': rowDesignationMode !== null
                               }"
-                              @click="onPreviewRowClick(effectiveDataStartRow + ri, $event)"
+                              @click="onPreviewRowClick(effectiveDataStartRow + ri)"
                             >
                               <td class="row-num-td">
                                 {{ effectiveDataStartRow + ri + 1 }}
@@ -539,7 +573,7 @@
                                 v-for="(cell, ci) in row"
                                 :key="'c-' + ci"
                                 class="preview-td"
-                                :class="{ 
+                                :class="{
                                   'highlighted': highlightedColumns.has(ci),
                                   'col-manual-header': getColumnType(ci) === 'header',
                                   'col-manual-units': getColumnType(ci) === 'units'
@@ -623,10 +657,13 @@
           <!-- Learned Mappings Section (Edit Mode Only) -->
 
           <!-- Divider between import and manual -->
-          <div v-if="!rawText.trim()" class="section-divider my-4">
-            <div class="divider-line"></div>
+          <div
+            v-if="!rawText.trim()"
+            class="section-divider my-4"
+          >
+            <div class="divider-line" />
             <span class="divider-text">NEBO</span>
-            <div class="divider-line"></div>
+            <div class="divider-line" />
           </div>
 
           <!-- sekce bloků (blocks section) -->
@@ -635,14 +672,25 @@
               class="d-flex align-center mb-2"
               style="gap:12px; flex-wrap:wrap;"
             >
-              <div class="d-flex align-center" style="gap: 8px;">
+              <div
+                class="d-flex align-center"
+                style="gap: 8px;"
+              >
                 <div class="section-badge manual-badge">
-                  <v-icon size="16">mdi-pencil-plus</v-icon>
+                  <v-icon size="16">
+                    mdi-pencil-plus
+                  </v-icon>
                 </div>
                 <span class="preview-header">Ruční tvorba struktury</span>
                 <v-tooltip location="right">
                   <template #activator="{ props: tooltipProps }">
-                    <v-icon size="16" color="grey" v-bind="tooltipProps">mdi-help-circle-outline</v-icon>
+                    <v-icon
+                      size="16"
+                      color="grey"
+                      v-bind="tooltipProps"
+                    >
+                      mdi-help-circle-outline
+                    </v-icon>
                   </template>
                   <span>Vytvořte strukturu šablony ručně – přidejte tabulky hodnot a definujte jednotlivé sloupce.</span>
                 </v-tooltip>
@@ -678,14 +726,24 @@
                 variant="tonal"
                 @click="addEmptyBlockAndGo"
               >
-                <v-tooltip activator="parent" location="bottom" max-width="300">
+                <v-tooltip
+                  activator="parent"
+                  location="bottom"
+                  max-width="300"
+                >
                   <strong>Tabulka hodnot</strong> = sloupce s naměřenými daty (např. teplota, pH, koncentrace). Každý řádek v měření odpovídá jednomu záznamu.
                 </v-tooltip>
-                <v-icon start>mdi-table-plus</v-icon>
+                <v-icon start>
+                  mdi-table-plus
+                </v-icon>
                 Přidat tabulku hodnot
               </v-btn>
               <span class="d-inline-block">
-                <v-tooltip activator="parent" location="bottom" max-width="350">
+                <v-tooltip
+                  activator="parent"
+                  location="bottom"
+                  max-width="350"
+                >
                   <div v-if="pickedBlocks.length === 0">
                     Nejprve přidejte tabulku hodnot – datové série se vážou k záznamům z tabulky
                   </div>
@@ -709,7 +767,7 @@
                 </v-btn>
               </span>
             </div>
-            
+
             <!-- Helper alert for empty state -->
             <v-alert
               v-if="pickedBlocks.length === 0 && !rawText.trim()"
@@ -720,11 +778,13 @@
               style="background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%); border: 1px solid #2196f3;"
             >
               <template #prepend>
-                <v-icon color="blue">mdi-gesture-tap</v-icon>
+                <v-icon color="blue">
+                  mdi-gesture-tap
+                </v-icon>
               </template>
               <strong>Ruční vytvoření:</strong> Klikněte na „Přidat tabulku hodnot" a definujte sloupce ručně – název, typ dat a zda jsou povinné.
             </v-alert>
-            
+
             <div
               v-if="pickedBlocks.length === 0 && rawText.trim()"
               class="text-medium-emphasis mb-3"
@@ -1399,7 +1459,10 @@
               :class="{ 'selected': selectedVersionIds.has(ver.id) }"
             >
               <div class="version-row-left">
-                <div class="mr-2" style="width: 32px">
+                <div
+                  class="mr-2"
+                  style="width: 32px"
+                >
                   <v-checkbox
                     v-if="ver.status !== 'ACTIVE'"
                     :model-value="selectedVersionIds.has(ver.id)"
@@ -1450,13 +1513,17 @@
                       size="small"
                       v-bind="menuProps"
                     >
-                      <v-icon size="18">mdi-dots-vertical</v-icon>
+                      <v-icon size="18">
+                        mdi-dots-vertical
+                      </v-icon>
                     </v-btn>
                   </template>
                   <v-list density="compact">
                     <v-list-item @click="openVersionPreview(ver)">
                       <template #prepend>
-                        <v-icon size="18">mdi-eye</v-icon>
+                        <v-icon size="18">
+                          mdi-eye
+                        </v-icon>
                       </template>
                       <v-list-item-title>Zobrazit</v-list-item-title>
                     </v-list-item>
@@ -1515,7 +1582,10 @@
           <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;">
             <div>
               <div style="font-size: 16px; font-weight: 600; color: #374151; display: flex; align-items: center; gap: 10px;">
-                <v-icon icon="mdi-brain" style="font-size: 22px; color: #7c3aed;" />
+                <v-icon
+                  icon="mdi-brain"
+                  style="font-size: 22px; color: #7c3aed;"
+                />
                 Naučená mapování z importů
               </div>
               <div style="font-size: 13px; color: #6b7280; margin-top: 4px;">
@@ -1527,23 +1597,29 @@
               <button
                 type="button"
                 style="height: 36px; padding: 0 14px; border: 1px solid #a7f3d0; background: #ecfdf5; color: #059669; font-size: 13px; font-weight: 500; cursor: pointer; border-radius: 8px; display: flex; align-items: center; gap: 6px; transition: all 0.15s;"
-                @click="downloadAliasTemplate"
                 onmouseover="this.style.background='#d1fae5'"
                 onmouseout="this.style.background='#ecfdf5'"
                 title="Stáhne CSV šablonu s výchozími poli, do které můžete přidat aliasy"
+                @click="downloadAliasTemplate"
               >
-                <v-icon icon="mdi-download-outline" style="font-size: 16px;" />
+                <v-icon
+                  icon="mdi-download-outline"
+                  style="font-size: 16px;"
+                />
                 Stáhnout šablonu
               </button>
               <!-- Import z CSV -->
               <button
                 type="button"
                 style="height: 36px; padding: 0 14px; border: 1px solid #ddd6fe; background: #f5f3ff; color: #7c3aed; font-size: 13px; font-weight: 500; cursor: pointer; border-radius: 8px; display: flex; align-items: center; gap: 6px; transition: all 0.15s;"
-                @click="triggerBulkAliasImport"
                 onmouseover="this.style.background='#ede9fe'"
                 onmouseout="this.style.background='#f5f3ff'"
+                @click="triggerBulkAliasImport"
               >
-                <v-icon icon="mdi-file-upload-outline" style="font-size: 16px;" />
+                <v-icon
+                  icon="mdi-file-upload-outline"
+                  style="font-size: 16px;"
+                />
                 Importovat z CSV
               </button>
               <input
@@ -1552,16 +1628,19 @@
                 accept=".csv,.xlsx,.xls"
                 style="display: none;"
                 @change="handleBulkAliasFile"
-              />
+              >
               <button
                 v-if="learnedMappings.length > 0"
                 type="button"
                 style="height: 36px; padding: 0 14px; border: 1px solid #fecaca; background: #fef2f2; color: #dc2626; font-size: 13px; font-weight: 500; cursor: pointer; border-radius: 8px; display: flex; align-items: center; gap: 6px; transition: all 0.15s;"
-                @click="confirmClearAll = true"
                 onmouseover="this.style.background='#fee2e2'"
                 onmouseout="this.style.background='#fef2f2'"
+                @click="confirmClearAll = true"
               >
-                <v-icon icon="mdi-delete-sweep" style="font-size: 16px;" />
+                <v-icon
+                  icon="mdi-delete-sweep"
+                  style="font-size: 16px;"
+                />
                 Vymazat vše
               </button>
             </div>
@@ -1570,16 +1649,28 @@
           <!-- statistiky -->
           <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px;">
             <div style="background: #f5f3ff; border: 1px solid #ddd6fe; border-radius: 10px; padding: 14px 16px;">
-              <div style="font-size: 24px; font-weight: 700; color: #7c3aed;">{{ learnedMappings.length }}</div>
-              <div style="font-size: 12px; color: #6b7280;">Celkem mapování</div>
+              <div style="font-size: 24px; font-weight: 700; color: #7c3aed;">
+                {{ learnedMappings.length }}
+              </div>
+              <div style="font-size: 12px; color: #6b7280;">
+                Celkem mapování
+              </div>
             </div>
             <div style="background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 10px; padding: 14px 16px;">
-              <div style="font-size: 24px; font-weight: 700; color: #059669;">{{ totalUsageCount }}</div>
-              <div style="font-size: 12px; color: #6b7280;">Celkem použití</div>
+              <div style="font-size: 24px; font-weight: 700; color: #059669;">
+                {{ totalUsageCount }}
+              </div>
+              <div style="font-size: 12px; color: #6b7280;">
+                Celkem použití
+              </div>
             </div>
             <div style="background: #fef3c7; border: 1px solid #fcd34d; border-radius: 10px; padding: 14px 16px;">
-              <div style="font-size: 24px; font-weight: 700; color: #d97706;">{{ groupedMappings.length }}</div>
-              <div style="font-size: 12px; color: #6b7280;">Cílových polí</div>
+              <div style="font-size: 24px; font-weight: 700; color: #d97706;">
+                {{ groupedMappings.length }}
+              </div>
+              <div style="font-size: 12px; color: #6b7280;">
+                Cílových polí
+              </div>
             </div>
           </div>
 
@@ -1588,35 +1679,50 @@
             v-if="groupedMappings.length > 0"
             style="border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden;"
           >
-            <template v-for="(group, gIdx) in groupedMappings" :key="group.targetField">
+            <template
+              v-for="(group, gIdx) in groupedMappings"
+              :key="group.targetField"
+            >
               <!-- hlavička skupiny -->
               <div style="background: #f9fafb; padding: 10px 16px; border-bottom: 1px solid #e5e7eb; display: flex; align-items: center; justify-content: space-between;">
                 <div style="display: flex; align-items: center; gap: 10px;">
-                  <div class="d-flex align-center justify-center" :style="{ width: '28px', height: '28px', background: getGroupColor(gIdx), borderRadius: '6px' }">
-                    <v-icon icon="mdi-target" size="16" color="white" />
+                  <div
+                    class="d-flex align-center justify-center"
+                    :style="{ width: '28px', height: '28px', background: getGroupColor(gIdx), borderRadius: '6px' }"
+                  >
+                    <v-icon
+                      icon="mdi-target"
+                      size="16"
+                      color="white"
+                    />
                   </div>
                   <div>
-                    <div style="font-size: 13px; font-weight: 600; color: #374151;">{{ group.targetField }}</div>
+                    <div style="font-size: 13px; font-weight: 600; color: #374151;">
+                      {{ group.targetField }}
+                    </div>
                     <div style="font-size: 11px; color: #9ca3af;">
                       {{ group.mappings.length }} {{ group.mappings.length === 1 ? 'alias' : 'aliasy' }}
                     </div>
                   </div>
                 </div>
                 <div class="d-flex align-center">
-                   <v-btn
+                  <v-btn
                     icon
                     variant="text"
                     size="x-small"
                     color="primary"
                     :title="addingAliasFor === group.targetField ? 'Zrušit' : 'Přidat alias'"
-                    @click="toggleAddAliasRow(group.targetField)"
                     class="mr-2"
+                    @click="toggleAddAliasRow(group.targetField)"
                   >
                     <v-icon size="18">
                       {{ addingAliasFor === group.targetField ? 'mdi-close' : 'mdi-plus' }}
                     </v-icon>
                   </v-btn>
-                  <v-icon icon="mdi-chevron-down" style="font-size: 20px; color: #9ca3af; cursor: pointer;" />
+                  <v-icon
+                    icon="mdi-chevron-down"
+                    style="font-size: 20px; color: #9ca3af; cursor: pointer;"
+                  />
                 </div>
               </div>
 
@@ -1629,11 +1735,17 @@
                 >
                   <div style="display: flex; align-items: center; gap: 12px; flex: 1;">
                     <div style="width: 24px; height: 24px; background: #f3f4f6; border-radius: 4px; display: flex; align-items: center; justify-content: center;">
-                      <v-icon icon="mdi-file-outline" style="font-size: 14px; color: #6b7280;" />
+                      <v-icon
+                        icon="mdi-file-outline"
+                        style="font-size: 14px; color: #6b7280;"
+                      />
                     </div>
                     <div style="display: flex; align-items: center; gap: 8px;">
                       <span style="font-size: 13px; color: #374151; font-family: monospace; background: #f9fafb; padding: 2px 8px; border-radius: 4px;">{{ mapping.sourceColumnRaw }}</span>
-                      <v-icon icon="mdi-arrow-right" style="font-size: 16px; color: #9ca3af;" />
+                      <v-icon
+                        icon="mdi-arrow-right"
+                        style="font-size: 16px; color: #9ca3af;"
+                      />
                       <span style="font-size: 13px; font-weight: 600; color: #7c3aed;">{{ mapping.targetFieldName }}</span>
                     </div>
                   </div>
@@ -1641,11 +1753,14 @@
                     <span style="font-size: 12px; color: #6b7280; background: #f3f4f6; padding: 2px 8px; border-radius: 10px;">{{ mapping.useCount }}×</span>
                     <button
                       style="width: 28px; height: 28px; border: none; background: transparent; cursor: pointer; border-radius: 6px; display: flex; align-items: center; justify-content: center;"
-                      @click="askDeleteMapping(mapping)"
                       onmouseover="this.style.background='#fee2e2'"
                       onmouseout="this.style.background='transparent'"
+                      @click="askDeleteMapping(mapping)"
                     >
-                      <v-icon icon="mdi-delete-outline" style="font-size: 18px; color: #ef4444;" />
+                      <v-icon
+                        icon="mdi-delete-outline"
+                        style="font-size: 18px; color: #ef4444;"
+                      />
                     </button>
                   </div>
                 </div>
@@ -1655,60 +1770,83 @@
                   v-if="addingAliasFor === group.targetField"
                   style="padding: 10px 16px; border-bottom: 1px solid #f3f4f6; display: flex; align-items: center; gap: 12px;"
                 >
-                   <v-icon icon="mdi-plus-circle-outline" size="14" color="primary" />
-                   <div style="flex: 1;">
-                      <v-text-field
-                        v-model="newAliasInput"
-                        density="compact"
-                        variant="outlined"
-                        placeholder="Název sloupce v souboru..."
-                        hide-details
-                        autofocus
-                        bg-color="white"
-                        @keyup.enter="submitNewAlias(group.targetField)"
-                        @keyup.escape="cancelAddAlias"
-                      />
-                   </div>
-                   <v-btn
-                      icon
-                      variant="text"
-                      size="x-small"
-                      color="success"
-                      :disabled="!newAliasInput.trim()"
-                      @click="submitNewAlias(group.targetField)"
-                    >
-                      <v-icon size="20">mdi-check</v-icon>
-                    </v-btn>
+                  <v-icon
+                    icon="mdi-plus-circle-outline"
+                    size="14"
+                    color="primary"
+                  />
+                  <div style="flex: 1;">
+                    <v-text-field
+                      v-model="newAliasInput"
+                      density="compact"
+                      variant="outlined"
+                      placeholder="Název sloupce v souboru..."
+                      hide-details
+                      autofocus
+                      bg-color="white"
+                      @keyup.enter="submitNewAlias(group.targetField)"
+                      @keyup.escape="cancelAddAlias"
+                    />
+                  </div>
+                  <v-btn
+                    icon
+                    variant="text"
+                    size="x-small"
+                    color="success"
+                    :disabled="!newAliasInput.trim()"
+                    @click="submitNewAlias(group.targetField)"
+                  >
+                    <v-icon size="20">
+                      mdi-check
+                    </v-icon>
+                  </v-btn>
                 </div>
-
               </div>
             </template>
           </div>
 
           <!-- prázdný stav / informace -->
           <div
-             v-if="learnedMappings.length === 0"
-             style="margin-top: 20px; text-align: center; padding: 40px; background: white; border: 1px solid #e5e7eb; border-radius: 12px;"
+            v-if="learnedMappings.length === 0"
+            style="margin-top: 20px; text-align: center; padding: 40px; background: white; border: 1px solid #e5e7eb; border-radius: 12px;"
           >
-             <v-icon icon="mdi-brain" size="48" color="grey-lighten-1" class="mb-3" />
-             <div class="text-body-2 text-medium-emphasis">Žádná naučená mapování</div>
-             <div class="text-caption text-medium-emphasis mt-2 mb-4">
-               Mapování se ukládají automaticky při importu nebo je můžete přidat ručně.
-             </div>
-             <button
-               type="button"
-               style="height: 36px; padding: 0 16px; border: 1px solid #ddd6fe; background: #f5f3ff; color: #7c3aed; font-size: 13px; font-weight: 500; cursor: pointer; border-radius: 8px; display: flex; align-items: center; gap: 6px; transition: all 0.15s;"
-               @click="triggerBulkAliasImport"
-             >
-               <v-icon icon="mdi-file-upload-outline" style="font-size: 16px;" />
-               Importovat z CSV/Excel
-             </button>
+            <v-icon
+              icon="mdi-brain"
+              size="48"
+              color="grey-lighten-1"
+              class="mb-3"
+            />
+            <div class="text-body-2 text-medium-emphasis">
+              Žádná naučená mapování
+            </div>
+            <div class="text-caption text-medium-emphasis mt-2 mb-4">
+              Mapování se ukládají automaticky při importu nebo je můžete přidat ručně.
+            </div>
+            <button
+              type="button"
+              style="height: 36px; padding: 0 16px; border: 1px solid #ddd6fe; background: #f5f3ff; color: #7c3aed; font-size: 13px; font-weight: 500; cursor: pointer; border-radius: 8px; display: flex; align-items: center; gap: 6px; transition: all 0.15s;"
+              @click="triggerBulkAliasImport"
+            >
+              <v-icon
+                icon="mdi-file-upload-outline"
+                style="font-size: 16px;"
+              />
+              Importovat z CSV/Excel
+            </button>
           </div>
 
-          <div v-else style="margin-top: 20px; padding: 16px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; display: flex; align-items: flex-start; gap: 12px;">
-            <v-icon icon="mdi-information-outline" style="font-size: 20px; color: #3b82f6; margin-top: 2px;" />
+          <div
+            v-else
+            style="margin-top: 20px; padding: 16px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; display: flex; align-items: flex-start; gap: 12px;"
+          >
+            <v-icon
+              icon="mdi-information-outline"
+              style="font-size: 20px; color: #3b82f6; margin-top: 2px;"
+            />
             <div>
-              <div style="font-size: 13px; font-weight: 600; color: #1e40af;">Jak to funguje?</div>
+              <div style="font-size: 13px; font-weight: 600; color: #1e40af;">
+                Jak to funguje?
+              </div>
               <div style="font-size: 12px; color: #3b82f6; margin-top: 4px;">
                 Výchozí hlavičky jsou definovány v aktivní verzi šablony. Aliasy (synonyma) se automaticky mapují na tyto výchozí hodnoty.
                 Při každém importu si systém zapamatuje, jak jste namapovali sloupce ze souboru na pole šablony.
@@ -1719,27 +1857,37 @@
           <!-- Tip pro workflow - vždy viditelný -->
           <div style="margin-top: 16px; padding: 16px; background: #fefce8; border: 1px solid #fde047; border-radius: 10px;">
             <div style="display: flex; align-items: flex-start; gap: 12px; margin-bottom: 12px;">
-              <v-icon icon="mdi-lightbulb-outline" style="font-size: 20px; color: #ca8a04; margin-top: 2px;" />
+              <v-icon
+                icon="mdi-lightbulb-outline"
+                style="font-size: 20px; color: #ca8a04; margin-top: 2px;"
+              />
               <div style="flex: 1;">
-                <div style="font-size: 13px; font-weight: 600; color: #854d0e;">Rychlý workflow pro přidání aliasů</div>
+                <div style="font-size: 13px; font-weight: 600; color: #854d0e;">
+                  Rychlý workflow pro přidání aliasů
+                </div>
               </div>
             </div>
             <div style="display: flex; flex-direction: column; gap: 8px; padding-left: 32px;">
               <div style="display: flex; align-items: center; gap: 8px;">
-                <div style="width: 20px; height: 20px; background: #059669; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600;">1</div>
+                <div style="width: 20px; height: 20px; background: #059669; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600;">
+                  1
+                </div>
                 <span style="font-size: 12px; color: #854d0e;">Klikněte na <strong>"Stáhnout šablonu"</strong> - získáte CSV s výchozími poli</span>
               </div>
               <div style="display: flex; align-items: center; gap: 8px;">
-                <div style="width: 20px; height: 20px; background: #7c3aed; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600;">2</div>
+                <div style="width: 20px; height: 20px; background: #7c3aed; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600;">
+                  2
+                </div>
                 <span style="font-size: 12px; color: #854d0e;">V Excelu duplikujte řádky a vyplňte aliasy (např. "Temperature" → "Teplota")</span>
               </div>
               <div style="display: flex; align-items: center; gap: 8px;">
-                <div style="width: 20px; height: 20px; background: #3b82f6; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600;">3</div>
+                <div style="width: 20px; height: 20px; background: #3b82f6; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600;">
+                  3
+                </div>
                 <span style="font-size: 12px; color: #854d0e;">Klikněte na <strong>"Importovat z CSV"</strong> a nahrajte upravený soubor</span>
               </div>
             </div>
           </div>
-
         </div>
 
         <!-- potvrzovací dialog pro smazání mapování -->
@@ -1888,30 +2036,57 @@
               </v-alert>
 
               <!-- obsah náhledu (preview content) -->
-              <div v-if="selectedVersionPreview?.blocks?.length" class="mt-4">
-                <div v-for="block in selectedVersionPreview.blocks" :key="block.id" class="mb-4">
-                  <div class="text-subtitle-1 font-weight-bold mb-2">{{ block.title || `Blok ${block.blockIndex}` }}</div>
-                  <v-table density="compact" class="border rounded">
+              <div
+                v-if="selectedVersionPreview?.blocks?.length"
+                class="mt-4"
+              >
+                <div
+                  v-for="previewBlock in selectedVersionPreview.blocks"
+                  :key="previewBlock.id"
+                  class="mb-4"
+                >
+                  <div class="text-subtitle-1 font-weight-bold mb-2">
+                    {{ previewBlock.title || `Blok ${previewBlock.blockIndex}` }}
+                  </div>
+                  <v-table
+                    density="compact"
+                    class="border rounded"
+                  >
                     <tbody>
-                      <tr v-for="field in block.fields" :key="field.id">
-                        <td style="width: 40px" class="text-medium-emphasis">{{ field.orderIndex }}.</td>
+                      <tr
+                        v-for="field in previewBlock.fields"
+                        :key="field.id"
+                      >
+                        <td
+                          style="width: 40px"
+                          class="text-medium-emphasis"
+                        >
+                          {{ field.orderIndex }}.
+                        </td>
                         <td>{{ field.name }}</td>
-                        <td class="text-right text-caption text-medium-emphasis">{{ field.type }}</td>
+                        <td class="text-right text-caption text-medium-emphasis">
+                          {{ field.type }}
+                        </td>
                       </tr>
                     </tbody>
                   </v-table>
                 </div>
               </div>
-              <div v-else class="text-center text-medium-emphasis pa-4">
+              <div
+                v-else
+                class="text-center text-medium-emphasis pa-4"
+              >
                 Žádná data k zobrazení
               </div>
-
             </v-card-text>
           </v-card>
         </v-dialog>
 
         <!-- dialog pro návrat k verzi (rollback) -->
-        <v-dialog v-model="showRollbackDialog" max-width="450px">
+        <v-dialog
+          v-model="showRollbackDialog"
+          max-width="450px"
+        >
           <v-card>
             <v-card-title>Nastavit jako aktivní?</v-card-title>
             <v-card-text>
@@ -1919,8 +2094,18 @@
             </v-card-text>
             <v-card-actions>
               <v-spacer />
-              <v-btn variant="text" @click="showRollbackDialog = false">Zrušit</v-btn>
-              <v-btn color="primary" variant="flat" :loading="loading" @click="confirmRollback">
+              <v-btn
+                variant="text"
+                @click="showRollbackDialog = false"
+              >
+                Zrušit
+              </v-btn>
+              <v-btn
+                color="primary"
+                variant="flat"
+                :loading="loading"
+                @click="confirmRollback"
+              >
                 Nastavit jako aktivní
               </v-btn>
             </v-card-actions>
@@ -1928,17 +2113,34 @@
         </v-dialog>
 
         <!-- dialog pro hromadné smazání (bulk delete) -->
-        <v-dialog v-model="showBulkDeleteDialog" max-width="450px">
+        <v-dialog
+          v-model="showBulkDeleteDialog"
+          max-width="450px"
+        >
           <v-card>
-            <v-card-title class="text-error">Smazat vybrané verze?</v-card-title>
+            <v-card-title class="text-error">
+              Smazat vybrané verze?
+            </v-card-title>
             <v-card-text>
               Chystáte se smazat <strong>{{ selectedVersionIds.size }}</strong> verzí šablony.
-              <div class="mt-2 text-caption">Tato akce je nevratná.</div>
+              <div class="mt-2 text-caption">
+                Tato akce je nevratná.
+              </div>
             </v-card-text>
             <v-card-actions>
               <v-spacer />
-              <v-btn variant="text" @click="showBulkDeleteDialog = false">Zrušit</v-btn>
-              <v-btn color="error" variant="flat" :loading="bulkDeleteLoading" @click="confirmBulkDelete">
+              <v-btn
+                variant="text"
+                @click="showBulkDeleteDialog = false"
+              >
+                Zrušit
+              </v-btn>
+              <v-btn
+                color="error"
+                variant="flat"
+                :loading="bulkDeleteLoading"
+                @click="confirmBulkDelete"
+              >
                 Smazat navždy
               </v-btn>
             </v-card-actions>
@@ -1946,7 +2148,10 @@
         </v-dialog>
 
         <!-- dialog pro uložení verze (save version) -->
-        <v-dialog v-model="showSaveVersionDialog" max-width="550px">
+        <v-dialog
+          v-model="showSaveVersionDialog"
+          max-width="550px"
+        >
           <v-card>
             <v-card-title>
               Uložit změny
@@ -1954,12 +2159,30 @@
             <v-card-text>
               <div class="mb-4 d-flex align-center">
                 <span class="text-body-1">Bude vytvořena nová verze:</span>
-                <v-chip size="small" class="ml-3 mr-2" color="grey">v{{ currentVersionLabel }}</v-chip>
-                <v-icon size="small" class="mr-2">mdi-arrow-right</v-icon>
-                <v-chip size="small" color="primary">v{{ nextVersionLabel }}</v-chip>
+                <v-chip
+                  size="small"
+                  class="ml-3 mr-2"
+                  color="grey"
+                >
+                  v{{ currentVersionLabel }}
+                </v-chip>
+                <v-icon
+                  size="small"
+                  class="mr-2"
+                >
+                  mdi-arrow-right
+                </v-icon>
+                <v-chip
+                  size="small"
+                  color="primary"
+                >
+                  v{{ nextVersionLabel }}
+                </v-chip>
               </div>
 
-              <div class="mb-2 text-subtitle-2">Co jste změnili? (volitelné)</div>
+              <div class="mb-2 text-subtitle-2">
+                Co jste změnili? (volitelné)
+              </div>
               <v-textarea
                 v-model="changeDescription"
                 variant="outlined"
@@ -2000,7 +2223,7 @@
           >
             Smazat šablonu
           </v-btn>
-<!--          <v-btn
+          <!--          <v-btn
             v-if="canDelete"
             variant="tonal"
             prepend-icon="mdi-content-copy"
@@ -2009,7 +2232,7 @@
             Odvodit novou šablonu
           </v-btn>-->
           <v-spacer />
-          
+
           <v-btn
             v-if="props.operation !== 'edit'"
             variant="text"
@@ -2018,7 +2241,10 @@
             :disabled="!deviceCode || (!pickedBlocks.length && !seriesFieldRows.length) || (!hasAnyFields && !seriesFieldRows.length)"
             @click="confirmSaveAsDraft"
           >
-            <v-tooltip activator="parent" location="top">
+            <v-tooltip
+              activator="parent"
+              location="top"
+            >
               Uloží rozpracovanou šablonu, kterou lze později aktivovat.
             </v-tooltip>
             Uložit jako koncept
@@ -2030,7 +2256,11 @@
             :loading="loading"
             @click="confirmSave"
           >
-            <v-tooltip v-if="props.operation === 'edit'" activator="parent" location="top">
+            <v-tooltip
+              v-if="props.operation === 'edit'"
+              activator="parent"
+              location="top"
+            >
               Vytvoří se nová verze šablony
             </v-tooltip>
             {{ confirmLabel }}
@@ -2049,29 +2279,38 @@
   />
 </template>
 <script setup lang="ts">
-import { computed, ref, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
+import {computed, nextTick, onBeforeUnmount, onMounted, ref, watch} from 'vue'
 import Dialog from '@/components/Dialog.vue'
-import type { WizardTemplatePayload } from '@/stores/measurement-templates'
-import { useMeasurementTemplatesStore } from '@/stores/measurement-templates'
-import { useImportStore, type LearnedMapping } from '@/stores/import'
-import { isEditableElement } from '@/components/ui/hotkeyGuard'
+import type {WizardTemplatePayload, WizardBlockPayload, ValueType, TemplateFieldRequest} from '@/stores/measurement-templates'
+import {useMeasurementTemplatesStore} from '@/stores/measurement-templates'
+import {type LearnedMapping, useImportStore} from '@/stores/import'
+import {isEditableElement} from '@/components/ui/hotkeyGuard'
 import ImportFormatDialog from './ImportFormatDialog.vue'
 import RawDataPreview from './RawDataPreview.vue'
 import BlockSelector from './BlockSelector.vue'
 import ManualHeaderPickerDialog from './ManualHeaderPickerDialog.vue'
 import DeviceInlineCreate from '@/components/device/DeviceInlineCreate.vue'
-import { parseWithOptions, inferColumnTypes, generateColumnNames, parseRawPreview, type ParseOptions, type ParseResult, type ParseStatus, DEFAULT_PARSE_OPTIONS } from '@/utils/import/clientParser'
-import { isVectorCell, detectVectorColumns, findPairedVectors, hasVectorCells as checkVectorCells } from '@/utils/import/vectorDetection'
-import { buildProposal } from '@/utils/import/blockDetection'
-import type { DetectedBlock, BlockAction, ParseProposal } from '@/types/import-blocks'
+import {
+  DEFAULT_PARSE_OPTIONS,
+  inferColumnTypes,
+  type ParseOptions,
+  parseRawPreview,
+  type ParseResult,
+  type ParseStatus,
+  parseWithOptions
+} from '@/utils/import/clientParser'
+import {hasVectorCells as checkVectorCells, isVectorCell} from '@/utils/import/vectorDetection'
+import {buildProposal} from '@/utils/import/blockDetection'
+import type {BlockAction, DetectedBlock, ParseProposal} from '@/types/import-blocks'
 import * as XLSX from 'xlsx'
+import {inferFieldType} from "@/utils/importParsing";
 // třívrstvá architektura (3-layer architecture): surová data → návrhy parsování → šablona (autorita uživatele)
 /* typy (types) */
 type DeviceItem = { id: string; name: string; color?: string }
 type FieldType = 'float' | 'int' | 'text' | 'file' | 'bool' | 'date' | 'array'
 type FieldRow = { id: string; orderIndex: number; type: FieldType; required: boolean; name: string; unit?: string }
 
-// Datová série přidružená k tabulce hodnot (data series associated with value table)
+// Datová série přidružená k tabulce hodnot
 interface SeriesBlock {
   title: string
   fieldRows: FieldRow[]
@@ -2081,8 +2320,8 @@ interface PickedBlock {
   id: string
   title: string
   fieldRows: FieldRow[]
-  kind?: 'table' | 'series' // block type for distinction
-  series?: SeriesBlock // optional linked series
+  kind?: 'table' | 'series'
+  series?: SeriesBlock
   originSheetName?: string
 }
 interface InitialTemplate {
@@ -2093,12 +2332,13 @@ interface InitialTemplate {
   blocks?: Array<{
     blockIndex: number
     title: string
+    kind?: 'table' | 'series'
     fields: Array<{ orderIndex: number; type: FieldType; required: boolean; name: string }>
   }>
   version?: string
   updatedAt?: string
 }
-/* vlastnosti a události (props a emits) */
+/* vlastnosti a události */
 const props = defineProps<{
   modelValue: boolean
   devices: DeviceItem[]
@@ -2129,6 +2369,23 @@ const learnedMappings = ref<LearnedMapping[]>([])
 // hlavní navigace v záložkách (main tab navigation): 'structure' | 'versions' | 'mappings'
 const mainTab = ref<'structure' | 'versions' | 'mappings'>('structure')
 
+
+type VersionField = {
+  id?: string | number
+  name?: string
+  type?: FieldType | string // FieldType máš definovaný o kousek výš
+  required?: boolean
+  orderIndex?: number
+  unit?: string
+}
+
+type VersionBlock = {
+  id?: string | number
+  title?: string
+  blockIndex?: number
+  kind?: 'table' | 'series'
+  fields?: VersionField[]
+}
 /* logika pro historii verzí (version history logic) */
 type VersionHistoryItem = {
   id: string
@@ -2136,8 +2393,8 @@ type VersionHistoryItem = {
   status: 'DRAFT' | 'ACTIVE' | 'DEPRECATED'
   updatedAt: string
   changeDescription?: string
-  blocks?: any[]
-  fields?: any[]
+  blocks?: VersionBlock[]
+  fields?: VersionField[]
 }
 const versionHistory = ref<VersionHistoryItem[]>([])
 const versionHistoryLoading = ref(false)
@@ -2152,9 +2409,17 @@ const selectedVersionIds = ref<Set<string>>(new Set())
 const showBulkDeleteDialog = ref(false)
 const bulkDeleteLoading = ref(false)
 
+type RawVersionFromBackend = {
+  id: string | number
+  version?: string
+  status?: 'DRAFT' | 'ACTIVE' | 'DEPRECATED'
+  updatedAt?: string
+  changeDescription?: string
+  blocks?: VersionBlock[]
+  fields?: VersionField[]
+}
+
 async function loadVersionHistory() {
-  // If we already loaded history and dialog is still open, we might want to refresh only if forced
-  // But simpler is: check if loaded
   if (versionHistoryLoaded.value || versionHistoryLoading.value) return
   if (!props.initialTemplate?.templateId) return
 
@@ -2164,21 +2429,18 @@ async function loadVersionHistory() {
     const templateId = Number(templateIdStr)
 
     if (isNaN(templateId)) {
-      // Fallback for non-numeric IDs if any
       throw new Error('Invalid template ID')
     }
 
-    const rawVersions = await templateStore.fetchVersions(templateId)
+    const rawVersions = (await templateStore.fetchVersions(templateId)) as RawVersionFromBackend[]
 
-    // Sort by createdAt/updatedAt descending (newest first)
-    // Assuming the API returns mixed order
     rawVersions.sort((a, b) => {
       const tA = a.updatedAt ? new Date(a.updatedAt).getTime() : 0
       const tB = b.updatedAt ? new Date(b.updatedAt).getTime() : 0
       return tB - tA
     })
 
-    versionHistory.value = rawVersions.map((v: any) => ({
+    versionHistory.value = rawVersions.map((v) => ({
       id: String(v.id),
       version: v.version || '1.0',
       status: v.status || 'ACTIVE',
@@ -2189,7 +2451,7 @@ async function loadVersionHistory() {
     }))
 
   } catch (e) {
-    console.warn('Failed to load version history (backend endpoint missing?), using mock data', e)
+    console.warn('Failed to load version history (backend endpoint missing or error), using mock data', e)
 
     // Fallback: Generate mock history based on current version
     const currentV = props.initialTemplate.version || '1.0'
@@ -2201,7 +2463,9 @@ async function loadVersionHistory() {
         version: currentV,
         status: 'ACTIVE',
         updatedAt: now,
-        changeDescription: 'Aktuální verze (Mock data - backend neodpovídá)'
+        changeDescription: 'Aktuální verze (Mock data - backend neodpovídá)',
+        blocks: [],
+        fields: []
       }
     ]
 
@@ -2213,7 +2477,9 @@ async function loadVersionHistory() {
         version: '1.0',
         status: 'DEPRECATED',
         updatedAt: prevDate,
-        changeDescription: 'Původní verze (ukázka historie)'
+        changeDescription: 'Původní verze (ukázka historie)',
+        blocks: [],
+        fields: []
       })
     }
 
@@ -2429,14 +2695,15 @@ function getGroupColor(index: number): string {
 }
 
 // sledování rozbalených skupin (ponecháno pro kompatibilitu, momentálně nepoužito) (track expanded groups)
-const expandedGroups = ref<Set<string>>(new Set())
-function toggleGroup(targetField: string): void {
-  if (expandedGroups.value.has(targetField)) {
-    expandedGroups.value.delete(targetField)
-  } else {
-    expandedGroups.value.add(targetField)
-  }
-}
+// function toggleGroup(targetField: string): void { ... }
+// const expandedGroups = ref<Set<string>>(new Set())
+// function toggleGroup(targetField: string): void {
+//   if (expandedGroups.value.has(targetField)) {
+//     expandedGroups.value.delete(targetField)
+//   } else {
+//     expandedGroups.value.add(targetField)
+//   }
+// }
 
 // potvrzení smazání (delete confirmation)
 const confirmDeleteMapping = ref(false)
@@ -2501,7 +2768,8 @@ const showAddMappingDialog = ref(false)
 const newMappingSource = ref('')
 const newMappingTarget = ref<string | null>(null)
 
-// získání dostupných cílových polí z polí šablony (available target fields)
+// získání dostupných cílových polí z polí šablony
+/*
 const availableTargetFields = computed(() => {
   const fields: string[] = []
   for (const block of pickedBlocks.value) {
@@ -2514,6 +2782,7 @@ const availableTargetFields = computed(() => {
   }
   return fields
 })
+*/
 
 async function addMappingManually(): Promise<void> {
   if (!newMappingSource.value.trim() || !newMappingTarget.value || !props.initialTemplate?.templateId) return
@@ -2552,7 +2821,7 @@ async function handleBulkAliasFile(event: Event): Promise<void> {
   bulkImportLoading.value = true
   try {
     const mappings = await parseBulkAliasFile(file)
-    
+
     if (Object.keys(mappings).length === 0) {
       console.warn('No valid mappings found in file')
       return
@@ -2587,12 +2856,12 @@ async function parseBulkAliasFile(file: File): Promise<Record<string, string>> {
     for (const line of lines) {
       if (!line.trim()) continue
       // Podpora pro různé oddělovače: čárka, středník, tabulátor
-      const parts = line.includes('\t') 
-        ? line.split('\t') 
-        : line.includes(';') 
-          ? line.split(';') 
+      const parts = line.includes('\t')
+        ? line.split('\t')
+        : line.includes(';')
+          ? line.split(';')
           : line.split(',')
-      
+
       if (parts.length >= 2) {
         const alias = parts[0].trim().replace(/^["']|["']$/g, '')
         const targetField = parts[1].trim().replace(/^["']|["']$/g, '')
@@ -2607,7 +2876,7 @@ async function parseBulkAliasFile(file: File): Promise<Record<string, string>> {
     const workbook = XLSX.read(buffer, { type: 'array' })
     const firstSheet = workbook.Sheets[workbook.SheetNames[0]]
     const rows = XLSX.utils.sheet_to_json<string[]>(firstSheet, { header: 1 })
-    
+
     for (const row of rows) {
       if (row.length >= 2) {
         const alias = String(row[0] || '').trim()
@@ -2626,24 +2895,24 @@ async function parseBulkAliasFile(file: File): Promise<Record<string, string>> {
 function downloadAliasTemplate(): void {
   // Získat všechna pole šablony
   const fields: string[] = []
-  
+
   // Pole z bloků
   for (const block of pickedBlocks.value) {
     for (const f of block.fieldRows) {
       if (f.name) fields.push(f.name)
     }
   }
-  
+
   // Pole z datových sérií
   for (const f of seriesFieldRows.value) {
     if (f.name) fields.push(f.name)
   }
-  
+
   if (fields.length === 0) {
     console.warn('Šablona nemá žádná pole')
     return
   }
-  
+
   // Generovat CSV obsah
   // Formát: Alias;Pole šablony
   // První řádek: hlavička
@@ -2653,29 +2922,29 @@ function downloadAliasTemplate(): void {
     '# Níže jsou výchozí pole šablony. Duplikujte řádky a vyplňte aliasy.',
     '# Příklad: "Temperature (°C)";Teplota'
   ]
-  
+
   for (const field of fields) {
     // Výchozí řádek: pole mapuje samo na sebe
     lines.push(`"${field}";"${field}"`)
   }
-  
+
   // Přidat prázdné řádky pro snazší přidávání
   lines.push('')
   lines.push('# Přidejte vlastní aliasy níže:')
   lines.push('')
-  
+
   const csvContent = lines.join('\n')
-  
+
   // Stáhnout soubor
   const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' })
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
   link.href = url
-  
+
   const templateName = props.initialTemplate?.name || 'sablona'
   const safeName = templateName.replace(/[^a-zA-Z0-9áčďéěíňóřšťúůýžÁČĎÉĚÍŇÓŘŠŤÚŮÝŽ]/g, '_')
   link.download = `aliasy_${safeName}.csv`
-  
+
   document.body.appendChild(link)
   link.click()
   document.body.removeChild(link)
@@ -2702,7 +2971,7 @@ watch(() => props.modelValue, (isOpen) => {
       console.log('[TemplateWizardDialog] Setting deviceCode to:', props.preselectedDevice)
       // použít nexttick k zajištění nastavení hodnoty po vykreslení komponenty
       nextTick(() => {
-        deviceCode.value = props.preselectedDevice
+        deviceCode.value = props.preselectedDevice ?? null
         console.log('[TemplateWizardDialog] deviceCode after set:', deviceCode.value)
       })
     }
@@ -2785,12 +3054,15 @@ function generateDerivedName(sourceName: string): string {
  * Derive a new template from the current one.
  * Emits event to parent which will handle the actual derivation logic.
  */
-function deriveFromThis(): void {
+
+
+/*function deriveFromThis(): void {
   const templateId = props.initialTemplate?.templateId
   if (templateId) {
     emit('deriveFromTemplate', templateId)
   }
-}
+}*/
+
 
 // Validation state
 const formTouched = ref(false)
@@ -2829,11 +3101,6 @@ const nameError = computed(() => {
   return null
 })
 
-const deviceError = computed(() => {
-  if (!formTouched.value) return null
-  if (!deviceCode.value) return 'Vyber přístroj'
-  return null
-})
 
 const loading = ref(false)
 // New dropzone state (replaces mode toggle)
@@ -2845,7 +3112,7 @@ const currentBlockIndex = ref(0)
 const rawText = ref('')
 const delimiter = ref<string>('auto')
 const fileInput = ref<HTMLInputElement | null>(null)
-/* NEW: Parse status and options */
+/* Parse status and options */
 const parseStatus = ref<ParseStatus>('FAIL')
 const parseReasons = ref<string[]>([])
 const parseOptions = ref<ParseOptions>({ ...DEFAULT_PARSE_OPTIONS })
@@ -2867,15 +3134,13 @@ const statsLines = ref<string[]>([])      // Ignored statistics lines (Mean, Std
 const seriesHeader = ref<string[]>([])    // Block 2 (X Intensity + Intensity)
 const seriesDataLines = ref<string[][]>([]) // Parsed X,Y pairs from X Intensity section
 
-/* NEW: Computed for vector detection */
+/* Computed for vector detection */
 const hasVectorCells = computed(() => checkVectorCells(rawDataRows.value))
 
-/* NEW: State for Import Box UI */
-const showPreview = ref(true)
 const highlightedColumns = ref<Set<number>>(new Set())
 const lastSelectedColumnIdx = ref<number | null>(null)
 
-/* NEW: Manual row designation state */
+/* Manual row designation state */
 const headerRowIdx = ref<number | null>(null)      // Which row is the header (null = auto-detect)
 const unitsRowIdx = ref<number | null>(null)       // Which row has units (null = auto-detect)
 const dataStartRowIdx = ref<number | null>(null)   // Where data starts (null = auto-detect from header+1)
@@ -2883,16 +3148,13 @@ const headerColumnIdx = ref<number | null>(null)   // Columnar: which column is 
 const unitsColumnIdx = ref<number | null>(null)    // Columnar: which column has units
 const rowDesignationMode = ref<'header' | 'units' | 'data' | 'header_col' | 'units_col' | null>(null) // Current selection mode
 
-/* NEW: Field selection for moving to series */
-const selectedFieldIndices = ref<Set<number>>(new Set())
-const lastSelectedFieldIdx = ref<number | null>(null) // For shift-click range select
 
-/* NEW: Parse status computed properties */
+/* parse status computed properties */
 const parseStatusIcon = computed(() => {
   switch (parseStatus.value) {
     case 'SUCCESS': return 'mdi-check-circle'
     case 'PARTIAL': return 'mdi-alert-circle'
-    case 'FAIL': return 'mdi-close-circle'
+    default: return 'mdi-close-circle'
   }
 })
 
@@ -2900,7 +3162,7 @@ const parseStatusColor = computed(() => {
   switch (parseStatus.value) {
     case 'SUCCESS': return 'success'
     case 'PARTIAL': return 'warning'
-    case 'FAIL': return 'error'
+    default: return 'error'
   }
 })
 
@@ -2913,6 +3175,7 @@ const parseStatusTitle = computed(() => {
     case 'SUCCESS': return `Automaticky navržená struktura (${mainHeader.value.length} polí)`
     case 'PARTIAL': return `Částečně rozpoznáno (${mainHeader.value.length} polí) – doporučena kontrola`
     case 'FAIL': return 'Strukturu se nepodařilo automaticky vytvořit'
+    default: return 'Čekání na data'
   }
 })
 
@@ -2942,11 +3205,10 @@ const usedHeaderLabel = computed(() => {
   const h = parseOptions.value.header
   if (h === 'no_header') return 'Bez hlavičky'
   if (h === 'auto') return 'Automaticky'
-  if (typeof h === 'number') return `Řádek ${h + 1}`
-  return 'Automaticky'
+  return `Řádek ${h + 1}`
 })
 
-/* NEW: 3-Layer Architecture State */
+/* 3-Layer Architecture State */
 const activeTab = ref<'blocks' | 'raw' | 'preview'>('preview')
 const selectedBlockId = ref<string | null>(null)
 const includedBlockIds = ref<string[]>([]) // Blocks that are included (checked)
@@ -2954,7 +3216,8 @@ const proposal = ref<ParseProposal>({
   blocks: [],
   suggestedMainBlock: null,
   rawKind: 'text',
-  rawLines: []
+  rawLines: [],
+  rawGrid: []
 })
 
 /* Block selection handlers */
@@ -3196,7 +3459,7 @@ function applyHorizontalSeriesBlock(block: DetectedBlock): void {
 
 
 
-/* NEW: Helper functions for preview */
+/* Helper functions for preview */
 function truncateCell(value: string, maxLen = 25): string {
   if (!value) return ''
   if (value.length <= maxLen) return value
@@ -3238,7 +3501,7 @@ function onPreviewColumnClick(idx: number, event?: MouseEvent): void {
       highlightedColumns.value.add(idx)
     }
   }
-  
+
   highlightedColumns.value = new Set(highlightedColumns.value)
   lastSelectedColumnIdx.value = idx
 
@@ -3274,9 +3537,9 @@ function focusFieldByIndex(idx: number, flashAnimation = false): void {
   })
 }
 
+/*
 function focusFirstInvalidField(): void {
   nextTick(() => {
-    // Find first empty required field
     const currentBlock = pickedBlocks.value[currentBlockIndex.value]
     if (!currentBlock) return
 
@@ -3286,6 +3549,7 @@ function focusFirstInvalidField(): void {
     }
   })
 }
+*/
 
 function clearImport(): void {
   rawText.value = ''
@@ -3300,11 +3564,15 @@ function clearImport(): void {
   selectedSeriesRows.value = new Set()
   lastSelectedSeriesIdx.value = null
   hasUserEditedFields.value = false
-  // Reset proposal state
-  proposal.value = { rawLines: [], rawGrid: [], blocks: [] }
+  proposal.value = {
+    blocks: [],
+    suggestedMainBlock: null,
+    rawKind: 'text',
+    rawLines: [],
+    rawGrid: []
+  }
   includedBlockIds.value = []
   selectedBlockId.value = null
-  // Reset Excel multi-sheet state
   excelSheetNames.value = []
   selectedExcelSheet.value = ''
   excelWorkbook.value = null
@@ -3350,6 +3618,7 @@ const seriesBlockTitle = computed({
 })
 
 /* Computed: convert parsed series to preview format */
+/*
 const parsedSeriesPreview = computed(() => {
   if (!seriesHeader.value.length || !seriesDataLines.value.length) return []
   const xLabel = seriesHeader.value[0] || 'X'
@@ -3367,6 +3636,7 @@ const parsedSeriesPreview = computed(() => {
     data
   }]
 })
+*/
 
 /* ===== Drag-and-drop state ===== */
 const fieldDragState = ref<{ blockId: string; fromIdx: number } | null>(null)
@@ -3500,8 +3770,7 @@ function getColumnType(colIdx: number): 'header' | 'units' | 'ignored' {
   return 'ignored'
 }
 
-// Click handler for row in preview - sets designation
-function onPreviewRowClick(rowIdx: number, event: MouseEvent): void {
+function onPreviewRowClick(rowIdx: number): void {
   const grid = proposal.value.rawGrid
   if (!grid) return
 
@@ -3545,7 +3814,7 @@ function onPreviewRowClick(rowIdx: number, event: MouseEvent): void {
 }
 
 // Set row designation mode (called from toolbar buttons)
-function setRowDesignationMode(mode: 'header' | 'units' | 'data' | null): void {
+function setRowDesignationMode(mode: 'header' | 'units' | 'data' | 'header_col' | 'units_col' | null): void {
   rowDesignationMode.value = rowDesignationMode.value === mode ? null : mode
 }
 
@@ -3576,6 +3845,7 @@ const delimiterOptions = [
   { label: 'Středník', value: 'semicolon' },
   { label: 'Čárka', value: 'comma' },
 ]
+/*
 const tableHeaders = [
   { title: 'Poř.', key: 'orderIndex', sortable: false, width: 70 },
   { title: 'Název pole', key: 'name', sortable: false },
@@ -3583,6 +3853,7 @@ const tableHeaders = [
   { title: 'Povinné', key: 'required', sortable: false, width: 120 },
   { title: '', key: 'actions', sortable: false, width: 112 },
 ]
+*/
 /* ===== Block management ===== */
 let fieldIdCounter = 0
 function generateId(): string {
@@ -3647,37 +3918,8 @@ function removeFieldIn(blockId: string, index: number): void {
   if (blockIdx === -1) return
   const block = pickedBlocks.value[blockIdx]
   const newFieldRows = block.fieldRows.filter((_, i) => i !== index)
-  // Reassign to trigger reactivity
   pickedBlocks.value = pickedBlocks.value.map((b, i) =>
     i === blockIdx ? { ...b, fieldRows: newFieldRows.map((f, fi) => ({ ...f, orderIndex: fi + 1 })) } : b
-  )
-}
-function moveFieldIn(blockId: string, index: number, delta: number): void {
-  const blockIdx = pickedBlocks.value.findIndex(b => b.id === blockId)
-  if (blockIdx === -1) return
-  const block = pickedBlocks.value[blockIdx]
-  const target = index + delta
-  if (target < 0 || target >= block.fieldRows.length) return
-  const newFieldRows = [...block.fieldRows]
-  const [item] = newFieldRows.splice(index, 1)
-  newFieldRows.splice(target, 0, item)
-  // Reassign to trigger reactivity
-  pickedBlocks.value = pickedBlocks.value.map((b, i) =>
-    i === blockIdx ? { ...b, fieldRows: newFieldRows.map((f, fi) => ({ ...f, orderIndex: fi + 1 })) } : b
-  )
-}
-function reindexFields(block: PickedBlock): void {
-  // Find block and reassign to trigger reactivity
-  const blockIdx = pickedBlocks.value.findIndex(b => b.id === block.id)
-  if (blockIdx === -1) {
-    // Fallback: just mutate in place
-    block.fieldRows.forEach((f, i) => { f.orderIndex = i + 1 })
-    return
-  }
-  // Create new array with updated orderIndex
-  const updatedFieldRows = pickedBlocks.value[blockIdx].fieldRows.map((f, i) => ({ ...f, orderIndex: i + 1 }))
-  pickedBlocks.value = pickedBlocks.value.map((b, i) =>
-    i === blockIdx ? { ...b, fieldRows: updatedFieldRows } : b
   )
 }
 /* ===== Series field management ===== */
@@ -3686,7 +3928,7 @@ function addSeriesBlockEmpty(): void {
   const blockIdx = currentBlockIndex.value
   const block = pickedBlocks.value[blockIdx]
   if (!block) return
-  
+
   // Create default series attached to the current block
   const newSeries: SeriesBlock = {
     title: 'Datová série',
@@ -3695,18 +3937,10 @@ function addSeriesBlockEmpty(): void {
       { id: generateFieldId(), orderIndex: 2, name: 'Y', required: true, type: 'float' }
     ]
   }
-  
+
   pickedBlocks.value = pickedBlocks.value.map((b, i) =>
     i === blockIdx ? { ...b, series: newSeries } : b
   )
-}
-function addSeriesBlockAndGo(): void {
-  addSeriesBlockEmpty()
-  // Scroll to series section after next tick
-  nextTick(() => {
-    const seriesEl = document.querySelector('.series-section')
-    if (seriesEl) seriesEl.scrollIntoView({ behavior: 'smooth' })
-  })
 }
 function addSeriesField(atIndex?: number): void {
   const idx = typeof atIndex === 'number' ? atIndex : seriesFieldRows.value.length
@@ -3767,7 +4001,7 @@ function clearSeriesBlock(): void {
   const blockIdx = currentBlockIndex.value
   const block = pickedBlocks.value[blockIdx]
   if (!block) return
-  
+
   pickedBlocks.value = pickedBlocks.value.map((b, i) =>
     i === blockIdx ? { ...b, series: undefined } : b
   )
@@ -3800,7 +4034,7 @@ async function readExcelFile(file: File, sheetName?: string): Promise<string> {
   } else {
     const arrayBuffer = await file.arrayBuffer()
     workbook = XLSX.read(arrayBuffer, { type: 'array' })
-    
+
     // Cache workbook and sheet names for multi-sheet support
     excelWorkbook.value = workbook
     excelSheetNames.value = workbook.SheetNames
@@ -3811,7 +4045,7 @@ async function readExcelFile(file: File, sheetName?: string): Promise<string> {
   if (!targetSheet) {
     throw new Error('Excel soubor neobsahuje žádný list')
   }
-  
+
   selectedExcelSheet.value = targetSheet
   const worksheet = workbook.Sheets[targetSheet]
 
@@ -3826,14 +4060,13 @@ async function readExcelFile(file: File, sheetName?: string): Promise<string> {
  */
 async function changeExcelSheet(sheetName: string, keepExistingBlocks = true): Promise<void> {
   if (!excelWorkbook.value) return
-  
+
   const worksheet = excelWorkbook.value.Sheets[sheetName]
   if (!worksheet) return
-  
+
   selectedExcelSheet.value = sheetName
-  const csv = XLSX.utils.sheet_to_csv(worksheet, { FS: '\t' })
-  rawText.value = csv
-  
+  rawText.value = XLSX.utils.sheet_to_csv(worksheet, {FS: '\t'})
+
   // Re-run analysis with new sheet data, keeping existing blocks if requested
   runAnalysis(keepExistingBlocks)
 }
@@ -4159,7 +4392,6 @@ function runAnalysis(keepExistingBlocks = false): void {
   if (mainHeader.value.length > 0) {
     createBlocksFromParsed(keepExistingBlocks)
   } else {
-    // No headers found even with Record Number - use fallback
     runFallbackParse(keepExistingBlocks)
   }
 }
@@ -4171,10 +4403,20 @@ function createBlocksFromParsed(keepExistingBlocks = false): void {
     console.log('[createBlocksFromParsed] No mainHeader, returning early')
     return
   }
-
-  // NEW: Detect vector columns and move them to series
   const vectorColumnIndices: Set<number> = new Set()
   const vectorHeaders: string[] = []
+
+  if (hasVectorCells.value) {
+    for (let colIdx = 0; colIdx < mainHeader.value.length; colIdx++) {
+      // Check if first data row has a vector in this column
+      const sampleCell = rawDataRows.value[0]?.[colIdx]
+      if (sampleCell && isVectorCell(sampleCell)) {
+        vectorColumnIndices.add(colIdx)
+        vectorHeaders.push(mainHeader.value[colIdx] || `Series ${colIdx + 1}`)
+        console.log('[createBlocksFromParsed] Vector column detected:', colIdx, mainHeader.value[colIdx])
+      }
+    }
+  }
 
   for (let colIdx = 0; colIdx < mainHeader.value.length; colIdx++) {
     // Check if first data row has a vector in this column
@@ -4256,7 +4498,7 @@ function createBlocksFromParsed(keepExistingBlocks = false): void {
     // Replace all blocks
     pickedBlocks.value = newBlocks
   }
-  
+
   currentBlockIndex.value = pickedBlocks.value.length - 1
   console.log('[createBlocksFromParsed] Final pickedBlocks:', pickedBlocks.value)
 
@@ -4265,7 +4507,7 @@ function createBlocksFromParsed(keepExistingBlocks = false): void {
   parseReasons.value = []
 }
 
-/* ===== NEW: Fallback parsing functions ===== */
+/* ===== Fallback parsing functions ===== */
 
 function resetParseState(): void {
   parseStatus.value = 'FAIL'
@@ -4281,6 +4523,7 @@ function resetParseState(): void {
  * Run fallback parsing using clientParser when legacy runAnalysis fails.
  * Updates parseStatus, rawDataRows, mainHeader, and builds proposal for 3-layer architecture.
  */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function runFallbackParse(keepExistingBlocks = false): void {
   const text = rawText.value.trim()
   if (!text) {
@@ -4370,64 +4613,11 @@ function mapInferredType(t: string): FieldType {
     default: return 'text'
   }
 }
-
-/**
- * Create columns from raw data without requiring headers.
- * Generates Column 1..N names and infers types from samples.
- */
-function createColumnsFromData(): void {
-  const text = rawText.value.trim()
-  if (!text) return
-
-  try {
-    // Parse with current options but force no_header
-    const opts: ParseOptions = { ...parseOptions.value, header: 'no_header' }
-    const result = parseWithOptions(text, opts)
-
-    if (result.rows.length === 0) {
-      parseReasons.value = ['Žádná data k importu']
-      return
-    }
-
-    // Generate column names
-    const maxCols = Math.max(...result.rows.map(r => r.length))
-    const headers = generateColumnNames(maxCols)
-
-    // Infer types
-    const types = inferColumnTypes(result.rows)
-
-    const fieldRows: FieldRow[] = headers.map((name, i) => ({
-      id: generateFieldId(),
-      orderIndex: i + 1,
-      name,
-      required: true,
-      type: mapInferredType(types[i] || 'text')
-    }))
-
-    pickedBlocks.value = [{
-      id: generateId(),
-      title: 'Tabulka hodnot 1',
-      fieldRows
-    }]
-    currentBlockIndex.value = 0
-    hasUserEditedFields.value = false
-
-    // Update status
-    parseStatus.value = 'SUCCESS'
-    parseReasons.value = []
-    mainHeader.value = headers
-    rawDataRows.value = result.rows
-
-  } catch (err) {
-    console.error('[createColumnsFromData] Error:', err)
-    parseReasons.value = [err instanceof Error ? err.message : 'Chyba']
-  }
-}
-
 /**
  * Handle manual block selection from ManualHeaderPickerDialog.
  * Creates template blocks based on user's manual selection of headers and data ranges.
  */
+/*
 interface ManualBlock {
   headerRowIndex: number
   dataRowIndexStart: number
@@ -4435,7 +4625,9 @@ interface ManualBlock {
   kind: 'table' | 'series'
   title: string
 }
+*/
 
+/*
 function onManualBlocksApply(manualBlocks: ManualBlock[]): void {
   console.log('[onManualBlocksApply] Received blocks:', manualBlocks)
 
@@ -4504,11 +4696,13 @@ function onManualBlocksApply(manualBlocks: ManualBlock[]): void {
   parseReasons.value = []
   hasUserEditedFields.value = true
 }
+*/
 
 /**
  * Handle selection of blocks from ManualHeaderPickerDialog.
  * Uses existing detected blocks but allows user to select which ones to use.
  */
+/*
 function onManualBlocksSelect(selectedBlockIds: string[], blockTypes: Map<string, 'table' | 'series'>): void {
   console.log('[onManualBlocksSelect] Selected blocks:', selectedBlockIds, 'Types:', blockTypes)
 
@@ -4573,17 +4767,18 @@ function onManualBlocksSelect(selectedBlockIds: string[], blockTypes: Map<string
   parseReasons.value = []
   hasUserEditedFields.value = true
 }
+*/
 
 /**
  * Handle manual header selection from the redesigned picker dialog.
  * Creates table blocks and/or series fields from user-selected headers.
  */
-function onManualHeadersApply(result: { 
-  tableHeaders: string[], 
-  seriesHeaders: string[], 
+function onManualHeadersApply(result: {
+  tableHeaders: string[],
+  seriesHeaders: string[],
   unitHeaders?: string[],
   seriesUnitHeaders?: string[],
-  headerRowIndex: number | null 
+  headerRowIndex: number | null
 }): void {
   console.log('[onManualHeadersApply]', result)
 
@@ -4631,6 +4826,7 @@ function onManualHeadersApply(result: {
 /**
  * Create data series from detected vector columns.
  */
+/*
 function createSeriesFromVectors(): void {
   const vectors = detectVectorColumns(rawDataRows.value)
   const pair = findPairedVectors(vectors)
@@ -4663,7 +4859,11 @@ function createSeriesFromVectors(): void {
 
   // Create regular fields for non-vector columns if no blocks exist
   if (pickedBlocks.value.length === 0 && mainHeader.value.length > 0) {
-    const nonVectorHeaders = mainHeader.value.filter((_, i) => i !== xColIdx && i !== yColIdx)
+    ...
+  }
+}
+*/
+/*
     const types = inferColumnTypes(rawDataRows.value)
 
     const fieldRows: FieldRow[] = nonVectorHeaders.map((name, i) => {
@@ -4689,6 +4889,7 @@ function createSeriesFromVectors(): void {
   parseStatus.value = 'SUCCESS'
   parseReasons.value = []
 }
+*/
 
 /**
  * Handle apply from format dialog.
@@ -4707,9 +4908,7 @@ function onApplyFormat(opts: ParseOptions, result: ParseResult): void {
 }
 
 /* ===== Confirm / Cancel / Delete ===== */
-function normalizeDeviceCode(code: string): string {
-  return code.trim().toUpperCase().replace(/[^A-Z0-9_]/g, '_').replace(/_+/g, '_')
-}
+// function normalizeDeviceCode(code: string): string { ... }
 
 function generateChangeDescription(): string {
   if (!props.initialTemplate) return ''
@@ -4729,7 +4928,7 @@ function generateChangeDescription(): string {
   // Helper to distinguish table/series blocks in initial template
   const oldBlocks = props.initialTemplate.blocks || []
   const oldTableBlocks = oldBlocks.filter(b => {
-     const isSeries = (b as any).kind === 'series' ||
+     const isSeries = b.kind === 'series' ||
        (b.title?.toLowerCase().includes('série')) ||
        (b.title?.toLowerCase().includes('series'))
      return !isSeries
@@ -4867,9 +5066,9 @@ async function confirmSaveAsDraft(): Promise<void> {
 async function doFinalSave(description?: string, versionType?: 'minor' | 'major', status: 'ACTIVE' | 'DRAFT' = 'ACTIVE'): Promise<void> {
 
   // Build regular table blocks
-  const blocks = pickedBlocks.value.map((pb, bi) => {
+  const blocks: WizardBlockPayload[] = pickedBlocks.value.map((pb, bi) => {
     const seen = new Set<string>()
-    const fields: Omit<FieldRow, 'id'>[] = []
+    const fields: TemplateFieldRequest[] = []
     let ord = 1
     for (const f of pb.fieldRows) {
       const nm = (f.name ?? '').trim()
@@ -4877,7 +5076,7 @@ async function doFinalSave(description?: string, versionType?: 'minor' | 'major'
       const key = nm.toLowerCase()
       if (seen.has(key)) continue
       seen.add(key)
-      fields.push({ orderIndex: ord++, type: f.type, required: !!f.required, name: nm })
+      fields.push({ orderIndex: ord++, type: f.type as unknown as ValueType, required: !!f.required, name: nm })
     }
     if (!fields.length) {
       fields.push({ orderIndex: 1, type: 'text', required: false, name: 'Pole 1' })
@@ -4893,7 +5092,7 @@ async function doFinalSave(description?: string, versionType?: 'minor' | 'major'
   // Build series block if exists
   if (seriesFieldRows.value.length) {
     const seriesSeen = new Set<string>()
-    const seriesFields: Omit<FieldRow, 'id'>[] = []
+    const seriesFields: TemplateFieldRequest[] = []
     let ord = 1
     for (const f of seriesFieldRows.value) {
       const nm = (f.name ?? '').trim()
@@ -4901,7 +5100,7 @@ async function doFinalSave(description?: string, versionType?: 'minor' | 'major'
       const key = nm.toLowerCase()
       if (seriesSeen.has(key)) continue
       seriesSeen.add(key)
-      seriesFields.push({ orderIndex: ord++, type: f.type, required: !!f.required, name: nm })
+      seriesFields.push({ orderIndex: ord++, type: f.type as unknown as ValueType, required: f.required, name: nm })
     }
     if (seriesFields.length) {
       blocks.push({
@@ -5149,11 +5348,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
   cursor: grabbing;
 }
 
-.ghost-field {
-  opacity: 0.4;
-  background: rgba(var(--v-theme-primary), 0.15);
-}
-
 .field-drag-handle {
   user-select: none;
 }
@@ -5225,10 +5419,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
   flex-wrap: wrap;
 }
 
-.data-preview {
-  width: 100%;
-}
-
 .blocks-section {
   margin-top: 16px;
 }
@@ -5260,18 +5450,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
   border-bottom: 1px solid rgba(0,0,0,0.08);
 }
 
-.parse-status-bar.status-success {
-  background: linear-gradient(135deg, rgba(76, 175, 80, 0.08) 0%, rgba(76, 175, 80, 0.02) 100%);
-}
-
-.parse-status-bar.status-partial {
-  background: linear-gradient(135deg, rgba(255, 152, 0, 0.1) 0%, rgba(255, 152, 0, 0.03) 100%);
-}
-
-.parse-status-bar.status-fail {
-  background: linear-gradient(135deg, rgba(244, 67, 54, 0.1) 0%, rgba(244, 67, 54, 0.03) 100%);
-}
-
 .status-title {
   font-weight: 600;
   font-size: 0.95rem;
@@ -5292,9 +5470,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 }
 
 /* Parse Summary */
-.parse-summary {
-  padding: 12px 0;
-}
 
 /* Preview Panel */
 .preview-panel {
@@ -5351,16 +5526,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
   background: rgba(25, 118, 210, 0.08);
 }
 
-.header-content {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
 /* Field highlight flash animation */
-.field-highlight-flash {
-  animation: field-flash 2s ease-out;
-}
 
 @keyframes field-flash {
   0% {
@@ -5446,9 +5612,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 }
 
 /* Validation error highlight animation */
-.validation-error-highlight {
-  animation: validation-pulse 0.5s ease-out 2;
-}
 
 @keyframes validation-pulse {
   0%, 100% {
@@ -5469,7 +5632,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
   border-bottom: 1px solid #e5e7eb;
   padding: 0 0 0 0;
   margin: 0 -16px;
-  padding: 0 16px;
 }
 .main-tab {
   padding: 14px 20px;
@@ -5505,342 +5667,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 }
 
 /* Mappings Panel */
-.mappings-panel {
-  padding: 8px 0;
-}
-.mappings-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 20px;
-}
-.mappings-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: #374151;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.mappings-subtitle {
-  font-size: 13px;
-  color: #6b7280;
-  margin-top: 4px;
-}
-.mappings-stats {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
-  margin-bottom: 20px;
-}
-.stat-card {
-  border-radius: 10px;
-  padding: 14px 16px;
-}
-.stat-purple {
-  background: #f5f3ff;
-  border: 1px solid #ddd6fe;
-}
-.stat-green {
-  background: #ecfdf5;
-  border: 1px solid #a7f3d0;
-}
-.stat-yellow {
-  background: #fef3c7;
-  border: 1px solid #fcd34d;
-}
-.stat-value {
-  font-size: 24px;
-  font-weight: 700;
-}
-.stat-purple .stat-value { color: #7c3aed; }
-.stat-green .stat-value { color: #059669; }
-.stat-yellow .stat-value { color: #d97706; }
-.stat-label {
-  font-size: 12px;
-  color: #6b7280;
-}
-.mappings-list {
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
-  overflow: hidden;
-  margin-bottom: 20px;
-}
-.mapping-row {
-  padding: 10px 16px;
-  border-bottom: 1px solid #f3f4f6;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  background: white;
-}
-.mapping-row:last-child {
-  border-bottom: none;
-}
-.mapping-content {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex: 1;
-}
-.mapping-icon {
-  width: 24px;
-  height: 24px;
-  background: #f3f4f6;
-  border-radius: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.mapping-arrow {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.source-col {
-  font-size: 13px;
-  color: #374151;
-  font-family: monospace;
-  background: #f9fafb;
-  padding: 2px 8px;
-  border-radius: 4px;
-}
-.target-field {
-  font-size: 13px;
-  font-weight: 600;
-  color: #7c3aed;
-}
-.mapping-actions {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.usage-badge {
-  font-size: 12px;
-  color: #6b7280;
-  background: #f3f4f6;
-  padding: 2px 8px;
-  border-radius: 10px;
-}
-.mappings-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 48px 24px;
-  text-align: center;
-}
-.empty-title {
-  margin-top: 12px;
-  font-size: 16px;
-  font-weight: 600;
-  color: #374151;
-}
-.empty-text {
-  margin-top: 8px;
-  font-size: 13px;
-  color: #6b7280;
-  max-width: 320px;
-}
-.mappings-info {
-  margin-top: 20px;
-  padding: 16px;
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
-  border-radius: 10px;
-  display: flex;
-  align-items: flex-start;
-}
-.info-title {
-  font-size: 13px;
-  font-weight: 600;
-  color: #1e40af;
-}
-.info-text {
-  font-size: 12px;
-  color: #3b82f6;
-  margin-top: 4px;
-}
 
 /* Mappings Tab Redesign */
-.mappings-tab {
-  padding: 8px 0;
-}
-.mappings-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  margin-bottom: 20px;
-}
-.mappings-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: #374151;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.mappings-subtitle {
-  font-size: 13px;
-  color: #6b7280;
-  margin-top: 4px;
-}
-.mappings-stats {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
-  margin-bottom: 20px;
-}
-.stat-card {
-  border-radius: 10px;
-  padding: 14px 16px;
-}
-.stat-purple {
-  background: #f5f3ff;
-  border: 1px solid #ddd6fe;
-}
-.stat-green {
-  background: #ecfdf5;
-  border: 1px solid #a7f3d0;
-}
-.stat-yellow {
-  background: #fef3c7;
-  border: 1px solid #fcd34d;
-}
-.stat-value {
-  font-size: 24px;
-  font-weight: 700;
-}
-.stat-purple .stat-value { color: #7c3aed; }
-.stat-green .stat-value { color: #059669; }
-.stat-yellow .stat-value { color: #d97706; }
-.stat-label {
-  font-size: 12px;
-  color: #6b7280;
-}
-.mapping-groups-container {
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
-  overflow: hidden;
-  max-height: 400px;
-  overflow-y: auto;
-}
-.group-header-styled {
-  background: #f9fafb;
-  padding: 10px 16px;
-  border-bottom: 1px solid #e5e7eb;
-  display: flex;
-  align-items: center;
-}
-.group-icon-styled {
-  width: 28px;
-  height: 28px;
-  border-radius: 6px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.group-name {
-  font-size: 13px;
-  font-weight: 600;
-  color: #374151;
-}
-.group-count {
-  font-size: 11px;
-  color: #9ca3af;
-}
-.group-aliases {
-  background: white;
-}
-.alias-row-styled {
-  padding: 10px 16px;
-  border-bottom: 1px solid #f3f4f6;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.alias-row-styled:last-child {
-  border-bottom: none;
-}
-.alias-file-icon {
-  width: 24px;
-  height: 24px;
-  background: #f3f4f6;
-  border-radius: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.alias-mapping {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.alias-source {
-  font-size: 13px;
-  color: #374151;
-  font-family: monospace;
-  background: #f9fafb;
-  padding: 2px 8px;
-  border-radius: 4px;
-}
-.alias-target {
-  font-size: 13px;
-  font-weight: 600;
-  color: #7c3aed;
-}
-.alias-count {
-  font-size: 12px;
-  color: #6b7280;
-  background: #f3f4f6;
-  padding: 2px 8px;
-  border-radius: 10px;
-}
-.mappings-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 48px 24px;
-  text-align: center;
-}
-.mappings-info-box {
-  margin-top: 20px;
-  padding: 16px;
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
-  border-radius: 10px;
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-}
-.info-box-title {
-  font-size: 13px;
-  font-weight: 600;
-  color: #1e40af;
-}
-.info-box-text {
-  font-size: 12px;
-  color: #3b82f6;
-  margin-top: 4px;
-}
-.alias-add-row {
-  padding: 8px 16px;
-  background: #f0fdf4;
-  border-top: 1px dashed #86efac;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-.alias-input {
-  max-width: 300px;
-}
 
 /* Focus highlight animation for template name input */
-.focus-highlight-animation {
-  animation: focusPulse 0.6s ease-out;
-}
 
 @keyframes focusPulse {
   0% {

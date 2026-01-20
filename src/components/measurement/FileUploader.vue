@@ -17,10 +17,13 @@
         :multiple="multiple"
         style="display: none"
         @change="onFileSelect"
-      />
+      >
 
       <div class="drop-zone__content">
-        <v-icon size="48" :color="isDragging ? 'primary' : 'grey-darken-1'">
+        <v-icon
+          size="48"
+          :color="isDragging ? 'primary' : 'grey-darken-1'"
+        >
           {{ isDragging ? 'mdi-cloud-upload' : 'mdi-file-upload-outline' }}
         </v-icon>
         <p class="drop-zone__text mt-2">
@@ -36,9 +39,17 @@
     </div>
 
     <!-- průběh nahrávání (upload progress) -->
-    <div v-if="isUploading" class="upload-progress mt-3">
+    <div
+      v-if="isUploading"
+      class="upload-progress mt-3"
+    >
       <div class="d-flex align-center gap-2 mb-1">
-        <v-icon size="20" color="primary">mdi-file-upload</v-icon>
+        <v-icon
+          size="20"
+          color="primary"
+        >
+          mdi-file-upload
+        </v-icon>
         <span class="text-body-2">{{ uploadingFileName }}</span>
         <v-spacer />
         <span class="text-body-2 text-grey">{{ uploadProgress }}%</span>

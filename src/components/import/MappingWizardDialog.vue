@@ -406,9 +406,18 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKey))
   >
     <template #content>
       <div class="pa-4">
-        <div class="d-flex align-center mb-3" style="gap:12px;">
-          <div class="text-h6">Mapping sloupců</div>
-          <v-chip size="small" variant="tonal" color="primary">
+        <div
+          class="d-flex align-center mb-3"
+          style="gap:12px;"
+        >
+          <div class="text-h6">
+            Mapping sloupců
+          </div>
+          <v-chip
+            size="small"
+            variant="tonal"
+            color="primary"
+          >
             {{ mappingModel?.fileName || 'soubor' }}
           </v-chip>
           <v-spacer />
@@ -416,24 +425,24 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKey))
             size="small"
             variant="text"
             :color="showUnmatchedOnly ? 'primary' : undefined"
-            @click="showUnmatchedOnly = !showUnmatchedOnly"
             title="Unmatched toggle (Alt+U)"
+            @click="showUnmatchedOnly = !showUnmatchedOnly"
           >
             Unmatched
           </v-btn>
           <v-btn
             size="small"
             variant="text"
-            @click="autoFillByName"
             title="Auto podle jména (Alt+A)"
+            @click="autoFillByName"
           >
             Auto-fill
           </v-btn>
           <v-btn
             size="small"
             variant="text"
-            @click="resetMappings"
             title="Reset (Ctrl+R)"
+            @click="resetMappings"
           >
             Reset
           </v-btn>
@@ -442,8 +451,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKey))
             color="primary"
             variant="flat"
             :disabled="validationErrors.length > 0"
-            @click="onApply"
             title="Použít mapping (Ctrl+S)"
+            @click="onApply"
           >
             Použít
           </v-btn>
@@ -465,12 +474,20 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKey))
           <div class="text-caption">
             <strong>Neplatný mapping:</strong>
             <ul style="margin:4px 0 0 16px;">
-              <li v-for="(e,i) in validationErrors" :key="i">{{ e }}</li>
+              <li
+                v-for="(e,i) in validationErrors"
+                :key="i"
+              >
+                {{ e }}
+              </li>
             </ul>
           </div>
         </v-alert>
 
-        <div v-if="!mappingModel" class="text-medium-emphasis">
+        <div
+          v-if="!mappingModel"
+          class="text-medium-emphasis"
+        >
           Žádná data k mapování.
         </div>
 
@@ -495,20 +512,31 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKey))
 
           <div
             v-for="b in mappingModel.blocks"
-            :key="b.blockIndex"
             v-show="b.blockIndex === activeBlockIndex"
+            :key="b.blockIndex"
             class="block-section"
           >
-            <div class="d-flex align-center mb-2" style="gap:8px;">
-              <div class="text-subtitle-2">{{ b.title }} ({{ b.headers.length }} sloupců)</div>
+            <div
+              class="d-flex align-center mb-2"
+              style="gap:8px;"
+            >
+              <div class="text-subtitle-2">
+                {{ b.title }} ({{ b.headers.length }} sloupců)
+              </div>
               <v-spacer />
-              <v-chip size="small" variant="tonal">
+              <v-chip
+                size="small"
+                variant="tonal"
+              >
                 Tabulka hodnot {{ b.blockIndex }}
               </v-chip>
             </div>
 
             <div class="mapping-grid header-row">
-              <div class="cell muted" style="display: flex; align-items: center; gap: 4px;">
+              <div
+                class="cell muted"
+                style="display: flex; align-items: center; gap: 4px;"
+              >
                 <v-checkbox
                   :model-value="enabledFieldsCount === totalFieldsCount"
                   :indeterminate="enabledFieldsCount > 0 && enabledFieldsCount < totalFieldsCount"
@@ -517,13 +545,24 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKey))
                   @update:model-value="(v: boolean | null) => toggleAllFields(!!v)"
                 />
               </div>
-              <div class="cell muted">Pole</div>
-              <div class="cell muted">Sloupec</div>
-              <div class="cell muted">Preview</div>
-              <div class="cell muted">Stav</div>
+              <div class="cell muted">
+                Pole
+              </div>
+              <div class="cell muted">
+                Sloupec
+              </div>
+              <div class="cell muted">
+                Preview
+              </div>
+              <div class="cell muted">
+                Stav
+              </div>
             </div>
 
-            <transition-group name="fade-y" tag="div">
+            <transition-group
+              name="fade-y"
+              tag="div"
+            >
               <div
                 v-for="(f,fi) in b.fields.filter(ff => !showUnmatchedOnly || !ff.headerMatched)"
                 :key="f.id"
@@ -546,7 +585,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKey))
                   data-map-field
                   tabindex="0"
                 >
-                  <div class="d-flex align-center" style="gap:6px;">
+                  <div
+                    class="d-flex align-center"
+                    style="gap:6px;"
+                  >
                     <v-chip
                       size="small"
                       :color="f.required ? 'primary' : 'grey-darken-1'"
@@ -662,9 +704,19 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKey))
             class="series-section mt-4"
           >
             <v-divider class="mb-4" />
-            <div class="d-flex align-center mb-2" style="gap:8px;">
-              <v-icon color="success" size="20">mdi-chart-line</v-icon>
-              <div class="text-subtitle-2">Datové série</div>
+            <div
+              class="d-flex align-center mb-2"
+              style="gap:8px;"
+            >
+              <v-icon
+                color="success"
+                size="20"
+              >
+                mdi-chart-line
+              </v-icon>
+              <div class="text-subtitle-2">
+                Datové série
+              </div>
             </div>
             
             <div
@@ -672,7 +724,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKey))
               :key="sIdx"
               class="series-block mb-3"
             >
-              <div class="d-flex align-center mb-2" style="gap:8px;">
+              <div
+                class="d-flex align-center mb-2"
+                style="gap:8px;"
+              >
                 <v-text-field
                   v-model="series.seriesName"
                   label="Název série"
@@ -681,16 +736,28 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKey))
                   hide-details
                   style="max-width: 200px;"
                 />
-                <v-chip size="small" color="success" variant="tonal">
+                <v-chip
+                  size="small"
+                  color="success"
+                  variant="tonal"
+                >
                   {{ series.columns.length }} sloupců
                 </v-chip>
               </div>
               
               <div class="mapping-grid header-row">
-                <div class="cell muted">#</div>
-                <div class="cell muted">Sloupec série</div>
-                <div class="cell muted">Mapovaný sloupec</div>
-                <div class="cell muted">Preview</div>
+                <div class="cell muted">
+                  #
+                </div>
+                <div class="cell muted">
+                  Sloupec série
+                </div>
+                <div class="cell muted">
+                  Mapovaný sloupec
+                </div>
+                <div class="cell muted">
+                  Preview
+                </div>
               </div>
               
               <div
@@ -700,13 +767,20 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKey))
                 :class="{'row-invalid': col.required && col.mappedSourceIndex === null}"
               >
                 <div class="cell">
-                  <v-chip size="small" color="success" variant="tonal">
+                  <v-chip
+                    size="small"
+                    color="success"
+                    variant="tonal"
+                  >
                     {{ colIdx + 1 }}
                   </v-chip>
                 </div>
                 <div class="cell field-name">
                   <span class="field-label">{{ col.columnName }}</span>
-                  <span v-if="col.required" class="text-error">*</span>
+                  <span
+                    v-if="col.required"
+                    class="text-error"
+                  >*</span>
                 </div>
                 <div class="cell select-cell">
                   <v-select
@@ -736,11 +810,24 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKey))
           </div>
 
           <!-- sekce extra sloupců: nejsou namapovány k žádnému poli šablony (extra columns section) -->
-          <div v-if="extraColumns.length > 0" class="extra-section mt-4">
+          <div
+            v-if="extraColumns.length > 0"
+            class="extra-section mt-4"
+          >
             <v-divider class="mb-4" />
-            <div class="d-flex align-center mb-2" style="gap:8px;">
-              <v-icon color="warning" size="20">mdi-table-column-plus-after</v-icon>
-              <div class="text-subtitle-2">Extra sloupce v souboru ({{ extraColumns.length }})</div>
+            <div
+              class="d-flex align-center mb-2"
+              style="gap:8px;"
+            >
+              <v-icon
+                color="warning"
+                size="20"
+              >
+                mdi-table-column-plus-after
+              </v-icon>
+              <div class="text-subtitle-2">
+                Extra sloupce v souboru ({{ extraColumns.length }})
+              </div>
               <v-spacer />
               <v-btn
                 size="small"
@@ -766,7 +853,12 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKey))
               Doporučujeme jej přidat do šablony, pokud se jedná o časovou značku.
             </v-alert>
             
-            <v-alert type="info" variant="tonal" class="mb-2" density="compact">
+            <v-alert
+              type="info"
+              variant="tonal"
+              class="mb-2"
+              density="compact"
+            >
               Tyto sloupce nejsou v aktuální šabloně. Můžete vytvořit odvozenou šablonu s novými poli.
             </v-alert>
             
@@ -784,7 +876,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKey))
             </div>
           </div>
         </div>
-
       </div>
     </template>
   </Dialog>

@@ -55,7 +55,7 @@ function parseDateToMs(value: number | string): number | null {
     const str = String(value).trim()
     if (!str) return null
 
-    let ms = Date.parse(str)
+    const ms = Date.parse(str)
     if (!Number.isNaN(ms)) return ms
 
     const czechMatch = str.match(/^(\d{1,2})\.\s*(\d{1,2})\.\s*(\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/)

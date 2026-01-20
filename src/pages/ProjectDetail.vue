@@ -37,12 +37,12 @@ function setIdFromProps(){
 
 <template>
   <!--  TODO: set existing project-->
-      <project-form
-        :is-new="projectStore.projectId === 'new'"
-        :project="projectStore.projectId === 'new' ? projectStore.blankProject : projectStore.blankProject"
-        @onReturn="onReturn()"
-        @onSubmit="onSubmit()"
-      />
+  <project-form
+    :is-new="projectStore.projectId === 'new'"
+    :project="projectStore.projectId === 'new' ? projectStore.blankProject : projectStore.blankProject"
+    @on-return="onReturn()"
+    @on-submit="onSubmit()"
+  />
 </template>
 
 <style scoped>

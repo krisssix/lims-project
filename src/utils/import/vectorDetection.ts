@@ -170,7 +170,7 @@ export function detectVectorColumns(rows: string[][]): VectorColumn[] {
 
     for (let col = 0; col < colCount; col++) {
         const samples: number[][] = []
-        let vectorLengths: number[] = []
+        const vectorLengths: number[] = []
 
         for (const row of rows.slice(0, 10)) { // ukázka prvních 10 řádků
             const cell = row[col]

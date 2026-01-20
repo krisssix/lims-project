@@ -63,14 +63,25 @@ function updateTemplate(v: unknown): void {
 </script>
 
 <template>
-  <div class="d-flex flex-column" style="gap: 24px; max-width: 800px; margin: 0 auto;">
+  <div
+    class="d-flex flex-column"
+    style="gap: 24px; max-width: 800px; margin: 0 auto;"
+  >
     <!-- Device Selection -->
     <div class="meta-group">
       <div class="d-flex align-center justify-space-between mb-3 px-1">
-         <div class="d-flex align-center" style="gap: 8px;">
-            <v-icon color="primary" class="opacity-80">mdi-monitor-dashboard</v-icon>
-            <span class="text-subtitle-1 font-weight-medium text-high-emphasis">Výběr přístroje</span>
-         </div>
+        <div
+          class="d-flex align-center"
+          style="gap: 8px;"
+        >
+          <v-icon
+            color="primary"
+            class="opacity-80"
+          >
+            mdi-monitor-dashboard
+          </v-icon>
+          <span class="text-subtitle-1 font-weight-medium text-high-emphasis">Výběr přístroje</span>
+        </div>
       </div>
 
       <div
@@ -93,14 +104,25 @@ function updateTemplate(v: unknown): void {
     </div>
 
     <!-- Template Selection -->
-    <div class="meta-group" :class="{ 'opacity-50': !props.selectedDeviceId }">
-       <div class="d-flex align-center justify-space-between mb-3 px-1">
-         <div class="d-flex align-center" style="gap: 8px;">
-            <v-icon color="secondary" class="opacity-80">mdi-file-document-multiple-outline</v-icon>
-            <span class="text-subtitle-1 font-weight-medium text-high-emphasis">Šablona měření</span>
-         </div>
-         <!-- Keep only the Derive button -->
-<!--         <v-btn
+    <div
+      class="meta-group"
+      :class="{ 'opacity-50': !props.selectedDeviceId }"
+    >
+      <div class="d-flex align-center justify-space-between mb-3 px-1">
+        <div
+          class="d-flex align-center"
+          style="gap: 8px;"
+        >
+          <v-icon
+            color="secondary"
+            class="opacity-80"
+          >
+            mdi-file-document-multiple-outline
+          </v-icon>
+          <span class="text-subtitle-1 font-weight-medium text-high-emphasis">Šablona měření</span>
+        </div>
+        <!-- Keep only the Derive button -->
+        <!--         <v-btn
            v-if="props.selectedTemplateId"
            size="small"
            variant="tonal"
@@ -127,8 +149,16 @@ function updateTemplate(v: unknown): void {
     </div>
 
     <!-- Help / Context -->
-    <div v-if="!props.selectedDeviceId" class="d-flex align-center justify-center py-4 text-medium-emphasis">
-      <v-icon size="small" start>mdi-information-outline</v-icon>
+    <div
+      v-if="!props.selectedDeviceId"
+      class="d-flex align-center justify-center py-4 text-medium-emphasis"
+    >
+      <v-icon
+        size="small"
+        start
+      >
+        mdi-information-outline
+      </v-icon>
       <span class="text-caption">Tato volba určí dostupné šablony a strukturu dat.</span>
     </div>
   </div>

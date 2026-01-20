@@ -13,7 +13,7 @@ type ResItem = {
   seriesId?: string | null
 }
 type EventLayout = Record<number, { left: number; width: number }>
-type Device = { id: string; name: string; color: string }
+type Device = { id: string; name: string; color: string; active?: boolean }
 const props = defineProps<{
   devices: Device[]
   cols: number
@@ -55,8 +55,8 @@ const props = defineProps<{
 }>()
 /* --------- Focused device column (M1, M2…) --------- */
 const focusEnabled = computed(() => props.focusEnabled ?? true)
-const focusedFr = computed(() => props.focusedFr ?? 2.6)
-const othersFr = computed(() => props.othersFr ?? 1)
+//const focusedFr = computed(() => props.focusedFr ?? 2.6)
+//const othersFr = computed(() => props.othersFr ?? 1)
 const transitionMs = computed(() => props.transitionMs ?? 220)
 const focusedDeviceKey = ref<string | null>(null)
 function keyOf(d: Device) { return d.id }
@@ -167,7 +167,6 @@ function onKeydown(e: KeyboardEvent) {
     : (currentIdx < 0 ? 0 : Math.min(currentIdx + 1, list.length - 1))
   if (list[nextIdx]) focusDevice(list[nextIdx])
 }
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function onDeviceHeaderClick(d: Device, _ev?: MouseEvent) {
   focusDevice(d)
   if (viewportEl.value) {
@@ -179,6 +178,7 @@ function onDeviceHeaderClick(d: Device, _ev?: MouseEvent) {
   }
 }
 function onTrackClickWithFocus(e: MouseEvent, d: Device) {
+  if (d.active === false) return
   focusDevice(d)
   props.onTrackClick(e, { type: 'device', deviceId: d.id })
 }
@@ -218,7 +218,7 @@ onBeforeUnmount(() => { ro?.disconnect(); ro = null })
 const minWidth = computed(() => props.minCalendarWidth ?? 900)
 const showCompactFilters = computed(() => containerWidth.value > 0 && containerWidth.value < minWidth.value)
 /* Filter logic removed */
-/* --------- New: event coloring based on device color, avatar white ---------- */
+/* --------- event coloring based on device color, avatar white ---------- */
 // Parse hex/rgb and compute contrast (WCAG-like approximation)
 function parseColorToRGB(color: string): { r: number; g: number; b: number } {
   const c = color.trim()
@@ -255,7 +255,7 @@ function deviceEventStyle(deviceId: string): { backgroundColor: string; color: s
 }
 </script>
 <template>
-    <div ref="root">
+  <div ref="root">
     <!-- Filters removed per user request -->
 
     <!-- Legend chips -->
@@ -302,19 +302,30 @@ function deviceEventStyle(deviceId: string): { backgroundColor: string; color: s
           role="button"
           tabindex="0"
           :aria-pressed="isFocused(d)"
-          :title="d.name"
+          :title="d.active === false ? d.name + ' (Deaktivovaný – provoz dočasně pozastaven)' : d.name"
           @click="(ev) => onDeviceHeaderClick(d, ev)"
           @keydown.enter.prevent="onDeviceHeaderClick(d)"
           @keydown.space.prevent="onDeviceHeaderClick(d)"
         >
-          <v-chip
-            :color="d.color"
-            size="small"
-            variant="flat"
-            :style="{ color: contrastText(d.color) }"
-          >
-            {{ d.id }}
-          </v-chip>
+          <div :style="{ opacity: d.active === false ? 0.6 : 1, display: 'flex', alignItems: 'center' }">
+            <v-chip
+              :color="d.color"
+              size="small"
+              variant="flat"
+              :style="{ color: contrastText(d.color) }"
+            >
+              {{ d.id }}
+            </v-chip>
+            <v-icon
+              v-if="d.active === false"
+              size="14"
+              color="grey-darken-1"
+              class="ml-1"
+              title="Deaktivovaný"
+            >
+              mdi-cancel
+            </v-icon>
+          </div>
         </div>
       </div>
       <div
@@ -342,7 +353,7 @@ function deviceEventStyle(deviceId: string): { backgroundColor: string; color: s
             v-for="d in props.devices"
             :key="d.id"
             class="track"
-            :class="{ focused: isFocused(d) }"
+            :class="{ focused: isFocused(d), 'cursor-not-allowed': d.active === false }"
             :style="{ height: props.fullTrackHeight + 'px', '--tick-h': props.tickHeight + 'px' }"
             data-track-type="device"
             :data-track-id="d.id"
@@ -376,44 +387,56 @@ function deviceEventStyle(deviceId: string): { backgroundColor: string; color: s
                   @pointerdown.stop.prevent="(e: PointerEvent) => props.onEventPointerDown(e, i)"
                   @click.stop="(e: MouseEvent) => props.onEventClick(i.id, e)"
                 >
-                    <div class="event-inner" style="position: relative; padding: 6px 30px 6px 8px; height: 100%; display: flex; flex-direction: column; gap: 2px; overflow: hidden;">
-                      <!-- Title row with optional series icon -->
-                      <div style="display: flex; align-items: center; gap: 4px;">
-                        <i
-                          v-if="i.seriesId"
-                          class="mdi-repeat mdi v-icon"
-                          style="font-size: 12px; flex-shrink: 0;"
-                          :style="{ color: contrastText(props.deviceColorOf(d.id)) === 'white' ? 'rgba(255,255,255,.85)' : 'rgba(0,0,0,0.6)' }"
-                        ></i>
-                        <div class="event-title" style="font-weight: 600; font-size: 12px; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0;">
-                          {{ i.title }}
-                        </div>
-                      </div>
-                      <!-- Device name chip -->
+                  <div
+                    class="event-inner"
+                    style="position: relative; padding: 6px 30px 6px 8px; height: 100%; display: flex; flex-direction: column; gap: 2px; overflow: hidden;"
+                  >
+                    <!-- Title row with optional series icon -->
+                    <div style="display: flex; align-items: center; gap: 4px;">
+                      <i
+                        v-if="i.seriesId"
+                        class="mdi-repeat mdi v-icon"
+                        style="font-size: 12px; flex-shrink: 0;"
+                        :style="{ color: contrastText(props.deviceColorOf(d.id)) === 'white' ? 'rgba(255,255,255,.85)' : 'rgba(0,0,0,0.6)' }"
+                      />
                       <div
-                        class="event-device-chip"
-                        style="display: inline-flex; align-items: center; gap: 3px; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 500; max-width: fit-content;"
-                        :style="{
-                          background: contrastText(props.deviceColorOf(d.id)) === 'white' ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)',
-                          color: contrastText(props.deviceColorOf(d.id)) === 'white' ? 'rgba(255,255,255,0.95)' : 'rgba(0,0,0,0.7)'
-                        }"
+                        class="event-title"
+                        style="font-weight: 600; font-size: 12px; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0;"
                       >
-                        <i class="mdi mdi-flask" style="font-size: 10px;"></i>
-                        <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ d.name }}</span>
-                      </div>
-                      <!-- Time -->
-                      <div class="event-time" style="font-size: 10px; opacity: 0.9; white-space: nowrap;">
-                        {{ props.fmtTime(new Date(i.start)) }} – {{ props.fmtTime(new Date(i.end)) }}
-                      </div>
-                      <!-- Avatar at bottom-right -->
-                      <div
-                        class="bg-white event-avatar"
-                        style="position: absolute; bottom: 4px; right: 4px; width: 22px; height: 22px; font-size: 10px; font-weight: 600; display: flex; align-items: center; justify-content: center; border-radius: 50%;"
-                        :style="{ color: props.deviceColorOf(d.id) }"
-                      >
-                        <span>{{ props.initials(i.username) }}</span>
+                        {{ i.title }}
                       </div>
                     </div>
+                    <!-- Device name chip -->
+                    <div
+                      class="event-device-chip"
+                      style="display: inline-flex; align-items: center; gap: 3px; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 500; max-width: fit-content;"
+                      :style="{
+                        background: contrastText(props.deviceColorOf(d.id)) === 'white' ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)',
+                        color: contrastText(props.deviceColorOf(d.id)) === 'white' ? 'rgba(255,255,255,0.95)' : 'rgba(0,0,0,0.7)'
+                      }"
+                    >
+                      <i
+                        class="mdi mdi-flask"
+                        style="font-size: 10px;"
+                      />
+                      <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ d.name }}</span>
+                    </div>
+                    <!-- Time -->
+                    <div
+                      class="event-time"
+                      style="font-size: 10px; opacity: 0.9; white-space: nowrap;"
+                    >
+                      {{ props.fmtTime(new Date(i.start)) }} – {{ props.fmtTime(new Date(i.end)) }}
+                    </div>
+                    <!-- Avatar at bottom-right -->
+                    <div
+                      class="bg-white event-avatar"
+                      style="position: absolute; bottom: 4px; right: 4px; width: 22px; height: 22px; font-size: 10px; font-weight: 600; display: flex; align-items: center; justify-content: center; border-radius: 50%;"
+                      :style="{ color: props.deviceColorOf(d.id) }"
+                    >
+                      <span>{{ props.initials(i.username) }}</span>
+                    </div>
+                  </div>
                   <!-- Resize handle at bottom of event -->
                   <div
                     class="resize-handle"

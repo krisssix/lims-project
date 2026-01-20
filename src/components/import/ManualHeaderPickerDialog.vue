@@ -409,12 +409,26 @@ function colLetter(idx: number): string {
     @update:is-open="v => emits('update:modelValue', v)"
   >
     <template #header>
-      <div class="d-flex align-center justify-space-between" style="width: 100%;">
-        <div class="d-flex align-center" style="gap: 12px;">
-          <v-icon color="primary">mdi-table-headers-eye</v-icon>
+      <div
+        class="d-flex align-center justify-space-between"
+        style="width: 100%;"
+      >
+        <div
+          class="d-flex align-center"
+          style="gap: 12px;"
+        >
+          <v-icon color="primary">
+            mdi-table-headers-eye
+          </v-icon>
           <div>
-            <div class="text-h6">Ruční výběr hlaviček</div>
-            <div v-if="fileName" class="text-subtitle-2 text-primary font-weight-bold mb-1" style="max-width: 400px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+            <div class="text-h6">
+              Ruční výběr hlaviček
+            </div>
+            <div
+              v-if="fileName"
+              class="text-subtitle-2 text-primary font-weight-bold mb-1"
+              style="max-width: 400px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+            >
               {{ fileName }}
             </div>
             <div class="text-caption text-medium-emphasis">
@@ -422,11 +436,22 @@ function colLetter(idx: number): string {
             </div>
           </div>
         </div>
-        <div class="d-flex align-center" style="gap: 8px;">
-          <v-chip size="small" variant="outlined">
+        <div
+          class="d-flex align-center"
+          style="gap: 8px;"
+        >
+          <v-chip
+            size="small"
+            variant="outlined"
+          >
             {{ rawGrid.length }} řádků × {{ maxCols }} sloupců
           </v-chip>
-          <v-chip v-if="selectedCells.size > 0" size="small" color="primary" variant="flat">
+          <v-chip
+            v-if="selectedCells.size > 0"
+            size="small"
+            color="primary"
+            variant="flat"
+          >
             {{ selectedCells.size }} vybráno
           </v-chip>
         </div>
@@ -437,7 +462,10 @@ function colLetter(idx: number): string {
       <div class="picker-layout">
         <!-- panel nástrojů (toolbar) -->
         <div class="selection-toolbar">
-          <div class="d-flex align-center" style="gap: 8px;">
+          <div
+            class="d-flex align-center"
+            style="gap: 8px;"
+          >
             <v-btn
               size="small"
               color="primary"
@@ -469,26 +497,30 @@ function colLetter(idx: number): string {
               → Jednotky
             </v-btn>
             
-             <!-- tlačítko přejmenovat pro režim bez hlavičky -->
-             <v-btn
+            <!-- tlačítko přejmenovat pro režim bez hlavičky -->
+            <v-btn
               v-if="noHeaderMode && selectedCells.size > 0"
               size="small"
               variant="tonal"
               color="secondary"
               prepend-icon="mdi-pencil"
               @click="() => {
-                 // najít první vybraný sloupec pro přejmenování
-                 const firstKey = selectedCells.values().next().value
-                 if(firstKey) {
-                   const c = Number(firstKey.split(',')[1])
-                   openRenameDialog(c)
-                 }
+                // najít první vybraný sloupec pro přejmenování
+                const firstKey = selectedCells.values().next().value
+                if(firstKey) {
+                  const c = Number(firstKey.split(',')[1])
+                  openRenameDialog(c)
+                }
               }"
             >
               Přejmenovat sloupec
             </v-btn>
 
-            <v-divider vertical class="mx-2" style="height: 24px;" />
+            <v-divider
+              vertical
+              class="mx-2"
+              style="height: 24px;"
+            />
             <v-btn
               size="small"
               variant="text"
@@ -502,11 +534,14 @@ function colLetter(idx: number): string {
 
 
         <!-- kontejner mřížky (grid container) -->
-        <div ref="gridContainerRef" class="grid-container">
+        <div
+          ref="gridContainerRef"
+          class="grid-container"
+        >
           <table class="data-grid">
             <thead>
               <tr>
-                <th class="corner-cell"></th>
+                <th class="corner-cell" />
                 <th
                   v-for="c in maxCols"
                   :key="c - 1"
@@ -527,8 +562,14 @@ function colLetter(idx: number): string {
               </tr>
             </thead>
             <tbody>
-              <tr v-for="(row, rowIdx) in rawGrid" :key="rowIdx">
-                <td class="row-header" @click="handleRowClick(rowIdx, $event)">
+              <tr
+                v-for="(row, rowIdx) in rawGrid"
+                :key="rowIdx"
+              >
+                <td
+                  class="row-header"
+                  @click="handleRowClick(rowIdx, $event)"
+                >
                   {{ rowIdx + 1 }}
                 </td>
                 <td
@@ -555,7 +596,13 @@ function colLetter(idx: number): string {
           <!-- hlavičky tabulky -->
           <div class="assignment-panel table-panel">
             <div class="panel-header">
-              <v-icon size="18" color="primary" class="mr-1">mdi-table</v-icon>
+              <v-icon
+                size="18"
+                color="primary"
+                class="mr-1"
+              >
+                mdi-table
+              </v-icon>
               <span>Tabulka hodnot ({{ tableHeaders.length }})</span>
             </div>
             <div class="panel-content">
@@ -576,42 +623,73 @@ function colLetter(idx: number): string {
               >
                 {{ header }}
               </v-chip>
-              <div v-if="tableHeaders.length === 0" class="empty-panel">
+              <div
+                v-if="tableHeaders.length === 0"
+                class="empty-panel"
+              >
                 Vyberte buňky a klikněte "→ Tabulka hodnot"
               </div>
             </div>
           </div>
 
 
-        <!-- dialog přejmenování (rename dialog) -->
-        <v-dialog v-model="showRenameDialog" max-width="400">
-          <v-card>
-            <v-card-title class="text-h6">Přejmenovat sloupec</v-card-title>
-            <v-card-text>
-              <v-text-field
-                v-model="tempRenameValue"
-                label="Název sloupce"
-                variant="outlined"
-                autofocus
-                @keydown.enter="saveColumnName"
-              />
-            </v-card-text>
-            <v-card-actions>
-              <v-spacer />
-              <v-btn variant="text" @click="showRenameDialog = false">Zrušit</v-btn>
-              <v-btn color="primary" @click="saveColumnName">Uložit</v-btn>
-            </v-card-actions>
-          </v-card>
-        </v-dialog>
+          <!-- dialog přejmenování (rename dialog) -->
+          <v-dialog
+            v-model="showRenameDialog"
+            max-width="400"
+          >
+            <v-card>
+              <v-card-title class="text-h6">
+                Přejmenovat sloupec
+              </v-card-title>
+              <v-card-text>
+                <v-text-field
+                  v-model="tempRenameValue"
+                  label="Název sloupce"
+                  variant="outlined"
+                  autofocus
+                  @keydown.enter="saveColumnName"
+                />
+              </v-card-text>
+              <v-card-actions>
+                <v-spacer />
+                <v-btn
+                  variant="text"
+                  @click="showRenameDialog = false"
+                >
+                  Zrušit
+                </v-btn>
+                <v-btn
+                  color="primary"
+                  @click="saveColumnName"
+                >
+                  Uložit
+                </v-btn>
+              </v-card-actions>
+            </v-card>
+          </v-dialog>
 
           <!-- hlavičky sérií -->
           <div class="assignment-panel series-panel">
             <div class="panel-header">
-              <v-icon size="18" color="success" class="mr-1">mdi-chart-line</v-icon>
+              <v-icon
+                size="18"
+                color="success"
+                class="mr-1"
+              >
+                mdi-chart-line
+              </v-icon>
               <span>Datová série ({{ seriesHeaders.length }})</span>
               <v-tooltip location="top">
                 <template #activator="{ props }">
-                  <v-icon v-bind="props" size="small" class="ml-2" color="success">mdi-information</v-icon>
+                  <v-icon
+                    v-bind="props"
+                    size="small"
+                    class="ml-2"
+                    color="success"
+                  >
+                    mdi-information
+                  </v-icon>
                 </template>
                 Datové série jsou obvykle číselné. systém se pokusí typ detekovat.
               </v-tooltip>
@@ -634,7 +712,10 @@ function colLetter(idx: number): string {
               >
                 {{ header }}
               </v-chip>
-              <div v-if="seriesHeaders.length === 0" class="empty-panel">
+              <div
+                v-if="seriesHeaders.length === 0"
+                class="empty-panel"
+              >
                 Vyberte buňky a klikněte "→ Datová série"
               </div>
             </div>
@@ -644,7 +725,12 @@ function colLetter(idx: number): string {
     </template>
 
     <template #footer>
-      <v-btn variant="text" @click="emits('update:modelValue', false)">Zrušit</v-btn>
+      <v-btn
+        variant="text"
+        @click="emits('update:modelValue', false)"
+      >
+        Zrušit
+      </v-btn>
       <v-spacer />
       <v-btn
         color="primary"

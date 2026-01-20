@@ -53,10 +53,20 @@ function onClose() {
         class="bg-grey-lighten-3 filter-btn text-body-2 px-3"
         style="height: 40px;"
       >
-        <v-icon class="mr-2" size="18">mdi-calendar</v-icon>
+        <v-icon
+          class="mr-2"
+          size="18"
+        >
+          mdi-calendar
+        </v-icon>
         <span class="mr-1 font-weight-regular">Datum:</span>
         <span class="font-weight-bold">{{ buttonLabel }}</span>
-        <v-icon class="ml-2" size="20">mdi-menu-down</v-icon>
+        <v-icon
+          class="ml-2"
+          size="20"
+        >
+          mdi-menu-down
+        </v-icon>
       </v-btn>
     </template>
     

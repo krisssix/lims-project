@@ -3,7 +3,6 @@ import { computed, ref, onMounted, watch, onBeforeUnmount } from 'vue'
 import { useRoute } from 'vue-router'
 import Dialog from '@/components/Dialog.vue'
 import DateFilterPanel, { type DateFilter } from '@/components/ui/DateFilterPanel.vue'
-import TemplateFromClipboardDialog from '@/components/import/TemplateFromClipboardDialog.vue'
 import RepeatSetsControls from '@/components/import/RepeatSetControls.vue'
 
 import MeasurementTable from '@/components/measurement/MeasurementTable.vue'
@@ -160,7 +159,7 @@ async function handleTemplateConfirm(payload: WizardTemplatePayload): Promise<vo
     await templatesStore.fetchByProject(projectId)
     templateWizardOpen.value = false
     initialWizardTemplate.value = null
-    
+
     if (isCreatingFromMeasurementDialog.value) {
       // Do not open overview, return to measurement create dialog
     } else {
@@ -232,14 +231,14 @@ const pickedMembers = ref<string[]>([])
 
 const templateFilterItems = computed<{ id: string; name: string }[]>(() => {
   let filteredTemplates = templates.value
-  
+
   // Filter templates based on selected devices
   if (pickedDevices.value.length > 0) {
-    filteredTemplates = filteredTemplates.filter(t => 
+    filteredTemplates = filteredTemplates.filter(t =>
       pickedDevices.value.includes(t.deviceCode)
     )
   }
-  
+
   const uniqueNames = new Set(filteredTemplates.map(t => t.name))
   return Array.from(uniqueNames).map(n => ({ id: n, name: n }))
 })
@@ -879,7 +878,7 @@ const measurementsForCompare = ref<MeasurementResponse[]>([])
 function onCompareSelected(ids: number[]): void {
   const items = measurementStore.allMeasurements?.filter(m => ids.includes(m.id)) || []
   if (items.length < 2) return
-  
+
   // Sort by ID or other criteria if needed, for better UX
   measurementsForCompare.value = items.sort((a, b) => a.id - b.id)
   compareDialogOpen.value = true
@@ -914,44 +913,62 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onHotkeys))
 </script>
 
 <template>
-  <v-container fluid class="pa-0">
+  <v-container
+    fluid
+    class="pa-0"
+  >
     <!-- Top Toolbar -->
     <div class="top-toolbar">
       <!-- Primary Action -->
-      <button class="btn-primary" @click="measurementCreateOpen = true">
-        <i class="mdi mdi-plus"></i>
+      <button
+        class="btn-primary"
+        @click="measurementCreateOpen = true"
+      >
+        <i class="mdi mdi-plus" />
         Vytvořit měření
       </button>
 
       <!-- Secondary Action -->
-      <button class="btn-secondary" @click="openOverview">
-        <i class="mdi mdi-view-list-outline"></i>
+      <button
+        class="btn-secondary"
+        @click="openOverview"
+      >
+        <i class="mdi mdi-view-list-outline" />
         Přehled šablon
       </button>
     </div>
 
-    <v-container fluid class="pa-4">
+    <v-container
+      fluid
+      class="pa-4"
+    >
       <v-row class="flex-nowrap">
         <!-- Sidebar -->
         <v-col cols="auto">
           <div style="width: 320px;">
-             <DateFilterPanel
-               v-model="dateFilterModel"
-               :devices="devicesWithMeasurements"
-               :members="membersList"
-               :templates="templateFilterItems"
-               v-model:pickedDevices="pickedDevices"
-               v-model:pickedMembers="pickedMembers"
-               v-model:pickedTemplates="pickedTemplates"
-               v-model:includeWeekends="includeWeekends"
-             />
+            <DateFilterPanel
+              v-model="dateFilterModel"
+              v-model:picked-devices="pickedDevices"
+              v-model:picked-members="pickedMembers"
+              v-model:picked-templates="pickedTemplates"
+              v-model:include-weekends="includeWeekends"
+              :devices="devicesWithMeasurements"
+              :members="membersList"
+              :templates="templateFilterItems"
+            />
           </div>
         </v-col>
 
-        <v-col class="flex-grow-1" style="min-width: 0;">
-          <v-sheet elevation="1" class="pa-4 rounded-xl">
+        <v-col
+          class="flex-grow-1"
+          style="min-width: 0;"
+        >
+          <v-sheet
+            elevation="1"
+            class="pa-4 rounded-xl"
+          >
             <MeasurementTable
-        :key="tableRefreshKey"
+              :key="tableRefreshKey"
               v-model:selected="selectedMeasurements"
               :headers="headers"
               :items="filteredMeasurements"
@@ -975,15 +992,15 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onHotkeys))
         :selected-template-id="selectedTemplateId"
         :loading="loadingTemplates"
         @edit="startEditTemplate"
-        @createBlank="startCreateTemplate"
-        @createFromFile="openImportTemplate"
-        @deriveTemplate="startDeriveTemplate"
+        @create-blank="startCreateTemplate"
+        @create-from-file="openImportTemplate"
+        @derive-template="startDeriveTemplate"
         @publish="handlePublishTemplate"
         @deprecate="handleDeprecateTemplate"
-        @createVersion="handleCreateVersion"
+        @create-version="handleCreateVersion"
         @delete="handleTemplateDelete"
-        @bulkDelete="handleBulkDeleteTemplates"
-        @bulkStatusUpdate="handleBulkStatusUpdate"
+        @bulk-delete="handleBulkDeleteTemplates"
+        @bulk-status-update="handleBulkStatusUpdate"
       />
 
       <VersionConflictDialog
@@ -1016,18 +1033,42 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onHotkeys))
       <teleport to="body">
         <Dialog
           :is-open="deleteTemplateConfirmOpen"
-          @update:is-open="v => deleteTemplateConfirmOpen = v"
           width="520px"
           :hide-footer="true"
+          @update:is-open="v => deleteTemplateConfirmOpen = v"
         >
           <template #content>
-            <form class="pa-4" @submit.prevent="confirmDeleteTemplate" @keydown.enter.prevent="confirmDeleteTemplate">
-              <div class="text-h6 mb-2">Smazat šablonu?</div>
-              <div class="mb-4">Tato akce je nevratná. Opravdu chcete smazat tuto šablonu?</div>
-              <div class="d-flex" style="gap: 12px">
-                <v-btn type="submit" color="error" :loading="deleteTemplateLoading" :disabled="deleteTemplateLoading || !selectedTemplateId">Smazat</v-btn>
+            <form
+              class="pa-4"
+              @submit.prevent="confirmDeleteTemplate"
+              @keydown.enter.prevent="confirmDeleteTemplate"
+            >
+              <div class="text-h6 mb-2">
+                Smazat šablonu?
+              </div>
+              <div class="mb-4">
+                Tato akce je nevratná. Opravdu chcete smazat tuto šablonu?
+              </div>
+              <div
+                class="d-flex"
+                style="gap: 12px"
+              >
+                <v-btn
+                  type="submit"
+                  color="error"
+                  :loading="deleteTemplateLoading"
+                  :disabled="deleteTemplateLoading || !selectedTemplateId"
+                >
+                  Smazat
+                </v-btn>
                 <v-spacer />
-                <v-btn variant="tonal" :disabled="deleteTemplateLoading" @click="() => deleteTemplateConfirmOpen = false">Zrušit</v-btn>
+                <v-btn
+                  variant="tonal"
+                  :disabled="deleteTemplateLoading"
+                  @click="() => deleteTemplateConfirmOpen = false"
+                >
+                  Zrušit
+                </v-btn>
               </div>
             </form>
           </template>
@@ -1040,8 +1081,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onHotkeys))
         :templates="templates"
         :template-by-id="templateById"
         :initial-template-id="createdTemplateId"
-        @createTemplate="startCreateTemplate"
-        @createTemplateFromClipboard="startCreateTemplateFromFile"
+        @create-template="startCreateTemplate"
+        @create-template-from-clipboard="startCreateTemplateFromFile"
         @save="onSaveMeasurement"
       >
         <template #above-values>
@@ -1078,7 +1119,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onHotkeys))
         :members="membersList"
         :templates="templates"
       />
-      
+
       <ZenodoDialog
         v-model="zenodoDialogOpen"
         :measurements="measurementsForZenodo"
@@ -1087,18 +1128,46 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onHotkeys))
 
       <Dialog
         :is-open="confirmDeleteOpen"
-        @update:is-open="v => confirmDeleteOpen = v"
         width="520px"
         :hide-footer="true"
+        @update:is-open="v => confirmDeleteOpen = v"
       >
         <template #content>
-          <form class="pa-4" @submit.prevent="confirmDelete" @keydown.enter.prevent="confirmDelete">
-            <div class="text-h6 mb-2">Smazat měření?</div>
-            <div class="mb-4">Tato akce je nevratná. Opravdu chcete smazat toto měření?</div>
-            <div class="d-flex" style="gap: 12px">
-              <v-btn color="primary" variant="flat" size="large" :loading="deleteLoading" :disabled="deleteLoading || !detailItem?.id" @click="confirmDelete">Smazat měření</v-btn>
+          <form
+            class="pa-4"
+            @submit.prevent="confirmDelete"
+            @keydown.enter.prevent="confirmDelete"
+          >
+            <div class="text-h6 mb-2">
+              Smazat měření?
+            </div>
+            <div class="mb-4">
+              Tato akce je nevratná. Opravdu chcete smazat toto měření?
+            </div>
+            <div
+              class="d-flex"
+              style="gap: 12px"
+            >
+              <v-btn
+                color="primary"
+                variant="flat"
+                size="large"
+                :loading="deleteLoading"
+                :disabled="deleteLoading || !detailItem?.id"
+                @click="confirmDelete"
+              >
+                Smazat měření
+              </v-btn>
               <v-spacer />
-              <v-btn variant="tonal" color="text" size="large" :disabled="deleteLoading" @click="cancelDelete">Ponechat</v-btn>
+              <v-btn
+                variant="tonal"
+                color="text"
+                size="large"
+                :disabled="deleteLoading"
+                @click="cancelDelete"
+              >
+                Ponechat
+              </v-btn>
             </div>
           </form>
         </template>
@@ -1107,18 +1176,42 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onHotkeys))
       <!-- Bulk Delete Confirmation -->
       <Dialog
         :is-open="bulkDeleteConfirmOpen"
-        @update:is-open="v => bulkDeleteConfirmOpen = v"
         width="520px"
         :hide-footer="true"
+        @update:is-open="v => bulkDeleteConfirmOpen = v"
       >
         <template #content>
-          <form class="pa-4" @submit.prevent="confirmBulkDelete" @keydown.enter.prevent="confirmBulkDelete">
-            <div class="text-h6 mb-2">Smazat {{ bulkDeleteIds.length }} měření?</div>
-            <div class="mb-4">Tato akce je nevratná. Opravdu chcete smazat vybraná měření?</div>
-            <div class="d-flex" style="gap: 12px">
-              <v-btn type="submit" color="error" :loading="bulkDeleteLoading" :disabled="bulkDeleteLoading">Smazat vše</v-btn>
+          <form
+            class="pa-4"
+            @submit.prevent="confirmBulkDelete"
+            @keydown.enter.prevent="confirmBulkDelete"
+          >
+            <div class="text-h6 mb-2">
+              Smazat {{ bulkDeleteIds.length }} měření?
+            </div>
+            <div class="mb-4">
+              Tato akce je nevratná. Opravdu chcete smazat vybraná měření?
+            </div>
+            <div
+              class="d-flex"
+              style="gap: 12px"
+            >
+              <v-btn
+                type="submit"
+                color="error"
+                :loading="bulkDeleteLoading"
+                :disabled="bulkDeleteLoading"
+              >
+                Smazat vše
+              </v-btn>
               <v-spacer />
-              <v-btn variant="tonal" :disabled="bulkDeleteLoading" @click="() => bulkDeleteConfirmOpen = false">Zrušit</v-btn>
+              <v-btn
+                variant="tonal"
+                :disabled="bulkDeleteLoading"
+                @click="() => bulkDeleteConfirmOpen = false"
+              >
+                Zrušit
+              </v-btn>
             </div>
           </form>
         </template>
@@ -1131,7 +1224,12 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onHotkeys))
         @exported="onExported"
       />
 
-      <v-snackbar v-model="snackbar.open" :timeout="2200">{{ snackbar.text }}</v-snackbar>
+      <v-snackbar
+        v-model="snackbar.open"
+        :timeout="2200"
+      >
+        {{ snackbar.text }}
+      </v-snackbar>
     </v-container>
   </v-container>
 </template>

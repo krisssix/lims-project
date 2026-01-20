@@ -1,18 +1,38 @@
 <template>
   <div class="attachment-list">
     <!-- prázdný stav (empty state) -->
-    <div v-if="!loading && attachments.length === 0" class="empty-state">
-      <v-icon size="48" color="grey-lighten-1">mdi-paperclip</v-icon>
-      <p class="text-grey mt-2">Žádné přílohy</p>
+    <div
+      v-if="!loading && attachments.length === 0"
+      class="empty-state"
+    >
+      <v-icon
+        size="48"
+        color="grey-lighten-1"
+      >
+        mdi-paperclip
+      </v-icon>
+      <p class="text-grey mt-2">
+        Žádné přílohy
+      </p>
     </div>
 
     <!-- stav načítání (loading state) -->
-    <div v-else-if="loading" class="d-flex justify-center py-4">
-      <v-progress-circular indeterminate color="primary" size="32" />
+    <div
+      v-else-if="loading"
+      class="d-flex justify-center py-4"
+    >
+      <v-progress-circular
+        indeterminate
+        color="primary"
+        size="32"
+      />
     </div>
 
     <!-- položky příloh (attachment items) -->
-    <div v-else class="attachment-items">
+    <div
+      v-else
+      class="attachment-items"
+    >
       <div
         v-for="attachment in attachments"
         :key="attachment.id"
@@ -26,7 +46,7 @@
             :src="getDownloadUrl(attachment)"
             :alt="attachment.originalName"
             class="attachment-item__thumbnail"
-          />
+          >
           <v-icon
             v-else
             :icon="getIcon(attachment.contentType)"
@@ -37,7 +57,9 @@
 
         <!-- informace (info) -->
         <div class="attachment-item__info">
-          <p class="attachment-item__name text-truncate">{{ attachment.originalName }}</p>
+          <p class="attachment-item__name text-truncate">
+            {{ attachment.originalName }}
+          </p>
           <p class="attachment-item__meta text-grey">
             {{ formatSize(attachment.sizeBytes) }}
             <span v-if="attachment.uploadedByUsername"> • {{ attachment.uploadedByUsername }}</span>
@@ -46,7 +68,10 @@
         </div>
 
         <!-- akce (actions) -->
-        <div class="attachment-item__actions" @click.stop>
+        <div
+          class="attachment-item__actions"
+          @click.stop
+        >
           <v-btn
             icon="mdi-download"
             size="small"
@@ -70,7 +95,10 @@
     </div>
 
     <!-- dialog pro potvrzení smazání (delete confirmation) -->
-    <v-dialog v-model="deleteDialog" max-width="400">
+    <v-dialog
+      v-model="deleteDialog"
+      max-width="400"
+    >
       <v-card>
         <v-card-title>Smazat přílohu?</v-card-title>
         <v-card-text>
@@ -79,34 +107,65 @@
         </v-card-text>
         <v-card-actions>
           <v-spacer />
-          <v-btn variant="text" @click="deleteDialog = false">Zrušit</v-btn>
-          <v-btn color="error" variant="flat" @click="doDelete">Smazat</v-btn>
+          <v-btn
+            variant="text"
+            @click="deleteDialog = false"
+          >
+            Zrušit
+          </v-btn>
+          <v-btn
+            color="error"
+            variant="flat"
+            @click="doDelete"
+          >
+            Smazat
+          </v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
     
     <!-- dialog pro náhled (preview dialog) -->
-    <v-dialog v-model="previewDialog.open" max-width="90vw" max-height="90vh">
-      <v-card class="bg-black" height="90vh">
-        <v-toolbar density="compact" color="black">
-          <v-toolbar-title class="text-white text-caption">{{ previewDialog.title }}</v-toolbar-title>
+    <v-dialog
+      v-model="previewDialog.open"
+      max-width="90vw"
+      max-height="90vh"
+    >
+      <v-card
+        class="bg-black"
+        height="90vh"
+      >
+        <v-toolbar
+          density="compact"
+          color="black"
+        >
+          <v-toolbar-title class="text-white text-caption">
+            {{ previewDialog.title }}
+          </v-toolbar-title>
           <v-spacer />
-          <v-btn icon="mdi-close" variant="text" color="white" @click="previewDialog.open = false" />
+          <v-btn
+            icon="mdi-close"
+            variant="text"
+            color="white"
+            @click="previewDialog.open = false"
+          />
         </v-toolbar>
         
-        <div class="d-flex align-center justify-center bg-grey-darken-4" style="height: calc(100% - 48px); overflow: hidden;">
-           <v-img 
-             v-if="previewDialog.type === 'image'" 
-             :src="previewDialog.src" 
-             max-height="100%" 
-             max-width="100%" 
-             contain 
-           />
-           <iframe 
-             v-else 
-             :src="previewDialog.src" 
-             style="width:100%; height:100%; border:none; background:white;"
-           ></iframe>
+        <div
+          class="d-flex align-center justify-center bg-grey-darken-4"
+          style="height: calc(100% - 48px); overflow: hidden;"
+        >
+          <v-img 
+            v-if="previewDialog.type === 'image'" 
+            :src="previewDialog.src" 
+            max-height="100%" 
+            max-width="100%" 
+            contain 
+          />
+          <iframe 
+            v-else 
+            :src="previewDialog.src" 
+            style="width:100%; height:100%; border:none; background:white;"
+          />
         </div>
       </v-card>
     </v-dialog>

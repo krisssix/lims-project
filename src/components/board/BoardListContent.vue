@@ -198,10 +198,10 @@ function getMembers(card: Card): MemberGroup[] {
     @end="cardMoved"
   >
     <span
-      class="element-card"
       v-for="(card, index) in cards_ref"
-      :key="card?.id ?? `card-${index}`"
       :id="card?.id"
+      :key="card?.id ?? `card-${index}`"
+      class="element-card"
       @click="emit('openCard', { id: card?.id })"
     >
       {{ card?.name }}

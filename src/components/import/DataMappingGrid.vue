@@ -351,8 +351,13 @@ onBeforeUnmount(() => {
   >
     <v-card>
       <v-card-title class="d-flex align-center justify-space-between">
-        <div class="d-flex align-center" style="gap: 12px;">
-          <v-icon color="primary">mdi-table-arrow-right</v-icon>
+        <div
+          class="d-flex align-center"
+          style="gap: 12px;"
+        >
+          <v-icon color="primary">
+            mdi-table-arrow-right
+          </v-icon>
           <div>
             <div>Mapování dat na pole</div>
             <div class="text-caption text-medium-emphasis">
@@ -360,7 +365,11 @@ onBeforeUnmount(() => {
             </div>
           </div>
         </div>
-        <v-btn icon="mdi-close" variant="text" @click="emits('update:modelValue', false)" />
+        <v-btn
+          icon="mdi-close"
+          variant="text"
+          @click="emits('update:modelValue', false)"
+        />
       </v-card-title>
 
       <v-card-text class="pa-0">
@@ -368,7 +377,12 @@ onBeforeUnmount(() => {
           <!-- Left: Fields list -->
           <div class="fields-panel">
             <div class="panel-header">
-              <v-icon size="18" class="mr-1">mdi-format-list-bulleted</v-icon>
+              <v-icon
+                size="18"
+                class="mr-1"
+              >
+                mdi-format-list-bulleted
+              </v-icon>
               Pole šablony
             </div>
             <div class="fields-list">
@@ -380,9 +394,20 @@ onBeforeUnmount(() => {
               >
                 <div class="field-name">
                   {{ field.name }}
-                  <v-chip v-if="field.required" size="small" color="error" variant="tonal" class="ml-1">*</v-chip>
+                  <v-chip
+                    v-if="field.required"
+                    size="small"
+                    color="error"
+                    variant="tonal"
+                    class="ml-1"
+                  >
+                    *
+                  </v-chip>
                 </div>
-                <div v-if="fieldMappings[idx]?.headerCell" class="field-mapping-info">
+                <div
+                  v-if="fieldMappings[idx]?.headerCell"
+                  class="field-mapping-info"
+                >
                   {{ colLetter(fieldMappings[idx].headerCell!.col) }}{{ fieldMappings[idx].headerCell!.row + 1 }}
                   <span v-if="fieldMappings[idx]?.dataCells.length"> → {{ fieldMappings[idx].dataCells.length }} hodnot</span>
                 </div>
@@ -390,8 +415,15 @@ onBeforeUnmount(() => {
             </div>
             
             <div class="panel-actions">
-              <v-btn size="small" variant="outlined" block @click="autoMapColumns">
-                <v-icon start>mdi-auto-fix</v-icon>
+              <v-btn
+                size="small"
+                variant="outlined"
+                block
+                @click="autoMapColumns"
+              >
+                <v-icon start>
+                  mdi-auto-fix
+                </v-icon>
                 Auto-mapovat
               </v-btn>
             </div>
@@ -401,18 +433,37 @@ onBeforeUnmount(() => {
           <div class="grid-panel">
             <!-- Toolbar -->
             <div class="grid-toolbar">
-              <div class="d-flex align-center" style="gap: 8px;">
-                <v-chip :color="selectMode === 'header' ? 'warning' : 'default'" variant="flat" size="small">
+              <div
+                class="d-flex align-center"
+                style="gap: 8px;"
+              >
+                <v-chip
+                  :color="selectMode === 'header' ? 'warning' : 'default'"
+                  variant="flat"
+                  size="small"
+                >
                   {{ selectMode === 'header' ? '📍 Vybírám hlavičku' : '📊 Vybírám data' }}
                 </v-chip>
-                <span v-if="activeField" class="text-body-2">
+                <span
+                  v-if="activeField"
+                  class="text-body-2"
+                >
                   pro pole: <strong>{{ activeField.name }}</strong>
                 </span>
               </div>
               
-              <div class="d-flex align-center" style="gap: 8px;">
-                <span v-if="selectionInfo" class="text-caption">{{ selectionInfo }}</span>
-                <v-btn-group variant="outlined" density="compact">
+              <div
+                class="d-flex align-center"
+                style="gap: 8px;"
+              >
+                <span
+                  v-if="selectionInfo"
+                  class="text-caption"
+                >{{ selectionInfo }}</span>
+                <v-btn-group
+                  variant="outlined"
+                  density="compact"
+                >
                   <v-btn
                     size="small"
                     :color="selectMode === 'header' ? 'warning' : undefined"
@@ -457,15 +508,24 @@ onBeforeUnmount(() => {
               <table class="data-grid">
                 <thead>
                   <tr>
-                    <th class="corner-cell"></th>
-                    <th v-for="c in maxCols" :key="c - 1" class="col-header">
+                    <th class="corner-cell" />
+                    <th
+                      v-for="c in maxCols"
+                      :key="c - 1"
+                      class="col-header"
+                    >
                       {{ colLetter(c - 1) }}
                     </th>
                   </tr>
                 </thead>
                 <tbody>
-                  <tr v-for="(row, rowIdx) in rawGrid" :key="rowIdx">
-                    <td class="row-header">{{ rowIdx + 1 }}</td>
+                  <tr
+                    v-for="(row, rowIdx) in rawGrid"
+                    :key="rowIdx"
+                  >
+                    <td class="row-header">
+                      {{ rowIdx + 1 }}
+                    </td>
                     <td
                       v-for="colIdx in maxCols"
                       :key="colIdx - 1"
@@ -488,7 +548,9 @@ onBeforeUnmount(() => {
             </div>
 
             <div class="grid-help">
-              <v-icon size="14">mdi-keyboard</v-icon>
+              <v-icon size="14">
+                mdi-keyboard
+              </v-icon>
               <span>Klik = výběr | Shift+Klik = rozsah | Ctrl+Klik = přidat | Shift+Ctrl+Šipky = rozšířit do kraje | Enter = přiřadit | Tab = další pole</span>
             </div>
           </div>
@@ -496,7 +558,12 @@ onBeforeUnmount(() => {
       </v-card-text>
 
       <v-card-actions class="pa-4">
-        <v-btn variant="text" @click="emits('update:modelValue', false)">Zrušit</v-btn>
+        <v-btn
+          variant="text"
+          @click="emits('update:modelValue', false)"
+        >
+          Zrušit
+        </v-btn>
         <v-spacer />
         <v-btn
           color="primary"

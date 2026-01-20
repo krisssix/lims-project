@@ -153,7 +153,6 @@ watch(() => props.modelValue, v => {
     </template>
 
     <template #content>
-      
       <div v-if="step === 1">
         <div class="text-subtitle-2 mb-2">
           Zdroj dat

@@ -63,12 +63,12 @@ function updateIsMultiple(value){
     </div>
     <div class="filter-body">
       <side-filter-row
+        v-for="member in props.members"
         :key="member.name"
         :is-member-selected="isSelected(member.username)"
         :username="member.username"
         :is-multiple="isMultiple"
         @update:selected-member="args => selectMember(args)"
-        v-for="member in props.members"
       />
     </div>
     <div class="filter-footer" />

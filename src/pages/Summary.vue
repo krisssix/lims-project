@@ -50,8 +50,18 @@ function calculateLastMonthStartDay(){
   <div
     class="d-flex ga-4 pt-5 w-50"
   >
-    <v-combobox @update:model-value="value => intervalChanged(value)" :model-value="interval" :items="intervalItems" variant="outlined"></v-combobox>
-    <v-combobox @update:model-value="value => byChanged(value)" :model-value="by" :items="byItems" variant="outlined"></v-combobox>
+    <v-combobox
+      :model-value="interval"
+      :items="intervalItems"
+      variant="outlined"
+      @update:model-value="value => intervalChanged(value)"
+    />
+    <v-combobox
+      :model-value="by"
+      :items="byItems"
+      variant="outlined"
+      @update:model-value="value => byChanged(value)"
+    />
   </div>
   <bar-chart class="w-50" />
 </template>

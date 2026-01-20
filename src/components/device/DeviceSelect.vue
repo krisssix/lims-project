@@ -30,7 +30,7 @@ const emits = defineEmits<{
 
 const valueKey = computed(() => props.valueKey ?? 'id')
 const density = computed(() => props.density ?? 'comfortable')
-const clearable = computed(() => props.clearable ?? true)
+//const clearable = computed(() => props.clearable ?? true)
 const chipSelection = computed(() => props.chipSelection ?? true)
 // filtrování neaktivních přístrojů, pokud není povoleno jejich zobrazení (filter out inactive)
 const computedItems = computed<DeviceOption[]>(() => {
@@ -80,8 +80,11 @@ function onUpdate(val: unknown): void {
     :chips="chipSelection"
     @update:model-value="onUpdate"
   >
-    <template v-slot:selection="{ item }">
-      <div class="d-flex align-center" style="gap:8px; overflow: hidden;">
+    <template #selection="{ item }">
+      <div
+        class="d-flex align-center"
+        style="gap:8px; overflow: hidden;"
+      >
         <v-chip
           size="small"
           :color="item.raw?.color || 'primary'"

@@ -204,7 +204,8 @@ function analyze(): void {
         </v-btn>
         
         <!-- Vložit text button -->
-        <v-btn :active="inputMode === 'text'"
+        <v-btn
+          :active="inputMode === 'text'"
           variant="outlined"
           color="primary"
           prepend-icon="mdi-content-paste"
@@ -213,7 +214,7 @@ function analyze(): void {
           Vložit text
         </v-btn>
         
-        <div class="toolbar-divider"></div>
+        <div class="toolbar-divider" />
         
         <!-- Vyčistit vše button -->
         <v-btn
@@ -226,20 +227,42 @@ function analyze(): void {
         </v-btn>
       </div>
       
-      <div class="toolbar-spacer"></div>
+      <div class="toolbar-spacer" />
       
       <!-- File info + status -->
-      <div v-if="hasInput" class="toolbar-info">
+      <div
+        v-if="hasInput"
+        class="toolbar-info"
+      >
         <!-- File Info Chip -->
-        <div v-if="inputMode === 'file' && props.importedFile" class="info-chip file-chip">
-          <v-icon size="14" color="primary">mdi-file-document-outline</v-icon>
+        <div
+          v-if="inputMode === 'file' && props.importedFile"
+          class="info-chip file-chip"
+        >
+          <v-icon
+            size="14"
+            color="primary"
+          >
+            mdi-file-document-outline
+          </v-icon>
           <span class="chip-filename">{{ props.importedFile.name }}</span>
-          <span v-if="props.importedStructure" class="chip-count">{{ offsetRows.length }} záznamy</span>
+          <span
+            v-if="props.importedStructure"
+            class="chip-count"
+          >{{ offsetRows.length }} záznamy</span>
         </div>
         
         <!-- Text Info Chip -->
-        <div v-else-if="inputMode === 'text' && pastedText.trim()" class="info-chip text-chip">
-          <v-icon size="14" color="secondary">mdi-text-box-outline</v-icon>
+        <div
+          v-else-if="inputMode === 'text' && pastedText.trim()"
+          class="info-chip text-chip"
+        >
+          <v-icon
+            size="14"
+            color="secondary"
+          >
+            mdi-text-box-outline
+          </v-icon>
           <span class="chip-filename">{{ pastedText.split('\n').length }} řádků</span>
         </div>
         
@@ -257,8 +280,13 @@ function analyze(): void {
         </v-btn>
 
         <!-- Status Chip -->
-        <div v-if="props.importedStructure" class="status-chip success">
-          <v-icon size="14">mdi-check-circle</v-icon>
+        <div
+          v-if="props.importedStructure"
+          class="status-chip success"
+        >
+          <v-icon size="14">
+            mdi-check-circle
+          </v-icon>
           <span>Analyzováno</span>
         </div>
         
@@ -269,13 +297,18 @@ function analyze(): void {
           title="Zrušit vstup"
           @click="cancelInput"
         >
-          <v-icon size="18">mdi-close</v-icon>
+          <v-icon size="18">
+            mdi-close
+          </v-icon>
         </button>
       </div>
     </div>
 
     <!-- Text input area (only when in text mode) -->
-    <div v-if="inputMode === 'text'" class="text-input-section">
+    <div
+      v-if="inputMode === 'text'"
+      class="text-input-section"
+    >
       <v-textarea
         v-model="pastedText"
         label="Vlož data ze schránky"
@@ -300,17 +333,34 @@ function analyze(): void {
     </div>
 
     <!-- Error message -->
-    <div v-if="props.importError" class="status-msg error">
-      <v-icon size="16">mdi-alert-circle</v-icon>
+    <div
+      v-if="props.importError"
+      class="status-msg error"
+    >
+      <v-icon size="16">
+        mdi-alert-circle
+      </v-icon>
       {{ props.importError }}
     </div>
 
     <!-- Preview Section -->
-    <details v-if="props.importedStructure" class="preview-section" open>
+    <details
+      v-if="props.importedStructure"
+      class="preview-section"
+      open
+    >
       <summary class="preview-summary">
         <!-- Section Icon Badge -->
-        <div class="section-icon" :class="{ success: props.importCompatibility?.compatible }">
-          <v-icon size="18" color="white">{{ props.importCompatibility?.compatible ? 'mdi-check' : 'mdi-alert' }}</v-icon>
+        <div
+          class="section-icon"
+          :class="{ success: props.importCompatibility?.compatible }"
+        >
+          <v-icon
+            size="18"
+            color="white"
+          >
+            {{ props.importCompatibility?.compatible ? 'mdi-check' : 'mdi-alert' }}
+          </v-icon>
         </div>
         
         <!-- Section Title -->
@@ -327,16 +377,21 @@ function analyze(): void {
             <v-icon size="12">mdi-database</v-icon>
             {{ offsetRows.length }} záznamy měření
           </span>
-          <span v-if="props.importedStructure?.series?.length" class="mini-chip secondary">
+          <span
+            v-if="props.importedStructure?.series?.length"
+            class="mini-chip secondary"
+          >
             <v-icon size="12">mdi-chart-line</v-icon>
             {{ props.importedStructure.series.length }} sérií
           </span>
-
         </div>
         
-        <div class="section-spacer"></div>
+        <div class="section-spacer" />
         
-        <div class="section-actions" @click.stop>
+        <div
+          class="section-actions"
+          @click.stop
+        >
           <v-btn
             variant="outlined"
             color="primary"
@@ -363,7 +418,14 @@ function analyze(): void {
         <div class="settings-card">
           <div class="settings-header">
             <div class="settings-title">
-              <div class="settings-icon"><v-icon size="15" color="primary">mdi-tune-variant</v-icon></div>
+              <div class="settings-icon">
+                <v-icon
+                  size="15"
+                  color="primary"
+                >
+                  mdi-tune-variant
+                </v-icon>
+              </div>
               <span>Nastavení parsování</span>
             </div>
             <span class="auto-badge">
@@ -392,13 +454,13 @@ function analyze(): void {
               </div>
             </div>
 
-            <div class="setting-divider"></div>
+            <div class="setting-divider" />
 
             <!-- Decimal Separator -->
             <div class="setting-item">
               <span class="setting-label">Desetinná čárka</span>
               <div style="width: 110px;">
-                 <v-select
+                <v-select
                   :model-value="props.parsingDecimalSeparator || '.'"
                   :items="decimalSeparatorOptions"
                   density="compact"
@@ -413,20 +475,25 @@ function analyze(): void {
               </div>
             </div>
 
-            <div class="setting-divider"></div>
+            <div class="setting-divider" />
 
             <!-- Skip rows / Header Row Picker -->
             <div class="setting-item">
               <span class="setting-label">Začátek dat</span>
               <div class="d-flex align-center ga-2">
-                 <div class="stepper-control">
+                <div class="stepper-control">
                   <button 
                     type="button" 
                     class="stepper-btn"
                     :disabled="(props.parsingHeaderRowIndex || 0) <= 0"
                     @click="emits('update:parsingHeaderRowIndex', (props.parsingHeaderRowIndex || 0) - 1)"
-                  >−</button>
-                  <span class="stepper-value" style="min-width: 40px; font-size: 12px;">
+                  >
+                    −
+                  </button>
+                  <span
+                    class="stepper-value"
+                    style="min-width: 40px; font-size: 12px;"
+                  >
                     {{ (props.parsingHeaderRowIndex || 0) + 1 }}. řádek
                   </span>
                   <button 
@@ -434,9 +501,11 @@ function analyze(): void {
                     class="stepper-btn"
                     :disabled="(props.parsingHeaderRowIndex || 0) >= totalRowCount - 1"
                     @click="emits('update:parsingHeaderRowIndex', (props.parsingHeaderRowIndex || 0) + 1)"
-                  >+</button>
+                  >
+                    +
+                  </button>
                 </div>
-                 <v-btn
+                <v-btn
                   size="x-small"
                   variant="tonal"
                   icon="mdi-target"
@@ -446,7 +515,7 @@ function analyze(): void {
               </div>
             </div>
             
-            <div class="setting-divider"></div>
+            <div class="setting-divider" />
             
             <!-- Header checkbox -->
             <label class="checkbox-item">
@@ -459,7 +528,7 @@ function analyze(): void {
             </label>
             
             <!-- Re-analyze button (shown only if settings differ from detected/current) -->
-             <v-btn
+            <v-btn
               v-if="true" 
               size="small"
               variant="text"
@@ -476,7 +545,14 @@ function analyze(): void {
         <!-- Records Table -->
         <div class="records-section">
           <div class="records-header">
-            <div class="records-icon"><v-icon size="15" color="primary">mdi-table</v-icon></div>
+            <div class="records-icon">
+              <v-icon
+                size="15"
+                color="primary"
+              >
+                mdi-table
+              </v-icon>
+            </div>
             <span>Rozpoznané hodnoty</span>
           </div>
           
@@ -485,13 +561,29 @@ function analyze(): void {
               <thead>
                 <tr>
                   <th>#</th>
-                  <th v-for="(h, i) in props.importedStructure.blocks[0]?.headers" :key="i">{{ h }}</th>
+                  <th
+                    v-for="(h, i) in props.importedStructure.blocks[0]?.headers"
+                    :key="i"
+                  >
+                    {{ h }}
+                  </th>
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="(row, ri) in offsetRows.slice(0, 5)" :key="ri" :class="{ alternate: ri % 2 === 1 }">
-                  <td class="row-number">{{ ri + 1 }}</td>
-                  <td v-for="(cell, ci) in row" :key="ci">{{ cell }}</td>
+                <tr
+                  v-for="(row, ri) in offsetRows.slice(0, 5)"
+                  :key="ri"
+                  :class="{ alternate: ri % 2 === 1 }"
+                >
+                  <td class="row-number">
+                    {{ ri + 1 }}
+                  </td>
+                  <td
+                    v-for="(cell, ci) in row"
+                    :key="ci"
+                  >
+                    {{ cell }}
+                  </td>
                 </tr>
               </tbody>
             </table>

@@ -239,7 +239,11 @@ function openFieldSelect() {
 </script>
 
 <template>
-  <div class="chart-panel" :aria-label="liveStatus" aria-live="polite">
+  <div
+    class="chart-panel"
+    :aria-label="liveStatus"
+    aria-live="polite"
+  >
     <!-- Compact field selector -->
     <div class="field-selector-compact">
       <v-select
@@ -254,17 +258,35 @@ function openFieldSelect() {
         @update:model-value="onSelectField"
       >
         <template #prepend-inner>
-          <v-icon size="18" color="primary">mdi-tag-multiple</v-icon>
+          <v-icon
+            size="18"
+            color="primary"
+          >
+            mdi-tag-multiple
+          </v-icon>
         </template>
         <template #selection="{ item }">
           <span class="font-weight-medium">{{ item.raw }}</span>
         </template>
       </v-select>
 
-      <v-tooltip location="top" text="Pro rychlý výběr použijte Alt + číslo">
+      <v-tooltip
+        location="top"
+        text="Pro rychlý výběr použijte Alt + číslo"
+      >
         <template #activator="{ props: tooltipProps }">
-          <v-chip v-bind="tooltipProps" size="small" variant="tonal" class="keyboard-hint ml-2">
-            <v-icon size="14" start>mdi-keyboard-variant</v-icon>
+          <v-chip
+            v-bind="tooltipProps"
+            size="small"
+            variant="tonal"
+            class="keyboard-hint ml-2"
+          >
+            <v-icon
+              size="14"
+              start
+            >
+              mdi-keyboard-variant
+            </v-icon>
             Alt+1..9
           </v-chip>
         </template>
@@ -277,11 +299,30 @@ function openFieldSelect() {
       <div class="chart-toolbar">
         <!-- Chart type selector -->
         <div class="toolbar-section">
-          <v-btn-toggle v-model="activeTab" class="chart-type-toggle-compact" divided mandatory density="compact" color="primary">
-            <v-tooltip v-for="tab in tabs" :key="tab" location="top" :text="`${tabLabels[tab]} (Alt+${tab[0]})`">
+          <v-btn-toggle
+            v-model="activeTab"
+            class="chart-type-toggle-compact"
+            divided
+            mandatory
+            density="compact"
+            color="primary"
+          >
+            <v-tooltip
+              v-for="tab in tabs"
+              :key="tab"
+              location="top"
+              :text="`${tabLabels[tab]} (Alt+${tab[0]})`"
+            >
               <template #activator="{ props: tooltipProps }">
-                <v-btn v-bind="tooltipProps" :value="tab" size="small">
-                  <v-icon :icon="tabIcons[tab]" size="18" />
+                <v-btn
+                  v-bind="tooltipProps"
+                  :value="tab"
+                  size="small"
+                >
+                  <v-icon
+                    :icon="tabIcons[tab]"
+                    size="18"
+                  />
                 </v-btn>
               </template>
             </v-tooltip>
@@ -290,7 +331,12 @@ function openFieldSelect() {
 
         <!-- Display options -->
         <div class="toolbar-section">
-          <v-tooltip v-for="opt in displayOptions" :key="opt.label" location="top" :text="`${opt.label} (${opt.shortcut})`">
+          <v-tooltip
+            v-for="opt in displayOptions"
+            :key="opt.label"
+            location="top"
+            :text="`${opt.label} (${opt.shortcut})`"
+          >
             <template #activator="{ props: tooltipProps }">
               <v-btn
                 v-bind="tooltipProps"
@@ -306,20 +352,47 @@ function openFieldSelect() {
 
         <!-- Trend type selector (shown when trend is active) -->
         <v-expand-transition>
-          <div v-if="showTrend" class="toolbar-section">
-            <v-btn-toggle v-model="trendType" density="compact" color="primary" mandatory class="trend-toggle">
-              <v-tooltip location="top" text="Lineární regrese (y = ax + b)">
+          <div
+            v-if="showTrend"
+            class="toolbar-section"
+          >
+            <v-btn-toggle
+              v-model="trendType"
+              density="compact"
+              color="primary"
+              mandatory
+              class="trend-toggle"
+            >
+              <v-tooltip
+                location="top"
+                text="Lineární regrese (y = ax + b)"
+              >
                 <template #activator="{ props: tooltipProps }">
-                  <v-btn v-bind="tooltipProps" value="linear" size="x-small">
-                    <v-icon size="16">mdi-chart-line</v-icon>
+                  <v-btn
+                    v-bind="tooltipProps"
+                    value="linear"
+                    size="x-small"
+                  >
+                    <v-icon size="16">
+                      mdi-chart-line
+                    </v-icon>
                     <span class="ml-1 text-caption">Lin</span>
                   </v-btn>
                 </template>
               </v-tooltip>
-              <v-tooltip location="top" text="Logaritmická regrese (y = a*ln(x) + b)">
+              <v-tooltip
+                location="top"
+                text="Logaritmická regrese (y = a*ln(x) + b)"
+              >
                 <template #activator="{ props: tooltipProps }">
-                  <v-btn v-bind="tooltipProps" value="logarithmic" size="x-small">
-                    <v-icon size="16">mdi-chart-bell-curve-cumulative</v-icon>
+                  <v-btn
+                    v-bind="tooltipProps"
+                    value="logarithmic"
+                    size="x-small"
+                  >
+                    <v-icon size="16">
+                      mdi-chart-bell-curve-cumulative
+                    </v-icon>
                     <span class="ml-1 text-caption">Log</span>
                   </v-btn>
                 </template>
@@ -332,19 +405,46 @@ function openFieldSelect() {
 
         <!-- Export options -->
         <div class="toolbar-section">
-          <v-tooltip text="Export CSV (Ctrl+E)" location="top">
+          <v-tooltip
+            text="Export CSV (Ctrl+E)"
+            location="top"
+          >
             <template #activator="{ props: tooltipProps }">
-              <v-btn v-bind="tooltipProps" size="small" variant="text" icon="mdi-file-delimited" @click="triggerCsv" />
+              <v-btn
+                v-bind="tooltipProps"
+                size="small"
+                variant="text"
+                icon="mdi-file-delimited"
+                @click="triggerCsv"
+              />
             </template>
           </v-tooltip>
-          <v-tooltip text="Export SVG (Ctrl+Shift+E)" location="top">
+          <v-tooltip
+            text="Export SVG (Ctrl+Shift+E)"
+            location="top"
+          >
             <template #activator="{ props: tooltipProps }">
-              <v-btn v-bind="tooltipProps" size="small" variant="text" icon="mdi-vector-square" @click="triggerSvg" />
+              <v-btn
+                v-bind="tooltipProps"
+                size="small"
+                variant="text"
+                icon="mdi-vector-square"
+                @click="triggerSvg"
+              />
             </template>
           </v-tooltip>
-          <v-tooltip text="Export PNG (Ctrl+Alt+E)" location="top">
+          <v-tooltip
+            text="Export PNG (Ctrl+Alt+E)"
+            location="top"
+          >
             <template #activator="{ props: tooltipProps }">
-              <v-btn v-bind="tooltipProps" size="small" variant="text" icon="mdi-file-image" @click="triggerPng" />
+              <v-btn
+                v-bind="tooltipProps"
+                size="small"
+                variant="text"
+                icon="mdi-file-image"
+                @click="triggerPng"
+              />
             </template>
           </v-tooltip>
         </div>
@@ -353,11 +453,23 @@ function openFieldSelect() {
       <!-- Chart and stats layout -->
       <div class="chart-content-layout">
         <!-- Main chart area -->
-        <div class="chart-area-main" style="position: relative;">
+        <div
+          class="chart-area-main"
+          style="position: relative;"
+        >
           <!-- Empty state button -->
-          <div v-if="!seriesEnhanced.length" class="no-data-overlay">
-            <div class="text-medium-emphasis mb-4">Žádná data pro graf</div>
-            <v-btn color="primary" prepend-icon="mdi-tag-multiple" @click="openFieldSelect">
+          <div
+            v-if="!seriesEnhanced.length"
+            class="no-data-overlay"
+          >
+            <div class="text-medium-emphasis mb-4">
+              Žádná data pro graf
+            </div>
+            <v-btn
+              color="primary"
+              prepend-icon="mdi-tag-multiple"
+              @click="openFieldSelect"
+            >
               Vybrat pole pro vizualizaci
             </v-btn>
           </div>
@@ -384,16 +496,27 @@ function openFieldSelect() {
 
         <!-- Compact stats sidebar -->
         <div class="stats-sidebar-compact">
-          <ChartStats :stats="stats" :outliers="outliers" />
+          <ChartStats
+            :stats="stats"
+            :outliers="outliers"
+          />
         </div>
       </div>
     </div>
 
     <!-- Series legend (if multiple) -->
     <v-expand-transition>
-      <div v-if="seriesEnhanced.length > 1" class="series-legend-compact">
+      <div
+        v-if="seriesEnhanced.length > 1"
+        class="series-legend-compact"
+      >
         <div class="legend-header">
-          <v-icon size="16" color="primary">mdi-format-list-bulleted</v-icon>
+          <v-icon
+            size="16"
+            color="primary"
+          >
+            mdi-format-list-bulleted
+          </v-icon>
           <span class="legend-title">Série ({{ seriesEnhanced.length }})</span>
         </div>
         <div class="legend-items">
@@ -406,7 +529,12 @@ function openFieldSelect() {
             class="legend-chip"
           >
             {{ s.label }}
-            <v-chip size="x-small" variant="elevated" color="white" class="ml-1">
+            <v-chip
+              size="x-small"
+              variant="elevated"
+              color="white"
+              class="ml-1"
+            >
               {{ s.points.length }}
             </v-chip>
           </v-chip>

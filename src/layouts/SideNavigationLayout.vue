@@ -3,7 +3,7 @@
 
 <template>
   <AppToolbar :is-projects-screen="false" />
-  <LeftNavigation/>
+  <LeftNavigation />
   <v-main>
     <v-container :fluid="true">
       <router-view />

@@ -662,27 +662,56 @@ onUnmounted(() => {
     <div class="series-header">
       <div class="series-title">
         <div class="series-icon">
-          <v-icon size="15" color="white">mdi-chart-bell-curve-cumulative</v-icon>
+          <v-icon
+            size="15"
+            color="white"
+          >
+            mdi-chart-bell-curve-cumulative
+          </v-icon>
         </div>
         <span>Datové série</span>
       </div>
       
-      <div class="series-spacer"></div>
+      <div class="series-spacer" />
       
-      <div class="series-actions" v-if="editable">
-        <button type="button" class="series-btn tonal-purple" @click="emits('duplicate-series')"
-          v-if="series.length > 0">
-          <v-icon size="16">mdi-content-duplicate</v-icon>
+      <div
+        v-if="editable"
+        class="series-actions"
+      >
+        <button
+          v-if="series.length > 0"
+          type="button"
+          class="series-btn tonal-purple"
+          @click="emits('duplicate-series')"
+        >
+          <v-icon size="16">
+            mdi-content-duplicate
+          </v-icon>
           Duplikovat
         </button>
-        <button type="button" class="series-btn tonal-error" @click="emits('remove-series', series.length - 1)"
-          v-if="series.length > 0">
-          <v-icon size="16">mdi-delete-outline</v-icon>
+        <button
+          v-if="series.length > 0"
+          type="button"
+          class="series-btn tonal-error"
+          @click="emits('remove-series', series.length - 1)"
+        >
+          <v-icon size="16">
+            mdi-delete-outline
+          </v-icon>
           Smazat
         </button>
-        <div class="series-divider" v-if="series.length > 0"></div>
-        <button type="button" class="series-btn primary-purple" @click="emits('add-series')">
-          <v-icon size="16">mdi-plus</v-icon>
+        <div
+          v-if="series.length > 0"
+          class="series-divider"
+        />
+        <button
+          type="button"
+          class="series-btn primary-purple"
+          @click="emits('add-series')"
+        >
+          <v-icon size="16">
+            mdi-plus
+          </v-icon>
           Přidat sérii
         </button>
       </div>
@@ -820,9 +849,15 @@ onUnmounted(() => {
                     :key="col.name"
                     class="text-left"
                   >
-                    <div class="d-flex align-center" style="gap: 4px;">
+                    <div
+                      class="d-flex align-center"
+                      style="gap: 4px;"
+                    >
                       {{ col.name }}
-                      <span v-if="col.required" class="text-error">*</span>
+                      <span
+                        v-if="col.required"
+                        class="text-error"
+                      >*</span>
                       <v-btn
                         v-if="editable && getColumnsForSeries(s).length > 1"
                         size="x-small"
@@ -836,7 +871,10 @@ onUnmounted(() => {
                     </div>
                   </th>
                   <!-- Add column button -->
-                  <th v-if="editable" style="width: 40px;">
+                  <th
+                    v-if="editable"
+                    style="width: 40px;"
+                  >
                     <v-btn
                       size="x-small"
                       variant="text"
@@ -873,10 +911,18 @@ onUnmounted(() => {
                     class="text-caption text-medium-emphasis drag-handle"
                     style="cursor: grab;"
                   >
-                    <v-icon size="14" class="mr-1">mdi-drag</v-icon>
+                    <v-icon
+                      size="14"
+                      class="mr-1"
+                    >
+                      mdi-drag
+                    </v-icon>
                     {{ pIdx + 1 }}
                   </td>
-                  <td v-for="col in getColumnsForSeries(s)" :key="`cell-${pIdx}-${col.name}`">
+                  <td
+                    v-for="col in getColumnsForSeries(s)"
+                    :key="`cell-${pIdx}-${col.name}`"
+                  >
                     <input
                       v-if="editable"
                       type="text"
@@ -904,7 +950,10 @@ onUnmounted(() => {
 
           <!-- Chart Section -->
           <div class="chart-section mt-4">
-            <div class="d-flex align-center mb-2" style="gap: 8px;">
+            <div
+              class="d-flex align-center mb-2"
+              style="gap: 8px;"
+            >
               <v-btn
                 size="small"
                 :variant="showChart.get(sIdx) ? 'flat' : 'outlined'"
@@ -916,10 +965,19 @@ onUnmounted(() => {
               </v-btn>
             </div>
             
-            <div v-if="showChart.get(sIdx)" class="chart-controls mb-3">
-              <div class="d-flex flex-wrap align-center" style="gap: 12px;">
+            <div
+              v-if="showChart.get(sIdx)"
+              class="chart-controls mb-3"
+            >
+              <div
+                class="d-flex flex-wrap align-center"
+                style="gap: 12px;"
+              >
                 <!-- X Axis selector -->
-                <div class="d-flex align-center" style="gap: 6px;">
+                <div
+                  class="d-flex align-center"
+                  style="gap: 6px;"
+                >
                   <span class="text-caption font-weight-medium">X osa:</span>
                   <v-chip-group
                     :model-value="chartXAxis.get(sIdx)"
@@ -940,9 +998,15 @@ onUnmounted(() => {
                 </div>
                 
                 <!-- Y Axes toggles -->
-                <div class="d-flex align-center" style="gap: 6px;">
+                <div
+                  class="d-flex align-center"
+                  style="gap: 6px;"
+                >
                   <span class="text-caption font-weight-medium">Y série:</span>
-                  <template v-for="(col, ci) in getColumnsForSeries(s)" :key="'y-' + col.name">
+                  <template
+                    v-for="(col, ci) in getColumnsForSeries(s)"
+                    :key="'y-' + col.name"
+                  >
                     <v-checkbox
                       v-if="chartXAxis.get(sIdx) !== col.name"
                       :model-value="chartYAxes.get(sIdx)?.has(col.name) ?? false"
@@ -957,9 +1021,12 @@ onUnmounted(() => {
               </div>
               
               <!-- Chart Canvas -->
-              <div class="chart-container mt-3" style="height: 350px; overflow-x: auto; border: 1px solid #f0f0f0; border-radius: 8px;">
+              <div
+                class="chart-container mt-3"
+                style="height: 350px; overflow-x: auto; border: 1px solid #f0f0f0; border-radius: 8px;"
+              >
                 <div :style="getChartInnerStyle(sIdx)">
-                  <canvas :ref="(el) => setChartRef(sIdx, el as HTMLCanvasElement)"></canvas>
+                  <canvas :ref="(el) => setChartRef(sIdx, el as HTMLCanvasElement)" />
                 </div>
               </div>
             </div>
@@ -1027,7 +1094,10 @@ onUnmounted(() => {
     />
     
     <!-- Add Column Dialog -->
-    <v-dialog v-model="addColumnDialogOpen" max-width="400">
+    <v-dialog
+      v-model="addColumnDialogOpen"
+      max-width="400"
+    >
       <v-card>
         <v-card-title>Přidat sloupec</v-card-title>
         <v-card-text>
@@ -1055,8 +1125,18 @@ onUnmounted(() => {
         </v-card-text>
         <v-card-actions>
           <v-spacer />
-          <v-btn variant="text" @click="addColumnDialogOpen = false">Zrušit</v-btn>
-          <v-btn color="primary" variant="flat" :disabled="!newColumnName.trim()" @click="confirmAddColumn">
+          <v-btn
+            variant="text"
+            @click="addColumnDialogOpen = false"
+          >
+            Zrušit
+          </v-btn>
+          <v-btn
+            color="primary"
+            variant="flat"
+            :disabled="!newColumnName.trim()"
+            @click="confirmAddColumn"
+          >
             Přidat
           </v-btn>
         </v-card-actions>
@@ -1064,7 +1144,10 @@ onUnmounted(() => {
     </v-dialog>
     
     <!-- Remove Column Confirmation Dialog -->
-    <v-dialog v-model="removeColumnConfirmOpen" max-width="400">
+    <v-dialog
+      v-model="removeColumnConfirmOpen"
+      max-width="400"
+    >
       <v-card>
         <v-card-title>Odstranit sloupec</v-card-title>
         <v-card-text>
@@ -1074,8 +1157,17 @@ onUnmounted(() => {
         </v-card-text>
         <v-card-actions>
           <v-spacer />
-          <v-btn variant="text" @click="removeColumnConfirmOpen = false">Zrušit</v-btn>
-          <v-btn color="error" variant="flat" @click="confirmRemoveColumn">
+          <v-btn
+            variant="text"
+            @click="removeColumnConfirmOpen = false"
+          >
+            Zrušit
+          </v-btn>
+          <v-btn
+            color="error"
+            variant="flat"
+            @click="confirmRemoveColumn"
+          >
             Odstranit
           </v-btn>
         </v-card-actions>

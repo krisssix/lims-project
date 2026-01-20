@@ -101,16 +101,32 @@ function onUpdate(val: unknown): void {
       v-if="modelValue"
       #selection="{ item }"
     >
-      <div class="d-flex align-center" style="gap:8px;">
-        <v-icon size="18" color="primary">mdi-file-document-outline</v-icon>
+      <div
+        class="d-flex align-center"
+        style="gap:8px;"
+      >
+        <v-icon
+          size="18"
+          color="primary"
+        >
+          mdi-file-document-outline
+        </v-icon>
         <span class="text-body-2">{{ item.raw?.name }}</span>
       </div>
     </template>
 
     <template #item="{ item, props: liProps }">
-      <v-list-item v-bind="liProps" :title="undefined">
+      <v-list-item
+        v-bind="liProps"
+        :title="undefined"
+      >
         <template #prepend>
-          <v-icon size="20" color="primary">mdi-file-document-outline</v-icon>
+          <v-icon
+            size="20"
+            color="primary"
+          >
+            mdi-file-document-outline
+          </v-icon>
         </template>
         <v-list-item-title>{{ item.raw?.name }}</v-list-item-title>
       </v-list-item>

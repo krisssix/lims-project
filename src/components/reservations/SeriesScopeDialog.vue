@@ -41,23 +41,35 @@ function cancel() {
 
 <template>
   <Dialog
-   :is-open="isOpen"
-    @update:is-open="v => emit('update:isOpen', v)"
+    :is-open="isOpen"
     width="480px"
-   :hide-footer="true"
+    :hide-footer="true"
+    @update:is-open="v => emit('update:isOpen', v)"
   >
     <template #content>
       <div class="recurrence-dialog">
         <!-- Header -->
-        <div class="dialog-header":class="{ 'header-delete':isDelete }">
-          <div class="header-icon":class="{ 'icon-delete':isDelete }">
-            <v-icon :icon="dialogIcon" size="24" />
+        <div
+          class="dialog-header"
+          :class="{ 'header-delete':isDelete }"
+        >
+          <div
+            class="header-icon"
+            :class="{ 'icon-delete':isDelete }"
+          >
+            <v-icon
+              :icon="dialogIcon"
+              size="24"
+            />
           </div>
           <div class="header-text">
             <div class="header-title">
               {{ isDelete ? 'Smazat opakovanou událost':'Upravit opakovanou událost' }}
             </div>
-            <div v-if="eventTitle" class="header-subtitle">
+            <div
+              v-if="eventTitle"
+              class="header-subtitle"
+            >
               {{ eventTitle }}
             </div>
           </div>
@@ -65,7 +77,11 @@ function cancel() {
 
         <!-- Info banner -->
         <div class="info-banner">
-          <v-icon icon="mdi-information-outline" size="18" color="primary" />
+          <v-icon
+            icon="mdi-information-outline"
+            size="18"
+            color="primary"
+          />
           <span>
             Tato událost je součástí série{{ seriesCount ? ` (${seriesCount} událostí)`:'' }}.
             Vyberte rozsah změny.
@@ -77,7 +93,7 @@ function cancel() {
           <!-- Option 1:Single -->
           <label
             class="option-card"
-           :class="{ 'option-selected':scope === 'single' }"
+            :class="{ 'option-selected':scope === 'single' }"
           >
             <input
               v-model="scope"
@@ -86,7 +102,10 @@ function cancel() {
               class="option-radio"
             >
             <div class="option-icon">
-              <v-icon icon="mdi-calendar" size="20" />
+              <v-icon
+                icon="mdi-calendar"
+                size="20"
+              />
             </div>
             <div class="option-content">
               <div class="option-title">Pouze tuto událost</div>
@@ -94,8 +113,15 @@ function cancel() {
                 {{ isDelete ? 'Smaže pouze tuto jednu instanci':'Vytvoří výjimku, ostatní zůstanou beze změny' }}
               </div>
             </div>
-            <div v-if="scope === 'single'" class="option-check">
-              <v-icon icon="mdi-check-circle" size="20" color="primary" />
+            <div
+              v-if="scope === 'single'"
+              class="option-check"
+            >
+              <v-icon
+                icon="mdi-check-circle"
+                size="20"
+                color="primary"
+              />
             </div>
           </label>
 
@@ -103,7 +129,7 @@ function cancel() {
           <label
             v-if="!isFirstInSeries"
             class="option-card"
-           :class="{ 'option-selected':scope === 'following' }"
+            :class="{ 'option-selected':scope === 'following' }"
           >
             <input
               v-model="scope"
@@ -112,7 +138,10 @@ function cancel() {
               class="option-radio"
             >
             <div class="option-icon">
-              <v-icon icon="mdi-calendar-arrow-right" size="20" />
+              <v-icon
+                icon="mdi-calendar-arrow-right"
+                size="20"
+              />
             </div>
             <div class="option-content">
               <div class="option-title">Tuto a všechny následující</div>
@@ -120,15 +149,22 @@ function cancel() {
                 {{ isDelete ? 'Smaže tuto a všechny budoucí události':'Rozdělí sérii od tohoto data' }}
               </div>
             </div>
-            <div v-if="scope === 'following'" class="option-check">
-              <v-icon icon="mdi-check-circle" size="20" color="primary" />
+            <div
+              v-if="scope === 'following'"
+              class="option-check"
+            >
+              <v-icon
+                icon="mdi-check-circle"
+                size="20"
+                color="primary"
+              />
             </div>
           </label>
 
           <!-- Option 3:All in series -->
           <label
             class="option-card"
-           :class="{
+            :class="{
               'option-selected':scope === 'series',
               'option-danger':isDelete && scope === 'series'
             }"
@@ -139,8 +175,14 @@ function cancel() {
               value="series"
               class="option-radio"
             >
-            <div class="option-icon":class="{ 'icon-danger': isDelete }">
-              <v-icon icon="mdi-calendar-multiple" size="20" />
+            <div
+              class="option-icon"
+              :class="{ 'icon-danger': isDelete }"
+            >
+              <v-icon
+                icon="mdi-calendar-multiple"
+                size="20"
+              />
             </div>
             <div class="option-content">
               <div class="option-title">Všechny události v sérii</div>
@@ -148,11 +190,14 @@ function cancel() {
                 {{ isDelete ? 'Trvale smaže celou sérii včetně historie':'Změní všechny události v sérii' }}
               </div>
             </div>
-            <div v-if="scope === 'series'" class="option-check">
+            <div
+              v-if="scope === 'series'"
+              class="option-check"
+            >
               <v-icon
                 icon="mdi-check-circle"
                 size="20"
-               :color="isDelete ?  'error': 'primary'"
+                :color="isDelete ? 'error': 'primary'"
               />
             </div>
           </label>
@@ -160,8 +205,14 @@ function cancel() {
 
         <!-- Warning for delete all -->
         <v-expand-transition>
-          <div v-if="isDelete && scope === 'series'" class="warning-banner">
-            <v-icon icon="mdi-alert" size="18" />
+          <div
+            v-if="isDelete && scope === 'series'"
+            class="warning-banner"
+          >
+            <v-icon
+              icon="mdi-alert"
+              size="18"
+            />
             <span>Tato akce je nevratná. Všechny události budou trvale smazány.</span>
           </div>
         </v-expand-transition>
@@ -176,13 +227,13 @@ function cancel() {
             Zrušit
           </v-btn>
           <v-btn
-           :color="isDelete ?  'error': 'primary'"
+            :color="isDelete ? 'error': 'primary'"
             variant="flat"
             size="large"
             @click="confirm"
           >
             <v-icon
-             :icon="isDelete ?  'mdi-delete':'mdi-check'"
+              :icon="isDelete ? 'mdi-delete':'mdi-check'"
               size="18"
               start
             />

@@ -348,50 +348,112 @@ watch(() => props.modelValue, (open) => {
       <div class="dialog-header">
         <div class="header-left">
           <div class="header-icon">
-            <v-icon color="white">mdi-table-arrow-left</v-icon>
+            <v-icon color="white">
+              mdi-table-arrow-left
+            </v-icon>
           </div>
           <div>
-            <h2 class="header-title">Výběr dat pro sérii</h2>
-            <p class="header-subtitle">Vyberte sloupce a data z tabulky</p>
+            <h2 class="header-title">
+              Výběr dat pro sérii
+            </h2>
+            <p class="header-subtitle">
+              Vyberte sloupce a data z tabulky
+            </p>
           </div>
         </div>
-        <v-chip v-if="seriesName" variant="flat" color="white" class="series-chip">
-          <v-icon start size="small">mdi-chart-line</v-icon>
+        <v-chip
+          v-if="seriesName"
+          variant="flat"
+          color="white"
+          class="series-chip"
+        >
+          <v-icon
+            start
+            size="small"
+          >
+            mdi-chart-line
+          </v-icon>
           {{ seriesName }}
         </v-chip>
       </div>
     </template>
     
     <template #content>
-      <div class="picker-container" @mouseup="handleMouseUp" @mouseleave="handleMouseUp">
+      <div
+        class="picker-container"
+        @mouseup="handleMouseUp"
+        @mouseleave="handleMouseUp"
+      >
         <!-- Empty state -->
-        <div v-if="!rawData || rawData.length === 0" class="empty-state">
-          <v-icon size="64" color="grey-lighten-1">mdi-table-off</v-icon>
-          <p class="text-h6 text-medium-emphasis mt-4">Žádná data k dispozici</p>
-          <p class="text-body-2 text-medium-emphasis">Nejprve importujte data ze souboru</p>
+        <div
+          v-if="!rawData || rawData.length === 0"
+          class="empty-state"
+        >
+          <v-icon
+            size="64"
+            color="grey-lighten-1"
+          >
+            mdi-table-off
+          </v-icon>
+          <p class="text-h6 text-medium-emphasis mt-4">
+            Žádná data k dispozici
+          </p>
+          <p class="text-body-2 text-medium-emphasis">
+            Nejprve importujte data ze souboru
+          </p>
         </div>
         
         <template v-else>
           <!-- Step indicator -->
           <div class="step-indicator">
-            <div class="step" :class="{ active: currentStep >= 1, done: currentStep > 1 }">
-              <div class="step-number">1</div>
+            <div
+              class="step"
+              :class="{ active: currentStep >= 1, done: currentStep > 1 }"
+            >
+              <div class="step-number">
+                1
+              </div>
               <span class="step-label">Vyberte sloupec</span>
             </div>
-            <v-icon size="16" color="grey-lighten-1">mdi-chevron-right</v-icon>
-            <div class="step" :class="{ active: currentStep >= 2, done: currentStep > 2 }">
-              <div class="step-number">2</div>
+            <v-icon
+              size="16"
+              color="grey-lighten-1"
+            >
+              mdi-chevron-right
+            </v-icon>
+            <div
+              class="step"
+              :class="{ active: currentStep >= 2, done: currentStep > 2 }"
+            >
+              <div class="step-number">
+                2
+              </div>
               <span class="step-label">Označte buňky</span>
             </div>
-            <v-icon size="16" color="grey-lighten-1">mdi-chevron-right</v-icon>
-            <div class="step" :class="{ active: currentStep >= 3, done: currentStep === 3 }">
-              <div class="step-number">3</div>
+            <v-icon
+              size="16"
+              color="grey-lighten-1"
+            >
+              mdi-chevron-right
+            </v-icon>
+            <div
+              class="step"
+              :class="{ active: currentStep >= 3, done: currentStep === 3 }"
+            >
+              <div class="step-number">
+                3
+              </div>
               <span class="step-label">Potvrďte výběr</span>
             </div>
           </div>
 
           <!-- Info tip -->
-          <v-alert type="info" variant="tonal" density="compact" class="mb-4">
+          <v-alert
+            type="info"
+            variant="tonal"
+            density="compact"
+            class="mb-4"
+          >
             <template #prepend>
               <v-icon>mdi-lightbulb-outline</v-icon>
             </template>
@@ -411,7 +473,10 @@ watch(() => props.modelValue, (open) => {
               }"
               @click="selectionMode = col.name"
             >
-              <div class="card-icon" :class="{ active: selectionMode === col.name }">
+              <div
+                class="card-icon"
+                :class="{ active: selectionMode === col.name }"
+              >
                 <v-icon :color="selectionMode === col.name ? 'white' : getColumnColor(idx)">
                   mdi-table-column
                 </v-icon>
@@ -484,15 +549,29 @@ watch(() => props.modelValue, (open) => {
 
           <!-- Advanced settings panel -->
           <v-expand-transition>
-            <div v-if="showAdvanced" class="advanced-panel">
+            <div
+              v-if="showAdvanced"
+              class="advanced-panel"
+            >
               <div class="advanced-header">
-                <v-icon color="secondary" class="mr-2">mdi-cog</v-icon>
+                <v-icon
+                  color="secondary"
+                  class="mr-2"
+                >
+                  mdi-cog
+                </v-icon>
                 <span>Pokročilé nastavení importu</span>
               </div>
               <div class="advanced-grid">
                 <div class="advanced-section">
                   <h4>
-                    <v-icon size="16" color="secondary" class="mr-1">mdi-arrow-collapse-vertical</v-icon>
+                    <v-icon
+                      size="16"
+                      color="secondary"
+                      class="mr-1"
+                    >
+                      mdi-arrow-collapse-vertical
+                    </v-icon>
                     Přeskočit řádky/sloupce
                   </h4>
                   <div class="skip-inputs">
@@ -547,11 +626,17 @@ watch(() => props.modelValue, (open) => {
           </v-expand-transition>
 
           <!-- Data table -->
-          <v-card variant="outlined" class="table-card">
+          <v-card
+            variant="outlined"
+            class="table-card"
+          >
             <div class="picker-grid-wrapper">
               <table class="picker-grid">
                 <tbody>
-                  <tr v-for="(row, rowIdx) in rawData" :key="rowIdx">
+                  <tr
+                    v-for="(row, rowIdx) in rawData"
+                    :key="rowIdx"
+                  >
                     <td
                       v-for="(cell, colIdx) in row"
                       :key="colIdx"
@@ -562,7 +647,10 @@ watch(() => props.modelValue, (open) => {
                       @dblclick="handleCellDoubleClick(colIdx)"
                     >
                       <span class="cell-content">{{ cell }}</span>
-                      <span v-if="isCellSkipped(rowIdx, colIdx)" class="skip-indicator" />
+                      <span
+                        v-if="isCellSkipped(rowIdx, colIdx)"
+                        class="skip-indicator"
+                      />
                     </td>
                   </tr>
                 </tbody>
@@ -570,7 +658,12 @@ watch(() => props.modelValue, (open) => {
             </div>
             <div class="table-footer">
               <div class="footer-left">
-                <v-icon size="16" class="mr-1">mdi-cursor-default-click</v-icon>
+                <v-icon
+                  size="16"
+                  class="mr-1"
+                >
+                  mdi-cursor-default-click
+                </v-icon>
                 Vybráno: <strong>{{ totalSelectedCount }}</strong> buněk
               </div>
               <span class="footer-hint">Dvojklik na hlavičku = celý sloupec</span>
@@ -578,9 +671,17 @@ watch(() => props.modelValue, (open) => {
           </v-card>
 
           <!-- Preview -->
-          <v-card variant="tonal" class="preview-card">
+          <v-card
+            variant="tonal"
+            class="preview-card"
+          >
             <div class="preview-header">
-              <v-icon size="18" class="mr-2">mdi-eye-outline</v-icon>
+              <v-icon
+                size="18"
+                class="mr-2"
+              >
+                mdi-eye-outline
+              </v-icon>
               Náhled vybraných dat
             </div>
             <div class="preview-grid">
@@ -589,18 +690,33 @@ watch(() => props.modelValue, (open) => {
                 :key="col.name" 
                 class="preview-column"
               >
-                <div class="preview-column-header" :class="`border-${getColumnColor(idx)}`">
-                  <v-icon size="14" :color="getColumnColor(idx)" class="mr-1">mdi-table-column</v-icon>
+                <div
+                  class="preview-column-header"
+                  :class="`border-${getColumnColor(idx)}`"
+                >
+                  <v-icon
+                    size="14"
+                    :color="getColumnColor(idx)"
+                    class="mr-1"
+                  >
+                    mdi-table-column
+                  </v-icon>
                   {{ col.name }}
                 </div>
                 <div class="preview-column-values">
                   <template v-if="getSelectionCount(col.name) > 0">
                     <code>{{ extractValuesForColumn(col.name).slice(0, 5).join(', ') }}</code>
-                    <span v-if="getSelectionCount(col.name) > 5" class="text-medium-emphasis">
+                    <span
+                      v-if="getSelectionCount(col.name) > 5"
+                      class="text-medium-emphasis"
+                    >
                       ... (+{{ getSelectionCount(col.name) - 5 }} dalších)
                     </span>
                   </template>
-                  <span v-else class="text-medium-emphasis text-body-2 font-italic">
+                  <span
+                    v-else
+                    class="text-medium-emphasis text-body-2 font-italic"
+                  >
                     Žádná data
                   </span>
                 </div>
@@ -623,7 +739,12 @@ watch(() => props.modelValue, (open) => {
           </template>
         </div>
         <div class="footer-actions">
-          <v-btn variant="text" @click="close">Zrušit</v-btn>
+          <v-btn
+            variant="text"
+            @click="close"
+          >
+            Zrušit
+          </v-btn>
           <v-btn
             color="primary"
             variant="flat"

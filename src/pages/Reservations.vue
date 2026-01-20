@@ -24,9 +24,9 @@ import type { RecurrenceRequest } from '@/stores/reservations'
 const HOURS_START = 0
 const HOURS_END = 24
 const GRID_MINUTES = 15
-const VIEWPORT_HEIGHT = 640
-const VIEWPORT_HEIGHT_TWO_WEEKS = 350 // 50% smaller for two-week view
-const HOUR_HEIGHT = 80
+const VIEWPORT_HEIGHT = 780
+const VIEWPORT_HEIGHT_TWO_WEEKS = 365 // Slightly larger for better visibility
+const HOUR_HEIGHT = 90
 const MIN_EVENT_PX = 24
 const DRAG_CLICK_THRESHOLD = 5
 const DAY_HOURS = 24
@@ -128,10 +128,10 @@ function onConfirmConflict(slot: { start: Date; end: Date }) {
       if (selectedDate.value !== newDateYmd) {
         selectedDate.value = newDateYmd
       }
-      
+
       await nextTick()
       await loadWeekFor(slot.start)
-      
+
       // Scroll to the new time and highlight the reservation
       await nextTick()
       scrollToTime(slot.start)
@@ -206,16 +206,16 @@ let isNavigating = false
 function addDays(n: number) {
   isNavigating = true
   const d = normalizeToDate(selectedDate.value)
-  
+
   if (navigationStep.value === 'month') {
     // Go to first day of target month
     d.setDate(1)
     d.setMonth(d.getMonth() + n)
-    
+
     // Calculate full month range for the new month
     const newFrom = new Date(d)
     const newTo = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999)
-    
+
     // Update filter model explicitly to keep 'to' in sync
     // IMPORTANT: Keep preset as 'thisMonth' so the UI button stays active
     dateFilterModel.value = {
@@ -224,9 +224,9 @@ function addDays(n: number) {
       to: newTo,
       preset: 'thisMonth'
     }
-    
+
     selectedDate.value = toYmdLocal(d)
-    
+
     nextTick(() => { isNavigating = false })
     return
   }
@@ -234,21 +234,21 @@ function addDays(n: number) {
   // Use week step (7 days) for week views OR if week navigation is active
   const isWeekStep = viewMode.value.startsWith('week-') || navigationStep.value === 'week'
   const step = isWeekStep ? 7 : 1
-  
+
   // Calculate shift
   const shiftDays = n * step
   d.setDate(d.getDate() + shiftDays)
-  
+
   // If we have a range defined (from & to), we should shift the 'to' date as well
   if (dateFilterModel.value.from && dateFilterModel.value.to) {
      const diffMs = dateFilterModel.value.to.getTime() - dateFilterModel.value.from.getTime()
      const newFrom = new Date(d)
      const newTo = new Date(d.getTime() + diffMs)
-     
+
      // For week navigation, try to preserve the 'week' preset look if effective
      let newPreset = dateFilterModel.value.preset
      if (isWeekStep && (newPreset === 'thisWeek' || newPreset === 'nextWeek')) {
-        newPreset = 'thisWeek' 
+        newPreset = 'thisWeek'
      } else {
         newPreset = null
      }
@@ -382,7 +382,7 @@ interface ConflictItem {
 const conflictAllReservations = ref<ConflictItem[]>([])
 
 
-// New: list of conflicting reservations for display
+// list of conflicting reservations for display
 const conflictItems = ref<Array<{ id: number; title: string; start: Date; end: Date; username: string | null }>>([])
 // Pending force-create payload (saved when conflict occurs)
 type PendingForceContext = {
@@ -442,7 +442,7 @@ function openConflictDialog(
     }
   }
   allReservationsForDevice.value = all
-  
+
   // Filter actual conflicts for the dialog
   conflictItems.value = all.filter(e => {
     if (e.id === ctx.reservationId) return false
@@ -586,24 +586,28 @@ const week2DaysWork = computed<Date[]>(() => {
 })
 
 const daysForView = computed<Date[]>(() => {
-  // 1. Custom range logic (From user request: "zobrazení pouze těch dnl které jsou dané v časovém rozmezí")
-  if (dateFilterModel.value.preset === 'custom' && dateFilterModel.value.from && dateFilterModel.value.to) {
+  // 1. Custom range logic (only if NOT in 2-week mode, because 2-week mode uses split views)
+  if (!showTwoWeeks.value && dateFilterModel.value.preset === 'custom' && dateFilterModel.value.from && dateFilterModel.value.to) {
     const s = startOfDay(dateFilterModel.value.from)
     const e = endOfDay(dateFilterModel.value.to)
     // Generate all days between from/to inclusive
     const days: Date[] = []
     const cur = new Date(s)
-    // Safety break loop
     let safeGuard = 0
     while (cur <= e && safeGuard < 366) {
-      days.push(new Date(cur))
+      const d = new Date(cur)
+      const isWeekend = d.getDay() === 0 || d.getDay() === 6
+      // In work mode, skip weekends
+      if (viewMode.value !== 'week-work' || !isWeekend) {
+        days.push(d)
+      }
       cur.setDate(cur.getDate() + 1)
       safeGuard++
     }
     return days
   }
 
-  // 2. Default View logic
+  // 2. Default View logic (used for standard week view AND for the first week of 2-week view)
   return viewMode.value === 'week-work' ? weekDaysWork.value : weekDaysAll.value
 })
 
@@ -619,32 +623,32 @@ function resetAllDays(days: Date[]) {
   for (const d of days) eventsByDay.value[dateKey(d)] = []
 }
 async function loadWeekFor(date: Date) {
-  // NOTE: When using custom range, loadWeekFor needs to respect that range too. 
+  // NOTE: When using custom range, loadWeekFor needs to respect that range too.
   // However, loadWeekFor is often called with `currentDay` (single date) when navigating or changing view.
   // We need to decide if we fetch exactly daysForView or a standard week around `date`.
   // Given the requirement "zobrazení pouze těch dnl", let's use daysForView if compatible with `date` (i.e. `date` falls within).
-  
+
   let days: Date[]
   const dateMs = date.getTime()
-  
+
   // Check if `date` is within the current `daysForView` range. If so, reuse that range.
   // Otherwise, fallback to standard week logic around `date`.
   const currentViewDays = daysForView.value
   const first = currentViewDays[0]
   const last = currentViewDays[currentViewDays.length - 1]
-  
+
   if (first && last && dateMs >= first.getTime() && dateMs <= last.getTime()) {
      days = currentViewDays
   } else {
      // Fallback to standard 7 days if we navigate outside or if the custom range isn't active/applicable
      days = weekRange(date)
   }
-  
+
   // If showTwoWeeks is enabled, also fetch data for week 2
   if (showTwoWeeks.value && daysForWeek2.value.length > 0) {
     days = [...days, ...daysForWeek2.value]
   }
-  
+
   const from = new Date(days[0].getFullYear(), days[0].getMonth(), days[0].getDate(), 0, 0, 0, 0).getTime()
   const lastDay = days[days.length - 1]
   const to = new Date(lastDay.getFullYear(), lastDay.getMonth(), lastDay.getDate(), 23, 59, 59, 999).getTime()
@@ -717,7 +721,7 @@ watch(viewMode, async (newMode, oldMode) => {
     clearHighlight()
     window.removeEventListener('pointermove', onPointerMove)
   }
-  
+
   // When switching TO daily-machines from any other view, reset to today
   if (newMode === 'daily-machines' && oldMode !== 'daily-machines') {
     const today = new Date()
@@ -730,7 +734,7 @@ watch(viewMode, async (newMode, oldMode) => {
     }
     navigationStep.value = 'day'
   }
-  
+
   // When switching TO week views from daily-list, reset to this week
   if ((newMode === 'week-work' || newMode === 'week-all') && oldMode === 'daily-list') {
     const today = new Date()
@@ -740,12 +744,12 @@ watch(viewMode, async (newMode, oldMode) => {
     const weekStart = new Date(today)
     weekStart.setDate(today.getDate() + diffToMonday)
     weekStart.setHours(0, 0, 0, 0)
-    
+
     // Calculate week end based on view mode
     const weekEnd = new Date(weekStart)
     weekEnd.setDate(weekStart.getDate() + (newMode === 'week-all' ? 6 : 4))
     weekEnd.setHours(23, 59, 59, 999)
-    
+
     selectedDate.value = toYmdLocal(today)
     dateFilterModel.value = {
       field: 'date',
@@ -755,7 +759,7 @@ watch(viewMode, async (newMode, oldMode) => {
     }
     navigationStep.value = 'week'
   }
-  
+
   await nextTick()
   scrollToHour(7)
 })
@@ -1283,8 +1287,8 @@ async function commitMove(d: DragState, x: number, y: number): Promise<void> {
           actionType: 'resize',
           id: d.id,
           // Use 'item' from closure (which is the reactive object in eventsByDay)
-          item: item, 
-          start: startDate, 
+          item: item,
+          start: startDate,
           end: endDate,
           deviceId: d.origDeviceId,
           origDayKey: d.origDayKey,
@@ -1676,6 +1680,8 @@ type ReservationEditorForm = {
   note: string
   recurrence: RecurrenceRequest | null
   seriesId?: string | null
+  seriesIndex?: number
+  isException?: boolean
 }
 const editorOpen = ref(false)
 const editorMode = ref<'create' | 'edit'>('create')
@@ -1966,25 +1972,25 @@ async function executeDragAction(scope: 'single' | 'following' | 'series', p: an
          // Logic to open Conflict Dialog
          const deviceName = deviceNameById(payload.deviceCode)
          conflictDeviceName.value = deviceName
-         
+
          const s = new Date(payload.startTime)
          const eTime = new Date(payload.endTime)
          conflictRequested.value = { start: s, end: eTime }
-         
+
          const dayBase = new Date(s)
          dayBase.setHours(0,0,0,0)
          const existingEvents = getEventsForDayDevice(dayBase, payload.deviceCode)
          const gaps = buildDayGaps(existingEvents, dayBase)
          const proposals = proposeSlotsAround({ start: s, end: eTime }, gaps)
-         
+
          conflictProposals.value = proposals.map((slot, idx) => ({
              slot,
              label: idx === 0 ? 'Nejbližší po' : 'Nejbližší před'
          }))
-         
+
          const durationMs = eTime.getTime() - s.getTime()
          conflictFallbackNext.value = firstGapNextDays(getEventsForDayDevice, dayBase, payload.deviceCode, durationMs, 30)
-         
+
          conflictItems.value = existingEvents.filter(ev => {
              const evStart = new Date(ev.start).getTime()
              const evEnd = new Date(ev.end).getTime()
@@ -1996,12 +2002,12 @@ async function executeDragAction(scope: 'single' | 'following' | 'series', p: an
              end: new Date(ev.end),
              username: ev.username
          }))
-         
+
          conflictCtx.value = { reservationId: id, deviceId: payload.deviceCode, dayKey: dateKey(dayBase) }
-         
+
          let actionType: 'create' | 'update_single' | 'update_series' = 'update_single'
          if (scope === 'series' || scope === 'following') actionType = 'update_series'
-  
+
          pendingForcePayload.value = {
              action: actionType,
              id: id,
@@ -2014,10 +2020,10 @@ async function executeDragAction(scope: 'single' | 'following' | 'series', p: an
                projectId,
                username: item.username || '',
                note: item.note || '',
-               recurrence: null 
+               recurrence: null
              }
          }
-         
+
          conflictOpen.value = true
          return
      }
@@ -2035,7 +2041,7 @@ async function onForceCreate() {
     console.warn('DEBUG: No pending payload')
     return
   }
-  
+
   // Check for series transition from Drag & Drop
   const dd = (pendingForcePayload.value as any).dragData
   if (dd && dd.item && dd.item.seriesId) {
@@ -2052,7 +2058,7 @@ async function onForceCreate() {
   }
 
   const { action, payload, id, scope } = pendingForcePayload.value
-  
+
   // Add force flag
   const forcePayload = { ...payload, force: true }
   console.log('DEBUG: Sending force payload', forcePayload)
@@ -2080,7 +2086,7 @@ async function onForceCreate() {
     // Reload week to show changes
     await loadWeekFor(currentDay.value)
     if (isDailyList.value) await dailyListRef.value?.loadListRange()
-    
+
   } catch (e: any) {
     console.error('Force-create failed', e)
     const msg = e?.response?.data?.message || e?.message || 'Neznámá chyba'
@@ -2094,7 +2100,7 @@ async function handleConfirmConflict(slot: { start: Date; end: Date }) {
     onConfirmConflict(slot)
     return
   }
-  
+
   // CASE 2: Editor dialog scenario - resForm exists
   if (!resForm.value) {
     return
@@ -2104,10 +2110,10 @@ async function handleConfirmConflict(slot: { start: Date; end: Date }) {
   resForm.value.dateYmd = toYmdLocal(slot.start)
   resForm.value.startHM = hmFromDate(slot.start)
   resForm.value.endHM = hmFromDate(slot.end)
-  
+
   // Close conflict dialog
   conflictOpen.value = false
-  
+
   // Actually save the reservation with the new time
   await nextTick()
   await saveReservation()
@@ -2166,40 +2172,71 @@ onBeforeUnmount(() => {
 })
 </script>
 <template>
-  <v-container fluid class="pa-0">
+  <v-container
+    fluid
+    class="pa-0"
+  >
     <!-- Top Toolbar -->
     <div class="top-toolbar">
       <!-- Primary Action -->
-      <button class="btn-primary" @click="openCreateFromToolbar">
-        <i class="mdi mdi-plus"></i>
+      <button
+        class="btn-primary"
+        @click="openCreateFromToolbar"
+      >
+        <i class="mdi mdi-plus" />
         Vytvořit rezervaci
       </button>
 
       <!-- Duration Selector -->
-      <v-menu location="bottom center" offset="4">
+      <v-menu
+        location="bottom center"
+        offset="4"
+      >
         <template #activator="{ props }">
-          <button class="weekends-toggle" v-bind="props" style="margin-right: auto; gap: 8px;">
-            <i class="mdi mdi-clock-time-four-outline" style="font-size: 18px;"></i>
+          <button
+            class="weekends-toggle"
+            v-bind="props"
+            style="margin-right: auto; gap: 8px;"
+          >
+            <i
+              class="mdi mdi-clock-time-four-outline"
+              style="font-size: 18px;"
+            />
             <span>{{ defaultDurationMinutes }} min</span>
-            <i class="mdi mdi-chevron-down" style="font-size: 14px; opacity: 0.7;"></i>
+            <i
+              class="mdi mdi-chevron-down"
+              style="font-size: 14px; opacity: 0.7;"
+            />
           </button>
         </template>
-        <v-list density="compact" rounded="lg" elevation="3" class="pa-1">
-          <v-list-subheader style="height: 32px; min-height: 0; font-size: 11px;">VÝCHOZÍ DÉLKA</v-list-subheader>
-          <v-list-item 
-            v-for="m in [15, 30, 45, 60, 90, 120, 240, 480]" 
-            :key="m" 
+        <v-list
+          density="compact"
+          rounded="lg"
+          elevation="3"
+          class="pa-1"
+        >
+          <v-list-subheader style="height: 20px; min-height: 0; font-size: 11px;">
+            VÝCHOZÍ DÉLKA
+          </v-list-subheader>
+          <v-list-item
+            v-for="m in [15, 30, 45, 60, 90, 120, 240, 480]"
+            :key="m"
             :value="m"
-            @click="setDefaultDuration(m)" 
             :active="defaultDurationMinutes === m"
             color="primary"
             rounded
             style="min-height: 36px;"
+            @click="setDefaultDuration(m)"
           >
             <template #prepend>
-               <v-icon size="16" :icon="defaultDurationMinutes === m ? 'mdi-check' : 'mdi-circle-small'"></v-icon>
+              <v-icon
+                size="16"
+                :icon="defaultDurationMinutes === m ? 'mdi-check' : 'mdi-circle-small'"
+              />
             </template>
-            <v-list-item-title style="font-size: 13px;">{{ m < 60 ? m + ' min' : (m/60) + ' hod' }}</v-list-item-title>
+            <v-list-item-title style="font-size: 13px;">
+              {{ m < 60 ? m + ' min' : (m/60) + ' hod' }}
+            </v-list-item-title>
           </v-list-item>
         </v-list>
       </v-menu>
@@ -2209,26 +2246,36 @@ onBeforeUnmount(() => {
         <button
           :class="['view-option', { active: viewMode === 'daily-machines' }]"
           @click="viewMode = 'daily-machines'"
-        >Denní – Stroje</button>
+        >
+          Denní – Stroje
+        </button>
         <button
           :class="['view-option', { active: viewMode === 'week-work' || viewMode === 'week-all' }]"
           @click="viewMode = viewMode === 'week-work' ? 'week-work' : 'week-all'"
-        >Týdenní</button>
+        >
+          Týdenní
+        </button>
         <button
           :class="['view-option', { active: viewMode === 'daily-list' }]"
           @click="viewMode = 'daily-list'"
-        >Seznam</button>
+        >
+          Seznam
+        </button>
       </div>
-
     </div>
-    <v-container fluid class="pa-4">
+    <v-container
+      fluid
+      class="pa-4"
+    >
       <v-row class="flex-nowrap">
         <!-- Sidebar Calendar -->
-        <v-col cols="auto" v-if="['daily-machines', 'week-work', 'week-all', 'daily-list'].includes(viewMode)">
+        <v-col
+          v-if="['daily-machines', 'week-work', 'week-all', 'daily-list'].includes(viewMode)"
+          cols="auto"
+        >
           <div style="width: 320px;">
             <DateFilterPanel
               :model-value="dateFilterModel"
-              @update:model-value="onDateFilterUpdate"
               :hide-presets="viewMode === 'daily-machines'"
               :hide-field-toggle="true"
               :show-date-label="viewMode === 'daily-machines'"
@@ -2242,13 +2289,14 @@ onBeforeUnmount(() => {
               :picked-members="pickedMembers"
               :include-weekends="(viewMode === 'daily-list' ? listIncludeWeekends : viewMode === 'week-all')"
               :show-two-weeks="showTwoWeeks"
+              @update:model-value="onDateFilterUpdate"
               @update:picked-devices="v => pickedDevices = v"
               @update:picked-members="v => pickedMembers = v"
               @update:include-weekends="v => {
                 if (viewMode === 'daily-list') {
-                   listIncludeWeekends = v
+                  listIncludeWeekends = v
                 } else {
-                   viewMode = v ? 'week-all' : 'week-work'
+                  viewMode = v ? 'week-all' : 'week-work'
                 }
               }"
               @update:show-two-weeks="v => showTwoWeeks = v"
@@ -2257,8 +2305,11 @@ onBeforeUnmount(() => {
         </v-col>
 
         <!-- MAIN PANEL - full width now -->
-        <v-col class="flex-grow-1" style="min-width: 0; padding: 0px; margin: 16px;">
-          <v-card style="border-radius: 16px;" >
+        <v-col
+          class="flex-grow-1"
+          style="min-width: 0; padding: 0px; margin: 16px;"
+        >
+          <v-card style="border-radius: 16px;">
             <v-card-text class="pa-0">
               <DailyMachinesView
                 v-if="viewMode === 'daily-machines'"
@@ -2334,9 +2385,10 @@ onBeforeUnmount(() => {
                 :on-day-dbl-click="onWeekDayDblClick"
               />
               <!-- Separator between weeks -->
-              <div v-if="showTwoWeeks && !isDailyList && viewMode !== 'daily-machines'" 
-                   style="height: 24px; border-top: 2px solid #e5e7eb; margin: 16px 0; background: linear-gradient(to bottom, #f9fafb 0%, transparent 100%);">
-              </div>
+              <div
+                v-if="showTwoWeeks && !isDailyList && viewMode !== 'daily-machines'"
+                style="height: 24px; border-top: 2px solid #e5e7eb; margin: 16px 0; background: linear-gradient(to bottom, #f9fafb 0%, transparent 100%);"
+              />
               <!-- Week 2 (when 2 weeks toggle is enabled) -->
               <WeekView
                 v-if="showTwoWeeks && !isDailyList && viewMode !== 'daily-machines'"
@@ -2375,8 +2427,6 @@ onBeforeUnmount(() => {
       <ReservationEditorDialog
         v-if="resForm"
         v-model="editorOpen"
-        :mode="editorMode"
-        :saving="editorSaving"
         v-model:title="resForm.title"
         v-model:device-code="resForm.deviceCode"
         v-model:username="resForm.username"
@@ -2385,6 +2435,8 @@ onBeforeUnmount(() => {
         v-model:end-h-m="resForm.endHM"
         v-model:note="resForm.note"
         v-model:recurrence="resForm.recurrence"
+        :mode="editorMode"
+        :saving="editorSaving"
         :series-id="resForm.seriesId"
         :series-index="resForm.seriesIndex"
         :is-exception="resForm.isException"
@@ -2404,16 +2456,24 @@ onBeforeUnmount(() => {
         @cancel="onScopeCancel"
       />
 
-      <!-- CONFIRM DELETE (Simple - used for non-series) -->
-      <Dialog v-model:is-open="confirmDeleteOpen" width="420px" :hide-footer="true">
+      <!-- CONFIRM DELETE  pro ty co nejsou serie -->
+      <Dialog
+        v-model:is-open="confirmDeleteOpen"
+        width="420px"
+        :hide-footer="true"
+      >
         <template #content>
           <div class="pa-4">
             <div class="text-h6 mb-4">
               Opravdu chcete rezervaci zrušit?
             </div>
-            <div class="d-flex align-center" style="gap:14px">
+            <div
+              class="d-flex align-center"
+              style="gap:14px"
+            >
               <v-btn
-                color="error" variant="flat"
+                color="error"
+                variant="flat"
                 size="large"
                 :loading="deleteLoading"
                 :disabled="deleteLoading || !deleteTarget"
@@ -2449,7 +2509,6 @@ onBeforeUnmount(() => {
         @suggest-next-day="handleSuggestNextDay"
         @cancel="() => { conflictOpen = false; pendingForcePayload = null }"
         @force-create="onForceCreate"
-
       />
     </v-container>
   </v-container>
@@ -2594,7 +2653,7 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 12px;
+  padding: 6px 12px;
   background: #f8fafc;
   border: 1px solid #e2e8f0;
   border-radius: 8px;

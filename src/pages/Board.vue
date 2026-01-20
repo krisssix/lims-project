@@ -30,7 +30,7 @@ async function addList(){
 }
 
 function listMoved(event) {
-  let changedLists = []
+  const changedLists = []
   boardStore.lists.forEach((list,index) => {
     if(list.listOrder !== index){
       list.listOrder = index

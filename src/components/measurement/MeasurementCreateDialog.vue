@@ -604,6 +604,7 @@ function initDialog(): void {
   touchedFields.value.clear()
   seriesData.value = [] // resetovat data sérií při otevření dialogu
   resetImport()
+  genericAttachments.value = []
 }
 
 /* přechody mezi kroky */
@@ -1586,6 +1587,7 @@ function doClearAll(): void {
 
   visitedFields.value.clear()
   touchedFields.value.clear()
+  genericAttachments.value = []
 }
 
 function clearAll(): void {
@@ -2512,9 +2514,14 @@ defineExpose({
   >
     <template #header>
       <div class="wizard-header">
-        <h2 class="wizard-title">Nové měření</h2>
+        <h2 class="wizard-title">
+          Nové měření
+        </h2>
 
-        <nav class="wizard-nav" aria-label="Průběh vytváření měření">
+        <nav
+          class="wizard-nav"
+          aria-label="Průběh vytváření měření"
+        >
           <div
             class="wizard-step"
             :class="{ 'is-active': wizardStep >= 1, 'is-current': wizardStep === 1 }"
@@ -2523,7 +2530,10 @@ defineExpose({
             <span class="wizard-step-text">Nastavení</span>
           </div>
 
-          <div class="wizard-connector" :class="{ 'is-active': wizardStep > 1 }"></div>
+          <div
+            class="wizard-connector"
+            :class="{ 'is-active': wizardStep > 1 }"
+          />
 
           <div
             class="wizard-step"
@@ -2533,7 +2543,10 @@ defineExpose({
             <span class="wizard-step-text">Data</span>
           </div>
 
-          <div class="wizard-connector" :class="{ 'is-active': wizardStep > 2 }"></div>
+          <div
+            class="wizard-connector"
+            :class="{ 'is-active': wizardStep > 2 }"
+          />
 
           <div
             class="wizard-step"
@@ -2547,7 +2560,10 @@ defineExpose({
     </template>
 
     <template #content>
-      <div class="py-2" style="min-height: 400px;">
+      <div
+        class="py-2"
+        style="min-height: 400px;"
+      >
         <v-window v-model="wizardStep">
           <v-window-item :value="1">
             <div class="pa-1">
@@ -2575,7 +2591,10 @@ defineExpose({
             <div class="pa-1">
               <!-- Info bar: Selected Device & Template -->
               <div class="d-flex align-center justify-space-between mb-4 pa-3 bg-grey-lighten-4 rounded border">
-                <div class="d-flex align-center flex-wrap" style="gap: 16px; row-gap: 8px;">
+                <div
+                  class="d-flex align-center flex-wrap"
+                  style="gap: 16px; row-gap: 8px;"
+                >
                   <!-- Device -->
                   <div class="d-flex align-center">
                     <span class="text-caption text-medium-emphasis mr-2">Přístroj:</span>
@@ -2593,13 +2612,23 @@ defineExpose({
                     </div>
                   </div>
 
-                  <v-divider vertical style="height: 20px" class="mx-2" />
+                  <v-divider
+                    vertical
+                    style="height: 20px"
+                    class="mx-2"
+                  />
 
                   <!-- Template -->
                   <div class="d-flex align-center">
                     <span class="text-caption text-medium-emphasis mr-2">Šablona:</span>
                     <div class="d-flex align-center">
-                      <v-icon size="small" color="secondary" class="mr-2">mdi-file-document-multiple-outline</v-icon>
+                      <v-icon
+                        size="small"
+                        color="secondary"
+                        class="mr-2"
+                      >
+                        mdi-file-document-multiple-outline
+                      </v-icon>
                       <span class="text-body-2 font-weight-medium">{{ selectedTemplate?.name || '---' }}</span>
                     </div>
                   </div>
@@ -2618,6 +2647,10 @@ defineExpose({
 
               <ImportPanel
                 v-if="selectedTemplateId"
+                v-model:parsing-delimiter="importParsingDelimiter"
+                v-model:parsing-decimal-separator="importParsingDecimalSeparator"
+                v-model:parsing-has-header="importParsingHasHeader"
+                v-model:parsing-header-row-index="importParsingHeaderRowIndex"
                 :imported-file="importedFile"
                 :imported-structure="importedStructure"
                 :import-busy="importBusy"
@@ -2628,26 +2661,25 @@ defineExpose({
                 :row-offset="importRowOffset"
                 :data-applied="records.length > 0 && records.some(r => r.fields.some(f => f.value !== null && f.value !== '' && f.value !== 0))"
                 :mapping-applied="mappingApplied"
+                :mapping-auto-applied="mappingAutoApplied"
+                :learned-mappings-available="learnedMappingsAvailable"
                 @pick-file="onImportFilePicked"
                 @analyze="analyzeImport"
                 @analyze-text="handlePastedText"
                 @apply="applyImportedRecords"
+                
                 @reset="resetImport"
                 @open-mapping="openMappingWizard"
                 @clear-all="() => { console.log('[TEMPLATE] clear-all received'); clearAll() }"
-                @update:rowOffset="(offset: number) => importRowOffset = offset"
-                :mapping-auto-applied="mappingAutoApplied"
-                :learned-mappings-available="learnedMappingsAvailable"
-                
-                v-model:parsingDelimiter="importParsingDelimiter"
-                v-model:parsingDecimalSeparator="importParsingDecimalSeparator"
-                v-model:parsingHasHeader="importParsingHasHeader"
-                v-model:parsingHeaderRowIndex="importParsingHeaderRowIndex"
+                @update:row-offset="(offset: number) => importRowOffset = offset"
                 @pick-header-row="openHeaderPicker"
               />
 
               <!-- odstraněno: tlačítko "mapovat data ručně" (požadavek uživatele) -->
-              <v-divider v-if="selectedTemplateId" class="my-4" />
+              <v-divider
+                v-if="selectedTemplateId"
+                class="my-4"
+              />
 
               <BlocksNavigation
                 :template-blocks="templateBlocks"
@@ -2717,7 +2749,12 @@ defineExpose({
                 <div class="notes-header">
                   <div class="notes-title">
                     <div class="notes-icon">
-                      <v-icon size="15" color="white">mdi-notebook-outline</v-icon>
+                      <v-icon
+                        size="15"
+                        color="white"
+                      >
+                        mdi-notebook-outline
+                      </v-icon>
                     </div>
                     <span>Poznámky</span>
                   </div>
@@ -2739,7 +2776,12 @@ defineExpose({
               <div class="attachments-section-wrapper mt-4">
                 <div class="notes-header mb-2">
                   <div class="notes-title">
-                    <v-icon size="15" color="white">mdi-paperclip</v-icon>
+                    <v-icon
+                      size="15"
+                      color="white"
+                    >
+                      mdi-paperclip
+                    </v-icon>
                     <span>Přílohy</span>
                   </div>
                 </div>
@@ -2754,7 +2796,7 @@ defineExpose({
                     prepend-icon=""
                     prepend-inner-icon="mdi-paperclip"
                     hide-details
-                  ></v-file-input>
+                  />
                   <div class="text-caption text-grey mt-2">
                     Můžete nahrát libovolné přílohy (obrázky, PDF, dokumenty). Budou nahrány po uložení měření.
                   </div>
@@ -2787,7 +2829,7 @@ defineExpose({
 
               <!-- Type Change Confirmation Dialog -->
               <!-- Template Change Confirmation Dialog -->
-               <!--
+              <!--
               <v-dialog v-model="showTemplateUpdateDialog" max-width="500">
                 <v-card>
                   <v-card-title class="d-flex align-center">
@@ -2821,61 +2863,116 @@ defineExpose({
             <div class="review-step">
               <!-- varovná hlavička -->
               <div class="review-alert">
-                <v-icon size="24" color="warning">mdi-alert-circle-outline</v-icon>
+                <v-icon
+                  size="24"
+                  color="warning"
+                >
+                  mdi-alert-circle-outline
+                </v-icon>
                 <div>
                   <strong>Zkontrolujte údaje před uložením</strong>
-                  <p class="text-caption text-medium-emphasis mb-0">Ujistěte se, že jsou všechny hodnoty správně.</p>
+                  <p class="text-caption text-medium-emphasis mb-0">
+                    Ujistěte se, že jsou všechny hodnoty správně.
+                  </p>
                 </div>
               </div>
 
               <div class="review-meta">
                 <div class="meta-chip">
-                  <v-icon size="16">mdi-microscope</v-icon>
+                  <v-icon size="16">
+                    mdi-microscope
+                  </v-icon>
                   {{ props.devices.find(d => d.code === selectedDeviceId)?.name || selectedDeviceId }}
                 </div>
                 <div class="meta-chip">
-                  <v-icon size="16">mdi-file-document-outline</v-icon>
+                  <v-icon size="16">
+                    mdi-file-document-outline
+                  </v-icon>
                   {{ selectedTemplate?.name || '—' }}
                 </div>
                 <div class="meta-chip">
-                  <v-icon size="16">mdi-format-list-numbered</v-icon>
+                  <v-icon size="16">
+                    mdi-format-list-numbered
+                  </v-icon>
                   {{ records.length }} {{ records.length === 1 ? 'záznam' : 'záznamů' }}
                 </div>
-                <div v-if="seriesData.length > 0" class="meta-chip">
-                  <v-icon size="16">mdi-chart-line</v-icon>
+                <div
+                  v-if="seriesData.length > 0"
+                  class="meta-chip"
+                >
+                  <v-icon size="16">
+                    mdi-chart-line
+                  </v-icon>
                   {{ seriesData.length }} {{ seriesData.length === 1 ? 'série' : 'sérií' }}
                 </div>
               </div>
 
               <div class="preview-container">
-                <h4 class="preview-title">Náhled dat</h4>
+                <h4 class="preview-title">
+                  Náhled dat
+                </h4>
 
                 <div class="preview-scroll">
                   <table class="preview-data-table">
                     <thead>
                       <tr>
-                        <th class="sticky-col">#</th>
-                        <th v-for="field in (records[0]?.fields ?? [])" :key="field.name">
+                        <th class="sticky-col">
+                          #
+                        </th>
+                        <th
+                          v-for="field in (records[0]?.fields ?? [])"
+                          :key="field.name"
+                        >
                           {{ field.name }}
                           <span class="field-type-badge">{{ field.type }}</span>
                         </th>
                       </tr>
                     </thead>
                     <tbody>
-                      <tr v-for="record in records" :key="record.recordIndex">
-                        <td class="sticky-col record-num">{{ record.recordIndex }}</td>
-                        <td v-for="field in record.fields" :key="field.name" :class="{ 'empty-cell': field.value == null || String(field.value).trim() === '' }">
+                      <tr
+                        v-for="record in records"
+                        :key="record.recordIndex"
+                      >
+                        <td class="sticky-col record-num">
+                          {{ record.recordIndex }}
+                        </td>
+                        <td
+                          v-for="field in record.fields"
+                          :key="field.name"
+                          :class="{ 'empty-cell': field.value == null || String(field.value).trim() === '' }"
+                        >
                           <template v-if="field.type === 'bool'">
-                            <v-icon v-if="field.value === true" size="18" color="success">mdi-check-circle</v-icon>
-                            <v-icon v-else-if="field.value === false" size="18" color="grey">mdi-close-circle</v-icon>
-                            <span v-else class="text-medium-emphasis">—</span>
+                            <v-icon
+                              v-if="field.value === true"
+                              size="18"
+                              color="success"
+                            >
+                              mdi-check-circle
+                            </v-icon>
+                            <v-icon
+                              v-else-if="field.value === false"
+                              size="18"
+                              color="grey"
+                            >
+                              mdi-close-circle
+                            </v-icon>
+                            <span
+                              v-else
+                              class="text-medium-emphasis"
+                            >—</span>
                           </template>
                           <template v-else-if="field.type === 'date'">
                             {{ field.value ? new Date(field.value as number).toLocaleString('cs-CZ') : '—' }}
                           </template>
                           <template v-else-if="field.type === 'file'">
-                            <span v-if="field.value" class="file-indicator">📎 {{ typeof field.value === 'string' ? field.value.split('/').pop() : (field.value as File)?.name }}</span>
-                            <span v-else class="text-medium-emphasis">—</span>
+                            <span
+                              v-if="field.value"
+                              class="file-indicator"
+                            >📎 {{ typeof field.value === 'string' ? field.value.split('/').pop() : (field.value as File)?.name }}</span>
+                            <span
+                              v-else
+                              class="text-medium-emphasis"
+                            >—</span>
                           </template>
                           <template v-else>
                             {{ field.value ?? '—' }}
@@ -2886,13 +2983,32 @@ defineExpose({
                   </table>
                 </div>
 
-                <div v-if="seriesData.length > 0" class="series-summary">
-                  <h5 class="series-title">Datové série</h5>
-                  <div v-for="(series, idx) in seriesData" :key="idx" class="series-preview-block">
+                <div
+                  v-if="seriesData.length > 0"
+                  class="series-summary"
+                >
+                  <h5 class="series-title">
+                    Datové série
+                  </h5>
+                  <div
+                    v-for="(series, idx) in seriesData"
+                    :key="idx"
+                    class="series-preview-block"
+                  >
                     <div class="series-preview-header">
-                      <v-icon size="18" color="primary">mdi-chart-line</v-icon>
+                      <v-icon
+                        size="18"
+                        color="primary"
+                      >
+                        mdi-chart-line
+                      </v-icon>
                       <span class="font-weight-medium">{{ series.seriesName }}</span>
-                      <v-chip size="x-small" variant="tonal" color="primary" class="ml-2">
+                      <v-chip
+                        size="x-small"
+                        variant="tonal"
+                        color="primary"
+                        class="ml-2"
+                      >
                         {{ series.data.length }} {{ series.data.length === 1 ? 'bod' : 'bodů' }}
                       </v-chip>
                     </div>
@@ -2900,16 +3016,29 @@ defineExpose({
                       <table class="preview-data-table series-data-table">
                         <thead>
                           <tr>
-                            <th class="sticky-col">#</th>
-                            <th v-for="col in (series.columns || [{name: 'X'}, {name: 'Y'}])" :key="col.name">
+                            <th class="sticky-col">
+                              #
+                            </th>
+                            <th
+                              v-for="col in (series.columns || [{name: 'X'}, {name: 'Y'}])"
+                              :key="col.name"
+                            >
                               {{ col.name }}
                             </th>
                           </tr>
                         </thead>
                         <tbody>
-                          <tr v-for="(row, rowIdx) in series.data" :key="rowIdx">
-                            <td class="sticky-col record-num">{{ rowIdx + 1 }}</td>
-                            <td v-for="col in (series.columns || [{name: 'X'}, {name: 'Y'}])" :key="col.name">
+                          <tr
+                            v-for="(row, rowIdx) in series.data"
+                            :key="rowIdx"
+                          >
+                            <td class="sticky-col record-num">
+                              {{ rowIdx + 1 }}
+                            </td>
+                            <td
+                              v-for="col in (series.columns || [{name: 'X'}, {name: 'Y'}])"
+                              :key="col.name"
+                            >
                               {{ row[col.name] ?? '—' }}
                             </td>
                           </tr>
@@ -2920,9 +3049,18 @@ defineExpose({
                 </div>
               </div>
 
-              <div v-if="measurementNote.trim()" class="notes-preview mt-4">
+              <div
+                v-if="measurementNote.trim()"
+                class="notes-preview mt-4"
+              >
                 <div class="d-flex align-center mb-2">
-                  <v-icon size="18" color="deep-purple" class="mr-2">mdi-notebook-outline</v-icon>
+                  <v-icon
+                    size="18"
+                    color="deep-purple"
+                    class="mr-2"
+                  >
+                    mdi-notebook-outline
+                  </v-icon>
                   <span class="text-subtitle-2">Poznámky</span>
                 </div>
                 <MarkdownEditor
@@ -2947,7 +3085,7 @@ defineExpose({
           Zrušit
         </v-btn>
 
-        <v-spacer/>
+        <v-spacer />
 
         <v-btn
           v-if="wizardStep > 1"
@@ -2990,7 +3128,9 @@ defineExpose({
       location="top"
     >
       <div class="d-flex align-center justify-center w-100">
-        <v-icon start>mdi-check-circle</v-icon>
+        <v-icon start>
+          mdi-check-circle
+        </v-icon>
         Měření bylo úspěšně vytvořeno
       </div>
     </v-snackbar>
@@ -3001,12 +3141,21 @@ defineExpose({
       color="error"
       location="bottom right"
     >
-      <div class="d-flex align-center" style="gap: 8px;">
+      <div
+        class="d-flex align-center"
+        style="gap: 8px;"
+      >
         <v-icon>mdi-alert-circle</v-icon>
         <span>{{ validationErrorMessage }}</span>
       </div>
       <template #actions>
-        <v-btn size="small" variant="text" @click="showValidationError=false">Zavřít</v-btn>
+        <v-btn
+          size="small"
+          variant="text"
+          @click="showValidationError=false"
+        >
+          Zavřít
+        </v-btn>
       </template>
     </v-snackbar>
 
@@ -3017,10 +3166,19 @@ defineExpose({
     />
 
     <teleport to="body">
-      <v-dialog v-model="showClearAllWarning" max-width="420" persistent>
+      <v-dialog
+        v-model="showClearAllWarning"
+        max-width="420"
+        persistent
+      >
         <v-card>
-          <v-card-title class="d-flex align-center" style="gap: 8px;">
-            <v-icon color="warning">mdi-alert</v-icon>
+          <v-card-title
+            class="d-flex align-center"
+            style="gap: 8px;"
+          >
+            <v-icon color="warning">
+              mdi-alert
+            </v-icon>
             Vyčistit vše?
           </v-card-title>
           <v-card-text>
@@ -3028,17 +3186,37 @@ defineExpose({
           </v-card-text>
           <v-card-actions>
             <v-spacer />
-            <v-btn variant="text" @click="showClearAllWarning = false">Zrušit</v-btn>
-            <v-btn color="error" variant="flat" @click="doClearAll">Vyčistit</v-btn>
+            <v-btn
+              variant="text"
+              @click="showClearAllWarning = false"
+            >
+              Zrušit
+            </v-btn>
+            <v-btn
+              color="error"
+              variant="flat"
+              @click="doClearAll"
+            >
+              Vyčistit
+            </v-btn>
           </v-card-actions>
         </v-card>
       </v-dialog>
     </teleport>
 
-    <v-dialog v-model="showApplyDataWarning" max-width="420" persistent>
+    <v-dialog
+      v-model="showApplyDataWarning"
+      max-width="420"
+      persistent
+    >
       <v-card>
-        <v-card-title class="d-flex align-center" style="gap: 8px;">
-          <v-icon color="warning">mdi-alert</v-icon>
+        <v-card-title
+          class="d-flex align-center"
+          style="gap: 8px;"
+        >
+          <v-icon color="warning">
+            mdi-alert
+          </v-icon>
           Přepsat data?
         </v-card-title>
         <v-card-text>
@@ -3046,16 +3224,36 @@ defineExpose({
         </v-card-text>
         <v-card-actions>
           <v-spacer />
-          <v-btn variant="text" @click="showApplyDataWarning = false">Zrušit</v-btn>
-          <v-btn color="primary" variant="flat" @click="doApplyImport">Použít data</v-btn>
+          <v-btn
+            variant="text"
+            @click="showApplyDataWarning = false"
+          >
+            Zrušit
+          </v-btn>
+          <v-btn
+            color="primary"
+            variant="flat"
+            @click="doApplyImport"
+          >
+            Použít data
+          </v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
 
-    <v-dialog v-model="showEmptySeriesWarning" max-width="460" persistent>
+    <v-dialog
+      v-model="showEmptySeriesWarning"
+      max-width="460"
+      persistent
+    >
       <v-card>
-        <v-card-title class="d-flex align-center" style="gap: 8px;">
-          <v-icon color="warning">mdi-chart-line</v-icon>
+        <v-card-title
+          class="d-flex align-center"
+          style="gap: 8px;"
+        >
+          <v-icon color="warning">
+            mdi-chart-line
+          </v-icon>
           Datová série není vyplněna
         </v-card-title>
         <v-card-text>
@@ -3064,16 +3262,36 @@ defineExpose({
         </v-card-text>
         <v-card-actions>
           <v-spacer />
-          <v-btn variant="text" @click="showEmptySeriesWarning = false">Zpět k vyplnění</v-btn>
-          <v-btn color="warning" variant="flat" @click="confirmSaveWithoutSeries">Pokračovat bez série</v-btn>
+          <v-btn
+            variant="text"
+            @click="showEmptySeriesWarning = false"
+          >
+            Zpět k vyplnění
+          </v-btn>
+          <v-btn
+            color="warning"
+            variant="flat"
+            @click="confirmSaveWithoutSeries"
+          >
+            Pokračovat bez série
+          </v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
 
-    <v-dialog v-model="showDraftDialog" max-width="420" persistent>
+    <v-dialog
+      v-model="showDraftDialog"
+      max-width="420"
+      persistent
+    >
       <v-card>
-        <v-card-title class="d-flex align-center" style="gap: 8px;">
-          <v-icon color="primary">mdi-content-save-outline</v-icon>
+        <v-card-title
+          class="d-flex align-center"
+          style="gap: 8px;"
+        >
+          <v-icon color="primary">
+            mdi-content-save-outline
+          </v-icon>
           Uložený koncept
         </v-card-title>
         <v-card-text>
@@ -3081,8 +3299,19 @@ defineExpose({
         </v-card-text>
         <v-card-actions>
           <v-spacer />
-          <v-btn variant="text" @click="dismissDraftDialog">Začít znovu</v-btn>
-          <v-btn color="primary" variant="flat" @click="loadDraft">Načíst koncept</v-btn>
+          <v-btn
+            variant="text"
+            @click="dismissDraftDialog"
+          >
+            Začít znovu
+          </v-btn>
+          <v-btn
+            color="primary"
+            variant="flat"
+            @click="loadDraft"
+          >
+            Načíst koncept
+          </v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -3094,8 +3323,13 @@ defineExpose({
     persistent
   >
     <v-card>
-      <v-card-title class="d-flex align-center" style="gap: 8px;">
-        <v-icon color="warning">mdi-alert</v-icon>
+      <v-card-title
+        class="d-flex align-center"
+        style="gap: 8px;"
+      >
+        <v-icon color="warning">
+          mdi-alert
+        </v-icon>
         Neuložené změny
       </v-card-title>
       <v-card-text>
@@ -3103,8 +3337,19 @@ defineExpose({
       </v-card-text>
       <v-card-actions>
         <v-spacer />
-        <v-btn variant="text" @click="showGoBackWarning = false">Zůstat</v-btn>
-        <v-btn color="error" variant="flat" @click="confirmGoBack">Zahodit změny</v-btn>
+        <v-btn
+          variant="text"
+          @click="showGoBackWarning = false"
+        >
+          Zůstat
+        </v-btn>
+        <v-btn
+          color="error"
+          variant="flat"
+          @click="confirmGoBack"
+        >
+          Zahodit změny
+        </v-btn>
       </v-card-actions>
     </v-card>
   </v-dialog>

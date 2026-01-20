@@ -35,44 +35,60 @@ function navigate(projectId){
   <Dialog
     :hide-footer="false"
     :is-open="openCreateProjectDialog"
-    :width="null">
-    <template v-slot:header>
+    :width="null"
+  >
+    <template #header>
       Vytvoření projektu
     </template>
-    <template v-slot:content>
+    <template #content>
       <ProjectForm
         :is-new="true"
       />
     </template>
-    <template v-slot:footer>
-      <v-btn @click="cancelCreateProject" variant="text">Zrušit</v-btn>
+    <template #footer>
+      <v-btn
+        variant="text"
+        @click="cancelCreateProject"
+      >
+        Zrušit
+      </v-btn>
       <v-btn
         :disabled="!projectStore.isProjectFormValid"
         color="primary"
         variant="flat"
-        @click="submitCreateProject">
-          Vytvořit
+        @click="submitCreateProject"
+      >
+        Vytvořit
       </v-btn>
     </template>
   </Dialog>
-  <v-row class="w-100" >
+  <v-row class="w-100">
     <v-col cols="auto">
       <v-btn
-        @click="openCreateProjectDialog = true"
         color="primary"
         variant="tonal"
+        @click="openCreateProjectDialog = true"
       >
         Vytvořit nový projekt
       </v-btn>
     </v-col>
   </v-row>
 
-<v-row >
-  <v-col cols="3" v-for="project in projectStore.allProjects" :key="project.id">
-    <v-card :link="true" @click="navigate(project.id)" :title="project.name" :color="project.color" :subtitle="project.description">
-    </v-card>
-  </v-col>
-</v-row>
+  <v-row>
+    <v-col
+      v-for="project in projectStore.allProjects"
+      :key="project.id"
+      cols="3"
+    >
+      <v-card
+        :link="true"
+        :title="project.name"
+        :color="project.color"
+        :subtitle="project.description"
+        @click="navigate(project.id)"
+      />
+    </v-col>
+  </v-row>
 </template>
 
 <style scoped lang="sass">

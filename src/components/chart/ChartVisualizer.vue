@@ -638,8 +638,15 @@ const ariaLabel = computed(() => {
 })
 </script>
 <template>
-  <v-sheet class="pa-4 chart-area" elevation="1" rounded>
-    <div v-if="!series.length" class="text-medium-emphasis">
+  <v-sheet
+    class="pa-4 chart-area"
+    elevation="1"
+    rounded
+  >
+    <div
+      v-if="!series.length"
+      class="text-medium-emphasis"
+    >
       Žádná data pro graf
     </div>
     <!-- Scrollable wrapper – horizontal scrolling for wide charts -->
@@ -655,15 +662,15 @@ const ariaLabel = computed(() => {
           activeTab === 'HISTOGRAM'
             ? onMouseMoveHist($event)
             : activeTab === 'BOXPLOT'
-            ? onMouseMoveBox($event)
-            : onMouseMoveLine($event)
+              ? onMouseMoveBox($event)
+              : onMouseMoveLine($event)
         "
         @mouseleave="
           activeTab === 'HISTOGRAM'
             ? onMouseLeaveHist()
             : activeTab === 'BOXPLOT'
-            ? onMouseLeaveBox()
-            : onMouseLeaveLine()
+              ? onMouseLeaveBox()
+              : onMouseLeaveLine()
         "
       >
         <desc v-if="stats">
@@ -682,7 +689,14 @@ const ariaLabel = computed(() => {
             stroke-width="0.6"
           />
           <!-- Y‑axis -->
-          <line :x1="layout.minX" :x2="layout.minX" y1="10" y2="90" stroke="#9e9e9e" stroke-width="0.6" />
+          <line
+            :x1="layout.minX"
+            :x2="layout.minX"
+            y1="10"
+            y2="90"
+            stroke="#9e9e9e"
+            stroke-width="0.6"
+          />
           <!-- Grid & ticks -->
           <template v-if="showGrid">
             <!-- Y‑grid -->
@@ -736,12 +750,34 @@ const ariaLabel = computed(() => {
             <!-- Histogram specific axis labels -->
             <template v-else-if="activeTab === 'HISTOGRAM'">
               <!-- Y-axis labels (frequency) -->
-              <text x="2" y="92" text-anchor="end" font-size="4" fill="#666" font-weight="600">0</text>
-              <text x="2" y="12" text-anchor="end" font-size="4" fill="#666" font-weight="600">
+              <text
+                x="2"
+                y="92"
+                text-anchor="end"
+                font-size="4"
+                fill="#666"
+                font-weight="600"
+              >0</text>
+              <text
+                x="2"
+                y="12"
+                text-anchor="end"
+                font-size="4"
+                fill="#666"
+                font-weight="600"
+              >
                 {{ histogram.maxCount }}
               </text>
               <!-- Y-axis title -->
-              <text x="-2" y="50" text-anchor="middle" font-size="4" fill="#666" font-weight="600" transform="rotate(-90, -2, 50)">
+              <text
+                x="-2"
+                y="50"
+                text-anchor="middle"
+                font-size="4"
+                fill="#666"
+                font-weight="600"
+                transform="rotate(-90, -2, 50)"
+              >
                 Počet hodnot
               </text>
               
@@ -759,19 +795,44 @@ const ariaLabel = computed(() => {
               </template>
               <template v-else>
                 <!-- Show only first, middle, and last for many bins -->
-                <text :x="layout.minX" y="97" text-anchor="start" font-size="3.5" fill="#9e9e9e">
+                <text
+                  :x="layout.minX"
+                  y="97"
+                  text-anchor="start"
+                  font-size="3.5"
+                  fill="#9e9e9e"
+                >
                   {{ fmt2(histogram.minVal) }}
                 </text>
-                <text :x="(layout.minX + layout.maxX) / 2" y="97" text-anchor="middle" font-size="3.5" fill="#9e9e9e">
+                <text
+                  :x="(layout.minX + layout.maxX) / 2"
+                  y="97"
+                  text-anchor="middle"
+                  font-size="3.5"
+                  fill="#9e9e9e"
+                >
                   {{ fmt2((histogram.minVal + histogram.maxVal) / 2) }}
                 </text>
-                <text :x="layout.maxX" y="97" text-anchor="end" font-size="3.5" fill="#9e9e9e">
+                <text
+                  :x="layout.maxX"
+                  y="97"
+                  text-anchor="end"
+                  font-size="3.5"
+                  fill="#9e9e9e"
+                >
                   {{ fmt2(histogram.maxVal) }}
                 </text>
               </template>
               
               <!-- X-axis title -->
-              <text :x="(layout.minX + layout.maxX) / 2" y="102" text-anchor="middle" font-size="4" fill="#666" font-weight="600">
+              <text
+                :x="(layout.minX + layout.maxX) / 2"
+                y="102"
+                text-anchor="middle"
+                font-size="4"
+                fill="#666"
+                font-weight="600"
+              >
                 Rozsah hodnot
               </text>
             </template>
@@ -780,27 +841,75 @@ const ariaLabel = computed(() => {
           <!-- Axis titles for LINE/SCATTER -->
           <template v-if="activeTab === 'LINE' || activeTab === 'SCATTER'">
             <!-- Y-axis title -->
-            <text x="-2" y="50" text-anchor="middle" font-size="4" fill="#666" font-weight="600" transform="rotate(-90, -2, 50)">
+            <text
+              x="-2"
+              y="50"
+              text-anchor="middle"
+              font-size="4"
+              fill="#666"
+              font-weight="600"
+              transform="rotate(-90, -2, 50)"
+            >
               Hodnota
             </text>
             <!-- X-axis title -->
-            <text :x="(layout.minX + layout.maxX) / 2" y="102" text-anchor="middle" font-size="4" fill="#666" font-weight="600">
+            <text
+              :x="(layout.minX + layout.maxX) / 2"
+              y="102"
+              text-anchor="middle"
+              font-size="4"
+              fill="#666"
+              font-weight="600"
+            >
               {{ xLabels && xLabels.length ? 'Index měření' : 'Pořadí' }}
             </text>
           </template>
           
           <!-- Axis titles for BOXPLOT -->
           <template v-if="activeTab === 'BOXPLOT'">
-            <text x="-2" y="50" text-anchor="middle" font-size="4" fill="#666" font-weight="600" transform="rotate(-90, -2, 50)">
+            <text
+              x="-2"
+              y="50"
+              text-anchor="middle"
+              font-size="4"
+              fill="#666"
+              font-weight="600"
+              transform="rotate(-90, -2, 50)"
+            >
               Hodnota
             </text>
-            <text :x="(layout.minX + layout.maxX) / 2" y="102" text-anchor="middle" font-size="4" fill="#666" font-weight="600">
+            <text
+              :x="(layout.minX + layout.maxX) / 2"
+              y="102"
+              text-anchor="middle"
+              font-size="4"
+              fill="#666"
+              font-weight="600"
+            >
               Distribuce
             </text>
             <!-- Y-axis value labels -->
-            <text x="2" y="92" text-anchor="end" font-size="3.5" fill="#666">{{ fmt2(yMin) }}</text>
-            <text x="2" y="50" text-anchor="end" font-size="3.5" fill="#666">{{ fmt2((yMin + yMax) / 2) }}</text>
-            <text x="2" y="12" text-anchor="end" font-size="3.5" fill="#666">{{ fmt2(yMax) }}</text>
+            <text
+              x="2"
+              y="92"
+              text-anchor="end"
+              font-size="3.5"
+              fill="#666"
+            >{{ fmt2(yMin) }}</text>
+            <text
+              x="2"
+              y="50"
+              text-anchor="end"
+              font-size="3.5"
+              fill="#666"
+            >{{ fmt2((yMin + yMax) / 2) }}</text>
+            <text
+              x="2"
+              y="12"
+              text-anchor="end"
+              font-size="3.5"
+              fill="#666"
+            >{{ fmt2(yMax) }}</text>
           </template>
         </g>
         <!-- LINE chart -->
@@ -816,7 +925,10 @@ const ariaLabel = computed(() => {
             stroke-linejoin="round"
           />
           <g>
-            <template v-for="(s, si) in series" :key="'pts-' + si">
+            <template
+              v-for="(s, si) in series"
+              :key="'pts-' + si"
+            >
               <circle
                 v-for="(v, i) in s.points"
                 :key="'pt-' + si + '-' + i"
@@ -910,8 +1022,8 @@ const ariaLabel = computed(() => {
               outlierLookup.has(p.idx) && p.seriesIndex === 0
                 ? '#e64a19'
                 : focusMode && hoverIdx === p.idx
-                ? '#1e88e5'
-                : 'none'
+                  ? '#1e88e5'
+                  : 'none'
             "
             stroke-width="1"
           />
@@ -1015,9 +1127,21 @@ const ariaLabel = computed(() => {
         <g v-else-if="activeTab === 'HISTOGRAM'">
           <!-- Gradient definition for histogram bars -->
           <defs>
-            <linearGradient id="histogramGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" style="stop-color:#64b5f6;stop-opacity:1" />
-              <stop offset="100%" style="stop-color:#1976d2;stop-opacity:1" />
+            <linearGradient
+              id="histogramGradient"
+              x1="0%"
+              y1="0%"
+              x2="0%"
+              y2="100%"
+            >
+              <stop
+                offset="0%"
+                style="stop-color:#64b5f6;stop-opacity:1"
+              />
+              <stop
+                offset="100%"
+                style="stop-color:#1976d2;stop-opacity:1"
+              />
             </linearGradient>
           </defs>
           
@@ -1241,15 +1365,18 @@ const ariaLabel = computed(() => {
     </div>
   </v-sheet>
   <!-- Box‑plot legend -->
-  <div v-if="activeTab === 'BOXPLOT'" class="d-flex align-center justify-end mt-2 text-caption text-grey">
+  <div
+    v-if="activeTab === 'BOXPLOT'"
+    class="d-flex align-center justify-end mt-2 text-caption text-grey"
+  >
     <div class="d-flex align-center mr-4">
-      <div class="legend-iqr"></div>IQR (50%)
+      <div class="legend-iqr" />IQR (50%)
     </div>
     <div class="d-flex align-center mr-4">
-      <div class="legend-median"></div>Medián
+      <div class="legend-median" />Medián
     </div>
     <div class="d-flex align-center">
-      <div class="legend-outlier"></div>Odlehlá hodnota (Outlier)
+      <div class="legend-outlier" />Odlehlá hodnota (Outlier)
     </div>
   </div>
 </template>

@@ -858,22 +858,22 @@ const liveStatus = computed<string>(() => {
 <template>
   <div class="measurement-detail-view d-flex flex-column h-100">
     <!-- Top Navigation / Actions -->
-     <div class="d-flex align-center justify-end px-4 py-2 bg-grey-lighten-5 border-b">
-         <v-btn
-            icon="mdi-chevron-up"
-            variant="text"
-            density="comfortable"
-            title="Předchozí měření (Ctrl+←)"
-            @click="() => emits('prev')"
-          />
-          <v-btn
-            icon="mdi-chevron-down"
-            variant="text"
-            density="comfortable"
-            title="Další měření (Ctrl+→)"
-            @click="() => emits('next')"
-          />
-     </div>
+    <div class="d-flex align-center justify-end px-4 py-2 bg-grey-lighten-5 border-b">
+      <v-btn
+        icon="mdi-chevron-up"
+        variant="text"
+        density="comfortable"
+        title="Předchozí měření (Ctrl+←)"
+        @click="() => emits('prev')"
+      />
+      <v-btn
+        icon="mdi-chevron-down"
+        variant="text"
+        density="comfortable"
+        title="Další měření (Ctrl+→)"
+        @click="() => emits('next')"
+      />
+    </div>
 
     <v-toolbar
       density="compact"
@@ -954,17 +954,42 @@ const liveStatus = computed<string>(() => {
         :aria-hidden="metaCollapsed"
       >
         <div class="section-header-row">
-          <v-icon size="18" color="primary">mdi-card-account-details-outline</v-icon>
+          <v-icon
+            size="18"
+            color="primary"
+          >
+            mdi-card-account-details-outline
+          </v-icon>
           <span class="section-title">Metadata</span>
           <div
             v-if="metaCollapsed"
             class="d-flex align-center flex-wrap"
             style="gap:4px; margin-left:8px;"
           >
-            <v-chip size="small" variant="tonal">{{ selectedUsername || '—' }}</v-chip>
-            <v-chip size="small" variant="tonal">{{ selectedDeviceId || '—' }}</v-chip>
-            <v-chip size="small" variant="tonal">{{ selectedTemplateName || '—' }}</v-chip>
-            <v-chip v-if="dateYmd || timeHM" size="small" variant="tonal" color="primary">
+            <v-chip
+              size="small"
+              variant="tonal"
+            >
+              {{ selectedUsername || '—' }}
+            </v-chip>
+            <v-chip
+              size="small"
+              variant="tonal"
+            >
+              {{ selectedDeviceId || '—' }}
+            </v-chip>
+            <v-chip
+              size="small"
+              variant="tonal"
+            >
+              {{ selectedTemplateName || '—' }}
+            </v-chip>
+            <v-chip
+              v-if="dateYmd || timeHM"
+              size="small"
+              variant="tonal"
+              color="primary"
+            >
               {{ dateYmd || '—' }} {{ timeHM || '' }}
             </v-chip>
           </div>
@@ -976,19 +1001,34 @@ const liveStatus = computed<string>(() => {
             :title="metaCollapsed ? 'Rozbalit' : 'Sbalit'"
             @click="toggleMeta"
           >
-            <v-icon :class="{'rot-180': !metaCollapsed}">mdi-chevron-down</v-icon>
+            <v-icon :class="{'rot-180': !metaCollapsed}">
+              mdi-chevron-down
+            </v-icon>
           </v-btn>
         </div>
-        <div v-show="!metaCollapsed" class="meta-content">
+        <div
+          v-show="!metaCollapsed"
+          class="meta-content"
+        >
           <!-- Základní informace -->
           <div class="info-card">
             <div class="info-card-header">
-              <v-icon size="18" color="primary">mdi-account-details</v-icon>
+              <v-icon
+                size="18"
+                color="primary"
+              >
+                mdi-account-details
+              </v-icon>
               <span class="info-card-title">Základní informace</span>
             </div>
             <v-row class="mt-2">
-              <v-col cols="12" md="4">
-                <div class="field-label">Člen</div>
+              <v-col
+                cols="12"
+                md="4"
+              >
+                <div class="field-label">
+                  Člen
+                </div>
                 <v-select
                   v-model="selectedUsername"
                   :items="members"
@@ -1000,8 +1040,13 @@ const liveStatus = computed<string>(() => {
                   placeholder="Vyberte člena..."
                 />
               </v-col>
-              <v-col cols="12" md="4">
-                <div class="field-label">Přístroj</div>
+              <v-col
+                cols="12"
+                md="4"
+              >
+                <div class="field-label">
+                  Přístroj
+                </div>
                 <v-select
                   v-model="selectedDeviceId"
                   :items="devices"
@@ -1026,8 +1071,13 @@ const liveStatus = computed<string>(() => {
                   </template>
                 </v-select>
               </v-col>
-              <v-col cols="12" md="4">
-                <div class="field-label">Šablona</div>
+              <v-col
+                cols="12"
+                md="4"
+              >
+                <div class="field-label">
+                  Šablona
+                </div>
                 <TemplateSelect
                   v-model="selectedTemplateName"
                   :items="templates"
@@ -1043,12 +1093,22 @@ const liveStatus = computed<string>(() => {
           <!-- Datum a čas měření -->
           <div class="info-card">
             <div class="info-card-header">
-              <v-icon size="18" color="primary">mdi-calendar-clock</v-icon>
+              <v-icon
+                size="18"
+                color="primary"
+              >
+                mdi-calendar-clock
+              </v-icon>
               <span class="info-card-title">Datum a čas měření</span>
             </div>
             <v-row class="mt-2">
-              <v-col cols="12" md="6">
-                <div class="field-label">Datum měření</div>
+              <v-col
+                cols="12"
+                md="6"
+              >
+                <div class="field-label">
+                  Datum měření
+                </div>
                 <v-text-field
                   v-model="dateYmd"
                   type="date"
@@ -1057,8 +1117,13 @@ const liveStatus = computed<string>(() => {
                   hide-details="auto"
                 />
               </v-col>
-              <v-col cols="12" md="6">
-                <div class="field-label">Čas měření</div>
+              <v-col
+                cols="12"
+                md="6"
+              >
+                <div class="field-label">
+                  Čas měření
+                </div>
                 <v-text-field
                   v-model="timeHM"
                   type="time"
@@ -1071,14 +1136,27 @@ const liveStatus = computed<string>(() => {
           </div>
 
           <!-- Datum a čas vložení -->
-          <div v-if="createdAtFormatted.date" class="info-card">
+          <div
+            v-if="createdAtFormatted.date"
+            class="info-card"
+          >
             <div class="info-card-header">
-              <v-icon size="18" color="success">mdi-clock-plus-outline</v-icon>
+              <v-icon
+                size="18"
+                color="success"
+              >
+                mdi-clock-plus-outline
+              </v-icon>
               <span class="info-card-title">Datum a čas vložení</span>
             </div>
             <v-row class="mt-2">
-              <v-col cols="12" md="6">
-                <div class="field-label">Datum vložení</div>
+              <v-col
+                cols="12"
+                md="6"
+              >
+                <div class="field-label">
+                  Datum vložení
+                </div>
                 <v-text-field
                   :model-value="createdAtFormatted.date"
                   type="text"
@@ -1089,8 +1167,13 @@ const liveStatus = computed<string>(() => {
                   bg-color="grey-lighten-4"
                 />
               </v-col>
-              <v-col cols="12" md="6">
-                <div class="field-label">Čas vložení</div>
+              <v-col
+                cols="12"
+                md="6"
+              >
+                <div class="field-label">
+                  Čas vložení
+                </div>
                 <v-text-field
                   :model-value="createdAtFormatted.time"
                   type="text"
@@ -1105,14 +1188,27 @@ const liveStatus = computed<string>(() => {
           </div>
 
           <!-- Datum a čas změny -->
-          <div v-if="updatedAtFormatted.date" class="info-card">
+          <div
+            v-if="updatedAtFormatted.date"
+            class="info-card"
+          >
             <div class="info-card-header">
-              <v-icon size="18" color="warning">mdi-clock-edit-outline</v-icon>
+              <v-icon
+                size="18"
+                color="warning"
+              >
+                mdi-clock-edit-outline
+              </v-icon>
               <span class="info-card-title">Datum a čas změny</span>
             </div>
             <v-row class="mt-2">
-              <v-col cols="12" md="6">
-                <div class="field-label">Datum změny</div>
+              <v-col
+                cols="12"
+                md="6"
+              >
+                <div class="field-label">
+                  Datum změny
+                </div>
                 <v-text-field
                   :model-value="updatedAtFormatted.date"
                   type="text"
@@ -1123,8 +1219,13 @@ const liveStatus = computed<string>(() => {
                   bg-color="grey-lighten-4"
                 />
               </v-col>
-              <v-col cols="12" md="6">
-                <div class="field-label">Čas změny</div>
+              <v-col
+                cols="12"
+                md="6"
+              >
+                <div class="field-label">
+                  Čas změny
+                </div>
                 <v-text-field
                   :model-value="updatedAtFormatted.time"
                   type="text"
@@ -1141,7 +1242,12 @@ const liveStatus = computed<string>(() => {
           <!-- Poznámky -->
           <div class="info-card">
             <div class="info-card-header">
-              <v-icon size="18" color="primary">mdi-notebook-outline</v-icon>
+              <v-icon
+                size="18"
+                color="primary"
+              >
+                mdi-notebook-outline
+              </v-icon>
               <span class="info-card-title">Poznámky</span>
             </div>
             <div class="mt-2">
@@ -1154,9 +1260,17 @@ const liveStatus = computed<string>(() => {
           </div>
 
           <!-- Zenodo publikace -->
-          <div v-if="item?.zenodoDoi" class="info-card">
+          <div
+            v-if="item?.zenodoDoi"
+            class="info-card"
+          >
             <div class="info-card-header">
-              <v-icon size="18" color="deep-purple">mdi-cloud-check</v-icon>
+              <v-icon
+                size="18"
+                color="deep-purple"
+              >
+                mdi-cloud-check
+              </v-icon>
               <span class="info-card-title">Zenodo publikace</span>
             </div>
             <v-alert
@@ -1166,7 +1280,10 @@ const liveStatus = computed<string>(() => {
               class="mt-2"
               density="compact"
             >
-              <div class="d-flex align-center justify-space-between flex-wrap" style="gap: 8px;">
+              <div
+                class="d-flex align-center justify-space-between flex-wrap"
+                style="gap: 8px;"
+              >
                 <div>
                   <strong>DOI:</strong>
                   <a
@@ -1201,7 +1318,12 @@ const liveStatus = computed<string>(() => {
       >
         <!-- Section header -->
         <div class="section-header-row">
-          <v-icon size="18" color="primary">mdi-table</v-icon>
+          <v-icon
+            size="18"
+            color="primary"
+          >
+            mdi-table
+          </v-icon>
           <span class="section-title">Hodnoty</span>
           <v-spacer />
           <v-btn
@@ -1211,377 +1333,391 @@ const liveStatus = computed<string>(() => {
             :title="valuesCollapsed ? 'Rozbalit' : 'Sbalit'"
             @click="toggleValues"
           >
-            <v-icon :class="{'rot-180': !valuesCollapsed}">mdi-chevron-down</v-icon>
+            <v-icon :class="{'rot-180': !valuesCollapsed}">
+              mdi-chevron-down
+            </v-icon>
           </v-btn>
         </div>
 
         <div v-show="!valuesCollapsed">
-        <div
-          class="records-toolbar d-flex align-center mb-3 flex-wrap mt-3"
-          style="gap: 12px;"
-        >
           <div
-            class="d-flex align-center"
-            style="gap: 6px;"
+            class="records-toolbar d-flex align-center mb-3 flex-wrap mt-3"
+            style="gap: 12px;"
           >
-            <v-btn
-              size="small"
-              color="primary"
-              variant="flat"
-              prepend-icon="mdi-plus"
-              title="Přidat další záznam"
-              class="control-btn"
-              @click="addNewRecord"
+            <div
+              class="d-flex align-center"
+              style="gap: 6px;"
             >
-              Přidat záznam
-            </v-btn>
-            <v-btn
-              size="small"
-              variant="tonal"
-              color="secondary"
-              icon="mdi-content-duplicate"
-              title="Duplikovat záznam"
-              :disabled="!currentRecord"
-              @click="duplicateCurrentRecord"
-            />
-            <v-btn
-              size="small"
-              variant="tonal"
-              icon="mdi-delete-outline"
-              color="error"
-              title="Smazat záznam"
-              :disabled="records.length <= 1"
-              @click="deleteCurrentRecord"
-            />
-          </div>
+              <v-btn
+                size="small"
+                color="primary"
+                variant="flat"
+                prepend-icon="mdi-plus"
+                title="Přidat další záznam"
+                class="control-btn"
+                @click="addNewRecord"
+              >
+                Přidat záznam
+              </v-btn>
+              <v-btn
+                size="small"
+                variant="tonal"
+                color="secondary"
+                icon="mdi-content-duplicate"
+                title="Duplikovat záznam"
+                :disabled="!currentRecord"
+                @click="duplicateCurrentRecord"
+              />
+              <v-btn
+                size="small"
+                variant="tonal"
+                icon="mdi-delete-outline"
+                color="error"
+                title="Smazat záznam"
+                :disabled="records.length <= 1"
+                @click="deleteCurrentRecord"
+              />
+            </div>
 
-          <v-spacer />
+            <v-spacer />
 
-          <div
-            class="record-nav d-flex align-center"
-            style="gap: 8px;"
-          >
-            <v-select
-              :model-value="currentRecordIndex"
-              :items="recordItems"
-              item-title="title"
-              item-value="value"
-              density="compact"
-              variant="outlined"
-              hide-details
-              class="record-select"
-              @update:model-value="onSelectRecord"
+            <div
+              class="record-nav d-flex align-center"
+              style="gap: 8px;"
             >
-              <template #selection="{ item }">
-                <div
-                  class="d-flex align-center"
-                  style="gap: 8px;"
-                >
-                  <v-icon
-                    size="16"
-                    color="primary"
+              <v-select
+                :model-value="currentRecordIndex"
+                :items="recordItems"
+                item-title="title"
+                item-value="value"
+                density="compact"
+                variant="outlined"
+                hide-details
+                class="record-select"
+                @update:model-value="onSelectRecord"
+              >
+                <template #selection="{ item }">
+                  <div
+                    class="d-flex align-center"
+                    style="gap: 8px;"
                   >
-                    mdi-file-document-outline
-                  </v-icon>
-                  <span>{{ item.title }}</span>
-                </div>
-              </template>
-              <template #append-inner>
-                <v-chip
-                  size="small"
-                  color="primary"
-                  variant="tonal"
-                  class="record-count-chip"
-                >
-                  {{ currentPosition }} / {{ records.length }}
-                </v-chip>
-              </template>
-            </v-select>
-
-            <div
-              class="nav-buttons d-flex"
-              style="gap: 2px;"
-            >
-              <v-btn
-                size="small"
-                variant="tonal"
-                icon="mdi-chevron-left"
-                title="Předchozí (←)"
-                :disabled="currentPosition <= 1"
-                @click="prevRecord"
-              />
-              <v-btn
-                size="small"
-                variant="tonal"
-                icon="mdi-chevron-right"
-                title="Další (→)"
-                :disabled="currentPosition >= records.length"
-                @click="nextRecord"
-              />
-            </div>
-          </div>
-
-          <v-btn
-            size="small"
-            variant="text"
-            :icon="valuesCollapsed ? 'mdi-chevron-down' : 'mdi-chevron-up'"
-            :title="valuesCollapsed ? 'Rozbalit' : 'Sbalit'"
-            @click="toggleValues"
-          />
-        </div>
-
-        <div v-show="!valuesCollapsed">
-          <div
-            v-if="templateBlocks.length > 1"
-            class="block-navigation mb-3"
-          >
-            <div class="d-flex align-center justify-space-between">
-              <div
-                class="d-flex align-center"
-                style="gap: 8px;"
-              >
-                <v-btn
-                  icon="mdi-chevron-left"
-                  size="small"
-                  variant="text"
-                  :disabled="currentBlockIndex === 0"
-                  title="Předchozí Tabulka hodnot"
-                  @click="prevBlock"
-                />
-                <div class="text-subtitle-1 font-weight-medium">
-                  {{ currentBlock?.title || `Tabulka hodnot ${currentBlockIndex + 1}` }}
-                </div>
-                <v-btn
-                  icon="mdi-chevron-right"
-                  size="small"
-                  variant="text"
-                  :disabled="currentBlockIndex === templateBlocks.length - 1"
-                  title="Další Tabulka hodnot"
-                  @click="nextBlock"
-                />
-              </div>
-              <v-chip
-                size="small"
-                variant="tonal"
-              >
-                {{ currentBlockIndex + 1 }} / {{ templateBlocks.length }}
-              </v-chip>
-            </div>
-
-            <div class="block-tabs mt-2">
-              <v-chip
-                v-for="(block, idx) in templateBlocks"
-                :key="block.id"
-                size="small"
-                :color="idx === currentBlockIndex ? 'primary' : undefined"
-                :variant="idx === currentBlockIndex ? 'flat' : 'tonal'"
-                class="mr-1"
-                @click="currentBlockIndex = idx"
-              >
-                {{ block.title }}
-                <v-badge
-                  v-if="block.fields.length"
-                  :content="block.fields.length"
-                  color="grey"
-                  inline
-                  class="ml-1"
-                />
-              </v-chip>
-            </div>
-          </div>
-
-          <div
-            v-else-if="currentBlock && templateBlocks.length === 1"
-            class="block-header mb-3"
-          >
-            <div class="text-subtitle-1 font-weight-medium">
-              {{ currentBlock.title }}
-            </div>
-          </div>
-
-          <div class="grid header-row">
-            <div class="cell muted">
-              Název + Typ
-            </div>
-            <div class="cell muted">
-              Hodnota
-            </div>
-            <div class="cell muted">
-              Stav
-            </div>
-          </div>
-
-          <transition-group
-            name="fade-y"
-            tag="div"
-          >
-            <div
-              v-for="(field, idx) in currentBlockFields"
-              :key="field.name"
-              class="grid data-row"
-              :class="{'has-error': !!fieldError(field), 'row-highlight-pulse': highlightedField === field.name}"
-              :aria-label="`Field ${idx+1}: ${field.name} (${TYPE_LABEL[field.type]})`"
-            >
-              <div class="cell name name-with-chip">
-                <div
-                  class="d-flex align-center"
-                  style="gap:8px; min-width:0;"
-                >
-                  <span class="name-text">{{ field.name }}</span>
+                    <v-icon
+                      size="16"
+                      color="primary"
+                    >
+                      mdi-file-document-outline
+                    </v-icon>
+                    <span>{{ item.title }}</span>
+                  </div>
+                </template>
+                <template #append-inner>
                   <v-chip
                     size="small"
                     color="primary"
                     variant="tonal"
-                    class="type-chip"
+                    class="record-count-chip"
                   >
-                    {{ TYPE_LABEL[field.type] }}
+                    {{ currentPosition }} / {{ records.length }}
                   </v-chip>
-                </div>
-              </div>
+                </template>
+              </v-select>
 
-              <div class="cell value">
-                <v-switch
-                  v-if="field.type === 'bool'"
-                  :model-value="textModel(field)"
-                  color="deep-purple"
-                  hide-details
-                  inset
-                  density="comfortable"
-                  data-field-input
-                  @update:model-value="val => updateField(field, val)"
+              <div
+                class="nav-buttons d-flex"
+                style="gap: 2px;"
+              >
+                <v-btn
+                  size="small"
+                  variant="tonal"
+                  icon="mdi-chevron-left"
+                  title="Předchozí (←)"
+                  :disabled="currentPosition <= 1"
+                  @click="prevRecord"
                 />
-                <v-text-field
-                  v-else-if="field.type === 'int'"
-                  :model-value="textModel(field)"
-                  type="text"
-                  inputmode="numeric"
-                  variant="outlined"
-                  density="comfortable"
-                  hide-details="auto"
-                  placeholder="123"
-                  data-field-input
-                  @update:model-value="val => updateField(field, val)"
-                />
-                <v-text-field
-                  v-else-if="field.type === 'float'"
-                  :model-value="textModel(field)"
-                  type="text"
-                  inputmode="decimal"
-                  variant="outlined"
-                  density="comfortable"
-                  hide-details="auto"
-                  placeholder="123,45"
-                  data-field-input
-                  @update:model-value="val => updateField(field, val)"
-                />
-                <v-text-field
-                  v-else-if="field.type === 'date'"
-                  :model-value="dateModel(field)"
-                  type="date"
-                  variant="outlined"
-                  density="comfortable"
-                  hide-details="auto"
-                  data-field-input
-                  @update:model-value="val => updateField(field, val)"
-                />
-                <v-text-field
-                  v-else-if="field.type === 'time'"
-                  :model-value="textModel(field)"
-                  type="time"
-                  variant="outlined"
-                  density="comfortable"
-                  hide-details="auto"
-                  data-field-input
-                  @update:model-value="val => updateField(field, val)"
-                />
-                <v-text-field
-                  v-else-if="field.type === 'datetime'"
-                  :model-value="textModel(field)"
-                  type="datetime-local"
-                  variant="outlined"
-                  density="comfortable"
-                  hide-details="auto"
-                  data-field-input
-                  @update:model-value="val => updateField(field, val)"
-                />
-                <div v-else-if="field.type === 'file'" class="file-field-container">
-                  <!-- Show existing uploaded file -->
-                  <div v-if="hasExistingFileUrl(field)" class="existing-file d-flex align-center ga-2">
-                    <v-img
-                      v-if="isImageFile(field)"
-                      :src="getFileDisplayUrl(field)"
-                      max-width="60"
-                      max-height="60"
-                      class="rounded border"
-                      cover
-                    />
-                    <v-icon v-else size="24" color="grey">mdi-file-document-outline</v-icon>
-                    <a
-                      :href="getFileDisplayUrl(field)"
-                      target="_blank"
-                      class="text-primary text-decoration-none"
-                    >
-                      {{ getFileNameFromUrl(field) }}
-                    </a>
-                    <v-btn
-                      icon="mdi-close"
-                      size="small"
-                      variant="text"
-                      color="error"
-                      title="Odstranit soubor a nahrát nový"
-                      @click="clearExistingFile(field)"
-                    />
-                  </div>
-                  <v-file-input
-                    v-else
-                    :model-value="fileModel(field)"
-                    density="comfortable"
-                    hide-details="auto"
-                    variant="outlined"
-                    accept="image/*,.csv,.txt,.pdf"
-                    show-size
-                    data-field-input
-                    @update:model-value="val => updateField(field, (Array.isArray(val) ? val[0] : val))"
-                  />
-                </div>
-                <v-text-field
-                  v-else
-                  :model-value="textModel(field)"
-                  type="text"
-                  variant="outlined"
-                  density="comfortable"
-                  hide-details="auto"
-                  placeholder="Text…"
-                  data-field-input
-                  @update:model-value="val => updateField(field, val)"
-                />
-              </div>
-
-              <div class="cell right">
-                <v-tooltip
-                  v-if="fieldError(field)"
-                  location="top"
-                >
-                  <template #activator="{ props: tp }">
-                    <v-icon
-                      v-bind="tp"
-                      size="18"
-                      color="error"
-                      icon="mdi-alert-circle-outline"
-                    />
-                  </template>
-                  <span>{{ fieldError(field) }}</span>
-                </v-tooltip>
-                <v-icon
-                  v-else
-                  size="18"
-                  color="green-darken-2"
-                  icon="mdi-check-circle-outline"
+                <v-btn
+                  size="small"
+                  variant="tonal"
+                  icon="mdi-chevron-right"
+                  title="Další (→)"
+                  :disabled="currentPosition >= records.length"
+                  @click="nextRecord"
                 />
               </div>
             </div>
-          </transition-group>
-        </div>
+
+            <v-btn
+              size="small"
+              variant="text"
+              :icon="valuesCollapsed ? 'mdi-chevron-down' : 'mdi-chevron-up'"
+              :title="valuesCollapsed ? 'Rozbalit' : 'Sbalit'"
+              @click="toggleValues"
+            />
+          </div>
+
+          <div v-show="!valuesCollapsed">
+            <div
+              v-if="templateBlocks.length > 1"
+              class="block-navigation mb-3"
+            >
+              <div class="d-flex align-center justify-space-between">
+                <div
+                  class="d-flex align-center"
+                  style="gap: 8px;"
+                >
+                  <v-btn
+                    icon="mdi-chevron-left"
+                    size="small"
+                    variant="text"
+                    :disabled="currentBlockIndex === 0"
+                    title="Předchozí Tabulka hodnot"
+                    @click="prevBlock"
+                  />
+                  <div class="text-subtitle-1 font-weight-medium">
+                    {{ currentBlock?.title || `Tabulka hodnot ${currentBlockIndex + 1}` }}
+                  </div>
+                  <v-btn
+                    icon="mdi-chevron-right"
+                    size="small"
+                    variant="text"
+                    :disabled="currentBlockIndex === templateBlocks.length - 1"
+                    title="Další Tabulka hodnot"
+                    @click="nextBlock"
+                  />
+                </div>
+                <v-chip
+                  size="small"
+                  variant="tonal"
+                >
+                  {{ currentBlockIndex + 1 }} / {{ templateBlocks.length }}
+                </v-chip>
+              </div>
+
+              <div class="block-tabs mt-2">
+                <v-chip
+                  v-for="(block, idx) in templateBlocks"
+                  :key="block.id"
+                  size="small"
+                  :color="idx === currentBlockIndex ? 'primary' : undefined"
+                  :variant="idx === currentBlockIndex ? 'flat' : 'tonal'"
+                  class="mr-1"
+                  @click="currentBlockIndex = idx"
+                >
+                  {{ block.title }}
+                  <v-badge
+                    v-if="block.fields.length"
+                    :content="block.fields.length"
+                    color="grey"
+                    inline
+                    class="ml-1"
+                  />
+                </v-chip>
+              </div>
+            </div>
+
+            <div
+              v-else-if="currentBlock && templateBlocks.length === 1"
+              class="block-header mb-3"
+            >
+              <div class="text-subtitle-1 font-weight-medium">
+                {{ currentBlock.title }}
+              </div>
+            </div>
+
+            <div class="grid header-row">
+              <div class="cell muted">
+                Název + Typ
+              </div>
+              <div class="cell muted">
+                Hodnota
+              </div>
+              <div class="cell muted">
+                Stav
+              </div>
+            </div>
+
+            <transition-group
+              name="fade-y"
+              tag="div"
+            >
+              <div
+                v-for="(field, idx) in currentBlockFields"
+                :key="field.name"
+                class="grid data-row"
+                :class="{'has-error': !!fieldError(field), 'row-highlight-pulse': highlightedField === field.name}"
+                :aria-label="`Field ${idx+1}: ${field.name} (${TYPE_LABEL[field.type]})`"
+              >
+                <div class="cell name name-with-chip">
+                  <div
+                    class="d-flex align-center"
+                    style="gap:8px; min-width:0;"
+                  >
+                    <span class="name-text">{{ field.name }}</span>
+                    <v-chip
+                      size="small"
+                      color="primary"
+                      variant="tonal"
+                      class="type-chip"
+                    >
+                      {{ TYPE_LABEL[field.type] }}
+                    </v-chip>
+                  </div>
+                </div>
+
+                <div class="cell value">
+                  <v-switch
+                    v-if="field.type === 'bool'"
+                    :model-value="textModel(field)"
+                    color="deep-purple"
+                    hide-details
+                    inset
+                    density="comfortable"
+                    data-field-input
+                    @update:model-value="val => updateField(field, val)"
+                  />
+                  <v-text-field
+                    v-else-if="field.type === 'int'"
+                    :model-value="textModel(field)"
+                    type="text"
+                    inputmode="numeric"
+                    variant="outlined"
+                    density="comfortable"
+                    hide-details="auto"
+                    placeholder="123"
+                    data-field-input
+                    @update:model-value="val => updateField(field, val)"
+                  />
+                  <v-text-field
+                    v-else-if="field.type === 'float'"
+                    :model-value="textModel(field)"
+                    type="text"
+                    inputmode="decimal"
+                    variant="outlined"
+                    density="comfortable"
+                    hide-details="auto"
+                    placeholder="123,45"
+                    data-field-input
+                    @update:model-value="val => updateField(field, val)"
+                  />
+                  <v-text-field
+                    v-else-if="field.type === 'date'"
+                    :model-value="dateModel(field)"
+                    type="date"
+                    variant="outlined"
+                    density="comfortable"
+                    hide-details="auto"
+                    data-field-input
+                    @update:model-value="val => updateField(field, val)"
+                  />
+                  <v-text-field
+                    v-else-if="field.type === 'time'"
+                    :model-value="textModel(field)"
+                    type="time"
+                    variant="outlined"
+                    density="comfortable"
+                    hide-details="auto"
+                    data-field-input
+                    @update:model-value="val => updateField(field, val)"
+                  />
+                  <v-text-field
+                    v-else-if="field.type === 'datetime'"
+                    :model-value="textModel(field)"
+                    type="datetime-local"
+                    variant="outlined"
+                    density="comfortable"
+                    hide-details="auto"
+                    data-field-input
+                    @update:model-value="val => updateField(field, val)"
+                  />
+                  <div
+                    v-else-if="field.type === 'file'"
+                    class="file-field-container"
+                  >
+                    <!-- Show existing uploaded file -->
+                    <div
+                      v-if="hasExistingFileUrl(field)"
+                      class="existing-file d-flex align-center ga-2"
+                    >
+                      <v-img
+                        v-if="isImageFile(field)"
+                        :src="getFileDisplayUrl(field)"
+                        max-width="60"
+                        max-height="60"
+                        class="rounded border"
+                        cover
+                      />
+                      <v-icon
+                        v-else
+                        size="24"
+                        color="grey"
+                      >
+                        mdi-file-document-outline
+                      </v-icon>
+                      <a
+                        :href="getFileDisplayUrl(field)"
+                        target="_blank"
+                        class="text-primary text-decoration-none"
+                      >
+                        {{ getFileNameFromUrl(field) }}
+                      </a>
+                      <v-btn
+                        icon="mdi-close"
+                        size="small"
+                        variant="text"
+                        color="error"
+                        title="Odstranit soubor a nahrát nový"
+                        @click="clearExistingFile(field)"
+                      />
+                    </div>
+                    <v-file-input
+                      v-else
+                      :model-value="fileModel(field)"
+                      density="comfortable"
+                      hide-details="auto"
+                      variant="outlined"
+                      accept="image/*,.csv,.txt,.pdf"
+                      show-size
+                      data-field-input
+                      @update:model-value="val => updateField(field, (Array.isArray(val) ? val[0] : val))"
+                    />
+                  </div>
+                  <v-text-field
+                    v-else
+                    :model-value="textModel(field)"
+                    type="text"
+                    variant="outlined"
+                    density="comfortable"
+                    hide-details="auto"
+                    placeholder="Text…"
+                    data-field-input
+                    @update:model-value="val => updateField(field, val)"
+                  />
+                </div>
+
+                <div class="cell right">
+                  <v-tooltip
+                    v-if="fieldError(field)"
+                    location="top"
+                  >
+                    <template #activator="{ props: tp }">
+                      <v-icon
+                        v-bind="tp"
+                        size="18"
+                        color="error"
+                        icon="mdi-alert-circle-outline"
+                      />
+                    </template>
+                    <span>{{ fieldError(field) }}</span>
+                  </v-tooltip>
+                  <v-icon
+                    v-else
+                    size="18"
+                    color="green-darken-2"
+                    icon="mdi-check-circle-outline"
+                  />
+                </div>
+              </div>
+            </transition-group>
+          </div>
         </div>
       </section>
 
@@ -1591,7 +1727,12 @@ const liveStatus = computed<string>(() => {
         :aria-hidden="statsCollapsed"
       >
         <div class="section-header-row">
-          <v-icon size="18" color="primary">mdi-chart-bar</v-icon>
+          <v-icon
+            size="18"
+            color="primary"
+          >
+            mdi-chart-bar
+          </v-icon>
           <span class="section-title">Statistika</span>
           <div
             v-if="statsCollapsed"
@@ -1615,7 +1756,9 @@ const liveStatus = computed<string>(() => {
             :title="statsCollapsed ? 'Rozbalit' : 'Sbalit'"
             @click="toggleStats"
           >
-            <v-icon :class="{'rot-180': !statsCollapsed}">mdi-chevron-down</v-icon>
+            <v-icon :class="{'rot-180': !statsCollapsed}">
+              mdi-chevron-down
+            </v-icon>
           </v-btn>
         </div>
 
@@ -1773,7 +1916,12 @@ const liveStatus = computed<string>(() => {
         :aria-hidden="attachmentsCollapsed"
       >
         <div class="section-header-row">
-          <v-icon size="18" color="primary">mdi-paperclip</v-icon>
+          <v-icon
+            size="18"
+            color="primary"
+          >
+            mdi-paperclip
+          </v-icon>
           <span class="section-title">Přílohy</span>
           <v-spacer />
           <v-btn
@@ -1783,13 +1931,23 @@ const liveStatus = computed<string>(() => {
             :title="attachmentsCollapsed ? 'Rozbalit' : 'Sbalit'"
             @click="toggleAttachments"
           >
-            <v-icon :class="{'rot-180': !attachmentsCollapsed}">mdi-chevron-down</v-icon>
+            <v-icon :class="{'rot-180': !attachmentsCollapsed}">
+              mdi-chevron-down
+            </v-icon>
           </v-btn>
         </div>
-        <div v-show="!attachmentsCollapsed" class="attachments-content">
+        <div
+          v-show="!attachmentsCollapsed"
+          class="attachments-content"
+        >
           <div class="info-card">
             <div class="info-card-header">
-              <v-icon size="18" color="primary">mdi-cloud-upload</v-icon>
+              <v-icon
+                size="18"
+                color="primary"
+              >
+                mdi-cloud-upload
+              </v-icon>
               <span class="info-card-title">Nahrát přílohy</span>
             </div>
             <div class="mt-2">
@@ -1809,9 +1967,17 @@ const liveStatus = computed<string>(() => {
             </div>
           </div>
 
-          <div v-if="item?.id" class="info-card">
+          <div
+            v-if="item?.id"
+            class="info-card"
+          >
             <div class="info-card-header">
-              <v-icon size="18" color="primary">mdi-file-multiple</v-icon>
+              <v-icon
+                size="18"
+                color="primary"
+              >
+                mdi-file-multiple
+              </v-icon>
               <span class="info-card-title">Seznam příloh</span>
             </div>
             <div class="mt-2">
@@ -1864,13 +2030,13 @@ const liveStatus = computed<string>(() => {
     <!-- Outlier Detail Popover -->
     <v-card
       v-if="outlierPopover.show"
+      v-click-outside="() => outlierPopover.show = false"
       class="outlier-popover"
       elevation="4"
       :style="{
         top: outlierPopover.y + 'px',
         left: outlierPopover.x + 'px'
       }"
-      v-click-outside="() => outlierPopover.show = false"
     >
       <div class="d-flex align-center justify-space-between mb-2">
         <span class="text-subtitle-2 font-weight-bold">Detail outlieru</span>
@@ -1905,7 +2071,6 @@ const liveStatus = computed<string>(() => {
         </v-btn>
       </div>
     </v-card>
-    
   </div>
 </template>
 

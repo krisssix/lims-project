@@ -35,26 +35,51 @@ const canDelete = computed(() => props.records.length > 1)
 
 <template>
   <!-- Empty state -->
-  <div v-if="props.records.length === 0" class="empty-state">
-    <v-icon size="48" color="grey-lighten-1" class="mb-3">mdi-file-document-plus-outline</v-icon>
-    <p class="empty-text">Žádné záznamy</p>
-    <button type="button" class="add-first-btn" @click="emits('add')">
-      <v-icon size="16">mdi-plus</v-icon>
+  <div
+    v-if="props.records.length === 0"
+    class="empty-state"
+  >
+    <v-icon
+      size="48"
+      color="grey-lighten-1"
+      class="mb-3"
+    >
+      mdi-file-document-plus-outline
+    </v-icon>
+    <p class="empty-text">
+      Žádné záznamy
+    </p>
+    <button
+      type="button"
+      class="add-first-btn"
+      @click="emits('add')"
+    >
+      <v-icon size="16">
+        mdi-plus
+      </v-icon>
       Vytvořit první záznam
     </button>
   </div>
 
   <!-- Normal toolbar when records exist -->
-  <div v-else class="records-toolbar">
+  <div
+    v-else
+    class="records-toolbar"
+  >
     <!-- Left: Section title with icon -->
     <div class="toolbar-section-header">
       <div class="section-icon">
-        <v-icon size="15" color="primary">mdi-table</v-icon>
+        <v-icon
+          size="15"
+          color="primary"
+        >
+          mdi-table
+        </v-icon>
       </div>
       <span class="section-title">Hodnoty záznamu</span>
     </div>
 
-    <div class="toolbar-spacer"></div>
+    <div class="toolbar-spacer" />
 
     <!-- Center: Navigation -->
     <div class="toolbar-nav">
@@ -64,7 +89,9 @@ const canDelete = computed(() => props.records.length > 1)
         :disabled="!canGoPrev"
         @click="emits('prev')"
       >
-        <v-icon size="20">mdi-chevron-left</v-icon>
+        <v-icon size="20">
+          mdi-chevron-left
+        </v-icon>
       </button>
 
       <div class="record-counter">
@@ -77,14 +104,16 @@ const canDelete = computed(() => props.records.length > 1)
         :disabled="!canGoNext"
         @click="emits('next')"
       >
-        <v-icon size="20">mdi-chevron-right</v-icon>
+        <v-icon size="20">
+          mdi-chevron-right
+        </v-icon>
       </button>
     </div>
 
     <!-- Right: Actions -->
     <div class="toolbar-actions">
       <!-- Grid Picker Button -->
-<!--      <v-tooltip location="top" text="Vybrat hodnoty z nahrané tabulky">
+      <!--      <v-tooltip location="top" text="Vybrat hodnoty z nahrané tabulky">
         <template #activator="{ props }">
           <button
             v-bind="props"
@@ -101,7 +130,7 @@ const canDelete = computed(() => props.records.length > 1)
       <!-- Paste Menu -->
       <v-menu location="bottom end">
         <template #activator="{ props }">
-<!--          <button
+          <!--          <button
             v-bind="props"
             type="button"
             class="action-btn tonal"
@@ -113,17 +142,25 @@ const canDelete = computed(() => props.records.length > 1)
         </template>
         <v-list density="compact">
           <v-list-item @click="emits('paste-current')">
-            <template #prepend><v-icon size="small">mdi-content-paste</v-icon></template>
+            <template #prepend>
+              <v-icon size="small">
+                mdi-content-paste
+              </v-icon>
+            </template>
             <v-list-item-title>Vložit do aktuálního záznamu</v-list-item-title>
           </v-list-item>
           <v-list-item @click="emits('paste-multiple')">
-            <template #prepend><v-icon size="small">mdi-table-row-plus-after</v-icon></template>
+            <template #prepend>
+              <v-icon size="small">
+                mdi-table-row-plus-after
+              </v-icon>
+            </template>
             <v-list-item-title>Vložit jako nové záznamy</v-list-item-title>
           </v-list-item>
         </v-list>
       </v-menu>
 
-      <div class="toolbar-divider"></div>
+      <div class="toolbar-divider" />
 
       <button
         type="button"
@@ -131,7 +168,9 @@ const canDelete = computed(() => props.records.length > 1)
         :disabled="!props.canDuplicate"
         @click="emits('duplicate')"
       >
-        <v-icon size="16">mdi-content-duplicate</v-icon>
+        <v-icon size="16">
+          mdi-content-duplicate
+        </v-icon>
         <span class="d-none d-md-inline">Duplikovat</span>
       </button>
 
@@ -141,18 +180,22 @@ const canDelete = computed(() => props.records.length > 1)
         :disabled="!canDelete"
         @click="emits('delete')"
       >
-        <v-icon size="16">mdi-delete-outline</v-icon>
+        <v-icon size="16">
+          mdi-delete-outline
+        </v-icon>
         <span class="d-none d-md-inline">Smazat</span>
       </button>
 
-      <div class="toolbar-divider"></div>
+      <div class="toolbar-divider" />
 
       <button
         type="button"
         class="action-btn primary"
         @click="emits('add')"
       >
-        <v-icon size="16">mdi-plus</v-icon>
+        <v-icon size="16">
+          mdi-plus
+        </v-icon>
         Přidat záznam
       </button>
     </div>

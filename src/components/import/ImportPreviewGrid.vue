@@ -68,19 +68,50 @@ function getRowIndex(visualIndex: number): number {
   <div class="import-preview-grid">
     <!-- odznaky formátu (format badges) -->
     <div class="preview-badges mb-2 d-flex flex-wrap ga-2 text-caption">
-      <v-chip size="x-small" variant="tonal" color="primary">
-        <v-icon start size="12">mdi-format-columns</v-icon>
+      <v-chip
+        size="x-small"
+        variant="tonal"
+        color="primary"
+      >
+        <v-icon
+          start
+          size="12"
+        >
+          mdi-format-columns
+        </v-icon>
         {{ delimiterLabel }}
       </v-chip>
-      <v-chip size="x-small" variant="tonal" color="primary">
-        <v-icon start size="12">mdi-table-row</v-icon>
+      <v-chip
+        size="x-small"
+        variant="tonal"
+        color="primary"
+      >
+        <v-icon
+          start
+          size="12"
+        >
+          mdi-table-row
+        </v-icon>
         Hlavička: {{ props.usedHeaderRow !== undefined && props.usedHeaderRow !== null ? props.usedHeaderRow : 'Ne' }}
       </v-chip>
-      <v-chip v-if="usedDecimal" size="x-small" variant="tonal" color="primary">
-        <v-icon start size="12">mdi-decimal</v-icon>
+      <v-chip
+        v-if="usedDecimal"
+        size="x-small"
+        variant="tonal"
+        color="primary"
+      >
+        <v-icon
+          start
+          size="12"
+        >
+          mdi-decimal
+        </v-icon>
         {{ usedDecimal === ',' ? 'Čárka' : 'Tečka' }}
       </v-chip>
-      <v-chip size="x-small" variant="outlined">
+      <v-chip
+        size="x-small"
+        variant="outlined"
+      >
         {{ totalRows }} řádků × {{ totalCols }} sloupců
       </v-chip>
     </div>
@@ -92,7 +123,7 @@ function getRowIndex(visualIndex: number): number {
           <tr>
             <!-- číslo řádku pro hlavičku -->
             <th class="preview-header-cell row-num-cell">
-               {{ props.usedHeaderRow ?? '#' }}
+              {{ props.usedHeaderRow ?? '#' }}
             </th>
             <th 
               v-for="(h, i) in displayHeaders" 
@@ -101,16 +132,22 @@ function getRowIndex(visualIndex: number): number {
             >
               {{ h || `(${i + 1})` }}
             </th>
-            <th v-if="hasMoreCols" class="preview-header-cell more-indicator">
+            <th
+              v-if="hasMoreCols"
+              class="preview-header-cell more-indicator"
+            >
               ...
             </th>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="(row, ri) in displayRows" :key="'r-' + ri">
+          <tr
+            v-for="(row, ri) in displayRows"
+            :key="'r-' + ri"
+          >
             <!-- číslo řádku pro data -->
             <td class="preview-cell row-num-cell">
-               {{ getRowIndex(ri) }}
+              {{ getRowIndex(ri) }}
             </td>
             <td 
               v-for="(cell, ci) in row" 
@@ -120,11 +157,17 @@ function getRowIndex(visualIndex: number): number {
             >
               {{ truncateCell(cell) }}
             </td>
-            <td v-if="hasMoreCols" class="preview-cell more-indicator">
+            <td
+              v-if="hasMoreCols"
+              class="preview-cell more-indicator"
+            >
               ...
             </td>
           </tr>
-          <tr v-if="hasMoreRows" class="more-rows">
+          <tr
+            v-if="hasMoreRows"
+            class="more-rows"
+          >
             <td :colspan="(displayHeaders?.length || displayRows[0]?.length || 1) + 2">
               + {{ totalRows - maxRowsLimit }} dalších řádků... (z celkem {{ totalRows }})
             </td>

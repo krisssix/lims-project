@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
 import { get, patch, del } from '@/services/api/api-requests'
 import ReservationEditorDialog from '@/components/reservations/ReservationEditorDialog.vue'
+import ModernSwitch from '@/components/ui/ModernSwitch.vue'
 
 type StatusType = 'plan' | 'running' | 'done'
 
@@ -840,9 +841,12 @@ defineExpose({ loadListRange, loadAll, addReservation, updateReservation, remove
 </script>
 
 <template>
-  <div class="flex-grow-1" style="min-width: 0; display: flex; flex-direction: column; gap: 0;">
-      <!-- Compact Filter Row -->
-      <div class="compact-filter-bar">
+  <div
+    class="flex-grow-1"
+    style="min-width: 0; display: flex; flex-direction: column; gap: 0;"
+  >
+    <!-- Compact Filter Row -->
+    <div class="compact-filter-bar">
       <!-- Date From -->
       <div class="filter-field">
         <label>Od:</label>
@@ -850,7 +854,7 @@ defineExpose({ loadListRange, loadAll, addReservation, updateReservation, remove
           v-model="listFrom"
           type="date"
           class="native-date-input"
-        />
+        >
       </div>
       
       <!-- Date To -->
@@ -860,33 +864,33 @@ defineExpose({ loadListRange, loadAll, addReservation, updateReservation, remove
           v-model="listTo"
           type="date"
           class="native-date-input"
-        />
+        >
       </div>
       
       <!-- Search -->
       <div class="search-field">
         <label>Hledat</label>
-        <v-icon size="18" class="search-icon">mdi-magnify</v-icon>
+        <v-icon
+          size="18"
+          class="search-icon"
+        >
+          mdi-magnify
+        </v-icon>
         <input
           ref="searchInput"
           v-model="listSearch"
           type="text"
           placeholder="Hledat rezervaci..."
           class="native-search-input"
-        />
+        >
       </div>
 
       <!-- Notes Switch -->
-       <div class="d-flex align-center ml-2">
-         <v-switch
-           v-model="includeNotesInSearch"
-           color="primary"
-           density="compact"
-           hide-details
-           label="Hledat i v poznámkách"
-           class="ma-0 pa-0"
-         />
-       </div>
+      <ModernSwitch
+        v-model="includeNotesInSearch"
+        label="Hledat i v poznámkách"
+        class="ml-3"
+      />
       
       <!-- Count -->
       <div class="count-badge ml-auto">
@@ -925,13 +929,31 @@ defineExpose({ loadListRange, loadAll, addReservation, updateReservation, remove
             <th style="width: 48px; padding-right: 0; text-align: center;">
               <div 
                 class="checkbox-wrapper" 
-                @click="toggleAll"
                 style="cursor: pointer; display: inline-flex;"
                 title="Vybrat vše"
+                @click="toggleAll"
               >
-                <v-icon size="20" v-if="isAllSelected" color="primary">mdi-checkbox-marked</v-icon>
-                <v-icon size="20" v-else-if="selectedIds.size > 0 && !isAllSelected" color="primary">mdi-minus-box</v-icon>
-                <v-icon size="20" v-else color="grey-lighten-1">mdi-checkbox-blank-outline</v-icon>
+                <v-icon
+                  v-if="isAllSelected"
+                  size="20"
+                  color="primary"
+                >
+                  mdi-checkbox-marked
+                </v-icon>
+                <v-icon
+                  v-else-if="selectedIds.size > 0 && !isAllSelected"
+                  size="20"
+                  color="primary"
+                >
+                  mdi-minus-box
+                </v-icon>
+                <v-icon
+                  v-else
+                  size="20"
+                  color="grey-lighten-1"
+                >
+                  mdi-checkbox-blank-outline
+                </v-icon>
               </div>
             </th>
             
@@ -939,8 +961,8 @@ defineExpose({ loadListRange, loadAll, addReservation, updateReservation, remove
               v-for="h in headersToUse" 
               :key="h.key"
               :style="{ width: h.width ? h.width + 'px' : 'auto', minWidth: h.minWidth ? h.minWidth + 'px' : undefined, cursor: h.sortable ? 'pointer' : 'default' }"
-              @click="h.sortable ? (sortBy === h.key ? sortDesc = !sortDesc : (sortBy = h.key, sortDesc = true)) : null"
               class="header-cell"
+              @click="h.sortable ? (sortBy === h.key ? sortDesc = !sortDesc : (sortBy = h.key, sortDesc = true)) : null"
             >
               <div class="d-flex align-center">
                 {{ h.title }}
@@ -966,14 +988,29 @@ defineExpose({ loadListRange, loadAll, addReservation, updateReservation, remove
             @dblclick="(e) => onRowDblClick(e, { item })"
           >
             <!-- Checkbox -->
-            <td style="padding-right: 0; text-align: center;" @click.stop>
+            <td
+              style="padding-right: 0; text-align: center;"
+              @click.stop
+            >
               <div 
                 class="checkbox-wrapper"
-                @click="(e) => toggleSelection(item.id, e)"
                 style="cursor: pointer; display: inline-flex;"
+                @click="(e) => toggleSelection(item.id, e)"
               >
-                 <v-icon size="20" v-if="selectedIds.has(item.id)" color="primary">mdi-checkbox-marked</v-icon>
-                 <v-icon size="20" v-else color="grey-lighten-1">mdi-checkbox-blank-outline</v-icon>
+                <v-icon
+                  v-if="selectedIds.has(item.id)"
+                  size="20"
+                  color="primary"
+                >
+                  mdi-checkbox-marked
+                </v-icon>
+                <v-icon
+                  v-else
+                  size="20"
+                  color="grey-lighten-1"
+                >
+                  mdi-checkbox-blank-outline
+                </v-icon>
               </div>
             </td>
 
@@ -991,10 +1028,14 @@ defineExpose({ loadListRange, loadAll, addReservation, updateReservation, remove
             </td>
             
             <!-- Date -->
-            <td class="date-cell">{{ formatDateShort(item._raw.startTime) }}</td>
+            <td class="date-cell">
+              {{ formatDateShort(item._raw.startTime) }}
+            </td>
             
             <!-- Time -->
-            <td class="time-cell">{{ item.time }}</td>
+            <td class="time-cell">
+              {{ item.time }}
+            </td>
             
             <!-- Title -->
             <td class="title-cell">
@@ -1005,12 +1046,17 @@ defineExpose({ loadListRange, loadAll, addReservation, updateReservation, remove
                 class="ml-1"
                 color="grey"
                 title="Poznámka je v detailu"
-              >mdi-text</v-icon>
+              >
+                mdi-text
+              </v-icon>
             </td>
             
             <!-- User with avatar -->
             <td>
-              <div class="user-cell" v-if="item.user !== '—'">
+              <div
+                v-if="item.user !== '—'"
+                class="user-cell"
+              >
                 <span
                   class="user-avatar"
                   :style="{ backgroundColor: deviceColorByCode.get(item.device) || '#9E9E9E' }"
@@ -1019,15 +1065,24 @@ defineExpose({ loadListRange, loadAll, addReservation, updateReservation, remove
                 </span>
                 <span class="user-name">{{ formatUserName(item.user) }}</span>
               </div>
-              <span v-else class="text-medium-emphasis">—</span>
+              <span
+                v-else
+                class="text-medium-emphasis"
+              >—</span>
             </td>
 
             <!-- CreatedAt (new col) -->
             <td class="time-cell">
-              <span v-if="item._raw.createdAt" :title="new Date(item._raw.createdAt).toLocaleString('cs-CZ')">
+              <span
+                v-if="item._raw.createdAt"
+                :title="new Date(item._raw.createdAt).toLocaleString('cs-CZ')"
+              >
                 {{ formatDateShort(item._raw.createdAt) }} {{ new Date(item._raw.createdAt).toLocaleTimeString('cs-CZ', {hour:'2-digit', minute:'2-digit'}) }}
               </span>
-              <span v-else class="text-medium-emphasis">—</span>
+              <span
+                v-else
+                class="text-medium-emphasis"
+              >—</span>
             </td>
             
             <!-- Status -->
@@ -1046,15 +1101,26 @@ defineExpose({ loadListRange, loadAll, addReservation, updateReservation, remove
           </tr>
           
           <tr v-if="visibleTableItems.length === 0 && !listLoading">
-            <td colspan="7" class="empty-state">
+            <td
+              colspan="7"
+              class="empty-state"
+            >
               Žádné rezervace.
             </td>
           </tr>
           
           <tr v-if="listLoading">
-            <td colspan="7" class="loading-state">
+            <td
+              colspan="7"
+              class="loading-state"
+            >
               <div class="loading-content">
-                <v-progress-circular indeterminate size="24" color="primary" class="mr-2" />
+                <v-progress-circular
+                  indeterminate
+                  size="24"
+                  color="primary"
+                  class="mr-2"
+                />
                 Načítám...
               </div>
             </td>
@@ -1076,7 +1142,10 @@ defineExpose({ loadListRange, loadAll, addReservation, updateReservation, remove
     </div>
 
     <!-- Pagination -->
-    <div v-if="tableItems.length > 0" class="pagination-bar">
+    <div
+      v-if="tableItems.length > 0"
+      class="pagination-bar"
+    >
       <div class="pagination-info">
         Zobrazeno <strong>1–{{ Math.min(visibleCount, tableItems.length) }}</strong> z <strong>{{ tableItems.length }}</strong> rezervací
       </div>
@@ -1093,11 +1162,22 @@ defineExpose({ loadListRange, loadAll, addReservation, updateReservation, remove
       
       <div class="pagination-per-page">
         <span>Na stránku:</span>
-        <select v-model="visibleCount" class="page-select">
-          <option :value="50">50</option>
-          <option :value="100">100</option>
-          <option :value="250">250</option>
-          <option :value="tableItems.length">Vše</option>
+        <select
+          v-model="visibleCount"
+          class="page-select"
+        >
+          <option :value="50">
+            50
+          </option>
+          <option :value="100">
+            100
+          </option>
+          <option :value="250">
+            250
+          </option>
+          <option :value="tableItems.length">
+            Vše
+          </option>
         </select>
       </div>
     </div>
@@ -1107,8 +1187,6 @@ defineExpose({ loadListRange, loadAll, addReservation, updateReservation, remove
     <ReservationEditorDialog
       v-if="editForm"
       v-model="detailOpen"
-      mode="edit"
-      :saving="isSaving"
       v-model:title="editForm.title"
       v-model:device-code="editForm.deviceCode"
       v-model:date-ymd="editForm.dateYmd"
@@ -1117,6 +1195,8 @@ defineExpose({ loadListRange, loadAll, addReservation, updateReservation, remove
       v-model:username="editForm.username"
       v-model:note="editForm.note"
       v-model:recurrence="editForm.recurrence"
+      mode="edit"
+      :saving="isSaving"
       :devices="devicesForDialog"
       :members="members"
       @save="saveInlineEdit"
@@ -1146,9 +1226,17 @@ defineExpose({ loadListRange, loadAll, addReservation, updateReservation, remove
 
     <!-- Selection Action Bar (floating) -->
     <Transition name="slide-up">
-      <div v-if="selectedIds.size > 0" class="selection-action-bar">
+      <div
+        v-if="selectedIds.size > 0"
+        class="selection-action-bar"
+      >
         <div class="selection-info">
-          <v-icon size="20" class="mr-2">mdi-checkbox-marked</v-icon>
+          <v-icon
+            size="20"
+            class="mr-2"
+          >
+            mdi-checkbox-marked
+          </v-icon>
           <span><strong>{{ selectedIds.size }}</strong> {{ selectedIds.size === 1 ? 'rezervace vybrána' : 'rezervací vybráno' }}</span>
         </div>
         <div class="selection-actions">
@@ -1183,15 +1271,26 @@ defineExpose({ loadListRange, loadAll, addReservation, updateReservation, remove
     </Transition>
 
     <!-- Bulk Delete Confirmation Dialog -->
-    <v-dialog v-model="bulkDeleteConfirmOpen" max-width="480" persistent>
+    <v-dialog
+      v-model="bulkDeleteConfirmOpen"
+      max-width="480"
+      persistent
+    >
       <v-card>
-        <v-card-title class="text-h6 d-flex align-center" style="gap: 8px;">
-          <v-icon color="error">mdi-alert-circle</v-icon>
+        <v-card-title
+          class="text-h6 d-flex align-center"
+          style="gap: 8px;"
+        >
+          <v-icon color="error">
+            mdi-alert-circle
+          </v-icon>
           Potvrdit hromadné smazání
         </v-card-title>
         <v-card-text>
           <p>Opravdu chcete smazat <strong>{{ selectedIds.size }}</strong> {{ selectedIds.size === 1 ? 'rezervaci' : 'rezervací' }}?</p>
-          <p class="text-medium-emphasis mt-2">Tato akce je nevratná.</p>
+          <p class="text-medium-emphasis mt-2">
+            Tato akce je nevratná.
+          </p>
         </v-card-text>
         <v-card-actions>
           <v-spacer />
@@ -1318,7 +1417,7 @@ defineExpose({ loadListRange, loadAll, addReservation, updateReservation, remove
   min-height: 400px;
   overflow: auto;
   position: relative;
-  padding: 0 40px 40px;
+  padding: 0 0 40px;
 }
 
 .reservations-table {

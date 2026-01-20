@@ -61,12 +61,18 @@ function focusNextField(currentIdx: number): void {
               title="Změnit datový typ"
             >
               {{ typeLabelMap[field.type] }}
-              <v-icon size="10" class="ml-1">mdi-chevron-down</v-icon>
+              <v-icon
+                size="10"
+                class="ml-1"
+              >mdi-chevron-down</v-icon>
             </span>
           </template>
           <v-list density="compact">
             <v-list-item>
-              <div class="d-flex align-center justify-space-between" style="min-width: 120px">
+              <div
+                class="d-flex align-center justify-space-between"
+                style="min-width: 120px"
+              >
                 <span class="text-caption mr-2">Povinné</span>
                 <v-switch
                   :model-value="field.required"
@@ -136,7 +142,10 @@ function focusNextField(currentIdx: number): void {
           @keydown.enter.prevent="focusNextField(idx)"
         >
         
-        <div v-else-if="field.type === 'date'" class="date-time-inputs">
+        <div
+          v-else-if="field.type === 'date'"
+          class="date-time-inputs"
+        >
           <input
             :value="props.getDateModel(field)"
             type="date"
@@ -194,7 +203,9 @@ function focusNextField(currentIdx: number): void {
           title="Vybrat z importovaných dat"
           @click="emits('open-picker', field.name)"
         >
-          <v-icon size="18">mdi-table-arrow-left</v-icon>
+          <v-icon size="18">
+            mdi-table-arrow-left
+          </v-icon>
         </button>
       </div>
     </div>

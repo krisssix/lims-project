@@ -85,25 +85,46 @@ function cancel(): void {
 </script>
 
 <template>
-  <v-dialog v-model="open" max-width="560" persistent>
+  <v-dialog
+    v-model="open"
+    max-width="560"
+    persistent
+  >
     <v-card class="export-dialog">
       <v-card-title class="dialog-header">
-        <v-icon color="primary" class="mr-2">mdi-export</v-icon>
+        <v-icon
+          color="primary"
+          class="mr-2"
+        >
+          mdi-export
+        </v-icon>
         Export měření
         <v-spacer />
-        <v-btn icon variant="text" size="small" @click="cancel">
+        <v-btn
+          icon
+          variant="text"
+          size="small"
+          @click="cancel"
+        >
           <v-icon>mdi-close</v-icon>
         </v-btn>
       </v-card-title>
 
       <v-card-text class="dialog-content">
         <!-- statistiky (stats) -->
-        <v-alert type="info" variant="tonal" density="compact" class="mb-4">
+        <v-alert
+          type="info"
+          variant="tonal"
+          density="compact"
+          class="mb-4"
+        >
           <strong>{{ measurementCount }}</strong> měření bude exportováno
         </v-alert>
 
         <!-- výběr formátu (format selection) -->
-        <div class="text-subtitle-2 mb-2">Formát exportu</div>
+        <div class="text-subtitle-2 mb-2">
+          Formát exportu
+        </div>
         <v-select
           v-model="selectedFormat"
           :items="formatOptions"
@@ -117,7 +138,10 @@ function cancel(): void {
           <template #item="{ item, props: itemProps }">
             <v-list-item v-bind="itemProps">
               <template #prepend>
-                <v-icon :icon="item.raw.icon" class="mr-3" />
+                <v-icon
+                  :icon="item.raw.icon"
+                  class="mr-3"
+                />
               </template>
               <template #subtitle>
                 {{ item.raw.description }}
@@ -125,7 +149,11 @@ function cancel(): void {
             </v-list-item>
           </template>
           <template #selection="{ item }">
-            <v-icon :icon="item.raw.icon" size="small" class="mr-2" />
+            <v-icon
+              :icon="item.raw.icon"
+              size="small"
+              class="mr-2"
+            />
             {{ item.raw.title }}
           </template>
         </v-select>
@@ -146,7 +174,11 @@ function cancel(): void {
         <div class="columns-section">
           <div class="d-flex align-center justify-space-between mb-2">
             <span class="text-subtitle-2">Sloupce k exportu</span>
-            <v-btn size="small" variant="text" @click="toggleAll">
+            <v-btn
+              size="small"
+              variant="text"
+              @click="toggleAll"
+            >
               {{ allSelected ? 'Odznačit vše' : 'Vybrat vše' }}
             </v-btn>
           </div>
@@ -164,14 +196,22 @@ function cancel(): void {
           </div>
         </div>
 
-        <div v-if="enabledColumnsCount === 0" class="text-error text-caption mt-2">
+        <div
+          v-if="enabledColumnsCount === 0"
+          class="text-error text-caption mt-2"
+        >
           Vyberte alespoň jeden sloupec
         </div>
       </v-card-text>
 
       <v-card-actions class="dialog-actions">
         <v-spacer />
-        <v-btn variant="text" @click="cancel">Zrušit</v-btn>
+        <v-btn
+          variant="text"
+          @click="cancel"
+        >
+          Zrušit
+        </v-btn>
         <v-btn
           color="primary"
           variant="flat"

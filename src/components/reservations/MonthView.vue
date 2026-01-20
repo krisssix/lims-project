@@ -63,7 +63,11 @@ function getBgColor(item: ResItem) {
   <div class="month-view">
     <!-- Header -->
     <div class="month-header">
-      <div v-for="dayName in WEEKDAYS" :key="dayName" class="month-header-cell">
+      <div
+        v-for="dayName in WEEKDAYS"
+        :key="dayName"
+        class="month-header-cell"
+      >
         {{ dayName }}
       </div>
     </div>
@@ -81,7 +85,9 @@ function getBgColor(item: ResItem) {
         }"
         @click="(e) => onTrackClick(e, { type: 'day', day })"
       >
-        <div class="day-label">{{ day.getDate() }}</div>
+        <div class="day-label">
+          {{ day.getDate() }}
+        </div>
         
         <div class="day-events">
           <div 
@@ -89,13 +95,17 @@ function getBgColor(item: ResItem) {
             :key="ev.id" 
             class="month-event"
             :style="{
-               borderLeft: `3px solid ${deviceColorOf(ev.deviceId)}`,
-               background: `var(--v-theme-${deviceColorOf(ev.deviceId)}-lighten-5, #f0f0f0)`
+              borderLeft: `3px solid ${deviceColorOf(ev.deviceId)}`,
+              background: `var(--v-theme-${deviceColorOf(ev.deviceId)}-lighten-5, #f0f0f0)`
             }"
             @click.stop="(e) => onEventClick(ev.id, e)"
           >
-            <div class="event-time">{{ fmtTime(new Date(ev.start)) }}</div>
-            <div class="event-title">{{ ev.title }}</div>
+            <div class="event-time">
+              {{ fmtTime(new Date(ev.start)) }}
+            </div>
+            <div class="event-title">
+              {{ ev.title }}
+            </div>
           </div>
         </div>
       </div>

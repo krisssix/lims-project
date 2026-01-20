@@ -51,9 +51,9 @@ watch(graphData, (newGraphData) => {
 </script>
 
 <template>
-<div>
-  <canvas ref="bar"></canvas>
-</div>
+  <div>
+    <canvas ref="bar" />
+  </div>
 </template>
 
 <style scoped>

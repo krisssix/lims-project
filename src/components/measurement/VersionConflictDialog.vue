@@ -1,25 +1,36 @@
 <template>
   <Dialog
     :is-open="model"
-    @update:is-open="(v: boolean) => model = v"
     width="500px"
     :hide-footer="false"
+    @update:is-open="(v: boolean) => model = v"
   >
     <template #header>
       {{ existingDrafts.length > 0 ? 'Již existuje rozpracovaná verze' : 'Vytvořit novou verzi?' }}
     </template>
 
     <template #content>
-
       <template v-if="existingDrafts.length > 0">
-        <v-alert type="warning" variant="tonal" class="mb-4">
+        <v-alert
+          type="warning"
+          variant="tonal"
+          class="mb-4"
+        >
           Pro šablonu "{{ templateName }}" již existuje:
         </v-alert>
         
-        <v-list density="compact" class="mb-4">
-          <v-list-item v-for="draft in existingDrafts" :key="draft.id">
+        <v-list
+          density="compact"
+          class="mb-4"
+        >
+          <v-list-item
+            v-for="draft in existingDrafts"
+            :key="draft.id"
+          >
             <template #prepend>
-              <v-icon color="warning">mdi-pencil-box-outline</v-icon>
+              <v-icon color="warning">
+                mdi-pencil-box-outline
+              </v-icon>
             </template>
             <v-list-item-title>v{{ draft.version }} Draft</v-list-item-title>
             <v-list-item-subtitle>
@@ -28,30 +39,56 @@
           </v-list-item>
         </v-list>
 
-        <div class="text-body-2 mb-4">Co chcete udělat?</div>
+        <div class="text-body-2 mb-4">
+          Co chcete udělat?
+        </div>
         
-        <v-radio-group v-model="selectedAction" hide-details>
-          <v-radio value="continue" color="primary">
+        <v-radio-group
+          v-model="selectedAction"
+          hide-details
+        >
+          <v-radio
+            value="continue"
+            color="primary"
+          >
             <template #label>
               <div>
-                <div class="font-weight-medium">Pokračovat v úpravě v{{ existingDrafts[0]?.version }}</div>
-                <div class="text-caption text-medium-emphasis">Otevřít existující draft</div>
+                <div class="font-weight-medium">
+                  Pokračovat v úpravě v{{ existingDrafts[0]?.version }}
+                </div>
+                <div class="text-caption text-medium-emphasis">
+                  Otevřít existující draft
+                </div>
               </div>
             </template>
           </v-radio>
-          <v-radio value="discard" color="warning">
+          <v-radio
+            value="discard"
+            color="warning"
+          >
             <template #label>
               <div>
-                <div class="font-weight-medium">Zahodit a vytvořit novou v{{ targetVersion }}</div>
-                <div class="text-caption text-medium-emphasis">Smazat existující draft, vytvořit nový</div>
+                <div class="font-weight-medium">
+                  Zahodit a vytvořit novou v{{ targetVersion }}
+                </div>
+                <div class="text-caption text-medium-emphasis">
+                  Smazat existující draft, vytvořit nový
+                </div>
               </div>
             </template>
           </v-radio>
-          <v-radio value="higher" color="success">
+          <v-radio
+            value="higher"
+            color="success"
+          >
             <template #label>
               <div>
-                <div class="font-weight-medium">Vytvořit v{{ higherVersion }} (ponechat v{{ existingDrafts[0]?.version }})</div>
-                <div class="text-caption text-medium-emphasis">Vytvořit další verzi vedle existující</div>
+                <div class="font-weight-medium">
+                  Vytvořit v{{ higherVersion }} (ponechat v{{ existingDrafts[0]?.version }})
+                </div>
+                <div class="text-caption text-medium-emphasis">
+                  Vytvořit další verzi vedle existující
+                </div>
               </div>
             </template>
           </v-radio>
@@ -86,7 +123,12 @@
 
     <template #footer>
       <v-spacer />
-      <v-btn variant="text" @click="cancel">Zrušit</v-btn>
+      <v-btn
+        variant="text"
+        @click="cancel"
+      >
+        Zrušit
+      </v-btn>
       <v-btn 
         v-if="existingDrafts.length > 0"
         color="primary" 

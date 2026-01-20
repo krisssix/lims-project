@@ -124,11 +124,11 @@ const filteredItems = computed<TableRow[]>(() => {
     )
   }
 
-  // Default sort: nejnovější měření nahoru (descending by date)
+  // Default sort: Datum vložení (createdAt) descending
   result = [...result].sort((a, b) => {
-    const aDate = typeof a.date === 'number' ? a.date : Date.parse(String(a.date))
-    const bDate = typeof b.date === 'number' ? b.date : Date.parse(String(b.date))
-    return bDate - aDate  // Descending - newest first
+    const aDate = a.createdAt ? (typeof a.createdAt === 'number' ? a.createdAt : Date.parse(String(a.createdAt))) : 0
+    const bDate = b.createdAt ? (typeof b.createdAt === 'number' ? b.createdAt : Date.parse(String(b.createdAt))) : 0
+    return bDate - aDate
   })
 
   return result
@@ -136,6 +136,7 @@ const filteredItems = computed<TableRow[]>(() => {
 
 
 const animatingRowIds = ref<Set<number>>(new Set())
+const sortBy = ref([{ key: 'createdAt', order: 'desc' as const }])
 
 watch(() => props.highlightedRowIds, (newIds) => {
   if (newIds && newIds.length > 0) {
@@ -145,7 +146,7 @@ watch(() => props.highlightedRowIds, (newIds) => {
       newIds.forEach(id => animatingRowIds.value.delete(id))
     }, 2500)
   }
-}, { deep: true })
+}, { deep: true, immediate: true })
 
 const emits = defineEmits<{
   (e: 'row-click', id: number): void
@@ -247,7 +248,7 @@ function formatDate(dateInput: string | number): { date: string; time: string } 
         placeholder="Hledat..."
         class="toolbar-search"
       />
-<!--
+      <!--
       <div class="toolbar-filters">
         &lt;!&ndash; Date Filter Dropdown &ndash;&gt;
         <FilterMultiSelect
@@ -276,9 +277,17 @@ function formatDate(dateInput: string | number): { date: string; time: string } 
 
 
     <Transition name="slide-fade">
-      <div v-if="selected.length > 0" class="bulk-actions-toolbar">
+      <div
+        v-if="selected.length > 0"
+        class="bulk-actions-toolbar"
+      >
         <div class="bulk-info">
-          <v-icon size="18" color="primary">mdi-checkbox-marked-circle</v-icon>
+          <v-icon
+            size="18"
+            color="primary"
+          >
+            mdi-checkbox-marked-circle
+          </v-icon>
           <span class="bulk-count">{{ selected.length }} vybráno</span>
         </div>
         <div class="bulk-actions">
@@ -292,12 +301,12 @@ function formatDate(dateInput: string | number): { date: string; time: string } 
             Export
           </v-btn>
           <v-btn
-             size="small"
-             variant="tonal"
-             color="secondary"
-             prepend-icon="mdi-compare"
-             :disabled="selected.length < 2"
-             @click="compareSelected"
+            size="small"
+            variant="tonal"
+            color="secondary"
+            prepend-icon="mdi-compare"
+            :disabled="selected.length < 2"
+            @click="compareSelected"
           >
             Porovnat
           </v-btn>
@@ -331,6 +340,7 @@ function formatDate(dateInput: string | number): { date: string; time: string } 
     </Transition>
     <v-data-table
       v-model="selected"
+      v-model:sort-by="sortBy"
       :headers="props.headers"
       :items="filteredItems"
       :items-per-page="15"
@@ -347,7 +357,6 @@ function formatDate(dateInput: string | number): { date: string; time: string } 
       })"
       @click:row="onRowClick"
     >
-
       <template #[`item.type`]="{ item }">
         <div class="type-cell">
           <span class="type-label">{{ item.type }}</span>
@@ -370,7 +379,12 @@ function formatDate(dateInput: string | number): { date: string; time: string } 
             target="_blank"
             @click.stop
           >
-            <v-icon size="14" start>mdi-cloud-check</v-icon>
+            <v-icon
+              size="14"
+              start
+            >
+              mdi-cloud-check
+            </v-icon>
             Zenodo
           </v-chip>
         </div>
@@ -402,19 +416,31 @@ function formatDate(dateInput: string | number): { date: string; time: string } 
       </template>
 
       <template #[`item.createdAt`]="{ item }">
-        <div v-if="item.createdAt" :class="['date-cell', { 'date-cell-active': activeDateField === 'createdAt' }]">
+        <div
+          v-if="item.createdAt"
+          :class="['date-cell', { 'date-cell-active': activeDateField === 'createdAt' }]"
+        >
           <span class="date-primary">{{ formatDate(item.createdAt).date }}</span>
           <span class="date-secondary">{{ formatDate(item.createdAt).time }}</span>
         </div>
-        <span v-else class="text-medium-emphasis">—</span>
+        <span
+          v-else
+          class="text-medium-emphasis"
+        >—</span>
       </template>
 
       <template #[`item.updatedAt`]="{ item }">
-        <div v-if="item.updatedAt" :class="['date-cell', { 'date-cell-active': activeDateField === 'updatedAt' }]">
+        <div
+          v-if="item.updatedAt"
+          :class="['date-cell', { 'date-cell-active': activeDateField === 'updatedAt' }]"
+        >
           <span class="date-primary">{{ formatDate(item.updatedAt).date }}</span>
           <span class="date-secondary">{{ formatDate(item.updatedAt).time }}</span>
         </div>
-        <span v-else class="text-medium-emphasis">—</span>
+        <span
+          v-else
+          class="text-medium-emphasis"
+        >—</span>
       </template>
 
       <template #[`item.count`]="{ item }">

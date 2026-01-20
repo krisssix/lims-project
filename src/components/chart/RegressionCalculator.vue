@@ -196,12 +196,21 @@ Korelace: ${fmt(r.correlation)}`
   <div class="regression-calculator">
     <!-- záhlaví (header) -->
     <div class="d-flex align-center mb-3">
-      <v-icon size="20" color="primary" class="mr-2">mdi-chart-scatter-plot</v-icon>
+      <v-icon
+        size="20"
+        color="primary"
+        class="mr-2"
+      >
+        mdi-chart-scatter-plot
+      </v-icon>
       <span class="text-subtitle-1 font-weight-medium">{{ title || 'Regresní kalkulátor' }}</span>
     </div>
 
     <!-- sekce vstupu: pokud není pouze pro čtení (input section) -->
-    <div v-if="!readonly" class="input-section mb-4">
+    <div
+      v-if="!readonly"
+      class="input-section mb-4"
+    >
       <div class="d-flex ga-3">
         <v-textarea
           v-model="xInput"
@@ -232,9 +241,24 @@ Korelace: ${fmt(r.correlation)}`
           density="compact"
           color="primary"
         >
-          <v-btn value="linear" size="small">Lineární</v-btn>
-          <v-btn value="logarithmic" size="small">Logaritmická</v-btn>
-          <v-btn value="auto" size="small">Auto</v-btn>
+          <v-btn
+            value="linear"
+            size="small"
+          >
+            Lineární
+          </v-btn>
+          <v-btn
+            value="logarithmic"
+            size="small"
+          >
+            Logaritmická
+          </v-btn>
+          <v-btn
+            value="auto"
+            size="small"
+          >
+            Auto
+          </v-btn>
         </v-btn-toggle>
         
         <v-spacer />
@@ -246,19 +270,32 @@ Korelace: ${fmt(r.correlation)}`
           :disabled="dataPoints.length < 2"
           @click="calculate"
         >
-          <v-icon start size="16">mdi-calculator</v-icon>
+          <v-icon
+            start
+            size="16"
+          >
+            mdi-calculator
+          </v-icon>
           Vypočítat
         </v-btn>
       </div>
     </div>
 
     <!-- chyba (error) -->
-    <v-alert v-if="error" type="error" density="compact" class="mb-3">
+    <v-alert
+      v-if="error"
+      type="error"
+      density="compact"
+      class="mb-3"
+    >
       {{ error }}
     </v-alert>
 
     <!-- výsledky (results) -->
-    <div v-if="result" class="results-section">
+    <div
+      v-if="result"
+      class="results-section"
+    >
       <!-- graf (chart) -->
       <div class="chart-container mb-4">
         <svg 
@@ -334,7 +371,11 @@ Korelace: ${fmt(r.correlation)}`
         <div class="result-row">
           <span class="result-label">Typ regrese:</span>
           <span class="result-value">
-            <v-chip size="small" :color="result.type === 'linear' ? 'primary' : 'secondary'" variant="flat">
+            <v-chip
+              size="small"
+              :color="result.type === 'linear' ? 'primary' : 'secondary'"
+              variant="flat"
+            >
               {{ result.type === 'linear' ? 'Lineární' : 'Logaritmická' }}
             </v-chip>
           </span>
@@ -381,16 +422,33 @@ Korelace: ${fmt(r.correlation)}`
       
       <!-- akce (actions) -->
       <div class="d-flex justify-end mt-3">
-        <v-btn size="small" variant="text" @click="copyResults">
-          <v-icon start size="16">mdi-content-copy</v-icon>
+        <v-btn
+          size="small"
+          variant="text"
+          @click="copyResults"
+        >
+          <v-icon
+            start
+            size="16"
+          >
+            mdi-content-copy
+          </v-icon>
           Kopírovat
         </v-btn>
       </div>
     </div>
     
     <!-- prázdný stav (empty state) -->
-    <div v-else-if="!error && dataPoints.length < 2" class="empty-state text-center py-6 text-medium-emphasis">
-      <v-icon size="48" class="mb-2">mdi-chart-bell-curve-cumulative</v-icon>
+    <div
+      v-else-if="!error && dataPoints.length < 2"
+      class="empty-state text-center py-6 text-medium-emphasis"
+    >
+      <v-icon
+        size="48"
+        class="mb-2"
+      >
+        mdi-chart-bell-curve-cumulative
+      </v-icon>
       <div>Zadejte X a Y hodnoty pro výpočet regrese</div>
     </div>
   </div>

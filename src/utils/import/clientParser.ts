@@ -228,16 +228,7 @@ export function generateColumnNames(count: number): string[] {
 
 // ============ převod desetinných míst ============
 
-function normalizeDecimal(value: string, decimal: 'auto' | '.' | ','): string {
-    if (decimal === '.') return value
-    if (decimal === ',') return value.replace(',', '.')
 
-    // auto: preferovat čárku jako desetinný oddělovač, pokud odpovídá vzoru „123,45“
-    if (/^\d+,\d+$/.test(value.trim())) {
-        return value.replace(',', '.')
-    }
-    return value
-}
 
 // ============ hlavní parsovací funkce ============
 

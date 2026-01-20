@@ -96,7 +96,12 @@ function truncate(text: string, maxLen: number): string {
 <template>
   <div class="block-selector">
     <div class="selector-header d-flex align-center mb-3">
-      <v-icon size="18" class="mr-2">mdi-layers-outline</v-icon>
+      <v-icon
+        size="18"
+        class="mr-2"
+      >
+        mdi-layers-outline
+      </v-icon>
       <span class="text-subtitle-2">Nalezené části souboru</span>
       <span class="text-caption text-medium-emphasis ml-2">
         ({{ includedBlockIds.length }}/{{ blocks.length }} zahrnuto)
@@ -139,7 +144,11 @@ function truncate(text: string, maxLen: number): string {
           />
           
           <!-- ikona a informace o bloku -->
-          <v-icon :color="getBlockColor(block.type)" size="20" class="mr-2">
+          <v-icon
+            :color="getBlockColor(block.type)"
+            size="20"
+            class="mr-2"
+          >
             {{ getBlockIcon(block.type) }}
           </v-icon>
           
@@ -179,13 +188,24 @@ function truncate(text: string, maxLen: number): string {
             @update:model-value="val => onTypeChange(block.id, val)"
           >
             <template #selection="{ item }">
-              <v-icon :color="item.raw.color" size="16" class="mr-1">{{ item.raw.icon }}</v-icon>
+              <v-icon
+                :color="item.raw.color"
+                size="16"
+                class="mr-1"
+              >
+                {{ item.raw.icon }}
+              </v-icon>
               <span class="text-caption">{{ item.raw.label }}</span>
             </template>
             <template #item="{ item, props: itemProps }">
               <v-list-item v-bind="itemProps">
                 <template #prepend>
-                  <v-icon :color="item.raw.color" size="18">{{ item.raw.icon }}</v-icon>
+                  <v-icon
+                    :color="item.raw.color"
+                    size="18"
+                  >
+                    {{ item.raw.icon }}
+                  </v-icon>
                 </template>
               </v-list-item>
             </template>
@@ -193,7 +213,10 @@ function truncate(text: string, maxLen: number): string {
         </div>
         
         <!-- upravitelný popis při výběru -->
-        <div v-if="selectedBlockId === block.id && isBlockIncluded(block.id)" class="block-edit-row mt-2">
+        <div
+          v-if="selectedBlockId === block.id && isBlockIncluded(block.id)"
+          class="block-edit-row mt-2"
+        >
           <v-text-field
             :model-value="block.description"
             label="Název bloku"
@@ -209,28 +232,47 @@ function truncate(text: string, maxLen: number): string {
         
         <!-- náhled bloku (rozbalitelný) -->
         <v-expand-transition>
-          <div v-show="selectedBlockId === block.id" class="block-preview mt-2">
+          <div
+            v-show="selectedBlockId === block.id"
+            class="block-preview mt-2"
+          >
             <div class="preview-table-wrap">
               <table class="preview-mini-table">
                 <thead>
                   <tr>
-                    <th v-for="(h, i) in (block.headers || []).slice(0, 6)" :key="'h-' + i">
+                    <th
+                      v-for="(h, i) in (block.headers || []).slice(0, 6)"
+                      :key="'h-' + i"
+                    >
                       {{ truncate(h, 15) }}
                     </th>
-                    <th v-if="(block.headers?.length || 0) > 6">...</th>
+                    <th v-if="(block.headers?.length || 0) > 6">
+                      ...
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
-                  <tr v-for="(row, ri) in (block.sampleRows || []).slice(0, 2)" :key="'r-' + ri">
-                    <td v-for="(cell, ci) in row.slice(0, 6)" :key="'c-' + ci">
+                  <tr
+                    v-for="(row, ri) in (block.sampleRows || []).slice(0, 2)"
+                    :key="'r-' + ri"
+                  >
+                    <td
+                      v-for="(cell, ci) in row.slice(0, 6)"
+                      :key="'c-' + ci"
+                    >
                       {{ truncate(String(cell), 20) }}
                     </td>
-                    <td v-if="row.length > 6">...</td>
+                    <td v-if="row.length > 6">
+                      ...
+                    </td>
                   </tr>
                 </tbody>
               </table>
             </div>
-            <div v-if="(block.sampleRows?.length || 0) > 2" class="text-caption text-medium-emphasis mt-1">
+            <div
+              v-if="(block.sampleRows?.length || 0) > 2"
+              class="text-caption text-medium-emphasis mt-1"
+            >
               + {{ (block.sampleRows?.length || 0) - 2 }} dalších řádků
             </div>
           </div>

@@ -19,7 +19,7 @@ const props = defineProps<{
   seriesId?: string | null
   seriesIndex?: number
   isException?: boolean
-  devices: Array<{ id: string; name: string; color: string }>
+  devices: Array<{ id: string; name: string; color: string; active?: boolean }>
   members: string[]
 }>()
 
@@ -185,31 +185,41 @@ watch(() => props.startHM, (newStart) => {
       <div style="margin-bottom: 16px;">
         <label class="field-label">Název rezervace</label>
         <div style="position: relative;">
-          <v-icon class="field-icon-left">mdi-tag-outline</v-icon>
+          <v-icon class="field-icon-left">
+            mdi-tag-outline
+          </v-icon>
           <input 
             type="text" 
             :value="title" 
-            @input="e => emit('update:title', (e.target as HTMLInputElement).value)"
-            placeholder="Název rezervace..." 
-            class="custom-input"
+            placeholder="Název rezervace..."
+            class="custom-input" 
             :class="{ 'input-error': errors.title }"
+            autofocus
+            @input="e => emit('update:title', (e.target as HTMLInputElement).value)"
             @focus="focusInput"
             @blur="blurInput"
-            autofocus
           >
-          <div v-if="errors.title" class="error-msg">{{ errors.title }}</div>
+          <div
+            v-if="errors.title"
+            class="error-msg"
+          >
+            {{ errors.title }}
+          </div>
         </div>
       </div>
 
       <!-- PŘÍSTROJ + ČLEN (2 columns) -->
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px;">
-        
         <!-- PŘÍSTROJ -->
         <div>
           <label class="field-label">Přístroj</label>
           <v-menu>
             <template #activator="{ props }">
-              <div class="custom-select" :class="{ 'input-error': errors.deviceCode }" v-bind="props">
+              <div
+                class="custom-select"
+                :class="{ 'input-error': errors.deviceCode }"
+                v-bind="props"
+              >
                 <v-chip
                   v-if="selectedDevice"
                   :color="selectedDevice.color"
@@ -219,24 +229,60 @@ watch(() => props.startHM, (newStart) => {
                 >
                   {{ selectedDevice.id }}
                 </v-chip>
-                <v-icon v-else class="mr-2" color="grey-lighten-1">mdi-flask-empty-outline</v-icon>
-                <span class="select-text">{{ selectedDevice?.name || 'Vyberte přístroj' }}</span>
-                <v-icon color="#9ca3af">mdi-chevron-down</v-icon>
+                <v-icon
+                  v-else
+                  class="mr-2"
+                  color="grey-lighten-1"
+                >
+                  mdi-flask-empty-outline
+                </v-icon>
+                <span class="select-text">
+                  {{ selectedDevice?.name || 'Vyberte přístroj' }}
+                  <span
+                    v-if="selectedDevice?.active === false"
+                    style="font-size: 11px; color: #ef4444; margin-left: 6px;"
+                  >(Deaktivovaný)</span>
+                </span>
+                <v-icon color="#9ca3af">
+                  mdi-chevron-down
+                </v-icon>
               </div>
-              <div v-if="errors.deviceCode" class="error-msg">{{ errors.deviceCode }}</div>
+              <div
+                v-if="errors.deviceCode"
+                class="error-msg"
+              >
+                {{ errors.deviceCode }}
+              </div>
             </template>
-            <v-list density="compact" class="py-0">
-               <v-list-item
-                 v-for="d in devices"
-                 :key="d.id"
-                 @click="emit('update:deviceCode', d.id)"
-                 :active="deviceCode === d.id"
-               >
-                 <template #prepend>
-                   <v-icon :color="d.color" size="small" class="mr-2">mdi-circle</v-icon>
-                 </template>
-                 <v-list-item-title>{{ d.name }}</v-list-item-title>
-               </v-list-item>
+            <v-list
+              density="compact"
+              class="py-0"
+            >
+              <v-list-item
+                v-for="d in devices"
+                :key="d.id"
+                :active="deviceCode === d.id"
+                :disabled="d.active === false && deviceCode !== d.id"
+                :style="{ opacity: (d.active === false && deviceCode !== d.id) ? 0.5 : 1 }"
+                @click="emit('update:deviceCode', d.id)"
+              >
+                <template #prepend>
+                  <v-icon
+                    :color="d.color"
+                    size="small"
+                    class="mr-2"
+                  >
+                    mdi-circle
+                  </v-icon>
+                </template>
+                <v-list-item-title>
+                  {{ d.name }}
+                  <span
+                    v-if="d.active === false"
+                    style="font-size:10px; color:#ef4444; margin-left: 4px;"
+                  >(Deaktivovaný)</span>
+                </v-list-item-title>
+              </v-list-item>
             </v-list>
           </v-menu>
         </div>
@@ -246,119 +292,161 @@ watch(() => props.startHM, (newStart) => {
           <label class="field-label">Člen</label>
           <v-menu>
             <template #activator="{ props }">
-               <div class="custom-select" :class="{ 'input-error': errors.username }" v-bind="props">
+              <div
+                class="custom-select"
+                :class="{ 'input-error': errors.username }"
+                v-bind="props"
+              >
                 <div class="member-avatar">
-                   {{ selectedUserInitial }}
+                  {{ selectedUserInitial }}
                 </div>
                 <span class="select-text">{{ username || 'Vyberte uživatele' }}</span>
-                <v-icon color="#9ca3af">mdi-chevron-down</v-icon>
+                <v-icon color="#9ca3af">
+                  mdi-chevron-down
+                </v-icon>
               </div>
-              <div v-if="errors.username" class="error-msg">{{ errors.username }}</div>
+              <div
+                v-if="errors.username"
+                class="error-msg"
+              >
+                {{ errors.username }}
+              </div>
             </template>
-             <v-list density="compact" class="py-0">
-               <v-list-item
-                 v-for="m in members"
-                 :key="m"
-                 @click="emit('update:username', m)"
-                 :active="username === m"
-               >
-                 <template #prepend>
-                   <v-avatar size="24" color="grey-lighten-3" class="mr-2">
-                     <span class="text-caption">{{ m[0].toUpperCase() }}</span>
-                   </v-avatar>
-                 </template>
-                 <v-list-item-title>{{ m }}</v-list-item-title>
-               </v-list-item>
+            <v-list
+              density="compact"
+              class="py-0"
+            >
+              <v-list-item
+                v-for="m in members"
+                :key="m"
+                :active="username === m"
+                @click="emit('update:username', m)"
+              >
+                <template #prepend>
+                  <v-avatar
+                    size="24"
+                    color="grey-lighten-3"
+                    class="mr-2"
+                  >
+                    <span class="text-caption">{{ m[0].toUpperCase() }}</span>
+                  </v-avatar>
+                </template>
+                <v-list-item-title>{{ m }}</v-list-item-title>
+              </v-list-item>
             </v-list>
           </v-menu>
         </div>
-
       </div>
 
       <!-- DATUM + OPAKOVÁNÍ -->
       <div style="display: flex; align-items: flex-end; gap: 12px; margin-bottom: 16px;">
-        
         <!-- DATUM -->
         <div style="flex: 1;">
           <label class="field-label">Datum</label>
           <div style="position: relative;">
-            <v-icon class="field-icon-left">mdi-calendar</v-icon>
+            <v-icon class="field-icon-left">
+              mdi-calendar
+            </v-icon>
             <input 
               type="date" 
               :value="dateYmd"
-              @input="e => emit('update:dateYmd', (e.target as HTMLInputElement).value)"
               class="custom-input"
               :class="{ 'input-error': errors.dateYmd }"
+              @input="e => emit('update:dateYmd', (e.target as HTMLInputElement).value)"
               @focus="focusInput"
               @blur="blurInput"
             >
-            <div v-if="errors.dateYmd" class="error-msg">{{ errors.dateYmd }}</div>
+            <div
+              v-if="errors.dateYmd"
+              class="error-msg"
+            >
+              {{ errors.dateYmd }}
+            </div>
           </div>
         </div>
 
         <!-- OPAKOVÁNÍ BUTTON via RecurrenceEditor -->
         <RecurrenceEditor
           :model-value="recurrence"
-          @update:model-value="v => emit('update:recurrence', v)"
           :start-date="parsedDate"
+          @update:model-value="v => emit('update:recurrence', v)"
         >
           <template #activator="{ props }">
-             <button 
-               type="button" 
-               class="custom-button-dashed"
-               @click="props.onClick"
-               @mouseover="(e: any) => { e.currentTarget.style.background='#f3f4f6'; e.currentTarget.style.borderColor='#9ca3af' }"
-               @mouseout="(e: any) => { e.currentTarget.style.background='#f9fafb'; e.currentTarget.style.borderColor='#d1d5db' }"
-             >
-                <v-icon size="18" :color="props.hasValue ? 'primary' : undefined">mdi-repeat</v-icon>
-                <span :style="{ color: props.hasValue ? '#1976d2' : 'inherit', fontWeight: props.hasValue?600:400 }">
-                  {{ props.text }}
-                </span>
-             </button>
+            <button 
+              type="button" 
+              class="custom-button-dashed"
+              @click="props.onClick"
+              @mouseover="(e: any) => { e.currentTarget.style.background='#f3f4f6'; e.currentTarget.style.borderColor='#9ca3af' }"
+              @mouseout="(e: any) => { e.currentTarget.style.background='#f9fafb'; e.currentTarget.style.borderColor='#d1d5db' }"
+            >
+              <v-icon
+                size="18"
+                :color="props.hasValue ? 'primary' : undefined"
+              >
+                mdi-repeat
+              </v-icon>
+              <span :style="{ color: props.hasValue ? '#1976d2' : 'inherit', fontWeight: props.hasValue?600:400 }">
+                {{ props.text }}
+              </span>
+            </button>
           </template>
         </RecurrenceEditor>
-
       </div>
 
       <!-- ČAS (ZAČÁTEK + KONEC) -->
       <div style="margin-bottom: 16px;">
         <label class="field-label">Čas rezervace</label>
         <div style="display: flex; align-items: center; gap: 12px;">
-          
           <!-- ZAČÁTEK -->
           <div style="flex: 1; position: relative;">
-            <v-icon class="field-icon-left">mdi-clock-start</v-icon>
+            <v-icon class="field-icon-left">
+              mdi-clock-start
+            </v-icon>
             <input 
               type="time" 
               :value="startHM"
-              @input="e => emit('update:startHM', (e.target as HTMLInputElement).value)"
               class="custom-input"
               :class="{ 'input-error': errors.startHM }"
+              @input="e => emit('update:startHM', (e.target as HTMLInputElement).value)"
               @focus="focusInput"
               @blur="blurInput"
             >
-            <div v-if="errors.startHM" class="error-msg">{{ errors.startHM }}</div>
+            <div
+              v-if="errors.startHM"
+              class="error-msg"
+            >
+              {{ errors.startHM }}
+            </div>
           </div>
 
           <!-- SEPARATOR -->
           <div style="display: flex; align-items: center; gap: 4px; color: #9ca3af;">
-            <v-icon size="20">mdi-arrow-right</v-icon>
+            <v-icon size="20">
+              mdi-arrow-right
+            </v-icon>
           </div>
 
           <!-- KONEC -->
           <div style="flex: 1; position: relative;">
-            <v-icon class="field-icon-left">mdi-clock-end</v-icon>
+            <v-icon class="field-icon-left">
+              mdi-clock-end
+            </v-icon>
             <input 
               type="time" 
               :value="endHM"
               :min="startHM"
-              @input="e => emit('update:endHM', (e.target as HTMLInputElement).value)"
               class="custom-input"
               :class="{ 'input-error': errors.endHM }"
+              @input="e => emit('update:endHM', (e.target as HTMLInputElement).value)"
               @focus="focusInput"
               @blur="blurInput"
             >
-            <div v-if="errors.endHM" class="error-msg">{{ errors.endHM }}</div>
+            <div
+              v-if="errors.endHM"
+              class="error-msg"
+            >
+              {{ errors.endHM }}
+            </div>
           </div>
 
           <!-- DÉLKA BADGE / TOGGLE -->
@@ -369,23 +457,30 @@ watch(() => props.startHM, (newStart) => {
                 v-bind="props"
               >
                 {{ durationStr }}
-                <v-icon size="14" class="ml-1">mdi-menu-down</v-icon>
+                <v-icon
+                  size="14"
+                  class="ml-1"
+                >
+                  mdi-menu-down
+                </v-icon>
               </div>
             </template>
-            <v-list density="compact" nav>
+            <v-list
+              density="compact"
+              nav
+            >
               <v-list-subheader>Rychlá volba délky</v-list-subheader>
-               <v-list-item 
-                  v-for="mins in [15, 30, 45, 60, 90, 120, 180, 240, 300, 480]" 
-                  :key="mins"
-                  @click="setDuration(mins)"
-               >
-                 <v-list-item-title>
-                   {{ mins < 60 ? `${mins} min` : (mins % 60 === 0 ? `${mins/60} h` : `${Math.floor(mins/60)} h ${mins%60} min`) }}
-                 </v-list-item-title>
-               </v-list-item>
+              <v-list-item 
+                v-for="mins in [15, 30, 45, 60, 90, 120, 180, 240, 300, 480]" 
+                :key="mins"
+                @click="setDuration(mins)"
+              >
+                <v-list-item-title>
+                  {{ mins < 60 ? `${mins} min` : (mins % 60 === 0 ? `${mins/60} h` : `${Math.floor(mins/60)} h ${mins%60} min`) }}
+                </v-list-item-title>
+              </v-list-item>
             </v-list>
           </v-menu>
-
         </div>
       </div>
 
@@ -396,16 +491,21 @@ watch(() => props.startHM, (newStart) => {
           <span style="font-weight: 400; color: #9ca3af; text-transform: none;">(volitelné)</span>
         </label>
         <div style="position: relative;">
-          <v-icon class="field-icon-left" style="top: 14px; transform: none;">mdi-text</v-icon>
+          <v-icon
+            class="field-icon-left"
+            style="top: 14px; transform: none;"
+          >
+            mdi-text
+          </v-icon>
           <textarea 
             :value="note || ''"
-            @input="e => emit('update:note', (e.target as HTMLTextAreaElement).value)"
-            placeholder="Doplňující informace k rezervaci..." 
+            placeholder="Doplňující informace k rezervaci..."
             rows="2" 
-            class="custom-textarea"
+            class="custom-textarea" 
+            @input="e => emit('update:note', (e.target as HTMLTextAreaElement).value)"
             @focus="focusInput"
             @blur="blurInput"
-          ></textarea>
+          />
         </div>
       </div>
     </template>
@@ -433,25 +533,33 @@ watch(() => props.startHM, (newStart) => {
       </button>
 
       <!-- RIGHT SIDE - Uložit -->
-       <div class="d-flex align-center" style="gap:12px; margin-left: auto;">
-         <button 
-           v-if="mode === 'edit'"
-           type="button" 
-           class="btn-secondary"
-           @click="onClose"
-         >
-           Zrušit
-         </button>
-          <button 
-            type="button" 
-            class="btn-primary"
-            @click="onSave"
-            :disabled="saving"
+      <div
+        class="d-flex align-center"
+        style="gap:12px; margin-left: auto;"
+      >
+        <button 
+          v-if="mode === 'edit'"
+          type="button" 
+          class="btn-secondary"
+          @click="onClose"
+        >
+          Zrušit
+        </button>
+        <button 
+          type="button" 
+          class="btn-primary"
+          :disabled="saving"
+          @click="onSave"
+        >
+          <v-icon
+            size="18"
+            class="mr-2"
           >
-            <v-icon size="18" class="mr-2">mdi-content-save</v-icon>
-            {{ mode === 'create' ? 'Vytvořit rezervaci' : 'Uložit změny' }}
-          </button>
-       </div>
+            mdi-content-save
+          </v-icon>
+          {{ mode === 'create' ? 'Vytvořit rezervaci' : 'Uložit změny' }}
+        </button>
+      </div>
     </template>
   </Dialog>
 </template>

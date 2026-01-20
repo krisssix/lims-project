@@ -3,6 +3,7 @@ import { isVectorCell, parseVectorCell } from './vectorDetection'
 import * as XLSX from 'xlsx'
 import Papa from 'papaparse'
 import { detectBestDelimiter } from './clientParser'
+import { normalizeBool } from '../measurement-record-helpers'
 
 export interface ImportedBlock {
   blockIndex: number
@@ -28,7 +29,7 @@ export interface ImportedFileStructure {
   fileName: string
   delimiter: string
   blocks: ImportedBlock[]
-  series: ImportedSeriesBlock[]  // nové: extrahovaná data sérií
+  series: ImportedSeriesBlock[]  // extrahovaná data sérií
   warnings: string[]
 }
 
@@ -148,7 +149,7 @@ async function parseExcelFile(file: File): Promise<{ lines: string[]; delimiter:
     raw: false,
     cellDates: true,
     dateNF: 'yyyy-mm-dd hh:mm:ss'
-  }) as unknown[][]
+  } as any) as unknown[][]
 
   // ladění: vypsat surové hodnoty buněk pro vektorové sloupce (velikosti, intenzity atd.)
   if (data.length > 0) {
@@ -347,7 +348,7 @@ export async function parseImportedMeasurementFile(file: File, options: ParseOpt
     idx++
   }
 
-  // nové: detekce vektorových sloupců v blocích a jejich převod na více-sloupcové série
+  // detekce vektorových sloupců v blocích a jejich převod na více-sloupcové série
   // strategie: najít všechny vektorové sloupce se stejnou délkou, zkombinovat do jedné série na řádek
   for (const block of blocks) {
     if (block.rows.length === 0) continue
@@ -892,6 +893,10 @@ export function buildRecordsFromImported(
           }
           const num = parseFloat(s)
           if (!isNaN(num)) value = num
+        } else if (f.type === 'bool') {
+          // Parse boolean values
+          const boolVal = normalizeBool(rawValue)
+          if (boolVal !== null) value = boolVal
         }
 
         recordFields.push({

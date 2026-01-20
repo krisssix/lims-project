@@ -182,7 +182,6 @@ function onKeydown(e: KeyboardEvent): void {
 
     <template #content>
       <div class="pa-4">
-
         <!-- upozornění na chybu (error alert) -->
         <v-alert
           v-if="errorText"
@@ -269,7 +268,10 @@ function onKeydown(e: KeyboardEvent): void {
                   <div class="text-caption text-medium-emphasis">
                     Barva
                   </div>
-                  <div class="d-flex align-center" style="gap: 6px;">
+                  <div
+                    class="d-flex align-center"
+                    style="gap: 6px;"
+                  >
                     <div
                       class="color-swatch-small"
                       :style="{ backgroundColor: formColor }"

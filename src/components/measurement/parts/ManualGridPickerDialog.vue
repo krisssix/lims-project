@@ -25,7 +25,7 @@ const gridContainerRef = ref<HTMLElement | null>(null)
 const highlightedColumnIndex = computed(() => {
   if (!props.gridData) return -1
   const lowerTarget = props.targetFieldName.toLowerCase().trim()
-  return props.gridData.headers.findIndex(h => 
+  return props.gridData.headers.findIndex(h =>
     h.toLowerCase().trim() === lowerTarget ||
     h.toLowerCase().includes(lowerTarget) ||
     lowerTarget.includes(h.toLowerCase())
@@ -37,7 +37,7 @@ watch(() => props.modelValue, async (open) => {
   if (open) {
     selectedCells.value = new Set()
     selectionOrder.value = []
-    
+
     // Wait for DOM to update, then scroll to highlighted column
     await nextTick()
     scrollToHighlightedColumn()
@@ -59,17 +59,17 @@ function getSelectionIndex(row: number, col: number): number {
 
 function toggleCell(row: number, col: number, event: MouseEvent): void {
   const key = cellKey(row, col)
-  
+
   if (event.shiftKey && selectionOrder.value.length > 0) {
     // Range selection: from last selected to current
     const lastKey = selectionOrder.value[selectionOrder.value.length - 1]
-    const [lastRow, lastCol] = lastKey!.split('-').map(Number)
-    
+    const [lastRow, lastCol] = lastKey?.split('-').map(Number)
+
     const minRow = Math.min(lastRow!, row)
     const maxRow = Math.max(lastRow!, row)
     const minCol = Math.min(lastCol!, col)
     const maxCol = Math.max(lastCol!, col)
-    
+
     for (let r = minRow; r <= maxRow; r++) {
       for (let c = minCol; c <= maxCol; c++) {
         const k = cellKey(r, c)
@@ -93,11 +93,11 @@ function toggleCell(row: number, col: number, event: MouseEvent): void {
 
 function selectColumn(colIndex: number): void {
   if (!props.gridData) return
-  
+
   // Clear current selection
   selectedCells.value = new Set()
   selectionOrder.value = []
-  
+
   // Select all cells in this column
   props.gridData.rows.forEach((_, rowIndex) => {
     const key = cellKey(rowIndex, colIndex)
@@ -113,7 +113,7 @@ function clearSelection(): void {
 
 function applySelection(): void {
   if (!props.gridData) return
-  
+
   const values: (string | number)[] = []
   for (const key of selectionOrder.value) {
     const [row, col] = key.split('-').map(Number)
@@ -122,7 +122,7 @@ function applySelection(): void {
       values.push(cellValue)
     }
   }
-  
+
   emits('apply', values)
   emits('update:modelValue', false)
 }
@@ -148,35 +148,35 @@ const canApply = computed(() => selectionOrder.value.length > 0)
  */
 function scrollToHighlightedColumn(): void {
   const colIdx = highlightedColumnIndex.value
-  
+
   // Edge case: No matching column found, skip scrolling
   if (colIdx < 0) return
-  
+
   // Edge case: First few columns are already visible, no need to scroll horizontally
   if (colIdx <= 1) return
-  
+
   const container = gridContainerRef.value
   if (!container) return
-  
+
   // Find the header cell to scroll to
   const headerCells = container.querySelectorAll<HTMLElement>('thead th')
   // +1 because first column is row number (#)
   const targetCell = headerCells[colIdx + 1]
-  
+
   if (!targetCell) return
-  
+
   // Calculate scroll position to center the column (if possible)
   const containerRect = container.getBoundingClientRect()
   const cellRect = targetCell.getBoundingClientRect()
-  
+
   // Calculate target scroll position - center the column in the visible area
-  const targetScrollLeft = container.scrollLeft + (cellRect.left - containerRect.left) 
+  const targetScrollLeft = container.scrollLeft + (cellRect.left - containerRect.left)
     - (containerRect.width / 2) + (cellRect.width / 2)
-  
+
   // Clamp to valid scroll range
   const maxScrollLeft = container.scrollWidth - containerRect.width
   const clampedScrollLeft = Math.max(0, Math.min(maxScrollLeft, targetScrollLeft))
-  
+
   // Smooth scroll to the target position
   container.scrollTo({
     left: clampedScrollLeft,
@@ -193,10 +193,17 @@ function scrollToHighlightedColumn(): void {
     @update:is-open="v => emits('update:modelValue', v)"
   >
     <template #header>
-      <div class="d-flex align-center" style="gap: 12px;">
-        <v-icon color="primary">mdi-table-edit</v-icon>
+      <div
+        class="d-flex align-center"
+        style="gap: 12px;"
+      >
+        <v-icon color="primary">
+          mdi-table-edit
+        </v-icon>
         <div>
-          <div class="text-h6">Ruční výběr dat</div>
+          <div class="text-h6">
+            Ruční výběr dat
+          </div>
           <div class="text-caption text-medium-emphasis">
             Pole: <strong>{{ targetFieldName }}</strong>
           </div>
@@ -205,46 +212,80 @@ function scrollToHighlightedColumn(): void {
     </template>
 
     <template #content>
-      <div v-if="!gridData || gridData.rows.length === 0" class="text-center py-8 text-medium-emphasis">
-        <v-icon size="48" class="mb-2">mdi-table-off</v-icon>
+      <div
+        v-if="!gridData || gridData.rows.length === 0"
+        class="text-center py-8 text-medium-emphasis"
+      >
+        <v-icon
+          size="48"
+          class="mb-2"
+        >
+          mdi-table-off
+        </v-icon>
         <div>Žádná importovaná data</div>
       </div>
-      
-      <div v-else class="grid-picker">
+
+      <div
+        v-else
+        class="grid-picker"
+      >
         <!-- Instructions -->
         <div class="picker-instructions mb-3">
-          <v-icon size="16" class="mr-1">mdi-information-outline</v-icon>
+          <v-icon
+            size="16"
+            class="mr-1"
+          >
+            mdi-information-outline
+          </v-icon>
           Klikněte na buňky pro výběr. Shift+klik pro rozsah. Vybrané hodnoty se přiřadí postupně k záznamům.
         </div>
-        
+
         <!-- Selection status -->
-        <div class="selection-status mb-3" :class="{ 'has-enough': selectionOrder.length >= recordCount }">
+        <div
+          class="selection-status mb-3"
+          :class="{ 'has-enough': selectionOrder.length >= recordCount }"
+        >
           {{ selectionStatus }}
-          <v-btn v-if="selectionOrder.length > 0" size="small" variant="text" @click="clearSelection">
+          <v-btn
+            v-if="selectionOrder.length > 0"
+            size="small"
+            variant="text"
+            @click="clearSelection"
+          >
             Zrušit výběr
           </v-btn>
         </div>
 
         <!-- Grid table -->
-        <div ref="gridContainerRef" class="grid-container">
+        <div
+          ref="gridContainerRef"
+          class="grid-container"
+        >
           <table class="picker-table">
             <thead>
               <tr>
-                <th class="row-num">#</th>
-                <th 
-                  v-for="(header, colIdx) in gridData.headers" 
+                <th class="row-num">
+                  #
+                </th>
+                <th
+                  v-for="(header, colIdx) in gridData.headers"
                   :key="colIdx"
                   :class="{ 'highlighted-col': colIdx === highlightedColumnIndex }"
-                  @click="selectColumn(colIdx)"
                   title="Klikni pro výběr celého sloupce"
+                  @click="selectColumn(colIdx)"
                 >
                   {{ header }}
                 </th>
               </tr>
             </thead>
             <tbody>
-              <tr v-for="(row, rowIdx) in gridData.rows" :key="rowIdx">
-                <td class="row-num">{{ rowIdx + 1 }}</td>
+              <tr
+                v-for="(row, rowIdx) in gridData.rows"
+                :key="rowIdx"
+              >
+                <td class="row-num">
+                  {{ rowIdx + 1 }}
+                </td>
                 <td
                   v-for="(cell, colIdx) in row"
                   :key="colIdx"
@@ -255,7 +296,10 @@ function scrollToHighlightedColumn(): void {
                   @click="toggleCell(rowIdx, colIdx, $event)"
                 >
                   <span class="cell-value">{{ cell }}</span>
-                  <span v-if="isSelected(rowIdx, colIdx)" class="selection-badge">
+                  <span
+                    v-if="isSelected(rowIdx, colIdx)"
+                    class="selection-badge"
+                  >
                     {{ getSelectionIndex(rowIdx, colIdx) }}
                   </span>
                 </td>
@@ -267,11 +311,16 @@ function scrollToHighlightedColumn(): void {
     </template>
 
     <template #footer>
-      <v-btn variant="text" @click="emits('update:modelValue', false)">Zrušit</v-btn>
+      <v-btn
+        variant="text"
+        @click="emits('update:modelValue', false)"
+      >
+        Zrušit
+      </v-btn>
       <v-spacer />
-      <v-btn 
-        color="primary" 
-        variant="flat" 
+      <v-btn
+        color="primary"
+        variant="flat"
         :disabled="!canApply"
         @click="applySelection"
       >

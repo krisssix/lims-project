@@ -859,8 +859,14 @@ const selectedDevice = computed(() =>
 </script>
 
 <template>
-  <Teleport v-if="panelMode === 'fullscreen'" to="body">
-    <div class="inspector-overlay" @click.self="requestClose">
+  <Teleport
+    v-if="panelMode === 'fullscreen'"
+    to="body"
+  >
+    <div
+      class="inspector-overlay"
+      @click.self="requestClose"
+    >
       <!-- obsah panelu -->
     </div>
   </Teleport>
@@ -876,15 +882,16 @@ const selectedDevice = computed(() =>
     }"
     :style="{ width: panelWidth }"
   >
-
     <div 
       v-if="panelMode !== 'fullscreen'"
       class="resize-handle" 
-      @mousedown="startResize"
       title="Přetáhněte pro změnu šířky"
+      @mousedown="startResize"
     >
       <div class="resize-handle-icon">
-        <v-icon size="16">mdi-drag-vertical</v-icon>
+        <v-icon size="16">
+          mdi-drag-vertical
+        </v-icon>
       </div>
     </div>
     
@@ -894,7 +901,11 @@ const selectedDevice = computed(() =>
         <div class="header-title">
           <h3 class="panel-title">
             {{ panelTitle }}
-            <span v-if="isDirty" class="dirty-indicator" title="Neuložené změny">•</span>
+            <span
+              v-if="isDirty"
+              class="dirty-indicator"
+              title="Neuložené změny"
+            >•</span>
           </h3>
           <div class="header-chips">
             <v-chip
@@ -906,14 +917,17 @@ const selectedDevice = computed(() =>
             >
               {{ selectedDevice.id }}
             </v-chip>
-            <v-chip v-if="selectedTemplateName" size="small" variant="tonal">
+            <v-chip
+              v-if="selectedTemplateName"
+              size="small"
+              variant="tonal"
+            >
               {{ selectedTemplateName }}
             </v-chip>
           </div>
         </div>
         
         <div class="header-actions">
-
           <v-btn
             icon="mdi-chevron-left"
             variant="text"
@@ -931,7 +945,11 @@ const selectedDevice = computed(() =>
             @click="() => emits('next')"
           />
           
-          <v-divider vertical class="mx-1" style="height: 20px;" />
+          <v-divider
+            vertical
+            class="mx-1"
+            style="height: 20px;"
+          />
           
 
           <v-btn
@@ -968,14 +986,24 @@ const selectedDevice = computed(() =>
                 <v-list-item-title>Kopírovat odkaz</v-list-item-title>
               </v-list-item>
               -->
-              <v-list-item prepend-icon="mdi-content-duplicate" @click="duplicateMeasurement">
+              <v-list-item
+                prepend-icon="mdi-content-duplicate"
+                @click="duplicateMeasurement"
+              >
                 <v-list-item-title>Duplikovat</v-list-item-title>
               </v-list-item>
-              <v-list-item prepend-icon="mdi-download" @click="exportSelectedCsv">
+              <v-list-item
+                prepend-icon="mdi-download"
+                @click="exportSelectedCsv"
+              >
                 <v-list-item-title>Export CSV</v-list-item-title>
               </v-list-item>
               <v-divider />
-              <v-list-item prepend-icon="mdi-delete-outline" class="text-error" @click="() => emits('delete')">
+              <v-list-item
+                prepend-icon="mdi-delete-outline"
+                class="text-error"
+                @click="() => emits('delete')"
+              >
                 <v-list-item-title>Smazat měření</v-list-item-title>
               </v-list-item>
             </v-list>
@@ -1000,7 +1028,9 @@ const selectedDevice = computed(() =>
         :class="{ active: activeTab === 'meta' }"
         @click="activeTab = 'meta'"
       >
-        <v-icon size="18">mdi-information-outline</v-icon>
+        <v-icon size="18">
+          mdi-information-outline
+        </v-icon>
         Meta
       </button>
       <button 
@@ -1008,24 +1038,33 @@ const selectedDevice = computed(() =>
         :class="{ active: activeTab === 'values' }"
         @click="activeTab = 'values'"
       >
-        <v-icon size="18">mdi-table</v-icon>
+        <v-icon size="18">
+          mdi-table
+        </v-icon>
         Hodnoty
-        <span v-if="invalidCount > 0" class="error-badge">{{ invalidCount }}</span>
+        <span
+          v-if="invalidCount > 0"
+          class="error-badge"
+        >{{ invalidCount }}</span>
       </button>
       <button 
         class="tab-btn" 
         :class="{ active: activeTab === 'stats' }"
         @click="activeTab = 'stats'"
       >
-        <v-icon size="18">mdi-chart-line</v-icon>
+        <v-icon size="18">
+          mdi-chart-line
+        </v-icon>
         Statistiky
       </button>
     </nav>
 
 
     <div class="inspector-content">
-
-      <div v-if="activeTab === 'meta'" class="tab-content pa-4">
+      <div
+        v-if="activeTab === 'meta'"
+        class="tab-content pa-4"
+      >
         <v-row dense>
           <v-col cols="12">
             <v-select
@@ -1095,7 +1134,10 @@ const selectedDevice = computed(() =>
                   />
                 </div>
               </div>
-              <div v-if="createdAtFormatted.date" class="date-row readonly">
+              <div
+                v-if="createdAtFormatted.date"
+                class="date-row readonly"
+              >
                 <span class="date-label">Datum vložení:</span>
                 <span class="date-value">{{ createdAtFormatted.date }} {{ createdAtFormatted.time }}</span>
               </div>
@@ -1117,10 +1159,18 @@ const selectedDevice = computed(() =>
       </div>
 
 
-      <div v-else-if="activeTab === 'values'" class="tab-content pa-4">
-
-        <div class="records-toolbar d-flex align-center justify-space-between mb-3 flex-wrap" style="gap: 8px;">
-          <div class="d-flex align-center" style="gap: 6px;">
+      <div
+        v-else-if="activeTab === 'values'"
+        class="tab-content pa-4"
+      >
+        <div
+          class="records-toolbar d-flex align-center justify-space-between mb-3 flex-wrap"
+          style="gap: 8px;"
+        >
+          <div
+            class="d-flex align-center"
+            style="gap: 6px;"
+          >
             <v-btn
               size="small"
               color="primary"
@@ -1147,7 +1197,10 @@ const selectedDevice = computed(() =>
             />
           </div>
 
-          <div class="record-nav d-flex align-center" style="gap: 6px;">
+          <div
+            class="record-nav d-flex align-center"
+            style="gap: 6px;"
+          >
             <v-btn
               size="small"
               variant="tonal"
@@ -1155,7 +1208,11 @@ const selectedDevice = computed(() =>
               :disabled="currentPosition <= 1"
               @click="prevRecord"
             />
-            <v-chip size="small" variant="tonal" color="primary">
+            <v-chip
+              size="small"
+              variant="tonal"
+              color="primary"
+            >
               {{ currentPosition }} / {{ records.length }}
             </v-chip>
             <v-btn
@@ -1169,7 +1226,10 @@ const selectedDevice = computed(() =>
         </div>
 
 
-        <div v-if="templateBlocks.length > 1" class="block-tabs mb-3">
+        <div
+          v-if="templateBlocks.length > 1"
+          class="block-tabs mb-3"
+        >
           <v-chip
             v-for="(block, idx) in templateBlocks"
             :key="block.id"
@@ -1193,7 +1253,11 @@ const selectedDevice = computed(() =>
           >
             <div class="field-label">
               <span class="field-name">{{ field.name }}</span>
-              <v-chip size="small" variant="tonal" color="primary">
+              <v-chip
+                size="small"
+                variant="tonal"
+                color="primary"
+              >
                 {{ TYPE_LABEL[field.type] }}
               </v-chip>
             </div>
@@ -1242,8 +1306,14 @@ const selectedDevice = computed(() =>
                 data-field-input
                 @update:model-value="val => updateField(field, val)"
               />
-              <div v-else-if="field.type === 'file'" class="file-field">
-                <div v-if="hasExistingFileUrl(field)" class="existing-file d-flex align-center ga-2">
+              <div
+                v-else-if="field.type === 'file'"
+                class="file-field"
+              >
+                <div
+                  v-if="hasExistingFileUrl(field)"
+                  class="existing-file d-flex align-center ga-2"
+                >
                   <v-img
                     v-if="isImageFile(field)"
                     :src="getFileDisplayUrl(field)"
@@ -1252,7 +1322,11 @@ const selectedDevice = computed(() =>
                     class="rounded"
                     cover
                   />
-                  <a :href="getFileDisplayUrl(field)" target="_blank" class="text-primary">
+                  <a
+                    :href="getFileDisplayUrl(field)"
+                    target="_blank"
+                    class="text-primary"
+                  >
                     {{ getFileNameFromUrl(field) }}
                   </a>
                   <v-btn
@@ -1294,10 +1368,22 @@ const selectedDevice = computed(() =>
           v-if="hasSeries"
           class="series-section mt-6"
         >
-          <div class="d-flex align-center mb-3" style="gap: 8px;">
-            <v-icon size="20" color="deep-purple">mdi-chart-line</v-icon>
+          <div
+            class="d-flex align-center mb-3"
+            style="gap: 8px;"
+          >
+            <v-icon
+              size="20"
+              color="deep-purple"
+            >
+              mdi-chart-line
+            </v-icon>
             <span class="text-subtitle-1 font-weight-medium">Datové série</span>
-            <v-chip size="small" color="deep-purple" variant="tonal">
+            <v-chip
+              size="small"
+              color="deep-purple"
+              variant="tonal"
+            >
               {{ measurementSeries.length }} {{ measurementSeries.length === 1 ? 'série' : 'sérií' }}
             </v-chip>
           </div>
@@ -1307,7 +1393,10 @@ const selectedDevice = computed(() =>
             v-if="measurementSeries.length > 1"
             class="mb-3"
           >
-            <div class="d-flex align-center flex-wrap" style="gap: 6px;">
+            <div
+              class="d-flex align-center flex-wrap"
+              style="gap: 6px;"
+            >
               <v-chip
                 v-for="(s, idx) in measurementSeries"
                 :key="s.id || idx"
@@ -1331,11 +1420,19 @@ const selectedDevice = computed(() =>
             <div class="d-flex align-center justify-space-between mb-2">
               <div>
                 <span class="text-subtitle-2">{{ currentSeries.seriesName || currentSeries.seriesType }}</span>
-                <v-chip size="small" variant="outlined" class="ml-2">
+                <v-chip
+                  size="small"
+                  variant="outlined"
+                  class="ml-2"
+                >
                   {{ currentSeries.seriesType }}
                 </v-chip>
               </div>
-              <v-chip size="small" color="primary" variant="tonal">
+              <v-chip
+                size="small"
+                color="primary"
+                variant="tonal"
+              >
                 {{ (currentSeries.xValues ?? []).length }} bodů
               </v-chip>
             </div>
@@ -1353,10 +1450,15 @@ const selectedDevice = computed(() =>
               class="series-data-preview"
               style="max-height: 300px; overflow-y: auto;"
             >
-              <v-table density="compact" class="series-table">
+              <v-table
+                density="compact"
+                class="series-table"
+              >
                 <thead>
                   <tr>
-                    <th style="width: 60px;">#</th>
+                    <th style="width: 60px;">
+                      #
+                    </th>
                     <th>X</th>
                     <th>Y</th>
                   </tr>
@@ -1366,7 +1468,9 @@ const selectedDevice = computed(() =>
                     v-for="(x, i) in (currentSeries.xValues ?? [])"
                     :key="i"
                   >
-                    <td class="text-caption text-medium-emphasis">{{ i + 1 }}</td>
+                    <td class="text-caption text-medium-emphasis">
+                      {{ i + 1 }}
+                    </td>
                     <td>{{ x }}</td>
                     <td>{{ (currentSeries.yValues ?? [])[i] ?? '—' }}</td>
                   </tr>
@@ -1378,7 +1482,10 @@ const selectedDevice = computed(() =>
       </div>
 
       <!-- Stats Tab -->
-      <div v-else-if="activeTab === 'stats'" class="tab-content pa-4">
+      <div
+        v-else-if="activeTab === 'stats'"
+        class="tab-content pa-4"
+      >
         <!-- Chart with integrated field selector, stats, and controls -->
         <ChartPanel
           v-if="chartPoints.length || hasSeries"
@@ -1423,17 +1530,37 @@ const selectedDevice = computed(() =>
     </footer>
     
 
-    <v-dialog v-model="showConfirmDialog" max-width="400" persistent>
+    <v-dialog
+      v-model="showConfirmDialog"
+      max-width="400"
+      persistent
+    >
       <v-card>
         <v-card-title>Neuložené změny</v-card-title>
         <v-card-text>
           Máte neuložené změny. Co chcete udělat?
         </v-card-text>
         <v-card-actions>
-          <v-btn variant="text" @click="confirmDiscard">Zahodit</v-btn>
+          <v-btn
+            variant="text"
+            @click="confirmDiscard"
+          >
+            Zahodit
+          </v-btn>
           <v-spacer />
-          <v-btn variant="text" @click="confirmCancel">Zrušit</v-btn>
-          <v-btn color="primary" variant="flat" @click="confirmSave">Uložit</v-btn>
+          <v-btn
+            variant="text"
+            @click="confirmCancel"
+          >
+            Zrušit
+          </v-btn>
+          <v-btn
+            color="primary"
+            variant="flat"
+            @click="confirmSave"
+          >
+            Uložit
+          </v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>

@@ -81,9 +81,15 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
       <div class="d-flex align-center justify-space-between w-100">
         <div class="text-h6">
           {{ mode === 'create' ? `Vytvořit ${entityLabel}` : `Upravit ${entityLabel}` }}
-          <span v-if="titleExtra" class="ml-2 text-medium-emphasis">· {{ titleExtra }}</span>
+          <span
+            v-if="titleExtra"
+            class="ml-2 text-medium-emphasis"
+          >· {{ titleExtra }}</span>
         </div>
-        <div class="d-flex align-center" style="gap: 6px;">
+        <div
+          class="d-flex align-center"
+          style="gap: 6px;"
+        >
           <!-- volitelný slot pro pravou část záhlaví (např. tlačítka zpět a vpřed) (header-right) -->
           <slot name="header-right" />
           <v-btn

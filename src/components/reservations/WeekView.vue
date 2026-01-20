@@ -369,7 +369,10 @@ function deviceEventStyle(deviceId: string): { backgroundColor: string; color: s
                 @pointerdown.stop.prevent="(e: PointerEvent) => props.onEventPointerDown(e, i)"
                 @click.stop="(e: MouseEvent) => props.onEventClick(i.id, e)"
               >
-                <div class="event-inner" style="position: relative; padding: 6px 30px 6px 8px; height: 100%; display: flex; flex-direction: column; gap: 2px; overflow: hidden;">
+                <div
+                  class="event-inner"
+                  style="position: relative; padding: 6px 30px 6px 8px; height: 100%; display: flex; flex-direction: column; gap: 2px; overflow: hidden;"
+                >
                   <!-- Title row with optional series icon -->
                   <div style="display: flex; align-items: center; gap: 4px;">
                     <i 
@@ -377,13 +380,19 @@ function deviceEventStyle(deviceId: string): { backgroundColor: string; color: s
                       class="mdi-repeat mdi v-icon" 
                       style="font-size: 12px; flex-shrink: 0;"
                       :style="{ color: contrastText(props.deviceColorOf(i.deviceId)) === 'white' ? 'rgba(255,255,255,.85)' : 'rgba(0,0,0,0.6)' }"
-                    ></i>
-                    <div class="event-title" style="font-weight: 600; font-size: 12px; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0;">
+                    />
+                    <div
+                      class="event-title"
+                      style="font-weight: 600; font-size: 12px; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0;"
+                    >
                       {{ i.title }}
                     </div>
                   </div>
                   <!-- Device chip -->
-                  <div class="event-device" style="overflow: hidden;">
+                  <div
+                    class="event-device"
+                    style="overflow: hidden;"
+                  >
                     <div style="display: flex; flex-wrap: nowrap; gap: 4px; overflow-x: auto; scrollbar-width: none;">
                       <span 
                         style="display: inline-flex; align-items: center; gap: 3px; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 600; white-space: nowrap;"
@@ -393,13 +402,19 @@ function deviceEventStyle(deviceId: string): { backgroundColor: string; color: s
                           color: contrastText(props.deviceColorOf(i.deviceId)) === 'white' ? 'rgba(255,255,255,.95)' : 'rgba(0,0,0,0.75)' 
                         }"
                       >
-                        <i class="mdi-flask-outline mdi v-icon" style="font-size: 11px;"></i>
+                        <i
+                          class="mdi-flask-outline mdi v-icon"
+                          style="font-size: 11px;"
+                        />
                         {{ props.deviceNameOf(i.deviceId) }}
                       </span>
                     </div>
                   </div>
                   <!-- Time -->
-                  <div class="event-time" style="font-size: 10px; opacity: 0.9; white-space: nowrap;">
+                  <div
+                    class="event-time"
+                    style="font-size: 10px; opacity: 0.9; white-space: nowrap;"
+                  >
                     {{ props.fmtTime(new Date(i.start)) }} – {{ props.fmtTime(new Date(i.end)) }}
                   </div>
                   <!-- Avatar at bottom-right -->

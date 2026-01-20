@@ -107,20 +107,35 @@ function getItemColor(item: SelectItem): string | undefined {
     offset="4"
   >
     <template #activator="{ props: menuProps }">
-      <slot name="activator" :props="menuProps">
+      <slot
+        name="activator"
+        :props="menuProps"
+      >
         <button
           v-bind="menuProps"
           :class="['btn-secondary', 'filter-btn', { 'filter-active': props.modelValue.length > 0 && !allSelected }]"
         >
-          <v-icon v-if="icon" :icon="icon" size="18" />
+          <v-icon
+            v-if="icon"
+            :icon="icon"
+            size="18"
+          />
           <span class="filter-label">{{ label }}:</span>
           <span class="filter-value">{{ displayLabel }}</span>
-          <v-icon icon="mdi-menu-down" size="20" />
+          <v-icon
+            icon="mdi-menu-down"
+            size="20"
+          />
         </button>
       </slot>
     </template>
 
-    <v-card min-width="260" max-width="340" elevation="3" class="rounded-lg mt-1 border">
+    <v-card
+      min-width="260"
+      max-width="340"
+      elevation="3"
+      class="rounded-lg mt-1 border"
+    >
       <!-- Search -->
       <div class="pa-2 pb-0">
         <v-text-field
@@ -155,15 +170,20 @@ function getItemColor(item: SelectItem): string | undefined {
       </div>
 
       <!-- Items list -->
-      <v-list density="compact" class="filter-list py-1" lines="one" select-strategy="leaf">
+      <v-list
+        density="compact"
+        class="filter-list py-1"
+        lines="one"
+        select-strategy="leaf"
+      >
         <v-list-item
           v-for="item in filteredItems"
           :key="getItemValue(item)"
           :value="getItemValue(item)"
-          @click="toggleItem(getItemValue(item))"
           ripple
           class="px-2"
           :active="false"
+          @click="toggleItem(getItemValue(item))"
         >
           <template #prepend>
             <div class="mr-2 d-flex align-center">
@@ -177,23 +197,29 @@ function getItemColor(item: SelectItem): string | undefined {
           </template>
           
           <v-list-item-title class="d-flex align-center">
-             <!-- Chip for items with color (Devices) -->
-             <v-chip
-               v-if="getItemColor(item)"
-               size="small"
-               :color="getItemColor(item)"
-               variant="flat"
-               class="font-weight-bold px-2"
-               label
-               style="height: 24px;"
-             >
-               {{ getItemTitle(item) }}
-             </v-chip>
-             <!-- Plain text for others (Members) -->
-             <span v-else class="text-body-2 font-weight-medium">{{ getItemTitle(item) }}</span>
+            <!-- Chip for items with color (Devices) -->
+            <v-chip
+              v-if="getItemColor(item)"
+              size="small"
+              :color="getItemColor(item)"
+              variant="flat"
+              class="font-weight-bold px-2"
+              label
+              style="height: 24px;"
+            >
+              {{ getItemTitle(item) }}
+            </v-chip>
+            <!-- Plain text for others (Members) -->
+            <span
+              v-else
+              class="text-body-2 font-weight-medium"
+            >{{ getItemTitle(item) }}</span>
           </v-list-item-title>
         </v-list-item>
-        <div v-if="filteredItems.length === 0" class="text-center text-caption py-4 text-grey">
+        <div
+          v-if="filteredItems.length === 0"
+          class="text-center text-caption py-4 text-grey"
+        >
           Žádné výsledky
         </div>
       </v-list>
