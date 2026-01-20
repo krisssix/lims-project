@@ -2,7 +2,7 @@
 import { computed, watch, ref } from 'vue'
 import { type DeviceItem } from '@/types/measurement-ui'
 import SearchBar from '@/components/ui/SearchBar.vue'
-import FilterMultiSelect from '@/components/ui/FilterMultiSelect.vue'
+
 import { contrastText } from '@/utils/colorContrast'
 
 type TableHeader = { title: string; key: string; width?: number; align?: 'start'|'center'|'end'; sortable?: boolean }

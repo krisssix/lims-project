@@ -502,19 +502,7 @@ const hoverIdx = ref<number | null>(null)
 const hoverValue = ref<number | null>(null)
 const hoveredBin = ref<number | null>(null)
 
-function getMouseXPercent(e: MouseEvent): number {
-  const el = e.currentTarget as SVGSVGElement | null
-  if (!el) return 0
-  const rect = el.getBoundingClientRect()
-  return Math.max(0, Math.min(100, ((e.clientX - rect.left) / Math.max(1, rect.width)) * 100))
-}
 
-function getMouseYPercent(e: MouseEvent): number {
-  const el = e.currentTarget as SVGSVGElement | null
-  if (!el) return 0
-  const rect = el.getBoundingClientRect()
-  return Math.max(0, Math.min(100, ((e.clientY - rect.top) / Math.max(1, rect.height)) * 100))
-}
 /* Line chart hover */
 function onMouseMoveLine(e: MouseEvent) {
   if (!props.series[0]?.points.length) return
@@ -650,7 +638,10 @@ const ariaLabel = computed(() => {
       Žádná data pro graf
     </div>
     
-    <div class="d-flex justify-end mb-1" v-if="zoomLevel !== 1">
+    <div
+      v-if="zoomLevel !== 1"
+      class="d-flex justify-end mb-1"
+    >
       <v-btn
         size="small"
         variant="text"

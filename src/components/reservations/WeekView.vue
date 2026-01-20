@@ -64,7 +64,8 @@ const props = withDefaults(defineProps<{
   focusEnabled: true,
   focusedFr: 2.6,
   othersFr: 1,
-  transitionMs: 220
+  transitionMs: 220,
+  onDayDblClick: () => {}
 })
 
 function isWeekend(d: Date) { return [0, 6].includes(d.getDay()) }
@@ -76,8 +77,7 @@ function isFocused(d: Date) { return props.focusEnabled && (focusedDayKey.value 
 function focusDay(d: Date) { if (props.focusEnabled) focusedDayKey.value = keyOf(d) }
 function clearFocus() { focusedDayKey.value = null }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-function onDayHeaderClick(d: Date, _ev?: MouseEvent) {
+function onDayHeaderClick(d: Date) {
   focusDay(d)
   if (viewportEl.value) {
     try {
@@ -88,7 +88,7 @@ function onDayHeaderClick(d: Date, _ev?: MouseEvent) {
   }
 }
 
-function onDayHeaderDblClick(d: Date, _ev?: MouseEvent) {
+function onDayHeaderDblClick(d: Date) {
   props.onDayDblClick?.(d)
 }
 
@@ -291,8 +291,8 @@ function deviceEventStyle(deviceId: string): { backgroundColor: string; color: s
         role="button"
         tabindex="0"
         :aria-pressed="isFocused(d)"
-        @click="(ev) => onDayHeaderClick(d, ev)"
-        @dblclick="(ev) => onDayHeaderDblClick(d, ev)"
+        @click="onDayHeaderClick(d)"
+        @dblclick="onDayHeaderDblClick(d)"
         @keydown.enter.prevent="onDayHeaderClick(d)"
         @keydown.space.prevent="onDayHeaderClick(d)"
       >
@@ -375,9 +375,9 @@ function deviceEventStyle(deviceId: string): { backgroundColor: string; color: s
                 >
                   <!-- Title row with optional series icon -->
                   <div style="display: flex; align-items: center; gap: 4px;">
-                    <i 
-                      v-if="i.seriesId" 
-                      class="mdi-repeat mdi v-icon" 
+                    <i
+                      v-if="i.seriesId"
+                      class="mdi-repeat mdi v-icon"
                       style="font-size: 12px; flex-shrink: 0;"
                       :style="{ color: contrastText(props.deviceColorOf(i.deviceId)) === 'white' ? 'rgba(255,255,255,.85)' : 'rgba(0,0,0,0.6)' }"
                     />
@@ -394,12 +394,12 @@ function deviceEventStyle(deviceId: string): { backgroundColor: string; color: s
                     style="overflow: hidden;"
                   >
                     <div style="display: flex; flex-wrap: nowrap; gap: 4px; overflow-x: auto; scrollbar-width: none;">
-                      <span 
+                      <span
                         style="display: inline-flex; align-items: center; gap: 3px; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 600; white-space: nowrap;"
-                        :style="{ 
-                          background: contrastText(props.deviceColorOf(i.deviceId)) === 'white' ? 'rgba(255,255,255,.2)' : 'rgba(0,0,0,0.1)', 
-                          border: contrastText(props.deviceColorOf(i.deviceId)) === 'white' ? '1px solid rgba(255,255,255,.3)' : '1px solid rgba(0,0,0,0.15)', 
-                          color: contrastText(props.deviceColorOf(i.deviceId)) === 'white' ? 'rgba(255,255,255,.95)' : 'rgba(0,0,0,0.75)' 
+                        :style="{
+                          background: contrastText(props.deviceColorOf(i.deviceId)) === 'white' ? 'rgba(255,255,255,.2)' : 'rgba(0,0,0,0.1)',
+                          border: contrastText(props.deviceColorOf(i.deviceId)) === 'white' ? '1px solid rgba(255,255,255,.3)' : '1px solid rgba(0,0,0,0.15)',
+                          color: contrastText(props.deviceColorOf(i.deviceId)) === 'white' ? 'rgba(255,255,255,.95)' : 'rgba(0,0,0,0.75)'
                         }"
                       >
                         <i
@@ -418,8 +418,8 @@ function deviceEventStyle(deviceId: string): { backgroundColor: string; color: s
                     {{ props.fmtTime(new Date(i.start)) }} – {{ props.fmtTime(new Date(i.end)) }}
                   </div>
                   <!-- Avatar at bottom-right -->
-                  <div 
-                    class="bg-white event-avatar" 
+                  <div
+                    class="bg-white event-avatar"
                     style="position: absolute; bottom: 4px; right: 4px; width: 22px; height: 22px; font-size: 10px; font-weight: 600; display: flex; align-items: center; justify-content: center; border-radius: 50%;"
                     :style="{ color: props.deviceColorOf(i.deviceId) }"
                   >

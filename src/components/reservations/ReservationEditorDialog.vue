@@ -51,7 +51,7 @@ const formattedDateSubtitle = computed(() => {
 
 const selectedDevice = computed(() => props.devices.find(d => d.id === props.deviceCode))
 const selectedUserInitial = computed(() => (props.username?.[0] || '?').toUpperCase())
-const selectedUserColor = '#673ab7' // Fixed color for user avatar as per design, or could be dynamic
+
 
 // Duration calc
 const durationStr = computed(() => {
@@ -214,11 +214,11 @@ watch(() => props.startHM, (newStart) => {
         <div>
           <label class="field-label">Přístroj</label>
           <v-menu>
-            <template #activator="{ props }">
+            <template #activator="{ props: menuProps }">
               <div
                 class="custom-select"
                 :class="{ 'input-error': errors.deviceCode }"
-                v-bind="props"
+                v-bind="menuProps"
               >
                 <v-chip
                   v-if="selectedDevice"
@@ -291,11 +291,11 @@ watch(() => props.startHM, (newStart) => {
         <div>
           <label class="field-label">Člen</label>
           <v-menu>
-            <template #activator="{ props }">
+            <template #activator="{ props: menuProps }">
               <div
                 class="custom-select"
                 :class="{ 'input-error': errors.username }"
-                v-bind="props"
+                v-bind="menuProps"
               >
                 <div class="member-avatar">
                   {{ selectedUserInitial }}
@@ -371,22 +371,22 @@ watch(() => props.startHM, (newStart) => {
           :start-date="parsedDate"
           @update:model-value="v => emit('update:recurrence', v)"
         >
-          <template #activator="{ props }">
+          <template #activator="{ props: menuProps }">
             <button 
               type="button" 
               class="custom-button-dashed"
-              @click="props.onClick"
+              @click="menuProps.onClick"
               @mouseover="(e: any) => { e.currentTarget.style.background='#f3f4f6'; e.currentTarget.style.borderColor='#9ca3af' }"
               @mouseout="(e: any) => { e.currentTarget.style.background='#f9fafb'; e.currentTarget.style.borderColor='#d1d5db' }"
             >
               <v-icon
                 size="18"
-                :color="props.hasValue ? 'primary' : undefined"
+                :color="menuProps.hasValue ? 'primary' : undefined"
               >
                 mdi-repeat
               </v-icon>
-              <span :style="{ color: props.hasValue ? '#1976d2' : 'inherit', fontWeight: props.hasValue?600:400 }">
-                {{ props.text }}
+              <span :style="{ color: menuProps.hasValue ? '#1976d2' : 'inherit', fontWeight: menuProps.hasValue?600:400 }">
+                {{ menuProps.text }}
               </span>
             </button>
           </template>
@@ -451,10 +451,10 @@ watch(() => props.startHM, (newStart) => {
 
           <!-- DÉLKA BADGE / TOGGLE -->
           <v-menu location="bottom end">
-            <template #activator="{ props }">
+            <template #activator="{ props: menuProps }">
               <div 
                 class="duration-badge interactive" 
-                v-bind="props"
+                v-bind="menuProps"
               >
                 {{ durationStr }}
                 <v-icon

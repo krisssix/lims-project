@@ -1,15 +1,14 @@
 import { defineStore } from "pinia";
-import { ref } from "vue";
+
 import { get } from "@/services/api/api-requests";
 import { auth } from "@/stores/auth";
 
 export const useUserStore = defineStore('user', () => {
-  const isLoggedIn = ref(false)
-  const username = ref(null)
+
 
   async function getAllUsers() {
     try {
-      const response = await get('users')
+      await get('users')
     } catch (e) {
       console.error(e)
     }

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+/* eslint-disable @typescript-eslint/no-unused-vars,@typescript-eslint/no-explicit-any */
 import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
 //conflict dialog in calendar
@@ -102,44 +103,78 @@ function endOfDay(d: Date): Date {
 
 
 
-function onConfirmConflict(slot: { start: Date; end: Date }) {
+async function onConfirmConflict(slot: { start: Date; end: Date }) {
   conflictOpen.value = false
+  const p = pendingForcePayload.value
   const ctx = conflictCtx.value
+  
   conflictCtx.value = null
-  if (!ctx) return
+  pendingForcePayload.value = null
 
+  // Priority 1: Use pendingForcePayload (contains full action/scope context)
+  if (p) {
+    const startMs = slot.start.getTime()
+    const endMs = slot.end.getTime()
+    const payload = { ...p.payload, startTime: startMs, endTime: endMs }
+
+    try {
+      let result: any
+      if (p.action === 'create') {
+        result = await reservations.createReservation(payload)
+      } else if (p.action === 'update_series' && p.scope && p.scope !== 'single') {
+        result = await reservations.updateSeries(p.id, payload, p.scope)
+      } else {
+        result = await reservations.updateReservation(p.id, payload)
+      }
+
+      const resId = result?.id || p.id
+      const newDateYmd = toYmdLocal(slot.start)
+      if (selectedDate.value !== newDateYmd) {
+        selectedDate.value = newDateYmd
+      }
+      await nextTick()
+      await loadWeekFor(slot.start)
+      await nextTick()
+      scrollToTime(slot.start)
+      highlightReservation(resId)
+      
+      if (isDailyList.value && dailyListRef.value) {
+        await dailyListRef.value.loadListRange?.()
+      }
+    } catch (e) {
+      console.error('Confirm-conflict update failed', e)
+    }
+    return
+  }
+
+  // Fallback: Legacy ctx-based single update
+  if (!ctx) return
   const { reservationId, deviceId, dayKey } = ctx
   const startMs = slot.start.getTime()
   const endMs = slot.end.getTime()
 
   if (wouldConflict(reservationId, deviceId, slot.start, slot.end, dayKey)) {
-    // závod na FE – neriskuj, nevolej PATCH
     return
   }
 
-  reservations.updateReservation(reservationId, {
-    startTime: startMs,
-    endTime: endMs,
-    deviceCode: deviceId
-  })
-    .then(async () => {
-      // Navigate to the new date if different
-      const newDateYmd = toYmdLocal(slot.start)
-      if (selectedDate.value !== newDateYmd) {
-        selectedDate.value = newDateYmd
-      }
-
-      await nextTick()
-      await loadWeekFor(slot.start)
-
-      // Scroll to the new time and highlight the reservation
-      await nextTick()
-      scrollToTime(slot.start)
-      highlightReservation(reservationId)
+  try {
+    await reservations.updateReservation(reservationId, {
+      startTime: startMs,
+      endTime: endMs,
+      deviceCode: deviceId
     })
-    .catch((e) => {
-      console.error('Confirm-conflict update failed', e)
-    })
+    const newDateYmd = toYmdLocal(slot.start)
+    if (selectedDate.value !== newDateYmd) {
+      selectedDate.value = newDateYmd
+    }
+    await nextTick()
+    await loadWeekFor(slot.start)
+    await nextTick()
+    scrollToTime(slot.start)
+    highlightReservation(reservationId)
+  } catch (e) {
+    console.error('Confirm-conflict legacy update failed', e)
+  }
 }
 
 function onSuggestNextDay() {
@@ -323,7 +358,8 @@ const deviceStore = useDeviceStore()
 const allDevices = computed(() => deviceStore.devices.map(d => ({
   id: d.code,
   name: d.name,
-  color: d.color || 'primary'
+  color: d.active === false ? '#9e9e9e' : (d.color || 'primary'),
+  active: d.active
 })))
 const devicesToShow = computed(() =>
   pickedDevices.value.length
@@ -472,6 +508,7 @@ const viewLabel = computed(() => {
     case 'week-work': return 'TÝDENNÍ (PRACOVNÍ)'
     case 'week-all': return 'TÝDENNÍ (S VÍKENDY)'
     case 'daily-list': return 'SEZNAM REZERVACÍ'
+    default: return ''
   }
 })
 /* Menu control passed to child (FIX: make it reactive on key changes) */
@@ -804,6 +841,7 @@ function itemsForDayDevice(deviceId: string) {
 const deviceColorOf = (id: string) => allDevices.value.find(d => d.id === id)?.color || 'primary'
 function eventBgClass(i: ResItem) {
   const color = deviceColorOf(i.deviceId)
+  if (color.startsWith('#')) return '' // Hex colors handled via inline style
   const baseClass = (color === 'primary' || color === 'secondary') ? `bg-${color}` : `bg-${color}-lighten-4`
   // Add highlight class if this reservation was just rescheduled
   if (highlightedReservationId.value === i.id) {
@@ -813,17 +851,20 @@ function eventBgClass(i: ResItem) {
 }
 function eventStyle(i: ResItem, left: number, width: number): Record<string, string> {
   const color = deviceColorOf(i.deviceId)
+  const isHex = color.startsWith('#')
+  const baseColor = isHex ? color : `var(--v-theme-${color})`
   return {
     top: `${topFromDate(new Date(i.start))}px`,
     height: `${heightFromRange(new Date(i.start), new Date(i.end))}px`,
     left: `${left * 100}%`,
     width: `${width * 100}%`,
-    borderLeft: `4px solid var(--v-theme-${color})`,
-    background: `color-mix(in srgb, var(--v-theme-${color}) 18%, #fff)`
+    borderLeft: `4px solid ${baseColor}`,
+    background: isHex ? `color-mix(in srgb, ${color} 18%, #ffffff)` : `color-mix(in srgb, var(--v-theme-${color}) 18%, #fff)`
   }
 }
 function deviceHeaderStyle(d: { id: string; color: string }) {
-  const base = `var(--v-theme-${d.color})`
+  const isHex = d.color.startsWith('#')
+  const base = isHex ? d.color : `var(--v-theme-${d.color})`
   return {
     background: `color-mix(in srgb, ${base} 18%, #ffffff)`,
     boxShadow: `inset 0 -3px 0 0 ${base}`,
@@ -1235,6 +1276,23 @@ async function commitMove(d: DragState, x: number, y: number): Promise<void> {
     const endDate = new Date(baseDay)
     endDate.setHours(Math.floor(endMinutes / 60), endMinutes % 60, 0, 0)
     if (endDate.getTime() <= startDate.getTime()) return
+    // CHECK SERIES (RESIZE)
+    if (item.seriesId) {
+        pendingSaveForSeries.value = {
+            actionType: 'resize',
+            id: d.id,
+            item,
+            start: startDate, // same as orig
+            end: endDate,
+            deviceId: d.origDeviceId,
+            origDayKey: d.origDayKey,
+            origEnd: d.origEnd
+        }
+        seriesScopeMode.value = 'edit'
+        seriesScopeOpen.value = true
+        return
+    }
+
     if (wouldConflict(d.id, d.origDeviceId, startDate, endDate, d.origDayKey)) {
         const req = { start: startDate, end: endDate }
         pendingForcePayload.value = {
@@ -1261,43 +1319,9 @@ async function commitMove(d: DragState, x: number, y: number): Promise<void> {
         return
     }
 
-    // CHECK SERIES (RESIZE)
-    if (item.seriesId) {
-        pendingSaveForSeries.value = {
-            actionType: 'resize',
-            id: d.id,
-            item,
-            start: startDate, // same as orig
-            end: endDate,
-            deviceId: d.origDeviceId,
-            origDayKey: d.origDayKey,
-            origEnd: d.origEnd
-        }
-        seriesScopeMode.value = 'edit'
-        seriesScopeOpen.value = true
-        return
-    }
-
     // OPTIMISTIC UPDATE: Update local state immediately
     item.end = toIsoLocal(endDate)
 
-    // Check for Series (RESIZE) - before calling single update
-    if (item.seriesId) {
-       pendingSaveForSeries.value = {
-          actionType: 'resize',
-          id: d.id,
-          // Use 'item' from closure (which is the reactive object in eventsByDay)
-          item: item,
-          start: startDate,
-          end: endDate,
-          deviceId: d.origDeviceId,
-          origDayKey: d.origDayKey,
-          origDeviceId: d.origDeviceId
-       }
-       seriesScopeMode.value = 'edit'
-       seriesScopeOpen.value = true
-       return
-    }
 
     try {
       await reservations.updateReservation(d.id, {
@@ -1404,6 +1428,23 @@ async function commitMove(d: DragState, x: number, y: number): Promise<void> {
       return
   }
 
+  // CHECK SERIES (MOVE)
+  if (item.seriesId) {
+     pendingSaveForSeries.value = {
+        actionType: 'move',
+        id: d.id,
+        item,
+        start: startDate,
+        end: endDate,
+        deviceId: newDeviceId,
+        origDayKey: d.origDayKey,
+        origDeviceId: d.origDeviceId
+     }
+     seriesScopeMode.value = 'edit'
+     seriesScopeOpen.value = true
+     return
+  }
+
   // Move Logic
   if (wouldConflict(d.id, newDeviceId, startDate, endDate, newDayKey)) {
       const req = { start: startDate, end: endDate }
@@ -1429,23 +1470,6 @@ async function commitMove(d: DragState, x: number, y: number): Promise<void> {
       } as any
       openConflictDialog(newDeviceId, req, { reservationId: d.id, dayKey: d.origDayKey })
       return
-  }
-
-  // CHECK SERIES (MOVE)
-  if (item.seriesId) {
-     pendingSaveForSeries.value = {
-        actionType: 'move',
-        id: d.id,
-        item,
-        start: startDate,
-        end: endDate,
-        deviceId: newDeviceId,
-        origDayKey: d.origDayKey,
-        origDeviceId: d.origDeviceId
-     }
-     seriesScopeMode.value = 'edit'
-     seriesScopeOpen.value = true
-     return
   }
 
   // OPTIMISTIC UPDATE: Move in local state immediately

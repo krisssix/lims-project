@@ -2,12 +2,11 @@
  * Composable for measurement records management
  * Extracted from MeasurementCreateDialog.vue for better code organization
  */
-import { ref, computed, nextTick, type Ref, type ComputedRef } from 'vue'
+import { ref, computed, nextTick } from 'vue'
 import {
     newRecordFromTemplateFields,
     duplicateRecord as duplicateRecordHelper,
-    type MeasurementRecord,
-    type RecordField
+    type MeasurementRecord
 } from '@/utils/measurement-record-helpers'
 import type { ValueType } from '@/types/measurement-ui'
 

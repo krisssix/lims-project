@@ -1,4 +1,4 @@
-export type FieldType = 'float' | 'int' | 'text' | 'file' | 'bool' | 'date'
+export type FieldType = 'float' | 'int' | 'text' | 'file' | 'bool' | 'date' | 'time' | 'datetime'
 
 function includesOne(haystack: string, needles: string[]): boolean {
   const s = haystack.toLowerCase()

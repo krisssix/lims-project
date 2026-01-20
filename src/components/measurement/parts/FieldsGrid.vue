@@ -54,9 +54,9 @@ function focusNextField(currentIdx: number): void {
         
         <!-- Type Badge with Menu -->
         <v-menu location="bottom start">
-          <template #activator="{ props }">
+          <template #activator="{ props: activatorProps }">
             <span
-              v-bind="props"
+              v-bind="activatorProps"
               class="field-type-badge clickable"
               title="Změnit datový typ"
             >

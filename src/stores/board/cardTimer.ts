@@ -1,19 +1,16 @@
-import {defineStore} from "pinia";
-import {del, get, post} from "@/services/api/api-requests";
-import {auth} from "@/stores/auth";
+import { defineStore } from "pinia";
+import { del, get, post } from "@/services/api/api-requests";
+import { auth } from "@/stores/auth";
 
-export const useCardTimerStore = defineStore('cardTimer', ()=>{
-  const sumTimeRecords = ref(0)
-  const time = ref(0)
-  const startTime = ref(0)
-  const endTime = ref(0)
+export const useCardTimerStore = defineStore('cardTimer', () => {
+
   const timeRecords = ref([])
 
-  async function updateTimeRecord(){
+  async function updateTimeRecord() {
 
   }
 
-  async function createTimeRecord(requestData){
+  async function createTimeRecord(requestData) {
     try {
       const response = await post('boardCardTimer', requestData)
       console.log('time response ', response.data.content)
@@ -23,7 +20,7 @@ export const useCardTimerStore = defineStore('cardTimer', ()=>{
     }
   }
 
-  async function fetchTimeRecords(cardId){
+  async function fetchTimeRecords(cardId) {
     try {
       const response = await get(`boardCardTimer/${cardId}`)
       timeRecords.value = []
@@ -33,21 +30,21 @@ export const useCardTimerStore = defineStore('cardTimer', ()=>{
     }
   }
 
-  function setTimeForTimer(){
+  function setTimeForTimer() {
     let duration = 0
     timeRecords.value.forEach(timeRecord => {
-      if(timeRecord.username === auth.getUserInfo().preferredUsername){
+      if (timeRecord.username === auth.getUserInfo().preferredUsername) {
         duration += Math.floor(timeRecord.duration / 1000) * 1000
       }
     })
     time.value = duration
   }
 
-  function setTime(newTime){
+  function setTime(newTime) {
     time.value = newTime
   }
 
-  async function deleteTimeRecord(id){
+  async function deleteTimeRecord(id) {
     try {
       await del(`boardCardTimer/${id}`)
     } catch (e) {
@@ -55,7 +52,7 @@ export const useCardTimerStore = defineStore('cardTimer', ()=>{
     }
   }
 
-  function removeFromTimeRecords(id){
+  function removeFromTimeRecords(id) {
     timeRecords.value = timeRecords.value.filter(timeRecord => timeRecord.id !== id)
   }
 

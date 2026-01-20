@@ -129,17 +129,6 @@ const canDelete = computed(() => props.records.length > 1)
 
       <!-- Paste Menu -->
       <v-menu location="bottom end">
-        <template #activator="{ props }">
-          <!--          <button
-            v-bind="props"
-            type="button"
-            class="action-btn tonal"
-          >
-            <v-icon size="16">mdi-clipboard-text-outline</v-icon>
-            <span class="d-none d-sm-inline">Vložit</span>
-            <v-icon size="14">mdi-chevron-down</v-icon>
-          </button>-->
-        </template>
         <v-list density="compact">
           <v-list-item @click="emits('paste-current')">
             <template #prepend>

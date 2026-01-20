@@ -68,7 +68,7 @@ export async function parseMeasurementFile(input: File | string, opts: ParseOpti
 
   for (const blockLines of blocksRaw) {
     if (!blockLines.length) continue
-    const firstLine = blockLines[0]
+
     const delimiterCandidate = opts.explicitDelimiter ?? detectDelimiter(blockLines).delimiter
     const splitted = blockLines.map(l => l.split(delimiterCandidate))
 

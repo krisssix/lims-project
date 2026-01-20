@@ -149,7 +149,7 @@ async function parseExcelFile(file: File): Promise<{ lines: string[]; delimiter:
     raw: false,
     cellDates: true,
     dateNF: 'yyyy-mm-dd hh:mm:ss'
-  } as any) as unknown[][]
+  } as XLSX.ParsingOptions) as unknown[][]
 
   // ladění: vypsat surové hodnoty buněk pro vektorové sloupce (velikosti, intenzity atd.)
   if (data.length > 0) {
@@ -235,10 +235,9 @@ export async function parseImportedMeasurementFile(file: File, options: ParseOpt
     }
 
     const firstRowParts = (Papa.parse(blk[0]!, { delimiter, header: false }).data[0] as string[] || []).map(h => (h || '').trim())
-    const firstCell = (firstRowParts[0] || '').trim().toLowerCase()
 
-    // detekce, zda jde o blok pouze se statistikami (průměr, odchylka atd.)
-    const isStatsBlock = /^(mean|std\s*dev|rsd)/i.test(firstCell)
+
+
 
     // detekce série x intensity: „x intensity“ může být v libovolné buňce prvního řádku
     // formát: ["", "x intensity", "popis záznamu", ...]
@@ -401,7 +400,7 @@ export async function parseImportedMeasurementFile(file: File, options: ParseOpt
     }
 
     // zpracovat každou skupinu délek: najít skupiny s alespoň 2 sloupci
-    for (const [vecLength, cols] of byLength) {
+    for (const cols of byLength.values()) {
       if (cols.length < 2) continue
 
       // určit, který sloupec je osa x (preferovat 'size', 'sizes', 'x' atd.)

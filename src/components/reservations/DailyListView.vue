@@ -31,7 +31,7 @@ type DailyListRow = {
 }
 
 type Header = { title: string; key: string; width?: number; minWidth?: number; sortable?: boolean }
-type DeviceResponse = { id: number; code: string; name: string; color?: string | null }
+
 
 const props = defineProps<{
   projectId: number
@@ -60,7 +60,6 @@ const DAILY_LIST_HEADERS: Header[] = [
 ]
 const headersToUse = computed<Header[]>(() => props.headers?.length ? props.headers : DAILY_LIST_HEADERS)
 
-const DEFAULT_DAYS = 60
 const listFrom = ref<string>(props.filterFrom || '')
 const listTo   = ref<string>(props.filterTo || '')
 const listSearch = ref<string>('')
@@ -121,11 +120,7 @@ const fmtTime      = (d: Date) => fmtTimeFmt.format(d)
 
 const rangeFromMs = computed<number | null>(() => listFrom.value ? startOfDayMs(listFrom.value) : null)
 const rangeToMs   = computed<number | null>(() => listTo.value ? endOfDayMs(listTo.value) : null)
-const listRangeDays = computed(() => {
-  if (rangeFromMs.value == null || rangeToMs.value == null) return 0
-  const diff = rangeToMs.value - rangeFromMs.value
-  return diff >= 0 ? (diff / 86400000) + 1 : 0
-})
+
 
 const includeNotesInSearch = ref(true)
 const listFiltered = computed<ReservationDto[]>(() => {
@@ -173,8 +168,8 @@ const tableItems = computed<DailyListRow[]>(() =>
       const field = sortBy.value
       const desc = sortDesc.value ? -1 : 1
       
-      let valA: any = a[field as keyof ReservationDto]
-      let valB: any = b[field as keyof ReservationDto]
+      let valA: unknown = a[field as keyof ReservationDto]
+      let valB: unknown = b[field as keyof ReservationDto]
 
       // Special handling for computed/alias fields if needed, but for now strict DTO fields
       if (field === 'device') valA = a.deviceCode; valB = b.deviceCode
@@ -496,7 +491,7 @@ const editForm = ref<{
   endHM: string
   username: string | null
   note: string
-  recurrence?: any
+  recurrence?: unknown
 } | null>(null)
 
 function buildEditFormFrom(raw: ReservationDto | null) {
@@ -649,7 +644,7 @@ onMounted(async () => {
     // Fetch members for edit dialog
     const mResp = await get(`projectMember/${props.projectId}`)
     if (mResp?.data?.content?.members) {
-      members.value = mResp.data.content.members.map((m: any) => m.username).filter(Boolean)
+      members.value = mResp.data.content.members.map((m: { username: string }) => m.username).filter(Boolean)
     }
   } catch (e) { console.warn('Nešlo načíst data pro editaci', e) }
 
@@ -703,10 +698,6 @@ function setHM(base: Date, hm: string) {
   d.setHours(h, m, 0, 0)
   return d
 }
-function addDays(d: Date, n: number): Date { const x = new Date(d); x.setDate(d.getDate() + n); return x }
-function startOfDayMs(ymd: string): number { const [y, m, d] = ymd.split('-').map(Number); return new Date(y, (m || 1) - 1, d || 1, 0, 0, 0, 0).getTime() }
-function endOfDayMs(ymd: string): number   { const [y, m, d] = ymd.split('-').map(Number); return new Date(y, (m || 1) - 1, d || 1, 23, 59, 59, 999).getTime() }
-function statusColor(status: StatusType): string { return status === 'done' ? 'green' : status === 'running' ? 'blue' : 'grey' }
 function statusLabel(status: StatusType): string { return status === 'plan' ? 'Čeká' : status === 'running' ? 'Probíhá' : 'Hotovo' }
 
 // Helper functions for new table design
@@ -979,7 +970,7 @@ defineExpose({ loadListRange, loadAll, addReservation, updateReservation, remove
         </thead>
         <tbody>
           <tr
-            v-for="(item, index) in visibleTableItems"
+            v-for="item in visibleTableItems"
             :key="item.id"
             :data-reservation-id="item.id"
             class="reservation-row"

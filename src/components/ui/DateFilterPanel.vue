@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch } from 'vue'
 import FilterMultiSelect from '@/components/ui/FilterMultiSelect.vue'
 import ModernSwitch from '@/components/ui/ModernSwitch.vue'
 
@@ -55,10 +55,6 @@ const showWeekendToggle = computed(() =>
 // Lokální stav
 const localField = ref<DateFilterField>(props.modelValue.field)
 const viewDate = ref(new Date())
-const deviceSearch = ref('')
-const memberSearch = ref('')
-const showMemberDropdown = ref(false)
-const showDeviceDropdown = ref(false)
 const isRangeSelectMode = ref(false)
 
 // --- Sync & Watchers ---
@@ -156,25 +152,7 @@ const hasAnyFilter = computed(() =>
   (props.pickedTemplates && props.pickedTemplates.length > 0)
 )
 
-const filteredDevices = computed(() => {
-  if (!props.devices) return []
-  if (!deviceSearch.value.trim()) return props.devices
 
-  const search = deviceSearch.value.toLowerCase()
-  return props.devices.filter(d =>
-    d.name.toLowerCase().includes(search)
-  )
-})
-
-const filteredMembers = computed(() => {
-  if (!props.members) return []
-  if (!memberSearch.value.trim()) return props.members
-
-  const search = memberSearch.value.toLowerCase()
-  return props.members.filter(m =>
-    m.toLowerCase().includes(search)
-  )
-})
 
 const monthName = computed(() => {
   return new Intl.DateTimeFormat('cs-CZ', { month: 'long', year: 'numeric' }).format(viewDate.value)
@@ -330,13 +308,6 @@ function startOfWeek(d: Date): Date {
   return startOfDay(start)
 }
 
-function endOfWeek(d: Date): Date {
-  const start = startOfWeek(d)
-  const end = new Date(start)
-  end.setDate(start.getDate() + 6)
-  return endOfDay(end)
-}
-
 function startOfMonth(d: Date): Date {
   return new Date(d.getFullYear(), d.getMonth(), 1, 0, 0, 0, 0)
 }
@@ -444,22 +415,7 @@ function selectThisMonth() {
   emit('close')
 }
 
-function selectTwoWeeks() {
-  const today = new Date()
-  const start = startOfWeek(today)
-  const end = new Date(start)
-  // Add 13 days (Total 14 days)
-  end.setDate(start.getDate() + 13)
 
-  pendingStart.value = null
-  emit('update:modelValue', {
-    field: localField.value,
-    preset: 'custom', // custom so it doesn't trigger "thisWeek" logic
-    from: start,
-    to: endOfDay(end)
-  })
-  emit('close')
-}
 
 function selectWeekOf(date: Date) {
      const start = startOfWeek(date)
@@ -559,22 +515,6 @@ function setField(newField: DateFilterField) {
 }
 
 // --- Helper Functions ---
-
-function toggleMember(m: string) {
-  const current = props.pickedMembers || []
-  const newVal = current.includes(m)
-    ? current.filter(x => x !== m)
-    : [...current, m]
-  emit('update:pickedMembers', newVal)
-}
-
-function toggleDevice(id: string) {
-  const current = props.pickedDevices || []
-  const newVal = current.includes(id)
-    ? current.filter(x => x !== id)
-    : [...current, id]
-  emit('update:pickedDevices', newVal)
-}
 
 const dateFromInput = computed({
   get: () => {

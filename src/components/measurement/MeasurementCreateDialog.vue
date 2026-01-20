@@ -1,5 +1,5 @@
 <script setup lang="ts">
-/* eslint-disable @typescript-eslint/no-unused-vars */
+/* eslint-disable @typescript-eslint/no-unused-vars,@typescript-eslint/no-explicit-any */
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import Dialog from '@/components/Dialog.vue'
 import ConfirmDialog from '@/components/ui/ConfirmDialog.vue'
@@ -541,7 +541,7 @@ function goToFirstInvalidField(): boolean {
 
         // zjištění, do kterého bloku toto pole patří
         const blockIdx = templateBlocks.value.findIndex(b => b.blockIndex === (field.blockIndex ?? 1))
-        
+
 
         // navigace na daný záznam a blok
         currentRecordIndex.value = record.recordIndex
@@ -610,9 +610,9 @@ function initDialog(): void {
 
 /* přechody mezi kroky */
 function goToNextStep(): void {
-  
-  
-  
+
+
+
 
   if (wizardStep.value === 1) {
     if (!canProceedToData.value) return
@@ -628,13 +628,13 @@ function goToNextStep(): void {
       // inicializace dat sérií z bloků sérií v šabloně (pokud existují)
       // vytvoří prázdné položky sérií se správnou strukturou podle definice v šabloně
       const seriesBlocks = templateSeriesBlocks.value
-      
+
       if (seriesBlocks.length > 0) {
         seriesData.value = seriesBlocks.map((block, idx) => {
           // převod polí bloku na definice sloupců
           const columns = block.fields?.map(f => ({
             name: f.name,
-            type: f.type as 'float' | 'int' | 'text',
+            type: f.type as 'float' | 'int' | 'text' | 'file' | 'bool' | 'date' | 'time' | 'datetime',
             required: f.required
           })) || []
 
@@ -657,7 +657,7 @@ function goToNextStep(): void {
             data: emptyRows
           }
         })
-        
+
       } else {
         seriesData.value = []
       }
@@ -675,15 +675,15 @@ function goToNextStep(): void {
     // povolení zobrazení validace sérií
     showSeriesValidation.value = true
 
-    
-    
-    
-    
-    
+
+
+
+
+
 
     // kontrola validace - pokud je neplatná, přejít na první chybu
     if (invalidTotal.value > 0) {
-      
+
       goToFirstInvalidField()
       return
     }
@@ -701,7 +701,7 @@ function goToNextStep(): void {
       return
     }
 
-    
+
     wizardStep.value = 3
   }
 }
@@ -1459,7 +1459,7 @@ async function applyTemplateUpdate(updateTemplate: boolean): Promise<void> {
       const newTemplate = await templatesStore.create(Number(projectId), {
         name: newName,
         deviceCode: selectedDeviceId.value,
-        blocks: newBlocks
+        blocks: newBlocks as any
       })
 
       if (newTemplate?.id) {
@@ -2403,7 +2403,7 @@ function buildMeasuredValues(): MeasuredValue[] {
     boolValue: v.boolValue ?? null,
     dateValue: v.dateValue ?? null,
     fileUrl: v.fileUrl ?? null
-  }))
+  })) as MeasuredValue[]
 }
 async function onSave(): Promise<void> {
   records.value.forEach(r => r.fields.forEach(f => markFieldTouched(f)))

@@ -5,7 +5,7 @@
  * klávesové zkratky: ctrl+enter (parsovat), alt+d (delimiter), alt+u (unit řádek), alt+t (vytvořit šablonu), alt+s (import).
  */
 
-import { ref, computed, watch, nextTick } from 'vue'
+import { ref, watch, nextTick } from 'vue'
 import Dialog from '@/components/Dialog.vue'
 import { parseMeasurementFile, buildTemplateDraft, buildMeasurementPreview } from '@/utils/import/parseMeasurementFile'
 import type { FileParseResult, MeasurementImportPreview, TemplateDraft } from '@/types/import'
@@ -72,11 +72,7 @@ async function parseNow(): Promise<void> {
     loading.value = false
   }
 }
-function rebuildPreview(): void {
-  if (parseResult.value && templateDraft.value) {
-    preview.value = buildMeasurementPreview(parseResult.value, templateDraft.value)
-  }
-}
+
 function cycleDelimiter(): void {
   const options = [',', ';', '\t', '|']
   const current = delimiterOverride.value

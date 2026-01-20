@@ -1,4 +1,5 @@
 <script setup lang="ts">
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { computed, ref, watch, onUnmounted } from 'vue'
 
 // ===== TYPES =====
@@ -31,7 +32,6 @@ const props = defineProps<{
   deviceName:string
   requested:Slot
   proposals:Array<{ slot:Slot; label:string }>
-  fallbackNextDay?:{ day:Date; slot:Slot } | null
   conflicts?:ConflictItem[]
   allReservations?:ConflictItem[]
   excludeReservationId?:number | null  // ID of reservation being moved (to exclude from overlap checks)
@@ -61,7 +61,6 @@ const requestedDuration = computed(() =>
   props.requested.end.getTime() - props.requested.start.getTime()
 )
 
-// ⭐ KLÍČOVÉ:Cílový den = den KAM přesouváme událost
 const targetDay = computed(() => {
   const d = new Date(props.requested.start)
   d.setHours(0, 0, 0, 0)
@@ -107,58 +106,6 @@ const actualConflicts = computed<ConflictItem[]>(() => {
 
 const mainConflict = computed(() => actualConflicts.value[0] ??  null)
 
-// Maximální dostupná délka v požadovaném čase (zkrácení PŘED konfliktem)
-const maxAvailableDuration = computed<number | null>(() => {
-  if (!mainConflict.value) return null
-
-  const reqStart = props.requested.start.getTime()
-  const conflictStart = mainConflict.value.start.getTime()
-
-  if (conflictStart <= reqStart) {
-    return null
-  }
-
-  return conflictStart - reqStart
-})
-
-// Návrh zkrácené rezervace (před konfliktem)
-const shortenedSlot = computed<Slot | null>(() => {
-  if (!maxAvailableDuration.value || maxAvailableDuration.value < 15 * 60 * 1000) {
-    return null
-  }
-
-  return {
-    start:props.requested.start,
-    end:new Date(props.requested.start.getTime() + maxAvailableDuration.value)
-  }
-})
-
-// Slot po skončení hlavního konfliktu (se stejnou délkou)
-const slotAfterConflict = computed<Slot | null>(() => {
-  if (!mainConflict.value) return null
-
-  const afterConflict = mainConflict.value.end.getTime()
-  const duration = requestedDuration.value
-  const candidateEnd = afterConflict + duration
-
-  // Ověř že je stále v cílovém dni
-  if (candidateEnd > targetDayEnd.value.getTime()) return null
-
-  // Zkontroluj kolize na cílovém dni
-  const hasConflict = reservationsOnTargetDay.value.some(c => {
-    if (c.id === mainConflict.value?.id) return false
-    const cStart = c.start.getTime()
-    const cEnd = c.end.getTime()
-    return afterConflict < cEnd && candidateEnd > cStart
-  })
-
-  if (hasConflict) return null
-
-  return {
-    start:new Date(afterConflict),
-    end:new Date(candidateEnd)
-  }
-})
 
 // ===== SMART SLOT FINDING =====
 
@@ -216,10 +163,10 @@ const adaptiveSuggestions = computed<Suggestion[]>(() => {
   const targetDate = targetDay.value
 
   const suggestions: Suggestion[] = []
-  
+
   // Identify the main conflict (closest to requested start)
   const mainC = mainConflict.value // Re-using existing computed from line 104
-  
+
   let addedBefore = false
   let addedAfter = false
 
@@ -229,7 +176,7 @@ const adaptiveSuggestions = computed<Suggestion[]>(() => {
     // Calculate potential end time = conflict start
     // potential start = conflict start - duration
     const potentialStart = cStartTime - reqDuration
-    
+
     // Validate bounds (start of day)
     const dayStart = new Date(targetDate).setHours(0,0,0,0)
     if (potentialStart >= dayStart) {
@@ -240,7 +187,7 @@ const adaptiveSuggestions = computed<Suggestion[]>(() => {
           const re = r.end.getTime()
           return potentialStart < re && cStartTime > rs
        })
-       
+
        if (!hasOverlap) {
          const s: Slot = { start: new Date(potentialStart), end: new Date(cStartTime) }
          suggestions.push({
@@ -261,7 +208,7 @@ const adaptiveSuggestions = computed<Suggestion[]>(() => {
   if (mainC) {
     const cEndTime = mainC.end.getTime()
     const potentialEnd = cEndTime + reqDuration
-    
+
     // Validate bounds (end of day)
     const dayEnd = new Date(targetDate).setHours(23,59,59,999)
     if (potentialEnd <= dayEnd) {
@@ -272,7 +219,7 @@ const adaptiveSuggestions = computed<Suggestion[]>(() => {
           const re = r.end.getTime()
           return cEndTime < re && potentialEnd > rs
        })
-       
+
        if (!hasOverlap) {
          const s: Slot = { start: new Date(cEndTime), end: new Date(potentialEnd) }
          suggestions.push({
@@ -291,28 +238,28 @@ const adaptiveSuggestions = computed<Suggestion[]>(() => {
 
   // 3. Smart Gaps (Alternatives + Shortening)
   const gapsToday = getGapsForDay(targetDate, props.allReservations ?? [], props.excludeReservationId)
-  
+
   for (const gap of gapsToday) {
     // Check if this gap is actually the space before/after main conflict we just handled
     // If we already added a "Move After" that perfectly fills this gap, we might duplicate it if not careful.
     // "Move After" uses specific start=conflict.end. "Gap" might be same.
-    // We can filter by ID or time. 
-    
+    // We can filter by ID or time.
+
     const isFullFit = gap.duration >= reqDuration
-    
+
     // Skip if we already added this EXACT slot via explicit Before/After
     const isBeforeSlot = mainC && gap.end === mainC.start.getTime() && addedBefore
     const isAfterSlot = mainC && gap.start === mainC.end.getTime() && addedAfter
-    
+
     if (isFullFit) {
        // Only add as "Move to free time" if it wasn't the explicit neighbor we just added
        if (!isBeforeSlot && !isAfterSlot) {
           // Calculate best start in gap
           let proposedStart = Math.max(gap.start, Math.min(gap.end - reqDuration, reqStart))
           proposedStart = Math.max(gap.start, proposedStart)
-          
+
           const s: Slot = { start: new Date(proposedStart), end: new Date(proposedStart + reqDuration) }
-          
+
           suggestions.push({
             id: `today_fit_${gap.start}`,
             label: 'Posunout na jiný volný čas',
@@ -328,10 +275,10 @@ const adaptiveSuggestions = computed<Suggestion[]>(() => {
        // PRIORITIZE gaps immediately next to main conflict
        const isImmediateBefore = mainC && gap.end === mainC.start.getTime()
        const isImmediateAfter = mainC && gap.start === mainC.end.getTime()
-       
+
        let label = 'Zkrátit do volného místa'
        let icon = 'mdi-arrow-collapse-horizontal'
-       
+
        if (isImmediateBefore) {
           label = 'Zkrátit před konfliktem'
           icon = 'mdi-arrow-collapse-left'
@@ -339,7 +286,7 @@ const adaptiveSuggestions = computed<Suggestion[]>(() => {
           label = 'Zkrátit za konfliktem'
           icon = 'mdi-arrow-expand-right'
        }
-       
+
        const s: Slot = { start: new Date(gap.start), end: new Date(gap.end) }
        suggestions.push({
          id: `today_short_${gap.start}`,
@@ -365,7 +312,7 @@ const adaptiveSuggestions = computed<Suggestion[]>(() => {
       const reqTimeOfDay = reqStart - new Date(reqStart).setHours(0,0,0,0)
       let bestNext: { start: number, end: number } | null = null
       let minDiff = Infinity
-      
+
       for (const gap of gapsNextDay) {
          if (gap.duration >= reqDuration) {
             const gapStartDay = new Date(gap.start).setHours(0,0,0,0)
@@ -378,7 +325,7 @@ const adaptiveSuggestions = computed<Suggestion[]>(() => {
             }
          }
       }
-      
+
       if (bestNext) {
          suggestions.push({
             id: 'next_day_best',
@@ -410,7 +357,7 @@ const adaptiveSuggestions = computed<Suggestion[]>(() => {
 
 // Use the new logic
 const suggestions = computed(() => adaptiveSuggestions.value)
-const availableSlotsOnTargetDay = computed<Slot[]>(() => 
+const availableSlotsOnTargetDay = computed<Slot[]>(() =>
   getGapsForDay(targetDay.value, props.allReservations ?? [], props.excludeReservationId)
     .filter(g => g.duration >= requestedDuration.value)
     .map(g => ({ start: new Date(g.start), end: new Date(g.end) }))

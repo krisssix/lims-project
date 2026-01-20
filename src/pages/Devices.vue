@@ -597,7 +597,7 @@ function adjustColor(color: string): string {
           density="comfortable"
           class="device-data-table"
         >
-          <template #item.name="{ item }">
+          <template #[`item.name`]="{ item }">
             <div
               class="d-flex align-center cursor-pointer font-weight-medium py-2"
               @click="openDetail(item)"
@@ -605,7 +605,7 @@ function adjustColor(color: string): string {
               {{ item.name }}
             </div>
           </template>
-          <template #item.active="{ item }">
+          <template #[`item.active`]="{ item }">
             <v-chip
               size="x-small"
               :color="item.active ? 'success' : 'grey'"
@@ -615,7 +615,7 @@ function adjustColor(color: string): string {
               {{ item.active ? 'Aktivní' : 'Neaktivní' }}
             </v-chip>
           </template>
-          <template #item.code="{ item }">
+          <template #[`item.code`]="{ item }">
             <v-chip
               size="small"
               :color="item.color || 'blue'"

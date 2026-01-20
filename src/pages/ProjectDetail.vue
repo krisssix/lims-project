@@ -3,8 +3,9 @@ import {useRoute} from "vue-router";
 import {onBeforeMount} from "vue";
 import {useProjectStore} from "@/stores/project/project";
 
+import { auth } from "@/stores/auth";
+
 const route = useRoute()
-const router = useRouter()
 const projectStore = useProjectStore()
 
 onBeforeMount(()=>{
@@ -12,7 +13,10 @@ onBeforeMount(()=>{
 })
 
 const props = defineProps({
-  id: String|Number
+  id: {
+    type: [String, Number],
+    default: 'new'
+  }
 })
 
 function onReturn(){
@@ -20,13 +24,13 @@ function onReturn(){
 }
 
 async function onSubmit(){
-  await projectStore.saveProject(projectStore.blankProject)
-  await projectStore.clearProject()
+  await projectStore.saveProject(projectStore.blankProjectMembers, auth.getUserInfo())
+  projectStore.clearProject()
 
 }
 
 function setIdFromProps(){
-  const id = route.params.id
+  const id = route.params.id as string
   if(props.id !== "new"){
     projectStore.setProjectId(Number(id))
   } else {
@@ -39,7 +43,7 @@ function setIdFromProps(){
   <!--  TODO: set existing project-->
   <project-form
     :is-new="projectStore.projectId === 'new'"
-    :project="projectStore.projectId === 'new' ? projectStore.blankProject : projectStore.blankProject"
+    :project="(projectStore.projectId === 'new' ? projectStore.blankProject : projectStore.blankProject) as any"
     @on-return="onReturn()"
     @on-submit="onSubmit()"
   />

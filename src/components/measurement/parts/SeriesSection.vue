@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, watch, onUnmounted, nextTick } from 'vue'
 import SeriesDataPicker, { type PickerResult } from './SeriesDataPicker.vue'
 import { parseImportedMeasurementFile } from '@/utils/import/importCompatibility'
 import { Chart, registerables } from 'chart.js'
@@ -64,13 +64,7 @@ const dragState = ref<{ seriesIdx: number; fromIdx: number } | null>(null)
 const dragOverIdx = ref<number | null>(null)
 
 // Check if any series has at least one non-null value entered
-const hasAnyDataInSeries = computed<boolean>(() => {
-  return props.series.some(s => 
-    s.data.some(row => 
-      Object.values(row).some(val => val !== null && val !== '')
-    )
-  )
-})
+
 
 const seriesTypeOptions = [
   { title: 'X Intensity', value: 'X_INTENSITY' },

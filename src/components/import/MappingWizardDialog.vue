@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, watch} from 'vue'
 import Dialog from '@/components/Dialog.vue'
 import type { MappingModel, MappingField } from '@/utils/import/importMapping'
 import { validateMapping, exportMapping } from '@/utils/import/importMapping'
@@ -26,7 +26,7 @@ const open = computed<boolean>({
 const activeBlockIndex = ref<number>(1)
 const showUnmatchedOnly = ref<boolean>(false)
 const validationErrors = ref<string[]>([])
-const lastFocusedFieldPos = ref<number>(-1)
+//const lastFocusedFieldPos = ref<number>(-1)
 
 // stav výběru polí: sleduje, která pole jsou povolena pro import (field selection state)
 const enabledFields = ref<Set<string>>(new Set())
@@ -233,18 +233,7 @@ function setSeriesColumnMapping(seriesIdx: number, columnId: string, sourceIndex
   recomputeValidation()
 }
 
-
-function cycleBlock(delta: number): void {
-  if (!props.mappingModel) return
-  const idxList = props.mappingModel.blocks.map(b => b.blockIndex).sort((a, b) => a - b)
-  const pos = idxList.indexOf(activeBlockIndex.value)
-  const nextPos = Math.min(idxList.length - 1, Math.max(0, pos + delta))
-  activeBlockIndex.value = idxList[nextPos]
-  lastFocusedFieldPos.value = -1
-  nextTick(() => focusFieldByIndex(0))
-}
-
-function focusFieldByIndex(idx: number): void {
+/*function focusFieldByIndex(idx: number): void {
   nextTick(() => {
     const els = document.querySelectorAll<HTMLElement>('[data-map-field]')
     const el = els[idx]
@@ -254,7 +243,7 @@ function focusFieldByIndex(idx: number): void {
     }
   })
 
-}
+}*/
 
 const importStore = useImportStore()
 const savingMapping = ref<string | null>(null)
