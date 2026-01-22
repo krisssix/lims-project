@@ -2,7 +2,7 @@
  * detekce bloků pro multi-blokovou importní architekturu.
  * detekuje: klíč-hodnota, tabulku, série, statistiky, neznámé bloky.
  */
-import type { DetectedBlock, ParseProposal } from '@/types/import-blocks'
+import type { DetectedBlock, BlockType, ParseProposal } from '@/types/import-blocks'
 import { generateBlockId } from '@/types/import-blocks'
 
 // ============ konstanty ============
@@ -33,7 +33,7 @@ export function detectBlocks(lines: string[], delimiter: string): DetectedBlock[
     blocks.push(...tableBlocks)
 
     // 3. detekce bloků statistik
-    const statsBlocks = detectStatsBlocks(lines)
+    const statsBlocks = detectStatsBlocks(lines, delimiter)
     blocks.push(...statsBlocks)
 
     // 4. detekce sérií (uvnitř tabulek)
@@ -136,7 +136,7 @@ function detectTableBlocks(lines: string[], delimiter: string, excludeBlocks: De
         if (isExcluded(i)) {
             // ukončení aktuální tabulky, pokud jsme ve vyloučené zóně
             if (tableStart !== null && consistentRows >= MIN_TABLE_ROWS) {
-                const headers = extractHeaders(parsed, tableStart)
+                const headers = extractHeaders(parsed, tableStart, delimiter)
                 const colCount = prevColCount
                 blocks.push({
                     id: generateBlockId(),
@@ -161,7 +161,7 @@ function detectTableBlocks(lines: string[], delimiter: string, excludeBlocks: De
         // přeskočení prázdných řádků nebo řádků s jedním sloupcem
         if (colCount < MIN_TABLE_COLS) {
             if (tableStart !== null && consistentRows >= MIN_TABLE_ROWS) {
-                const headers = extractHeaders(parsed, tableStart)
+                const headers = extractHeaders(parsed, tableStart, delimiter)
                 blocks.push({
                     id: generateBlockId(),
                     type: 'table',
@@ -189,7 +189,7 @@ function detectTableBlocks(lines: string[], delimiter: string, excludeBlocks: De
         } else {
             // počet sloupců se výrazně změnil: ukončení aktuální tabulky
             if (tableStart !== null && consistentRows >= MIN_TABLE_ROWS) {
-                const headers = extractHeaders(parsed, tableStart)
+                const headers = extractHeaders(parsed, tableStart, delimiter)
                 blocks.push({
                     id: generateBlockId(),
                     type: 'table',
@@ -210,7 +210,7 @@ function detectTableBlocks(lines: string[], delimiter: string, excludeBlocks: De
 
     // obsluha tabulky na konci souboru
     if (tableStart !== null && consistentRows >= MIN_TABLE_ROWS) {
-        const headers = extractHeaders(parsed, tableStart)
+        const headers = extractHeaders(parsed, tableStart, delimiter)
         blocks.push({
             id: generateBlockId(),
             type: 'table',
@@ -227,7 +227,7 @@ function detectTableBlocks(lines: string[], delimiter: string, excludeBlocks: De
     return blocks
 }
 
-function extractHeaders(parsed: string[][], startRow: number): string[] {
+function extractHeaders(parsed: string[][], startRow: number, _delimiter: string): string[] {
     if (startRow >= parsed.length) return []
     const row = parsed[startRow]
     // kontrola, zda to vypadá jako hlavičky (převážně text, ne čísla)
@@ -268,7 +268,7 @@ function calculateTableConfidence(parsed: string[][], startRow: number, endRow: 
 /**
  * detekce bloků statistik (průměr, směrodatná odchylka atd.).
  */
-function detectStatsBlocks(lines: string[]): DetectedBlock[] {
+function detectStatsBlocks(lines: string[], _delimiter: string): DetectedBlock[] {
     const blocks: DetectedBlock[] = []
     let statsStart: number | null = null
     let statsCount = 0

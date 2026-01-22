@@ -3,7 +3,7 @@ import { type TemplateBlockRow } from '@/types/measurement-ui'
 const props = defineProps<{
   templateBlocks: TemplateBlockRow[]
   currentBlockIndex: number
-
+  currentBlockTitle: string
 }>()
 const emits = defineEmits<{
   (e: 'prev'): void

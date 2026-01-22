@@ -107,7 +107,7 @@ async function onConfirmConflict(slot: { start: Date; end: Date }) {
   conflictOpen.value = false
   const p = pendingForcePayload.value
   const ctx = conflictCtx.value
-  
+
   conflictCtx.value = null
   pendingForcePayload.value = null
 
@@ -137,7 +137,7 @@ async function onConfirmConflict(slot: { start: Date; end: Date }) {
       await nextTick()
       scrollToTime(slot.start)
       highlightReservation(resId)
-      
+
       if (isDailyList.value && dailyListRef.value) {
         await dailyListRef.value.loadListRange?.()
       }
@@ -355,7 +355,7 @@ const membersList = computed<string[]>(() =>
 const deviceStore = useDeviceStore()
 
 
-const allDevices = computed(() => deviceStore.devices.map(d => ({
+const allDevices = computed(() => deviceStore.allDevices.map(d => ({
   id: d.code,
   name: d.name,
   color: d.active === false ? '#9e9e9e' : (d.color || 'primary'),
@@ -364,7 +364,7 @@ const allDevices = computed(() => deviceStore.devices.map(d => ({
 const devicesToShow = computed(() =>
   pickedDevices.value.length
     ? allDevices.value.filter(d => pickedDevices.value.includes(d.id))
-    : allDevices.value
+    : allDevices.value.filter(d => d.active !== false)
 )
 
 const devicesForFilter = computed(() => {
@@ -518,6 +518,30 @@ function setMenuOpen(id: number, v: boolean) {
   // reassign a new object so Vue tracks the change
   openMenu.value = { ...openMenu.value, [id]: v }
 }
+
+// Watch viewMode to sync dateFilterModel logic
+watch(viewMode, (newMode) => {
+  // If switching TO week view, and we have 'today' selected, 
+  // expand it to 'thisWeek' so the header label shows the full range.
+  if ((newMode === 'week-work' || newMode === 'week-all') && dateFilterModel.value.preset === 'today') {
+    const days = weekRange(currentDay.value, newMode === 'week-work')
+    if (days.length > 0) {
+       const start = days[0]
+       const end = days[days.length - 1]
+       // Set times to start/end of day
+       const from = new Date(start); from.setHours(0,0,0,0)
+       const to = new Date(end); to.setHours(23,59,59,999)
+       
+       dateFilterModel.value = {
+         ...dateFilterModel.value,
+         preset: 'thisWeek',
+         from: from,
+         to: to
+       }
+    }
+  }
+})
+
 /* Viewport refs */
 const viewportDaily = ref<HTMLElement | null>(null)
 const viewportWeek = ref<HTMLElement | null>(null)
@@ -729,7 +753,7 @@ async function loadWeekFor(date: Date) {
 }
 /* Initial load */
 onMounted(async () => {
-  await deviceStore.fetchDevices()              // ← místo reservations.fetchDevices()
+  await deviceStore.fetchAll()                  // ← načti všechna zařízení (včetně neaktivních)
   await projectStore.fetchProjectMembers(projectId)
   await loadWeekFor(currentDay.value)
   await nextTick()
@@ -839,6 +863,7 @@ function itemsForDayDevice(deviceId: string) {
 }
 /* Device color + event style */
 const deviceColorOf = (id: string) => allDevices.value.find(d => d.id === id)?.color || 'primary'
+const isDeviceActive = (id: string) => allDevices.value.find(d => d.id === id)?.active !== false
 function eventBgClass(i: ResItem) {
   const color = deviceColorOf(i.deviceId)
   if (color.startsWith('#')) return '' // Hex colors handled via inline style
@@ -859,14 +884,14 @@ function eventStyle(i: ResItem, left: number, width: number): Record<string, str
     left: `${left * 100}%`,
     width: `${width * 100}%`,
     borderLeft: `4px solid ${baseColor}`,
-    background: isHex ? `color-mix(in srgb, ${color} 18%, #ffffff)` : `color-mix(in srgb, var(--v-theme-${color}) 18%, #fff)`
+    background: isHex ? `color-mix(in srgb, ${color} 45%, #ffffff)` : `color-mix(in srgb, var(--v-theme-${color}) 45%, #fff)`
   }
 }
 function deviceHeaderStyle(d: { id: string; color: string }) {
   const isHex = d.color.startsWith('#')
   const base = isHex ? d.color : `var(--v-theme-${d.color})`
   return {
-    background: `color-mix(in srgb, ${base} 18%, #ffffff)`,
+    background: `color-mix(in srgb, ${base} 45%, #ffffff)`,
     boxShadow: `inset 0 -3px 0 0 ${base}`,
   }
 }
@@ -2398,6 +2423,7 @@ onBeforeUnmount(() => {
                 :initials="initials"
                 :device-color-of="deviceColorOf"
                 :device-name-of="deviceNameById"
+                :is-device-active="isDeviceActive"
                 :is-menu-open="isMenuOpen"
                 :set-menu-open="setMenuOpen"
                 :on-track-click="onTrackClick"
@@ -2434,6 +2460,7 @@ onBeforeUnmount(() => {
                 :initials="initials"
                 :device-color-of="deviceColorOf"
                 :device-name-of="deviceNameById"
+                :is-device-active="isDeviceActive"
                 :is-menu-open="isMenuOpen"
                 :set-menu-open="setMenuOpen"
                 :on-track-click="onTrackClick"

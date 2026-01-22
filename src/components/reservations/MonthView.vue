@@ -1,5 +1,5 @@
 <script setup lang="ts">
-
+import { computed } from 'vue'
 
 type ResItem = {
   id: number
@@ -41,7 +41,21 @@ function isToday(d: Date) {
          d.getFullYear() === now.getFullYear()
 }
 
+function getEventStyle(item: ResItem) {
+  const color = props.deviceColorOf(item.deviceId)
+  return {
+    backgroundColor: `rgb(var(--v-theme-${color}))`, // primitive guess, or utilize the helper from parent if passed
+    // We'll rely on class or simple style
+    borderLeft: `4px solid ${color}`
+  }
+}
 
+// Simple color helper if not provided strict RGB
+function getBgColor(item: ResItem) {
+   // Use similar logic to WeekView if possible, or just primary/secondary classes
+   // Here we delegate to a class binding or style
+   return {} 
+}
 
 </script>
 

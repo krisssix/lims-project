@@ -22,7 +22,17 @@ function lightBg(color: string | undefined | null): string {
 }
 
 // formátování iso timestampu na lokální datum
-
+function formatDate(isoString: string | undefined): string {
+  if (!isoString) return '—'
+  const d = new Date(isoString)
+  return d.toLocaleDateString('cs-CZ', {
+    day: 'numeric',
+    month: 'numeric',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
+}
 
 function getStatusColor(status?: TemplateStatus): string {
   switch (status) {

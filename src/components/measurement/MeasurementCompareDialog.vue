@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { ref, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
+import { ref, watch, computed, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import ChartPanel from '@/components/chart/ChartPanel.vue'
-
+import TemplateSelect from '@/components/measurement/TemplateSelect.vue'
 import { type DeviceItem, type ValueType, type TemplateItem, type TemplateBlockRow } from '@/types/measurement-ui'
-import { type MeasurementResponse } from '@/stores/measurement'
+import { type MeasurementResponse, type MeasuredValue, type MeasurementSeriesResponse } from '@/stores/measurement'
 import {
   groupValuesToRecords,
   extractSeries,
@@ -110,7 +110,13 @@ function formatDateTime(ts: number | undefined): string {
   return `${d.getDate()}. ${d.getMonth() + 1}. ${d.getFullYear()} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`
 }
 
-
+function getZenodoUrl(doi: string): string {
+  if (doi.startsWith('10.5072/')) {
+    const recordId = doi.replace('10.5072/zenodo.', '')
+    return `https://sandbox.zenodo.org/records/${recordId}`
+  }
+  return `https://doi.org/${doi}`
+}
 
 // Build records from item values
 function buildRecordsFromItem(item: MeasurementResponse | null): MeasurementRecord[] {
@@ -321,9 +327,14 @@ function nextRecord(state: PanelState): void {
   }
 }
 
+function prevBlock(state: PanelState): void {
+  if (state.currentBlockIndex > 0) state.currentBlockIndex--
+}
 
-
-
+function nextBlock(state: PanelState): void {
+  const blocks = getTemplateBlocks(state.item, props.templates)
+  if (state.currentBlockIndex < blocks.length - 1) state.currentBlockIndex++
+}
 
 function getCurrentPosition(state: PanelState): number {
   return state.records.findIndex(r => r.recordIndex === state.currentRecordIndex) + 1

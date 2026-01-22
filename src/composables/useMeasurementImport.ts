@@ -9,7 +9,7 @@ import {
     type ImportedFileStructure,
     type TemplateLike
 } from '@/utils/import/importCompatibility'
-import type { MappingModel } from '@/utils/import/importMapping'
+import type { MappingModel } from '@/components/measurement/parts/MappingWizardDialog.vue'
 
 /**
  * Creates import-related state and basic functions
@@ -61,7 +61,7 @@ export function useMeasurementImport() {
     /**
      * Parse file and get structure (without template compatibility check)
      */
-    async function parseImportFile(file: File, options: Record<string, unknown> = {}): Promise<ImportedFileStructure | null> {
+    async function parseImportFile(file: File, options: any = {}): Promise<ImportedFileStructure | null> {
         importBusy.value = true
         importError.value = null
 

@@ -35,14 +35,14 @@ export function linearRegression(data: DataPoint[]): RegressionResult {
     let sumY = 0
     let sumXY = 0
     let sumX2 = 0
-
+    let sumY2 = 0
 
     for (const point of data) {
         sumX += point.x
         sumY += point.y
         sumXY += point.x * point.y
         sumX2 += point.x * point.x
-        // sumY2 += point.y * point.y
+        sumY2 += point.y * point.y
     }
 
     // výpočet sklonu (a) a průsečíku (b)

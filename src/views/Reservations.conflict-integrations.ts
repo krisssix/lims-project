@@ -1,5 +1,5 @@
 import { ref } from 'vue'
-
+import ConflictDialog from '@/components/reservations/ConflictDialog.vue'
 import { buildDayGaps, proposeSlotsAround, firstGapNextDays, type ResItem } from '@/utils/calendar/calendarSlotHelpers'
 
 // stav pro konflikt dialog

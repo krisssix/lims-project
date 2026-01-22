@@ -38,6 +38,7 @@ const props = withDefaults(defineProps<{
   initials: (u: string | null) => string
   deviceColorOf: (deviceId: string) => string
   deviceNameOf: (deviceId: string) => string
+  isDeviceActive?: (deviceId: string) => boolean
 
   // menu state
   isMenuOpen: (id: number) => boolean
@@ -64,8 +65,7 @@ const props = withDefaults(defineProps<{
   focusEnabled: true,
   focusedFr: 2.6,
   othersFr: 1,
-  transitionMs: 220,
-  onDayDblClick: () => {}
+  transitionMs: 220
 })
 
 function isWeekend(d: Date) { return [0, 6].includes(d.getDay()) }
@@ -77,7 +77,8 @@ function isFocused(d: Date) { return props.focusEnabled && (focusedDayKey.value 
 function focusDay(d: Date) { if (props.focusEnabled) focusedDayKey.value = keyOf(d) }
 function clearFocus() { focusedDayKey.value = null }
 
-function onDayHeaderClick(d: Date) {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function onDayHeaderClick(d: Date, _ev?: MouseEvent) {
   focusDay(d)
   if (viewportEl.value) {
     try {
@@ -88,7 +89,7 @@ function onDayHeaderClick(d: Date) {
   }
 }
 
-function onDayHeaderDblClick(d: Date) {
+function onDayHeaderDblClick(d: Date, _ev?: MouseEvent) {
   props.onDayDblClick?.(d)
 }
 
@@ -291,8 +292,8 @@ function deviceEventStyle(deviceId: string): { backgroundColor: string; color: s
         role="button"
         tabindex="0"
         :aria-pressed="isFocused(d)"
-        @click="onDayHeaderClick(d)"
-        @dblclick="onDayHeaderDblClick(d)"
+        @click="(ev) => onDayHeaderClick(d, ev)"
+        @dblclick="(ev) => onDayHeaderDblClick(d, ev)"
         @keydown.enter.prevent="onDayHeaderClick(d)"
         @keydown.space.prevent="onDayHeaderClick(d)"
       >
@@ -356,7 +357,7 @@ function deviceEventStyle(deviceId: string): { backgroundColor: string; color: s
             <template #activator="{ props: act }">
               <div
                 class="event"
-                :class="[sizeClass(i)]"
+                :class="[sizeClass(i), { 'event--inactive': props.isDeviceActive && !props.isDeviceActive(i.deviceId) }]"
                 v-bind="act"
                 :style="{
                   ...props.eventStyle(
@@ -375,9 +376,9 @@ function deviceEventStyle(deviceId: string): { backgroundColor: string; color: s
                 >
                   <!-- Title row with optional series icon -->
                   <div style="display: flex; align-items: center; gap: 4px;">
-                    <i
-                      v-if="i.seriesId"
-                      class="mdi-repeat mdi v-icon"
+                    <i 
+                      v-if="i.seriesId" 
+                      class="mdi-repeat mdi v-icon" 
                       style="font-size: 12px; flex-shrink: 0;"
                       :style="{ color: contrastText(props.deviceColorOf(i.deviceId)) === 'white' ? 'rgba(255,255,255,.85)' : 'rgba(0,0,0,0.6)' }"
                     />
@@ -394,12 +395,12 @@ function deviceEventStyle(deviceId: string): { backgroundColor: string; color: s
                     style="overflow: hidden;"
                   >
                     <div style="display: flex; flex-wrap: nowrap; gap: 4px; overflow-x: auto; scrollbar-width: none;">
-                      <span
+                      <span 
                         style="display: inline-flex; align-items: center; gap: 3px; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 600; white-space: nowrap;"
-                        :style="{
-                          background: contrastText(props.deviceColorOf(i.deviceId)) === 'white' ? 'rgba(255,255,255,.2)' : 'rgba(0,0,0,0.1)',
-                          border: contrastText(props.deviceColorOf(i.deviceId)) === 'white' ? '1px solid rgba(255,255,255,.3)' : '1px solid rgba(0,0,0,0.15)',
-                          color: contrastText(props.deviceColorOf(i.deviceId)) === 'white' ? 'rgba(255,255,255,.95)' : 'rgba(0,0,0,0.75)'
+                        :style="{ 
+                          background: contrastText(props.deviceColorOf(i.deviceId)) === 'white' ? 'rgba(255,255,255,.2)' : 'rgba(0,0,0,0.1)', 
+                          border: contrastText(props.deviceColorOf(i.deviceId)) === 'white' ? '1px solid rgba(255,255,255,.3)' : '1px solid rgba(0,0,0,0.15)', 
+                          color: contrastText(props.deviceColorOf(i.deviceId)) === 'white' ? 'rgba(255,255,255,.95)' : 'rgba(0,0,0,0.75)' 
                         }"
                       >
                         <i
@@ -418,8 +419,8 @@ function deviceEventStyle(deviceId: string): { backgroundColor: string; color: s
                     {{ props.fmtTime(new Date(i.start)) }} – {{ props.fmtTime(new Date(i.end)) }}
                   </div>
                   <!-- Avatar at bottom-right -->
-                  <div
-                    class="bg-white event-avatar"
+                  <div 
+                    class="bg-white event-avatar" 
                     style="position: absolute; bottom: 4px; right: 4px; width: 22px; height: 22px; font-size: 10px; font-weight: 600; display: flex; align-items: center; justify-content: center; border-radius: 50%;"
                     :style="{ color: props.deviceColorOf(i.deviceId) }"
                   >
@@ -440,6 +441,7 @@ function deviceEventStyle(deviceId: string): { backgroundColor: string; color: s
                 :item="i"
                 :color="props.deviceColorOf(i.deviceId)"
                 :device-name="props.deviceNameOf(i.deviceId)"
+                :is-inactive="props.isDeviceActive ? !props.isDeviceActive(i.deviceId) : false"
                 :fmt-detail-date="props.fmtDetailDate"
                 :fmt-detail-time="props.fmtDetailTime"
                 :on-edit="props.openEdit"
@@ -517,6 +519,30 @@ function deviceEventStyle(deviceId: string): { backgroundColor: string; color: s
   container-type: inline-size;
 }
 .event:active { cursor: grabbing; }
+
+/* Inactive device striped background overlay */
+.event--inactive {
+  position: relative;
+  border: 2px dashed rgba(0, 0, 0, 0.35) !important;
+}
+.event--inactive::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: repeating-linear-gradient(
+    135deg,
+    transparent,
+    transparent 5px,
+    rgba(0, 0, 0, 0.12) 5px,
+    rgba(0, 0, 0, 0.12) 10px
+  );
+  pointer-events: none;
+  z-index: 1;
+  border-radius: 8px;
+}
 
 /* Wrapper for padding (CQ adjusts this) */
 .event-inner { padding: 8px 10px 20px 10px; position: relative; height: 100%; }

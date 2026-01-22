@@ -169,6 +169,9 @@ function getItemColor(item: SelectItem): string | undefined {
         </button>
       </div>
 
+      <!-- Extra actions slot (e.g., toggles) -->
+      <slot name="extra-actions" />
+
       <!-- Items list -->
       <v-list
         density="compact"

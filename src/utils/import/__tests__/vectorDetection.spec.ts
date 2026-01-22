@@ -74,9 +74,9 @@ describe('vectorDetection', () => {
         })
 
         it('never throws', () => {
-            expect(() => parseVectorCell(null as unknown as string)).not.toThrow()
-            expect(() => parseVectorCell(undefined as unknown as string)).not.toThrow()
-            expect(() => parseVectorCell(123 as unknown as string)).not.toThrow()
+            expect(() => parseVectorCell(null as any)).not.toThrow()
+            expect(() => parseVectorCell(undefined as any)).not.toThrow()
+            expect(() => parseVectorCell(123 as any)).not.toThrow()
         })
     })
 

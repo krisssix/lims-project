@@ -4,7 +4,6 @@ import { useDeviceStore, type Device } from '@/stores/devices'
 import DeviceCreateDialog from '@/components/device/DeviceCreateDialog.vue'
 import DeviceDetailDialog from '@/components/device/DeviceDetailDialog.vue'
 import SearchBar from '@/components/ui/SearchBar.vue'
-import ModernSwitch from '@/components/ui/ModernSwitch.vue'
 
 const store = useDeviceStore()
 const errorText = computed(() => store.errorText)
@@ -12,14 +11,21 @@ const errorText = computed(() => store.errorText)
 // View mode: 'grid' or 'table'
 const viewMode = ref<'grid' | 'table'>('table')
 
-// Přepínač aktivních
-const showOnlyActive = ref(true)
+// Filter status: 'all' | 'active' | 'inactive'
+const filterStatus = ref<'all' | 'active' | 'inactive'>('active')
 const filterText = ref<string>('')
 
-// Využij kompletní seznam a filtruj dle přepínače
+// Využij kompletní seznam a filtruj dle statusu
 const baseList = computed<Device[]>(() => store.allDevices.length ?  store.allDevices : store.devices)
 const filtered = computed<Device[]>(() => {
-  const base = showOnlyActive.value ? baseList.value.filter(d => d.active) : baseList.value
+  let base = baseList.value
+  
+  if (filterStatus.value === 'active') {
+    base = base.filter(d => d.active)
+  } else if (filterStatus.value === 'inactive') {
+    base = base.filter(d => !d.active)
+  }
+  
   const q = filterText.value.trim().toLowerCase()
   if (! q) return base
   return base.filter(d => d.name.toLowerCase().includes(q) || d.code.toLowerCase().includes(q))
@@ -312,8 +318,13 @@ function adjustColor(color: string): string {
         >
           <v-card
             flat
-            class="pa-4 rounded-xl border"
-            style="background: #eff6ff;"
+            class="pa-4 rounded-xl border cursor-pointer transition-swing"
+            :style="{ 
+              background: '#eff6ff',
+              borderColor: filterStatus === 'all' ? '#3b82f6 !important' : undefined,
+              boxShadow: filterStatus === 'all' ? '0 0 0 2px rgba(59, 130, 246, 0.2)' : undefined
+            }"
+            @click="filterStatus = 'all'"
           >
             <div
               class="text-h3 font-weight-bold"
@@ -337,8 +348,13 @@ function adjustColor(color: string): string {
         >
           <v-card
             flat
-            class="pa-4 rounded-xl border"
-            style="background: #f0fdf4;"
+            class="pa-4 rounded-xl border cursor-pointer transition-swing"
+            :style="{ 
+              background: '#f0fdf4',
+              borderColor: filterStatus === 'active' ? '#10b981 !important' : undefined,
+              boxShadow: filterStatus === 'active' ? '0 0 0 2px rgba(16, 185, 129, 0.2)' : undefined
+            }"
+            @click="filterStatus = 'active'"
           >
             <div
               class="text-h3 font-weight-bold"
@@ -362,8 +378,13 @@ function adjustColor(color: string): string {
         >
           <v-card
             flat
-            class="pa-4 rounded-xl border"
-            style="background: #fef2f2;"
+            class="pa-4 rounded-xl border cursor-pointer transition-swing"
+            :style="{ 
+              background: '#fef2f2',
+              borderColor: filterStatus === 'inactive' ? '#ef4444 !important' : undefined,
+              boxShadow: filterStatus === 'inactive' ? '0 0 0 2px rgba(239, 68, 68, 0.2)' : undefined
+            }"
+            @click="filterStatus = 'inactive'"
           >
             <div
               class="text-h3 font-weight-bold"
@@ -396,11 +417,29 @@ function adjustColor(color: string): string {
             />
           </div>
               
-          <ModernSwitch
-            v-model="showOnlyActive"
-            label="Pouze aktivní"
-            class="ml-auto"
-          />
+          <div 
+            class="view-selector-modern ml-auto"
+            style="background: #eaecf0;" 
+          >
+            <button
+              :class="['view-option-modern', { active: filterStatus === 'all' }]"
+              @click="filterStatus = 'all'"
+            >
+              Vše
+            </button>
+            <button
+              :class="['view-option-modern', { active: filterStatus === 'active' }]"
+              @click="filterStatus = 'active'"
+            >
+              Aktivní
+            </button>
+            <button
+              :class="['view-option-modern', { active: filterStatus === 'inactive' }]"
+              @click="filterStatus = 'inactive'"
+            >
+              Neaktivní
+            </button>
+          </div>
         </div>
           
         <!-- Bulk Actions Header -->
@@ -523,17 +562,23 @@ function adjustColor(color: string): string {
                 <v-card-text class="text-center pt-2 pb-4">
                   <v-avatar
                     :style="{ background: `linear-gradient(135deg, ${device.color || '#3b82f6'} 0%, ${adjustColor(device.color || '#3b82f6')} 100%)` }"
-                    size="64"
+                    size="84"
+                    rounded="xl"
                     class="mb-3 elevation-4"
                   >
-                    <span class="text-h5 font-weight-bold text-white">{{ device.code }}</span>
+                    <span 
+                      :class="[
+                        'font-weight-bold text-white px-1 text-wrap',
+                        device.code.length <= 3 ? 'text-h4' : device.code.length <= 6 ? 'text-h5' : 'text-h6'
+                      ]"
+                      style="line-height: 1.1; max-width: 100%; word-break: break-all;"
+                    >
+                      {{ device.code }}
+                    </span>
                   </v-avatar>
                          
                   <div class="text-subtitle-1 font-weight-bold text-truncate px-2">
                     {{ device.name }}
-                  </div>
-                  <div class="text-caption text-medium-emphasis">
-                    {{ device.code }}
                   </div>
                 </v-card-text>
                      
@@ -750,14 +795,14 @@ function adjustColor(color: string): string {
   display: flex;
   align-items: center;
   gap: 16px;
-  padding: 16px 24px;
+  padding: 16px 40px; /* Matched to top-toolbar horizontal padding */
   background: #f8f9fa;
   border-bottom: 1px solid #e9ecef;
 }
 
 .search-field-modern {
   flex: 1;
-  max-width: 400px;
+  max-width: 600px;
 }
 
 /* Modern Device Cards */

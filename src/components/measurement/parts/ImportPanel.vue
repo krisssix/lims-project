@@ -57,7 +57,11 @@ watch(() => props.rowOffset, (val) => {
 }, { immediate: true })
 
 // Emit offset changes
-
+function updateRowOffset(newOffset: number) {
+  const maxOffset = totalRowCount.value - 1
+  const clampedOffset = Math.max(0, Math.min(newOffset, maxOffset))
+  emits('update:rowOffset', clampedOffset)
+}
 
 const highlightMappingBtn = ref(false)
 
@@ -93,9 +97,16 @@ const hasInput = computed(() => {
 })
 
 // Can analyze?
+const canAnalyze = computed(() => hasInput.value && !props.importBusy)
 
-
-
+const delimiterLabel = computed(() => {
+  const d = props.parsingDelimiter ?? props.importedStructure?.delimiter
+  if (d === ',') return 'Čárka (,)'
+  if (d === ';') return 'Středník (;)'
+  if (d === '\t') return 'Tabulátor'
+  if (d === '|') return 'Svislítko (|)'
+  return d ? `"${d}"` : 'Auto'
+})
 
 const delimiterOptions = [
   { title: 'Auto', value: '' },

@@ -31,7 +31,7 @@ type DailyListRow = {
 }
 
 type Header = { title: string; key: string; width?: number; minWidth?: number; sortable?: boolean }
-
+type DeviceResponse = { id: number; code: string; name: string; color?: string | null }
 
 const props = defineProps<{
   projectId: number
@@ -60,6 +60,7 @@ const DAILY_LIST_HEADERS: Header[] = [
 ]
 const headersToUse = computed<Header[]>(() => props.headers?.length ? props.headers : DAILY_LIST_HEADERS)
 
+const DEFAULT_DAYS = 60
 const listFrom = ref<string>(props.filterFrom || '')
 const listTo   = ref<string>(props.filterTo || '')
 const listSearch = ref<string>('')
@@ -120,7 +121,11 @@ const fmtTime      = (d: Date) => fmtTimeFmt.format(d)
 
 const rangeFromMs = computed<number | null>(() => listFrom.value ? startOfDayMs(listFrom.value) : null)
 const rangeToMs   = computed<number | null>(() => listTo.value ? endOfDayMs(listTo.value) : null)
-
+const listRangeDays = computed(() => {
+  if (rangeFromMs.value == null || rangeToMs.value == null) return 0
+  const diff = rangeToMs.value - rangeFromMs.value
+  return diff >= 0 ? (diff / 86400000) + 1 : 0
+})
 
 const includeNotesInSearch = ref(true)
 const listFiltered = computed<ReservationDto[]>(() => {
@@ -161,6 +166,30 @@ const listFiltered = computed<ReservationDto[]>(() => {
   return result
 })
 
+// For series reservations, use the earliest createdAt from the series
+// so all reservations in a series sort and display with the same creation date
+const seriesCreatedAtMap = computed<Map<string, number>>(() => {
+  const map = new Map<string, number>()
+  for (const r of listFiltered.value) {
+    if (r.seriesId) {
+      const current = map.get(r.seriesId)
+      const createdAt = r.createdAt ?? r.startTime
+      if (current === undefined || createdAt < current) {
+        map.set(r.seriesId, createdAt)
+      }
+    }
+  }
+  return map
+})
+
+function getEffectiveCreatedAt(r: ReservationDto): number {
+  // For series reservations, use the earliest createdAt from the series
+  if (r.seriesId) {
+    return seriesCreatedAtMap.value.get(r.seriesId) ?? r.createdAt ?? r.startTime
+  }
+  return r.createdAt ?? r.startTime
+}
+
 const tableItems = computed<DailyListRow[]>(() =>
   listFiltered.value
     .slice()
@@ -168,17 +197,17 @@ const tableItems = computed<DailyListRow[]>(() =>
       const field = sortBy.value
       const desc = sortDesc.value ? -1 : 1
       
-      let valA: unknown = a[field as keyof ReservationDto]
-      let valB: unknown = b[field as keyof ReservationDto]
+      let valA: any = a[field as keyof ReservationDto]
+      let valB: any = b[field as keyof ReservationDto]
 
       // Special handling for computed/alias fields if needed, but for now strict DTO fields
       if (field === 'device') valA = a.deviceCode; valB = b.deviceCode
       if (field === 'date' || field === 'time') { valA = a.startTime; valB = b.startTime }
       if (field === 'status') valA = getStatus(a.startTime, a.endTime, nowMs.value); valB = getStatus(b.startTime, b.endTime, nowMs.value)
       if (field === 'createdAt') {
-         // Fallback to startTime if createdAt is missing
-         valA = a.createdAt || a.startTime
-         valB = b.createdAt || b.startTime
+         // Use effective createdAt (series use earliest createdAt from series)
+         valA = getEffectiveCreatedAt(a)
+         valB = getEffectiveCreatedAt(b)
       }
 
       if (valA == null) return 1 * desc
@@ -491,7 +520,7 @@ const editForm = ref<{
   endHM: string
   username: string | null
   note: string
-  recurrence?: unknown
+  recurrence?: any
 } | null>(null)
 
 function buildEditFormFrom(raw: ReservationDto | null) {
@@ -644,7 +673,7 @@ onMounted(async () => {
     // Fetch members for edit dialog
     const mResp = await get(`projectMember/${props.projectId}`)
     if (mResp?.data?.content?.members) {
-      members.value = mResp.data.content.members.map((m: { username: string }) => m.username).filter(Boolean)
+      members.value = mResp.data.content.members.map((m: any) => m.username).filter(Boolean)
     }
   } catch (e) { console.warn('Nešlo načíst data pro editaci', e) }
 
@@ -698,6 +727,10 @@ function setHM(base: Date, hm: string) {
   d.setHours(h, m, 0, 0)
   return d
 }
+function addDays(d: Date, n: number): Date { const x = new Date(d); x.setDate(d.getDate() + n); return x }
+function startOfDayMs(ymd: string): number { const [y, m, d] = ymd.split('-').map(Number); return new Date(y, (m || 1) - 1, d || 1, 0, 0, 0, 0).getTime() }
+function endOfDayMs(ymd: string): number   { const [y, m, d] = ymd.split('-').map(Number); return new Date(y, (m || 1) - 1, d || 1, 23, 59, 59, 999).getTime() }
+function statusColor(status: StatusType): string { return status === 'done' ? 'green' : status === 'running' ? 'blue' : 'grey' }
 function statusLabel(status: StatusType): string { return status === 'plan' ? 'Čeká' : status === 'running' ? 'Probíhá' : 'Hotovo' }
 
 // Helper functions for new table design
@@ -970,7 +1003,7 @@ defineExpose({ loadListRange, loadAll, addReservation, updateReservation, remove
         </thead>
         <tbody>
           <tr
-            v-for="item in visibleTableItems"
+            v-for="(item, index) in visibleTableItems"
             :key="item.id"
             :data-reservation-id="item.id"
             class="reservation-row"
@@ -1065,10 +1098,10 @@ defineExpose({ loadListRange, loadAll, addReservation, updateReservation, remove
             <!-- CreatedAt (new col) -->
             <td class="time-cell">
               <span
-                v-if="item._raw.createdAt"
-                :title="new Date(item._raw.createdAt).toLocaleString('cs-CZ')"
+                v-if="item._raw.createdAt || item._raw.seriesId"
+                :title="new Date(getEffectiveCreatedAt(item._raw)).toLocaleString('cs-CZ')"
               >
-                {{ formatDateShort(item._raw.createdAt) }} {{ new Date(item._raw.createdAt).toLocaleTimeString('cs-CZ', {hour:'2-digit', minute:'2-digit'}) }}
+                {{ formatDateShort(getEffectiveCreatedAt(item._raw)) }} {{ new Date(getEffectiveCreatedAt(item._raw)).toLocaleTimeString('cs-CZ', {hour:'2-digit', minute:'2-digit'}) }}
               </span>
               <span
                 v-else

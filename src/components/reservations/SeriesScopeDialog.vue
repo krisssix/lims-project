@@ -26,7 +26,7 @@ watch(() => props.isOpen, (v) => {
 const isDelete = computed(() => props.mode === 'delete')
 
 const dialogIcon = computed(() => isDelete.value ? 'mdi-delete-alert':'mdi-calendar-edit')
-
+const dialogColor = computed(() => isDelete.value ? 'error':'primary')
 
 function confirm() {
   emit('confirm', scope.value)

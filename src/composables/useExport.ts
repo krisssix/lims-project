@@ -283,7 +283,7 @@ export function useExport() {
 
     function exportToJSON(measurements: ExportMeasurement[], columns: ExportColumn[], filename: string): void {
         const enabledCols = columns.filter(c => c.enabled)
-
+        const includeValues = enabledCols.some(c => c.key === 'values')
 
         const data = measurements.map(m => {
             const obj: Record<string, unknown> = {}

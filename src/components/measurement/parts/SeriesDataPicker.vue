@@ -69,9 +69,16 @@ function getColumnColor(idx: number): string {
   return columnColors[idx % columnColors.length]
 }
 
+// Get data considering headers
+const dataRows = computed(() => {
+  const startRow = hasHeaderRow.value ? 1 : 0
+  return props.rawData.slice(startRow)
+})
 
-
-
+const headerRow = computed(() => {
+  if (!hasHeaderRow.value || props.rawData.length === 0) return []
+  return props.rawData[0]
+})
 
 // Initialize selections for each column
 watch(effectiveColumns, (cols) => {
@@ -122,25 +129,25 @@ function setCurrentSelection(selection: Set<string>): void {
 function getCellClass(rowIdx: number, colIdx: number): string {
   const key = cellKey(rowIdx, colIdx)
   const classes: string[] = ['picker-cell']
-
+  
   // Check skip status
   if (isCellSkipped(rowIdx, colIdx)) {
     classes.push('skipped')
     return classes.join(' ')
   }
-
+  
   // Check each column's selection
   let colorIdx = 0
-  for (const selection of columnSelections.value.values()) {
+  for (const [colName, selection] of columnSelections.value.entries()) {
     if (selection.has(key)) {
       classes.push(`selected-col-${colorIdx % 6}`)
     }
     colorIdx++
   }
-
+  
   if (hasHeaderRow.value && rowIdx === 0) classes.push('header-row')
   if (hasHeaderCol.value && colIdx === 0) classes.push('header-col')
-
+  
   return classes.join(' ')
 }
 
@@ -148,10 +155,10 @@ function handleCellMouseDown(event: MouseEvent, rowIdx: number, colIdx: number) 
   if (!selectionMode.value) return
   if (isCellSkipped(rowIdx, colIdx)) return
   if (isCellHeader(rowIdx, colIdx)) return
-
+  
   isDragging.value = true
   dragStartCell.value = { row: rowIdx, col: colIdx }
-
+  
   if (event.shiftKey && dragStartCell.value) {
     selectRange(dragStartCell.value, { row: rowIdx, col: colIdx })
   } else {
@@ -177,7 +184,7 @@ function toggleCell(row: number, col: number) {
   const key = cellKey(row, col)
   const current = getCurrentSelection()
   const newSelection = new Set(current)
-
+  
   if (newSelection.has(key)) {
     newSelection.delete(key)
   } else {
@@ -191,7 +198,7 @@ function selectRange(start: { row: number; col: number }, end: { row: number; co
   const maxRow = Math.max(start.row, end.row)
   const minCol = Math.min(start.col, end.col)
   const maxCol = Math.max(start.col, end.col)
-
+  
   const newSelection = new Set(getCurrentSelection())
   for (let r = minRow; r <= maxRow; r++) {
     for (let c = minCol; c <= maxCol; c++) {
@@ -207,7 +214,7 @@ function selectEntireColumn(colIdx: number) {
   if (!selectionMode.value) return
   const newSelection = new Set(getCurrentSelection())
   const startRow = hasHeaderRow.value ? 1 : 0
-
+  
   for (let r = startRow; r < props.rawData.length; r++) {
     if (!isCellSkipped(r, colIdx)) {
       newSelection.add(cellKey(r, colIdx))
@@ -224,26 +231,26 @@ function getSelectionCount(colName: string): number {
 function extractValuesForColumn(colName: string): (number | string | null)[] {
   const selection = columnSelections.value.get(colName)
   if (!selection || selection.size === 0) return []
-
+  
   const colDef = effectiveColumns.value.find(c => c.name === colName)
   const isNumeric = colDef?.type === 'float' || colDef?.type === 'int'
-
+  
   const values: (number | string | null)[] = []
   const sortedKeys = Array.from(selection).sort((a, b) => {
     const [rowA] = a.split(',').map(Number)
     const [rowB] = b.split(',').map(Number)
     return rowA - rowB
   })
-
+  
   for (const key of sortedKeys) {
     const { row, col } = parseKey(key)
     const cellValue = props.rawData[row]?.[col]
-
+    
     if (cellValue === undefined || cellValue === null || cellValue === '') {
       values.push(null)
     } else if (isVectorCell(cellValue)) {
-      const res = parseVectorCell(cellValue)
-      if (res.ok) values.push(...res.values)
+      const vectorValues = parseVectorCell(cellValue)
+      values.push(...vectorValues)
     } else if (isNumeric) {
       const num = parseFloat(String(cellValue).replace(',', '.'))
       values.push(isNaN(num) ? null : num)
@@ -251,7 +258,7 @@ function extractValuesForColumn(colName: string): (number | string | null)[] {
       values.push(cellValue)
     }
   }
-
+  
   return values
 }
 
@@ -293,15 +300,15 @@ const canApply = computed(() => {
 // Apply selection
 function applySelection() {
   const columnValues: Record<string, (number | string | null)[]> = {}
-
+  
   for (const col of effectiveColumns.value) {
     columnValues[col.name] = extractValuesForColumn(col.name)
   }
-
+  
   // Legacy support for X/Y
   const xVals = columnValues['X'] || columnValues[effectiveColumns.value[0]?.name || ''] || []
   const yVals = columnValues['Y'] || columnValues[effectiveColumns.value[1]?.name || ''] || []
-
+  
   emits('apply', {
     columnValues,
     xValues: xVals.filter((v): v is number => typeof v === 'number'),
@@ -370,7 +377,7 @@ watch(() => props.modelValue, (open) => {
         </v-chip>
       </div>
     </template>
-
+    
     <template #content>
       <div
         class="picker-container"
@@ -395,7 +402,7 @@ watch(() => props.modelValue, (open) => {
             Nejprve importujte data ze souboru
           </p>
         </div>
-
+        
         <template v-else>
           <!-- Step indicator -->
           <div class="step-indicator">
@@ -450,7 +457,7 @@ watch(() => props.modelValue, (open) => {
             <template #prepend>
               <v-icon>mdi-lightbulb-outline</v-icon>
             </template>
-            <strong>Tip:</strong> Dvojklik na hlavičku sloupce vybere celý sloupec.
+            <strong>Tip:</strong> Dvojklik na hlavičku sloupce vybere celý sloupec. 
             Shift+klik pro výběr rozsahu. Podržte myš a táhněte pro výběr více buněk.
           </v-alert>
 
@@ -460,7 +467,7 @@ watch(() => props.modelValue, (open) => {
               v-for="(col, idx) in effectiveColumns"
               :key="col.name"
               class="column-card"
-              :class="{
+              :class="{ 
                 active: selectionMode === col.name,
                 [`color-${getColumnColor(idx)}`]: true
               }"
@@ -678,9 +685,9 @@ watch(() => props.modelValue, (open) => {
               Náhled vybraných dat
             </div>
             <div class="preview-grid">
-              <div
-                v-for="(col, idx) in effectiveColumns"
-                :key="col.name"
+              <div 
+                v-for="(col, idx) in effectiveColumns" 
+                :key="col.name" 
                 class="preview-column"
               >
                 <div
@@ -719,7 +726,7 @@ watch(() => props.modelValue, (open) => {
         </template>
       </div>
     </template>
-
+    
     <template #footer>
       <div class="dialog-footer">
         <div class="footer-status">
@@ -753,7 +760,6 @@ watch(() => props.modelValue, (open) => {
   </Dialog>
 </template>
 
-<!--suppress CssUnresolvedCustomProperty -->
 <style scoped>
 .picker-container {
   display: flex;

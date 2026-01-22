@@ -167,7 +167,7 @@ function onKeydown(e: KeyboardEvent) {
     : (currentIdx < 0 ? 0 : Math.min(currentIdx + 1, list.length - 1))
   if (list[nextIdx]) focusDevice(list[nextIdx])
 }
-function onDeviceHeaderClick(d: Device) {
+function onDeviceHeaderClick(d: Device, _ev?: MouseEvent) {
   focusDevice(d)
   if (viewportEl.value) {
     try {
@@ -203,7 +203,20 @@ function sizeClass(i: ResItem): string {
   return 'event--lg'
 }
 /* -------- Responsive: hide calendar and show compact filters under width -------- */
-/* Filter logic removed */
+const root = ref<HTMLElement | null>(null)
+const containerWidth = ref(0)
+let ro: ResizeObserver | null = null
+onMounted(() => {
+  if (root.value) {
+    ro = new ResizeObserver((entries) => {
+      for (const e of entries) containerWidth.value = e.contentRect.width
+    })
+    ro.observe(root.value)
+  }
+})
+onBeforeUnmount(() => { ro?.disconnect(); ro = null })
+const minWidth = computed(() => props.minCalendarWidth ?? 900)
+const showCompactFilters = computed(() => containerWidth.value > 0 && containerWidth.value < minWidth.value)
 /* Filter logic removed */
 /* --------- event coloring based on device color, avatar white ---------- */
 // Parse hex/rgb and compute contrast (WCAG-like approximation)
@@ -369,14 +382,14 @@ function deviceEventStyle(deviceId: string): { backgroundColor: string; color: s
                       (props.layoutForDevice[d.id]?.[i.id]?.left ?? 0),
                       (props.layoutForDevice[d.id]?.[i.id]?.width ?? 1)
                     ),
-                    ...deviceEventStyle(d.id, d.active)
+                    ...deviceEventStyle(d.id)
                   }"
                   @pointerdown.stop.prevent="(e: PointerEvent) => props.onEventPointerDown(e, i)"
                   @click.stop="(e: MouseEvent) => props.onEventClick(i.id, e)"
                 >
                   <div
                     class="event-inner"
-                    style="position: relative;  padding: 6px 30px 6px 8px; height: 100%; display: flex; flex-direction: column; gap: 2px; overflow: hidden;"
+                    style="position: relative; padding: 6px 30px 6px 8px; height: 100%; display: flex; flex-direction: column; gap: 2px; overflow: hidden;"
                   >
                     <!-- Title row with optional series icon -->
                     <div style="display: flex; align-items: center; gap: 4px;">

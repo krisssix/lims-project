@@ -1,5 +1,5 @@
 <script setup lang="ts" name=src/pages/Measurements.vue>
-import { computed, ref, onMounted, watch } from 'vue'
+import { computed, ref, onMounted, watch, onBeforeUnmount } from 'vue'
 import { useRoute } from 'vue-router'
 import Dialog from '@/components/Dialog.vue'
 import DateFilterPanel, { type DateFilter } from '@/components/ui/DateFilterPanel.vue'
@@ -23,26 +23,28 @@ import {
   type ValueType
 } from '@/stores/measurement'
 import { useReservationsStore } from '@/stores/reservations'
+import { useDeviceStore } from '@/stores/devices'
 import {
   useMeasurementTemplatesStore,
   type WizardTemplatePayload
 } from '@/stores/measurement-templates'
-
+import { useImportStore } from '@/stores/import'
+import { useAttachments } from '@/composables/useAttachments'
+import {type DeviceItem, type TemplateItem, type TableHeader, type TemplateBlockRow} from '@/types/measurement-ui'
 import { useProjectStore } from '@/stores/project/project'
 import { auth } from '@/stores/auth'
-import type {DeviceItem, TableHeader, TemplateBlockRow, TemplateItem} from "@/types/measurement-ui";
-import {uploadFile} from "@/services/api/file-upload";
 
 const route = useRoute()
 const projectId = Number((route.params as { projectId: string }).projectId)
 const measurementStore = useMeasurementStore()
-const reservationsStore = useReservationsStore()
+const deviceStore = useDeviceStore()
+const importStore = useImportStore()
 const projectStore = useProjectStore()
-
+const { uploadFile } = useAttachments()
 
 /* Devices */
 const devices = computed<DeviceItem[]>(() =>
-  reservationsStore.devices.map(d => ({ id: d.code, code: d.code, name: d.name, color: d.color || 'primary' }))
+  deviceStore.devices.map(d => ({ id: d.code, code: d.code, name: d.name, color: d.color || 'primary' }))
 )
 const devicesById = computed(() => new Map(devices.value.map(d => [d.id, d])))
 
@@ -58,7 +60,7 @@ const devicesWithMeasurements = computed<DeviceItem[]>(() => {
 const templatesStore = useMeasurementTemplatesStore()
 
 type FieldType = 'float' | 'int' | 'text' | 'file' | 'bool' | 'date'
-
+type FieldRow = { orderIndex: number; type: FieldType; required: boolean; name: string }
 
 /* Templates - s bloky */
 const templates = computed<TemplateItem[]>(() =>
@@ -185,6 +187,7 @@ const membersList = computed<string[]>(() => projectStore.projectMembers.map((m:
 const currentUsername = computed<string>(() => auth.getUserInfo().preferredUsername || '')
 
 /* Toolbar + filters */
+const isSideFilterOpen = ref(false)
 const includeWeekends = ref(true)
 
 /* Date Filter Logic */
@@ -193,6 +196,19 @@ const dateFilterModel = ref<DateFilter>({
   preset: null,
   from: null,
   to: null
+})
+
+const selectedDateLabel = computed(() => {
+  const f = dateFilterModel.value
+  if (!f.from || !f.to) return 'Všechna měření'
+
+  if (f.preset === 'today') return 'Dnes'
+  if (f.preset === 'thisWeek') return 'Tento týden'
+  if (f.preset === 'thisMonth') return 'Tento měsíc'
+
+  const d1 = f.from.toLocaleDateString('cs-CZ')
+  const d2 = f.to.toLocaleDateString('cs-CZ')
+  return d1 === d2 ? d1 : `${d1} – ${d2}`
 })
 
 const headers = ref<TableHeader[]>([
@@ -206,6 +222,10 @@ const headers = ref<TableHeader[]>([
 ])
 
 const leftSelection = ref<Record<string, string[]>>({ devices: [], templates: [] })
+const leftGroups = computed(() => [
+  { key: 'devices', title: 'Přístroje', label: 'Přístroje', items: devices.value, itemTitle: 'name', itemValue: 'id', type: 'devices' as const, colorKey: 'color', showField: 'id' },
+  { key: 'templates', title: 'Šablona', label: 'Šablona', items: Array.from(new Set(templates.value.map(t => t.name))).map(n => ({ id: n, name: n })), itemTitle: 'name', itemValue: 'id', type: 'plain' as const },
+])
 const pickedDevices = ref<string[]>([])
 const pickedTemplates = ref<string[]>([])
 const pickedMembers = ref<string[]>([])
@@ -243,7 +263,8 @@ watch(pickedTemplates, (v) => {
   const next = Array.isArray(v) ? v : []
   if (!arraysEqual(next, leftSelection.value.templates)) leftSelection.value.templates = [...next]
 })
-
+const fmtDateLongFmt = new Intl.DateTimeFormat('cs-CZ', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+const fmtDateLong = (d: Date): string => fmtDateLongFmt.format(d)
 
 /* Filtrování měření – nechávám, funguje */
 function toMs(v: unknown): number {
@@ -255,7 +276,18 @@ function toMs(v: unknown): number {
   }
   return NaN
 }
-
+function formatLocal(ts: unknown): string {
+  const ms = toMs(ts)
+  if (Number.isNaN(ms)) return ''
+  return new Date(ms).toLocaleString(undefined, {
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  })
+}
 
 const measurementsSorted = computed<MeasurementResponse[]>(() => {
   const list = measurementStore.allMeasurements || []
@@ -444,9 +476,25 @@ function startDeriveTemplate(templateId: string): void {
   templateWizardOpen.value = true
 }
 
+async function handlePublishTemplate(templateId: string): Promise<void> {
+  try {
+    await templatesStore.publish(Number(templateId))
+    snackbar.value = { open: true, text: 'Šablona byla úspěšně publikována' }
+  } catch (err) {
+    console.error('Failed to publish template:', err)
+    snackbar.value = { open: true, text: 'Chyba při publikování šablony' }
+  }
+}
 
-
-
+async function handleDeprecateTemplate(templateId: string): Promise<void> {
+  try {
+    await templatesStore.deprecate(Number(templateId))
+    snackbar.value = { open: true, text: 'Šablona byla označena jako zastaralá' }
+  } catch (err) {
+    console.error('Failed to deprecate template:', err)
+    snackbar.value = { open: true, text: 'Chyba při označování šablony' }
+  }
+}
 
 async function handleTemplateDelete(id: string): Promise<void> {
   const idNum = Number(id)
@@ -567,7 +615,7 @@ async function handleCreateVersion(templateId: string, type: 'minor' | 'major'):
   }
 }
 
-async function onVersionCreate(): Promise<void> {
+async function onVersionCreate(_description: string): Promise<void> {
   try {
     const { templateId, type } = versionDialogData.value
     const newVersion = await templatesStore.createVersion(Number(templateId), type)
@@ -578,16 +626,74 @@ async function onVersionCreate(): Promise<void> {
   }
 }
 
+function onVersionContinue(draftId: string): void {
+  // Open the draft for editing
+  const draft = templates.value.find(t => t.id === draftId)
+  if (draft) {
+    selectedTemplateId.value = draftId
+    initialWizardTemplate.value = {
+      templateId: draftId,
+      name: draft.name,
+      deviceCode: draft.deviceId,
+      blocks: draft.blocks || [],
+      fields: []
+    }
+    templateWizardOpen.value = true
+  }
+}
 
+async function onVersionDiscardAndCreate(draftIds: string[]): Promise<void> {
+  try {
+    // Delete existing drafts first
+    for (const id of draftIds) {
+      await templatesStore.remove(Number(id))
+    }
+    // Then create new version
+    await onVersionCreate('')
+  } catch (err) {
+    console.error('Failed to discard and create:', err)
+    snackbar.value = { open: true, text: 'Chyba při vytváření nové verze' }
+  }
+}
 
+async function onVersionCreateHigher(): Promise<void> {
+  try {
+    // Create with the higher version number
+    const { templateId, type } = versionDialogData.value
+    const newVersion = await templatesStore.createVersion(Number(templateId), type)
+    snackbar.value = { open: true, text: `Vytvořena nová verze v${newVersion.version} (DRAFT)` }
+  } catch (err) {
+    console.error('Failed to create higher version:', err)
+    snackbar.value = { open: true, text: 'Chyba při vytváření nové verze' }
+  }
+}
 
-
-
-
-
+/* Template ze schránky – zachováno (není součástí této změny) */
+const templateFromClipboardOpen = ref(false)
+async function createTemplateFromClipboard(payload: {
+  deviceCode: string
+  templateName: string
+  fields: Array<{ orderIndex: number; type: FieldType; required: boolean; name: string }>
+  templateId?: string
+}): Promise<void> {
+  // pro jednoduchost: 1 blok z fields
+  const wizard: WizardTemplatePayload = {
+    deviceCode: payload.deviceCode,
+    templateName: payload.templateName,
+    blocks: [{
+      blockIndex: 1,
+      title: 'Blok 1',
+      fields: payload.fields
+    }],
+    templateId: payload.templateId
+  }
+  await handleTemplateConfirm(wizard)
+}
 
 /* Vytvoření měření */
 const measurementCreateOpen = ref(false)
+const metaSelectedDevice = ref<string>('')
+const metaSelectedTemplateId = ref<string | null>(null)
 const repeatEnabled = ref<boolean>(false)
 const repeatCount = ref<number>(1)
 const repeatIndex = ref<number>(1)
@@ -784,7 +890,7 @@ async function loadMeasurements(): Promise<void> {
   await measurementStore.fetchAllMeasurements(projectId)
 }
 onMounted(async () => {
-  await reservationsStore.fetchDevices()
+  await deviceStore.fetchDevices()
   await templatesStore.fetchByProject(projectId)
   await projectStore.fetchProjectMembers(projectId)
   await loadMeasurements()

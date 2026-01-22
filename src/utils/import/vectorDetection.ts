@@ -132,14 +132,14 @@ export function parseVectorCell(value: string): VectorParseResult {
     }
 
     const values: number[] = []
-
+    let failedCount = 0
 
     for (const token of bestTokens) {
         const num = parseNumericToken(token)
         if (num !== null) {
             values.push(num)
         } else {
-            // failedCount++
+            failedCount++
         }
     }
 

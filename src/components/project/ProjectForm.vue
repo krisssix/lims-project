@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import {computed, onMounted} from "vue";
+import {computed, nextTick, onMounted} from "vue";
 import {useUserStore} from "@/stores/user/user";
 import {useProjectStore} from "@/stores/project/project";
 import {formatDateFromTimestamp} from "@/utils/timeFormat";
 
-
+const props = defineProps({
+  isNew: Boolean
+})
 
 const userStore = useUserStore()
 const { blankProjectMembers } = useProjectStore()
@@ -43,7 +45,7 @@ const startDateDatePicker = ref(null)
 const endDateDatePicker = ref(null)
 const fetchedUsers = ref([])
 
-
+const valid = ref(false)
 const emptyRuleString = value => {
   if (typeof value === 'string' && value.trim()) return true
   return "Povinné"
@@ -78,7 +80,9 @@ function today(){
   showDateStartPicker.value = false
 }
 
-
+function isObject(value) {
+  return value instanceof Object;
+}
 
 function userSelected(selected){
   fetchedUsers.value = [...fetchedUsers.value.filter(user => user.email !== selected.email)];

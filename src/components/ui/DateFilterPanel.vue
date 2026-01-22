@@ -24,7 +24,7 @@ const props = defineProps<{
   headerIcon?: string
   showRangePresets?: boolean
   viewMode?: 'daily-machines' | 'week-work' | 'week-all' | 'daily-list'
-  devices?: Array<{ id: string; name: string; color?: string }>
+  devices?: Array<{ id: string; name: string; color?: string; active?: boolean }>
   members?: string[]
   templates?: Array<{ id: string; name: string }>
   pickedDevices?: string[]
@@ -55,6 +55,8 @@ const showWeekendToggle = computed(() =>
 // Lokální stav
 const localField = ref<DateFilterField>(props.modelValue.field)
 const viewDate = ref(new Date())
+const deviceSearch = ref('')
+const showInactiveDevices = ref(false)
 const isRangeSelectMode = ref(false)
 
 // --- Sync & Watchers ---
@@ -113,7 +115,6 @@ watch(() => props.includeWeekends, () => {
    }
  })
 
-// Dynamic header label based on current selection
 const dynamicHeaderLabel = computed(() => {
   if (!props.modelValue.from) {
     return 'Všechna měření'
@@ -121,17 +122,28 @@ const dynamicHeaderLabel = computed(() => {
 
   const from = props.modelValue.from
   const to = props.modelValue.to
-  const d1 = from.toLocaleDateString('cs-CZ', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
 
-  // For week presets, show range
-  if (props.modelValue.preset === 'thisWeek' || props.modelValue.preset === 'thisMonth') {
-    if (to && from.toDateString() !== to.toDateString()) {
-      const d2 = to.toLocaleDateString('cs-CZ', { day: 'numeric', month: 'long', year: 'numeric' })
-      return `${d1} – ${d2}`
-    }
+  // Single day vs Range detection
+  const isSingleDay = !to || from.toDateString() === to.toDateString()
+
+  if (isSingleDay) {
+    return from.toLocaleDateString('cs-CZ', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
   }
 
-  return d1
+  // Range formatting
+  const sameMonth = to && from.getMonth() === to.getMonth() && from.getFullYear() === to.getFullYear()
+
+  if (sameMonth) {
+    // pondělí 19. – neděle 25. ledna 2026
+    const start = from.toLocaleDateString('cs-CZ', { weekday: 'long', day: 'numeric' })
+    const end = to.toLocaleDateString('cs-CZ', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+    return `${start} – ${end}`
+  } else {
+    // 19. ledna – 2. února 2026
+    const start = from.toLocaleDateString('cs-CZ', { day: 'numeric', month: 'long' })
+    const end = to.toLocaleDateString('cs-CZ', { day: 'numeric', month: 'long', year: 'numeric' })
+    return `${start} – ${end}`
+  }
 })
 
 const headerFontSize = computed(() => {
@@ -152,7 +164,21 @@ const hasAnyFilter = computed(() =>
   (props.pickedTemplates && props.pickedTemplates.length > 0)
 )
 
+const filteredDevices = computed(() => {
+  if (!props.devices) return []
+  
+  // Filter out inactive devices unless toggle is on
+  const devicesToShow = showInactiveDevices.value 
+    ? props.devices 
+    : props.devices.filter(d => d.active !== false)
+  
+  if (!deviceSearch.value.trim()) return devicesToShow
 
+  const search = deviceSearch.value.toLowerCase()
+  return devicesToShow.filter(d =>
+    d.name.toLowerCase().includes(search)
+  )
+})
 
 const monthName = computed(() => {
   return new Intl.DateTimeFormat('cs-CZ', { month: 'long', year: 'numeric' }).format(viewDate.value)
@@ -188,13 +214,11 @@ const calendarDays = computed(() => {
     weekStart.setDate(selectedDate.getDate() + diffToMonday)
     weekStart.setHours(0, 0, 0, 0)
 
-    // Get end of week - respects includeWeekends
+    // Get end of week - respects includeWeekends and showTwoWeeks
     weekEnd = new Date(weekStart)
-    if (props.includeWeekends || props.viewMode === 'week-all') {
-      weekEnd.setDate(weekStart.getDate() + 6) // Sunday (full week)
-    } else {
-      weekEnd.setDate(weekStart.getDate() + 4) // Friday (work week)
-    }
+    const baseDiff = (props.includeWeekends || props.viewMode === 'week-all') ? 6 : 4
+    const totalDiff = props.showTwoWeeks ? baseDiff + 7 : baseDiff
+    weekEnd.setDate(weekStart.getDate() + totalDiff)
     weekEnd.setHours(23, 59, 59, 999)
   }
 
@@ -221,20 +245,39 @@ const calendarDays = computed(() => {
     rangeEnd.setHours(23, 59, 59, 999)
   }
 
+  // Helper to determine if a date should be highlighted
+  const shouldHighlight = (d: Date, start: Date | null, end: Date | null) => {
+    if (!start || !end) return false
+    if (d < start || d > end) return false
+    
+    // Check weekend exclusion
+    // If includeWeekends is FALSE, and we are NOT in week-all view, then weekends are NOT highlighted
+    const dDay = d.getDay()
+    const isWeekend = dDay === 0 || dDay === 6
+    const weekendsIncluded = props.includeWeekends || props.viewMode === 'week-all'
+    
+    if (isWeekend && !weekendsIncluded) return false
+    return true 
+  }
+
   const days: Array<{ day: number; isCurrentMonth: boolean; isToday: boolean; isSelected: boolean; isWeekend: boolean; isInWeek: boolean; isInMonth: boolean; isInRange: boolean; isPendingStart: boolean; date: Date }> = []
 
   for (let i = startDayOfWeek - 1; i >= 0; i--) {
     const d = prevMonthLastDay - i
     const date = new Date(year, month - 1, d)
-    const isInWeek = weekStart && weekEnd ? date >= weekStart && date <= weekEnd : false
+    const isInWeek = shouldHighlight(date, weekStart, weekEnd)
     const isInMonth = monthStart && monthEnd ? date >= monthStart && date <= monthEnd : false
-    const isInRange = rangeStart && rangeEnd ? date >= rangeStart && date <= rangeEnd : false
+    const isInRange = shouldHighlight(date, rangeStart, rangeEnd)
+    
+    const dDay = date.getDay()
+    const isWeekend = dDay === 0 || dDay === 6
+    
     days.push({
       day: d,
       isCurrentMonth: false,
       isToday: false,
       isSelected: false,
-      isWeekend: false,
+      isWeekend,
       isInWeek,
       isInMonth,
       isInRange,
@@ -251,9 +294,9 @@ const calendarDays = computed(() => {
     const isToday = date.toDateString() === today.toDateString()
     // Highlight both From and To dates as specifically "selected" (dark blue)
     const isSelected = (props.modelValue.from && date.toDateString() === props.modelValue.from.toDateString()) || (props.modelValue.to && date.toDateString() === props.modelValue.to.toDateString())
-    const isInWeek = weekStart && weekEnd ? date >= weekStart && date <= weekEnd : false
+    const isInWeek = shouldHighlight(date, weekStart, weekEnd)
     const isInMonth = monthStart && monthEnd ? date >= monthStart && date <= monthEnd : false
-    const isInRange = rangeStart && rangeEnd ? date >= rangeStart && date <= rangeEnd : false
+    const isInRange = shouldHighlight(date, rangeStart, rangeEnd)
     const isPendingStart = pendingStart.value ? date.toDateString() === pendingStart.value.toDateString() : false
 
     days.push({
@@ -273,9 +316,13 @@ const calendarDays = computed(() => {
   const remaining = 42 - days.length
   for (let d = 1; d <= remaining; d++) {
     const date = new Date(year, month + 1, d)
-    const isInWeek = weekStart && weekEnd ? date >= weekStart && date <= weekEnd : false
+    const isInWeek = shouldHighlight(date, weekStart, weekEnd)
     const isInMonth = monthStart && monthEnd ? date >= monthStart && date <= monthEnd : false
-    const isInRange = rangeStart && rangeEnd ? date >= rangeStart && date <= rangeEnd : false
+    const isInRange = shouldHighlight(date, rangeStart, rangeEnd)
+    
+    const dDay = date.getDay()
+    const isWeekend = dDay === 0 || dDay === 6
+
     days.push({
       day: d,
       isCurrentMonth: false,
@@ -306,6 +353,13 @@ function startOfWeek(d: Date): Date {
   const start = new Date(d)
   start.setDate(d.getDate() - day)
   return startOfDay(start)
+}
+
+function endOfWeek(d: Date): Date {
+  const start = startOfWeek(d)
+  const end = new Date(start)
+  end.setDate(start.getDate() + 6)
+  return endOfDay(end)
 }
 
 function startOfMonth(d: Date): Date {
@@ -369,10 +423,10 @@ function selectThisWeek() {
   const today = new Date()
   const start = startOfWeek(today)
   const end = new Date(start)
-  // If includeWeekends is true (or undefined/null -> careful, check prop default logic if needed, but here boolean)
-  // OR if viewMode is 'week-all', add 6 days. Else add 4 days.
-  const addDays = (props.includeWeekends || props.viewMode === 'week-all') ? 6 : 4
-  end.setDate(start.getDate() + addDays)
+  
+  const baseAdd = (props.includeWeekends || props.viewMode === 'week-all') ? 6 : 4
+  const finalAdd = props.showTwoWeeks ? baseAdd + 7 : baseAdd
+  end.setDate(start.getDate() + finalAdd)
 
   pendingStart.value = null // Clear pending
   emit('update:modelValue', {
@@ -390,8 +444,10 @@ function selectNextWeek() {
   nextWeekDate.setDate(today.getDate() + 7)
   const start = startOfWeek(nextWeekDate)
   const end = new Date(start)
-  const addDays = (props.includeWeekends || props.viewMode === 'week-all') ? 6 : 4
-  end.setDate(start.getDate() + addDays)
+  
+  const baseAdd = (props.includeWeekends || props.viewMode === 'week-all') ? 6 : 4
+  const finalAdd = props.showTwoWeeks ? baseAdd + 7 : baseAdd
+  end.setDate(start.getDate() + finalAdd)
 
   pendingStart.value = null // Clear pending
   emit('update:modelValue', {
@@ -415,13 +471,12 @@ function selectThisMonth() {
   emit('close')
 }
 
-
-
 function selectWeekOf(date: Date) {
      const start = startOfWeek(date)
      const end = new Date(start)
-     const addDays = (props.includeWeekends || props.viewMode === 'week-all') ? 6 : 4
-     end.setDate(start.getDate() + addDays)
+     const baseAdd = (props.includeWeekends || props.viewMode === 'week-all') ? 6 : 4
+     const finalAdd = props.showTwoWeeks ? baseAdd + 7 : baseAdd
+     end.setDate(start.getDate() + finalAdd)
  
      pendingStart.value = null
      emit('update:modelValue', {
@@ -434,22 +489,22 @@ function selectWeekOf(date: Date) {
  }
  
  function selectDay(date: Date) {
-   // For daily view, skip range selection - single click selects the day
-   if (props.viewMode === 'daily-machines') {
-     pendingStart.value = null
-     emit('update:modelValue', {
-       field: localField.value,
-       preset: 'custom',
-       from: startOfDay(date),
-       to: endOfDay(date)
-     })
-     emit('close')
-     return
-   }
- 
   if (!isRangeSelectMode.value) {
-    // Standard mode: Selecting a day selects the whole week
-    selectWeekOf(date)
+    // If explicitly in a week view, selecting a day selects the whole week
+    if (props.viewMode === 'week-work' || props.viewMode === 'week-all') {
+      selectWeekOf(date)
+      return
+    }
+
+    // Otherwise (daily views, lists, or undefined/default), select just the single day
+    pendingStart.value = null
+    emit('update:modelValue', {
+      field: localField.value,
+      preset: 'custom',
+      from: startOfDay(date),
+      to: endOfDay(date)
+    })
+    emit('close')
     return
   }
 
@@ -514,8 +569,6 @@ function setField(newField: DateFilterField) {
   }
 }
 
-// --- Helper Functions ---
-
 const dateFromInput = computed({
   get: () => {
     const d = props.modelValue.from
@@ -578,7 +631,7 @@ const dateToInput = computed({
           :class="['header-icon', { 'mr-1': true }]"
           :style="{ fontSize: headerFontSize === '14px' ? '18px' : '20px' }"
         >
-          mdi-flask
+          {{ headerIcon || 'mdi-flask' }}
         </v-icon>
         {{ dynamicHeaderLabel }}
       </div>
@@ -715,7 +768,7 @@ const dateToInput = computed({
       <button
         type="button"
         :class="['action-btn primary', { active: (viewMode === 'week-work' || viewMode === 'week-all') ? (modelValue.preset === 'today' || modelValue.preset === 'thisWeek') : (modelValue.preset === 'today') }]"
-        @click="selectToday"
+        @click="(viewMode === 'week-work' || viewMode === 'week-all') ? selectThisWeek() : selectToday()"
       >
         <v-icon size="18">
           {{ viewMode === 'week-work' || viewMode === 'week-all' ? 'mdi-calendar-week' : 'mdi-calendar-today' }}
@@ -934,9 +987,17 @@ const dateToInput = computed({
           <div v-bind="tooltipProps">
             <ModernSwitch
               :model-value="showTwoWeeks"
-              label="2 týdny"
+              label="Dva týdny"
               :disabled="isRangeSelectMode"
-              @update:model-value="v => emit('update:showTwoWeeks', v)"
+              @update:model-value="v => {
+                emit('update:showTwoWeeks', v);
+                // Adjust current range if one is selected
+                if (props.modelValue.from && props.modelValue.preset && props.modelValue.preset !== 'custom') {
+                   if (props.modelValue.preset === 'today') selectToday();
+                   else if (props.modelValue.preset === 'thisWeek') selectThisWeek();
+                   else if (props.modelValue.preset === 'nextWeek') selectNextWeek();
+                }
+              }"
             />
           </div>
         </template>
@@ -1012,14 +1073,25 @@ const dateToInput = computed({
       >
         <FilterMultiSelect
           :model-value="pickedDevices || []"
-          :items="devices"
+          :items="filteredDevices"
           label="Přístroje"
           item-title="name"
           item-value="id"
           icon="mdi-flask-outline"
           all-label="Všechny"
           @update:model-value="v => emit('update:pickedDevices', v)"
-        />
+        >
+          <template #extra-actions>
+            <div class="px-2 py-2 border-t">
+              <v-checkbox
+                v-model="showInactiveDevices"
+                density="compact"
+                hide-details
+                label="Zobrazit i neaktivní"
+              />
+            </div>
+          </template>
+        </FilterMultiSelect>
       </div>
 
       <!-- Templates filter (for measurements) -->

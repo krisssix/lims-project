@@ -7,7 +7,7 @@ import FileUploader from '@/components/measurement/FileUploader.vue'
 import AttachmentList from '@/components/measurement/AttachmentList.vue'
 import { isEditableElement } from '@/components/ui/hotkeyGuard'
 import { type DeviceItem, type ValueType, type TemplateItem, type TemplateBlockRow } from '@/types/measurement-ui'
-import { type MeasurementResponse, type MeasurementSeriesResponse } from '@/stores/measurement'
+import { type MeasurementResponse, type MeasuredValue, type MeasurementSeriesResponse } from '@/stores/measurement'
 import {
   groupValuesToRecords,
   flattenRecords,
@@ -23,7 +23,7 @@ import {
 import { uploadFile, extractFilesFromRecords } from '@/services/api/file-upload'
 import { config } from '@/config'
 import { contrastText } from '@/utils/colorContrast'
-
+import { type FileAttachment } from '@/composables/useAttachments'
 
 
 const props = withDefaults(defineProps<{
@@ -121,8 +121,11 @@ const selectedRecordIndexes = ref<Set<number>>(new Set())
 const currentBlockIndex = ref<number>(0)
 
 
-
-
+const selectedSeriesIdx = ref<number>(0)
+const selectedSeries = computed(() => {
+  if (!props.item?.series?.length) return null
+  return props.item.series[selectedSeriesIdx.value] ?? props.item.series[0]
+})
 
 function ensureCurrentRecordExists(): void {
   if (!records.value.length) return
@@ -136,7 +139,10 @@ const selectedTemplate = computed<TemplateItem | null>(() =>
 )
 
 
-
+const filteredTemplates = computed<TemplateItem[]>(() => {
+  if (!selectedDeviceId.value) return []
+  return props.templates.filter(t => t.deviceId === selectedDeviceId.value)
+})
 
 
 const templateBlocks = computed<TemplateBlockRow[]>(() => {
@@ -466,7 +472,17 @@ function deleteCurrentRecord(): void {
   rebuildDerived()
 }
 
-
+function toggleRecordSelection(rIndex: number, multi: boolean): void {
+  if (multi) {
+    if (selectedRecordIndexes.value.has(rIndex)) selectedRecordIndexes.value.delete(rIndex)
+    else selectedRecordIndexes.value.add(rIndex)
+    if (!selectedRecordIndexes.value.size) selectedRecordIndexes.value.add(rIndex)
+  } else {
+    currentRecordIndex.value = rIndex
+    currentBlockIndex.value = 0
+  }
+  rebuildDerived()
+}
 
 
 function parseNumber(raw: unknown, integer = false): number | null {
@@ -590,7 +606,7 @@ function toggleAttachments(): void { attachmentsCollapsed.value = !attachmentsCo
 
 
 const attachmentListRef = ref<InstanceType<typeof AttachmentList> | null>(null)
-function onAttachmentUploaded(): void {
+function onAttachmentUploaded(file: FileAttachment): void {
   // obnovit seznam příloh po nahrání
   attachmentListRef.value?.refresh()
 }
@@ -703,10 +719,36 @@ async function onSave(): Promise<void> {
 }
 
 
+function exportSelectedCsv(): void {
+  if (!selectedField.value) return
+  const subset = selectedRecordIndexes.value.size
+      ? Array.from(selectedRecordIndexes.value).sort((a, b) => a - b)
+      : records.value.map(r => r.recordIndex).sort((a, b) => a - b)
+  const rows: string[] = ['recordIndex;value']
+  subset.forEach(ri => {
+    const rec = records.value.find(r => r.recordIndex === ri)
+    if (!rec) return
+    const f = rec.fields.find(ff => ff.name === selectedField.value)
+    if (!f) return
+    if (f.type === 'float' || f.type === 'int') {
+      const num = parseNumber(f.value, f.type === 'int')
+      if (num != null) rows.push(`${ri};${num}`)
+    } else if (f.type === 'text') {
+      const num = parseNumber(f.value, false)
+      if (num != null) rows.push(`${ri};${num}`)
+    }
+  })
+  const blob = new Blob([rows.join('\n')], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `measurement-${selectedField.value}-records.csv`
+  a.click()
+  URL.revokeObjectURL(url)
+}
 
 
-
-
+let lastFocusedFieldIndex = -1
 function focusFirstFieldSoon(): void {
   nextTick(() => {
     const el = document.querySelector<HTMLElement>('[data-field-input]')
@@ -714,7 +756,16 @@ function focusFirstFieldSoon(): void {
     lastFocusedFieldIndex = 0
   })
 }
-
+function focusFieldByIndex(idx: number): void {
+  nextTick(() => {
+    const els = document.querySelectorAll<HTMLElement>('[data-field-input]')
+    const el = els[idx]
+    if (el) {
+      el.focus()
+      lastFocusedFieldIndex = idx
+    }
+  })
+}
 
 function handleKey(e: KeyboardEvent): void {
   if (!props.modelValue) return

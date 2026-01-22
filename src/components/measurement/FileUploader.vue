@@ -114,17 +114,17 @@ function openFileDialog() {
   }
 }
 
-function onDragEnter() {
+function onDragEnter(e: DragEvent) {
   if (props.disabled) return
   isDragging.value = true
 }
 
-function onDragOver() {
+function onDragOver(e: DragEvent) {
   if (props.disabled) return
   isDragging.value = true
 }
 
-function onDragLeave() {
+function onDragLeave(e: DragEvent) {
   isDragging.value = false
 }
 

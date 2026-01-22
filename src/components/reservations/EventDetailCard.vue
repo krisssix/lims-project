@@ -13,6 +13,8 @@ type ResItem = {
 const props = defineProps<{
   item: ResItem
   color: string
+  deviceName?: string
+  isInactive?: boolean
   fmtDetailDate: (d: Date) => string
   fmtDetailTime: (d: Date) => string
   onEdit: (i: ResItem) => void
@@ -50,7 +52,7 @@ function onKeydown(e: KeyboardEvent) {
   }
 }
 
-// Close the menu on mousedown first to avoid “sticky” v-menu,
+// Close the menu on mousedown first to avoid "sticky" v-menu,
 // then let the click handler perform the action.
 function onCloseMouseDown(ev: MouseEvent) {
   ev.stopPropagation()
@@ -132,6 +134,21 @@ function onCloseMouseDown(ev: MouseEvent) {
           <div class="text-body-2">
             {{ item.username ?? '—' }}
           </div>
+        </div>
+
+        <!-- Inactive device indicator -->
+        <div
+          v-if="props.isInactive"
+          class="d-flex align-center mt-2"
+        >
+          <v-chip
+            size="small"
+            color="grey"
+            variant="tonal"
+            prepend-icon="mdi-power-off"
+          >
+            Neaktivní zařízení
+          </v-chip>
         </div>
 
         <div

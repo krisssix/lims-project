@@ -409,6 +409,7 @@
                         </v-chip>
                         <v-spacer />
                         <!-- tlačítka pro určení typu řádku -->
+                        <!--
                         <v-btn-group
                           variant="outlined"
                           density="compact"
@@ -457,7 +458,9 @@
                             Data od
                           </v-btn>
                         </v-btn-group>
+                        -->
 
+                        <!--
                         <v-btn-group
                           variant="outlined"
                           density="compact"
@@ -518,6 +521,7 @@
                           </v-icon>
                           Reset
                         </v-btn>
+                         -->
                       </div>
                       <!-- nápověda k režimu výběru -->
                       <v-alert
@@ -4784,14 +4788,18 @@ function onManualHeadersApply(result: {
 
   // Create table block from table headers
   if (result.tableHeaders.length > 0) {
-    const fieldRows: FieldRow[] = result.tableHeaders.map((name, i) => ({
-      id: generateFieldId(),
-      orderIndex: i + 1,
-      name: normalizeHeader(name),
-      required: true,
-      type: smartInferFieldType(name),
-      unit: result.unitHeaders ? result.unitHeaders[i] : undefined
-    }))
+    const fieldRows: FieldRow[] = result.tableHeaders.map((name, i) => {
+      const u = result.unitHeaders ? result.unitHeaders[i] : undefined
+      const baseName = normalizeHeader(name)
+      return {
+        id: generateFieldId(),
+        orderIndex: i + 1,
+        name: u ? `${baseName} (${u})` : baseName,
+        required: true,
+        type: smartInferFieldType(name),
+        unit: u
+      }
+    })
 
     pickedBlocks.value = [{
       id: generateId(),
@@ -4803,14 +4811,18 @@ function onManualHeadersApply(result: {
 
   // Create series fields from series headers
   if (result.seriesHeaders.length > 0) {
-    seriesFieldRows.value = result.seriesHeaders.map((name, i) => ({
-      id: generateFieldId(),
-      orderIndex: i + 1,
-      name: normalizeHeader(name),
-      required: true,
-      type: 'float' as FieldType,
-      unit: result.seriesUnitHeaders ? result.seriesUnitHeaders[i] : undefined
-    }))
+    seriesFieldRows.value = result.seriesHeaders.map((name, i) => {
+      const u = result.seriesUnitHeaders ? result.seriesUnitHeaders[i] : undefined
+      const baseName = normalizeHeader(name)
+      return {
+        id: generateFieldId(),
+        orderIndex: i + 1,
+        name: u ? `${baseName} (${u})` : baseName,
+        required: true,
+        type: 'float' as FieldType,
+        unit: u
+      }
+    })
     seriesBlockTitle.value = 'Datová série'
   }
 
@@ -5170,7 +5182,7 @@ watch(open, async (isOpen) => {
   // This ensures that clicking "New Template" after "Derive" gives a fresh form
   if (props.operation === 'create' && !props.deriveFrom) {
     templateName.value = ''
-    deviceCode.value = null
+    deviceCode.value = props.preselectedDevice || null
   }
 
   // Handle template derivation (clone from existing)
