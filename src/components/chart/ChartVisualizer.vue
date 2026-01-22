@@ -650,7 +650,10 @@ const ariaLabel = computed(() => {
       Žádná data pro graf
     </div>
     
-    <div class="d-flex justify-end mb-1" v-if="zoomLevel !== 1">
+    <div
+      v-if="zoomLevel !== 1"
+      class="d-flex justify-end mb-1"
+    >
       <v-btn
         size="small"
         variant="text"

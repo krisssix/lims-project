@@ -993,9 +993,9 @@ const dateToInput = computed({
                 emit('update:showTwoWeeks', v);
                 // Adjust current range if one is selected
                 if (props.modelValue.from && props.modelValue.preset && props.modelValue.preset !== 'custom') {
-                   if (props.modelValue.preset === 'today') selectToday();
-                   else if (props.modelValue.preset === 'thisWeek') selectThisWeek();
-                   else if (props.modelValue.preset === 'nextWeek') selectNextWeek();
+                  if (props.modelValue.preset === 'today') selectToday();
+                  else if (props.modelValue.preset === 'thisWeek') selectThisWeek();
+                  else if (props.modelValue.preset === 'nextWeek') selectNextWeek();
                 }
               }"
             />
