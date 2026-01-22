@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
+
 /**
  * utility pro výpočet regrese
  * poskytuje lineární a logaritmické výpočty

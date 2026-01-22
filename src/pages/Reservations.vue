@@ -122,9 +122,9 @@ async function onConfirmConflict(slot: { start: Date; end: Date }) {
       if (p.action === 'create') {
         result = await reservations.createReservation(payload)
       } else if (p.action === 'update_series' && p.scope && p.scope !== 'single') {
-        result = await reservations.updateSeries(p.id, payload, p.scope)
+        result = await reservations.updateSeries(p.id!, payload, p.scope)
       } else {
-        result = await reservations.updateReservation(p.id, payload)
+        result = await reservations.updateReservation(p.id!, payload)
       }
 
       const resId = result?.id || p.id
@@ -1054,16 +1054,15 @@ function onEventPointerDown(e: PointerEvent, item: ResItem) {
   pointerStart.value = { x: e.clientX, y: e.clientY }
   movedBeyondThreshold.value = false
 
-  // Create Drag Ghost (follows mouse)
+  // drag ghost
   const ghost = target.cloneNode(true) as HTMLElement
   ghost.classList.add('drag-ghost')
   setupGhost(ghost, rect)
-  // Ensure we copy background color from inline style if present
+  // copy background color from inline style if present
   if (target.style.background) ghost.style.background = target.style.background
   if (target.style.backgroundColor) ghost.style.backgroundColor = target.style.backgroundColor
   document.body.appendChild(ghost)
 
-  // Create Snap Ghost (drop placeholder) - initially hidden
   const snap = target.cloneNode(true) as HTMLElement
   snap.classList.add('snap-ghost')
   setupSnapGhost(snap, rect)
@@ -1109,7 +1108,7 @@ function onResizePointerDown(e: PointerEvent, item: ResItem) {
   pointerStart.value = { x: e.clientX, y: e.clientY }
   movedBeyondThreshold.value = false
 
-  // Drag Ghost
+  // drag Ghost
   const ghost = eventEl.cloneNode(true) as HTMLElement
   ghost.classList.add('drag-ghost', 'resize-ghost')
   setupGhost(ghost, rect)
@@ -1117,7 +1116,6 @@ function onResizePointerDown(e: PointerEvent, item: ResItem) {
   if (eventEl.style.backgroundColor) ghost.style.backgroundColor = eventEl.style.backgroundColor
   document.body.appendChild(ghost)
 
-  // Snap Ghost for resize? Maybe useful to see snap grid.
   const snap = eventEl.cloneNode(true) as HTMLElement
   snap.classList.add('snap-ghost')
   setupSnapGhost(snap, rect)
@@ -1142,7 +1140,8 @@ function onResizePointerDown(e: PointerEvent, item: ResItem) {
     mode: 'resize', // resize mode
     origStart: start,
     origEnd: end,
-    origHeight: rect.height
+    origHeight: rect.height,
+    copyMode: false
   }
   try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId) } catch {}
   window.addEventListener('pointermove', onPointerMove, { passive: true })
@@ -1161,7 +1160,7 @@ function onPointerMove(e: PointerEvent) {
     const dx = Math.abs(e.clientX - pointerStart.value.x)
     const dy = Math.abs(e.clientY - pointerStart.value.y)
 
-    // Optimization: Only update ref if value actually changes
+    // update ref if value actually changes
     if ((dx > DRAG_CLICK_THRESHOLD || dy > DRAG_CLICK_THRESHOLD) && !movedBeyondThreshold.value) {
         movedBeyondThreshold.value = true
     }
@@ -1171,7 +1170,7 @@ function onPointerMove(e: PointerEvent) {
        const newHeight = Math.max(MIN_EVENT_PX, d.origHeight + deltaY)
        d.ghostEl.style.height = newHeight + 'px'
 
-       // Calculate new end time for resize
+       // kalkulace new end time for resize
        const deltaMinutes = Math.round(deltaY / PX_PER_MIN.value / GRID_MINUTES) * GRID_MINUTES
        const newDurationMin = Math.max(GRID_MINUTES, d.durationMin + deltaMinutes)
        const newEndMinutes = Math.min(HOURS_END * 60, (d.origStart.getHours() * 60 + d.origStart.getMinutes()) + newDurationMin)
@@ -1179,11 +1178,11 @@ function onPointerMove(e: PointerEvent) {
        const newEndM = newEndMinutes % 60
        const timeStr = `${pad2(d.origStart.getHours())}:${pad2(d.origStart.getMinutes())} – ${pad2(newEndH)}:${pad2(newEndM)}`
 
-       // Update time display on ghost
+       // updat time display on ghost
        const timeEl = d.ghostEl.querySelector('.event-time')
        if (timeEl) timeEl.textContent = timeStr
 
-       // Update snap ghost height for resize
+       // updat snap ghost height for resize
        if (snapGhostEl) {
           snapGhostEl.style.height = (newDurationMin * PX_PER_MIN.value) + 'px'
           snapGhostEl.style.display = 'block'
@@ -1193,11 +1192,10 @@ function onPointerMove(e: PointerEvent) {
        return
     }
 
-    // Move mode logic
     const newLeft = e.clientX - d.offsetX
     const newTop = e.clientY - d.offsetY
 
-    // Copy mode logic
+    // stisknuti ctrl+drag
     const wantCopy = e.ctrlKey || e.altKey
     if (d.copyMode !== wantCopy) {
         d.copyMode = wantCopy
@@ -1212,36 +1210,29 @@ function onPointerMove(e: PointerEvent) {
         }
     }
 
-    // Direct transform update
     d.ghostEl.style.transform = `translate(${newLeft - d.originLeft}px, ${newTop - d.originTop}px)`
 
-    // Look for drop target
     const hit = findTrackAt(e.clientX, e.clientY)
     if (hit) {
         attachHighlight(hit.el)
-        // Calculate snap position and new time
         const startMinutes = minutesFromTrackY(e.clientY, hit.rect, d.offsetY)
         const snapTop = hit.rect.top + (startMinutes - HOURS_START * 60) * PX_PER_MIN.value
         const endMinutes = Math.min(HOURS_END * 60, startMinutes + d.durationMin)
 
-        // Format time string
         const startH = Math.floor(startMinutes / 60)
         const startM = startMinutes % 60
         const endH = Math.floor(endMinutes / 60)
         const endM = endMinutes % 60
         const timeStr = `${pad2(startH)}:${pad2(startM)} – ${pad2(endH)}:${pad2(endM)}`
 
-        // Update time on drag ghost
         const ghostTimeEl = d.ghostEl.querySelector('.event-time')
         if (ghostTimeEl) ghostTimeEl.textContent = timeStr
 
-        // Position SNAP GHOST
         if (snapGhostEl) {
              snapGhostEl.style.display = 'block'
              snapGhostEl.style.left = hit.rect.left + 'px'
              snapGhostEl.style.width = hit.rect.width + 'px'
              snapGhostEl.style.top = snapTop + 'px'
-             // Update time on snap ghost too
              const snapTimeEl = snapGhostEl.querySelector('.event-time')
              if (snapTimeEl) snapTimeEl.textContent = timeStr
         }
@@ -1289,7 +1280,7 @@ async function commitMove(d: DragState, x: number, y: number): Promise<void> {
 
   const item = sourceArr[idx]
 
-  // Handle resize mode
+  // resize mode
   if (d.mode === 'resize') {
     const deltaY = y - pointerStart.value.y
     const deltaMinutes = Math.round(deltaY / PX_PER_MIN.value / GRID_MINUTES) * GRID_MINUTES
@@ -1301,7 +1292,7 @@ async function commitMove(d: DragState, x: number, y: number): Promise<void> {
     const endDate = new Date(baseDay)
     endDate.setHours(Math.floor(endMinutes / 60), endMinutes % 60, 0, 0)
     if (endDate.getTime() <= startDate.getTime()) return
-    // CHECK SERIES (RESIZE)
+    // check pro série (pro resize mode) 
     if (item.seriesId) {
         pendingSaveForSeries.value = {
             actionType: 'resize',
@@ -1344,7 +1335,6 @@ async function commitMove(d: DragState, x: number, y: number): Promise<void> {
         return
     }
 
-    // OPTIMISTIC UPDATE: Update local state immediately
     item.end = toIsoLocal(endDate)
 
 
@@ -1354,7 +1344,7 @@ async function commitMove(d: DragState, x: number, y: number): Promise<void> {
         endTime: endDate.getTime(),
         deviceCode: d.origDeviceId
       })
-      // Success - local state already updated, no reload needed
+    
       if (isDailyList.value && dailyListRef.value?.updateReservation) {
         dailyListRef.value.updateReservation(d.id, { startTime: startDate.getTime(), endTime: endDate.getTime() })
       }
@@ -1385,6 +1375,24 @@ async function commitMove(d: DragState, x: number, y: number): Promise<void> {
   const endDate = new Date(startDate.getTime() + d.durationMin * 60000)
 
   if (d.copyMode === true) {
+      // CHECK SERIES (COPY) - show scope dialog for series items
+      if (item.seriesId) {
+          pendingSaveForSeries.value = {
+              actionType: 'copy',
+              id: d.id,
+              item,
+              start: startDate,
+              end: endDate,
+              deviceId: newDeviceId,
+              origDayKey: d.origDayKey,
+              origDeviceId: d.origDeviceId,
+              newDayKey
+          }
+          seriesScopeMode.value = 'copy'
+          seriesScopeOpen.value = true
+          return
+      }
+      // Non-series copy continues below
       if (wouldConflict(-1, newDeviceId, startDate, endDate, newDayKey)) {
            const req = { start: startDate, end: endDate }
            conflictDeviceName.value = deviceNameById(newDeviceId)
@@ -1436,7 +1444,6 @@ async function commitMove(d: DragState, x: number, y: number): Promise<void> {
               note: sourceArr[idx].note,
               recurrence: null
           })
-          // OPTIMISTIC: Add to local state
           const targetArr = ensureDay(baseDay)
           targetArr.push({
             id: created.id,
@@ -1497,7 +1504,6 @@ async function commitMove(d: DragState, x: number, y: number): Promise<void> {
       return
   }
 
-  // OPTIMISTIC UPDATE: Move in local state immediately
   // 1) Remove from source day
   sourceArr.splice(idx, 1)
   // 2) Add to target day
@@ -1796,7 +1802,7 @@ const isEditorValid = computed(() => {
 })
 /* Editor SAVE */
 const seriesScopeOpen = ref(false)
-const seriesScopeMode = ref<'edit' | 'delete'>('edit')
+const seriesScopeMode = ref<'edit' | 'delete' | 'copy'>('edit')
 const pendingSaveForSeries = ref<any>(null)
 
 async function saveReservation() {
@@ -1949,6 +1955,10 @@ async function onScopeConfirm(scope: 'single' | 'following' | 'series') {
        await doSaveReservation(f, start, end, scope)
     }
     pendingSaveForSeries.value = null
+  } else if (seriesScopeMode.value === 'copy' && pendingSaveForSeries.value) {
+    // Handle series copy
+    await executeCopyAction(scope, pendingSaveForSeries.value)
+    pendingSaveForSeries.value = null
   } else if (seriesScopeMode.value === 'delete' && deleteTarget.value) {
     deleteMode.value = scope
     await confirmDelete()
@@ -2082,6 +2092,109 @@ async function executeDragAction(scope: 'single' | 'following' | 'series', p: an
      await loadWeekFor(currentDay.value)
   }
 }
+
+// Execute copy action for series with given scope
+async function executeCopyAction(scope: 'single' | 'following' | 'series', p: any) {
+  const { item, start, end, deviceId } = p
+  const seriesId = item.seriesId
+
+  // Calculate time delta from original position to new position
+  const origStart = new Date(item.start)
+  const deltaMs = start.getTime() - origStart.getTime()
+
+  // Collect all series items
+  const allSeriesItems: ResItem[] = []
+  for (const events of Object.values(eventsByDay.value)) {
+    for (const ev of events) {
+      if (ev.seriesId === seriesId) {
+        allSeriesItems.push(ev)
+      }
+    }
+  }
+
+  // Sort by start time
+  allSeriesItems.sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime())
+
+  try {
+    if (scope === 'single') {
+      // Single copy - create one reservation without series
+      const created = await reservations.createReservation({
+        title: item.title,
+        deviceCode: deviceId,
+        startTime: start.getTime(),
+        endTime: end.getTime(),
+        projectId,
+        username: item.username ?? auth.getUserInfo()?.preferredUsername ?? '',
+        note: item.note,
+        recurrence: null
+      })
+
+      // Add to local state
+      const targetDay = new Date(start.getFullYear(), start.getMonth(), start.getDate())
+      const targetArr = ensureDay(targetDay)
+      targetArr.push({
+        id: created.id,
+        title: created.title,
+        deviceId: created.deviceCode,
+        start: toIsoLocal(start),
+        end: toIsoLocal(end),
+        status: 'plan',
+        username: created.username ?? null,
+        note: created.note ?? null
+      })
+      targetArr.sort((a, b) => +new Date(a.start) - +new Date(b.start))
+    } else {
+      // Following or Series scope - create new series with recurrence
+      // Fetch original recurrence rule
+      const originalRecurrence = seriesId ? await reservations.fetchSeriesRecurrence(seriesId) : null
+      
+      if (!originalRecurrence) {
+        console.error('Could not fetch original recurrence rule')
+        return
+      }
+
+      // Determine items to copy and calculate new recurrence count
+      let itemsToCopy: ResItem[]
+      if (scope === 'following') {
+        const currentStart = new Date(item.start).getTime()
+        itemsToCopy = allSeriesItems.filter(ev => new Date(ev.start).getTime() >= currentStart)
+      } else { // series - all
+        itemsToCopy = allSeriesItems
+      }
+
+      if (itemsToCopy.length === 0) return
+
+      // Use first item (with delta applied) as the start of new series
+      const firstItem = itemsToCopy[0]
+      const firstStart = new Date(new Date(firstItem.start).getTime() + deltaMs)
+      const firstEnd = new Date(new Date(firstItem.end).getTime() + deltaMs)
+
+      // Create new recurrence with adjusted count
+      const newRecurrence: RecurrenceRequest = {
+        ...originalRecurrence,
+        count: itemsToCopy.length // Set count to number of items being copied
+      }
+
+      // Create series via API (it will generate all occurrences)
+      await reservations.createReservation({
+        title: firstItem.title,
+        deviceCode: firstItem.deviceId,
+        startTime: firstStart.getTime(),
+        endTime: firstEnd.getTime(),
+        projectId,
+        username: firstItem.username ?? auth.getUserInfo()?.preferredUsername ?? '',
+        note: firstItem.note,
+        recurrence: newRecurrence
+      })
+    }
+
+    // Reload to ensure UI is up to date with new series
+    await loadWeekFor(currentDay.value)
+  } catch (e) {
+    console.error('Series copy failed', e)
+  }
+}
+
 
 // Force-create handler: creates reservation despite conflicts
 async function onForceCreate() {

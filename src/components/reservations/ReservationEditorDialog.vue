@@ -1,4 +1,7 @@
+
 <script setup lang="ts">
+/* eslint-disable @typescript-eslint/no-unused-vars */
+
 import { ref, computed, watch } from 'vue'
 import Dialog from '@/components/Dialog.vue'
 import RecurrenceEditor from '@/components/reservations/RecurrenceEditor.vue'
@@ -61,7 +64,7 @@ const durationStr = computed(() => {
   const endMins = eh * 60 + em
   let diff = endMins - startMins
   if (diff < 0) diff += 24 * 60
-  
+
   const h = Math.floor(diff / 60)
   const m = diff % 60
   if (h > 0 && m > 0) return `${h}h ${m}min`
@@ -108,9 +111,9 @@ function validate(): boolean {
   return isValid
 }
 
-function onSave() { 
+function onSave() {
   if (validate()) {
-    emit('save') 
+    emit('save')
   }
 }
 function onDelete() { emit('delete') }
@@ -137,13 +140,13 @@ function setDuration(minutes: number) {
   const [sh, sm] = props.startHM.split(':').map(Number)
   const startMins = sh * 60 + sm
   let endMins = startMins + minutes
-  
+
   // Simple wrap around 24h
   endMins = endMins % (24 * 60)
-  
+
   const h = Math.floor(endMins / 60)
   const m = endMins % 60
-  
+
   const hStr = h.toString().padStart(2, '0')
   const mStr = m.toString().padStart(2, '0')
   emit('update:endHM', `${hStr}:${mStr}`)
@@ -152,18 +155,18 @@ function setDuration(minutes: number) {
 // Watch startHM and auto-adjust endHM if it becomes <= startHM
 watch(() => props.startHM, (newStart) => {
   if (!newStart || !props.endHM) return
-  
+
   // Parse times
   const [sh, sm] = newStart.split(':').map(Number)
   const [eh, em] = props.endHM.split(':').map(Number)
   const startMins = sh * 60 + sm
   const endMins = eh * 60 + em
-  
+
   // If end is now <= start, set end to start + 1 hour
   if (endMins <= startMins) {
     let newEndMins = startMins + 60
     if (newEndMins >= 24 * 60) newEndMins = 24 * 60 - 1 // Cap at 23:59
-    
+
     const h = Math.floor(newEndMins / 60)
     const m = newEndMins % 60
     emit('update:endHM', `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`)
@@ -188,11 +191,11 @@ watch(() => props.startHM, (newStart) => {
           <v-icon class="field-icon-left">
             mdi-tag-outline
           </v-icon>
-          <input 
-            type="text" 
-            :value="title" 
+          <input
+            type="text"
+            :value="title"
             placeholder="Název rezervace..."
-            class="custom-input" 
+            class="custom-input"
             :class="{ 'input-error': errors.title }"
             autofocus
             @input="e => emit('update:title', (e.target as HTMLInputElement).value)"
@@ -347,8 +350,8 @@ watch(() => props.startHM, (newStart) => {
             <v-icon class="field-icon-left">
               mdi-calendar
             </v-icon>
-            <input 
-              type="date" 
+            <input
+              type="date"
               :value="dateYmd"
               class="custom-input"
               :class="{ 'input-error': errors.dateYmd }"
@@ -372,8 +375,8 @@ watch(() => props.startHM, (newStart) => {
           @update:model-value="v => emit('update:recurrence', v)"
         >
           <template #activator="{ props }">
-            <button 
-              type="button" 
+            <button
+              type="button"
               class="custom-button-dashed"
               @click="props.onClick"
               @mouseover="(e: any) => { e.currentTarget.style.background='#f3f4f6'; e.currentTarget.style.borderColor='#9ca3af' }"
@@ -402,8 +405,8 @@ watch(() => props.startHM, (newStart) => {
             <v-icon class="field-icon-left">
               mdi-clock-start
             </v-icon>
-            <input 
-              type="time" 
+            <input
+              type="time"
               :value="startHM"
               class="custom-input"
               :class="{ 'input-error': errors.startHM }"
@@ -431,8 +434,8 @@ watch(() => props.startHM, (newStart) => {
             <v-icon class="field-icon-left">
               mdi-clock-end
             </v-icon>
-            <input 
-              type="time" 
+            <input
+              type="time"
               :value="endHM"
               :min="startHM"
               class="custom-input"
@@ -452,8 +455,8 @@ watch(() => props.startHM, (newStart) => {
           <!-- DÉLKA BADGE / TOGGLE -->
           <v-menu location="bottom end">
             <template #activator="{ props }">
-              <div 
-                class="duration-badge interactive" 
+              <div
+                class="duration-badge interactive"
                 v-bind="props"
               >
                 {{ durationStr }}
@@ -470,8 +473,8 @@ watch(() => props.startHM, (newStart) => {
               nav
             >
               <v-list-subheader>Rychlá volba délky</v-list-subheader>
-              <v-list-item 
-                v-for="mins in [15, 30, 45, 60, 90, 120, 180, 240, 300, 480]" 
+              <v-list-item
+                v-for="mins in [15, 30, 45, 60, 90, 120, 180, 240, 300, 480]"
                 :key="mins"
                 @click="setDuration(mins)"
               >
@@ -497,11 +500,11 @@ watch(() => props.startHM, (newStart) => {
           >
             mdi-text
           </v-icon>
-          <textarea 
+          <textarea
             :value="note || ''"
             placeholder="Doplňující informace k rezervaci..."
-            rows="2" 
-            class="custom-textarea" 
+            rows="2"
+            class="custom-textarea"
             @input="e => emit('update:note', (e.target as HTMLTextAreaElement).value)"
             @focus="focusInput"
             @blur="blurInput"
@@ -512,9 +515,9 @@ watch(() => props.startHM, (newStart) => {
 
     <template #footer>
       <!-- LEFT SIDE - Zrušit / Smazat -->
-      <button 
+      <button
         v-if="mode === 'edit'"
-        type="button" 
+        type="button"
         class="btn-secondary"
         style="color: #ef4444; background: #fee2e2;"
         @mouseover="(e:any) => e.target.style.background='#fecaca'"
@@ -523,9 +526,9 @@ watch(() => props.startHM, (newStart) => {
       >
         Smazat
       </button>
-      <button 
+      <button
         v-else
-        type="button" 
+        type="button"
         class="btn-secondary"
         @click="onClose"
       >
@@ -537,16 +540,16 @@ watch(() => props.startHM, (newStart) => {
         class="d-flex align-center"
         style="gap:12px; margin-left: auto;"
       >
-        <button 
+        <button
           v-if="mode === 'edit'"
-          type="button" 
+          type="button"
           class="btn-secondary"
           @click="onClose"
         >
           Zrušit
         </button>
-        <button 
-          type="button" 
+        <button
+          type="button"
           class="btn-primary"
           :disabled="saving"
           @click="onSave"
@@ -566,27 +569,27 @@ watch(() => props.startHM, (newStart) => {
 
 <style scoped>
 .field-label {
-  display: block; 
-  font-size: 12px; 
-  font-weight: 600; 
-  color: #6b7280; 
-  text-transform: uppercase; 
-  letter-spacing: 0.5px; 
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
   margin-bottom: 6px;
 }
 
 .custom-input {
-  width: 100%; 
-  height: 44px; 
-  padding: 0px 12px 0px 40px; 
-  border: 1px solid rgb(229, 231, 235); 
-  border-radius: 10px; 
-  font-size: 14px; 
-  background: rgb(249, 250, 251); 
-  color: rgb(55, 65, 81); 
-  transition: 0.15s; 
-  outline: none; 
-  outline: none; 
+  width: 100%;
+  height: 44px;
+  padding: 0px 12px 0px 40px;
+  border: 1px solid rgb(229, 231, 235);
+  border-radius: 10px;
+  font-size: 14px;
+  background: rgb(249, 250, 251);
+  color: rgb(55, 65, 81);
+  transition: 0.15s;
+  outline: none;
+  outline: none;
   box-shadow: none;
 }
 .input-error {
@@ -600,39 +603,39 @@ watch(() => props.startHM, (newStart) => {
   margin-left: 4px;
 }
 .custom-textarea {
-  width: 100%; 
-  padding: 12px 12px 12px 40px; 
-  border: 1px solid rgb(229, 231, 235); 
-  border-radius: 10px; 
-  font-size: 14px; 
-  background: rgb(249, 250, 251); 
-  color: rgb(55, 65, 81); 
-  outline: none; 
-  resize: none; 
-  font-family: inherit; 
+  width: 100%;
+  padding: 12px 12px 12px 40px;
+  border: 1px solid rgb(229, 231, 235);
+  border-radius: 10px;
+  font-size: 14px;
+  background: rgb(249, 250, 251);
+  color: rgb(55, 65, 81);
+  outline: none;
+  resize: none;
+  font-family: inherit;
   line-height: 1.5;
   transition: 0.15s;
 }
 
 .field-icon-left {
-  position: absolute; 
-  left: 12px; 
-  top: 50%; 
-  transform: translateY(-50%); 
-  font-size: 18px; 
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 18px;
   color: #9ca3af;
   pointer-events: none;
 }
 
 .custom-select {
-  display: flex; 
-  align-items: center; 
-  height: 44px; 
-  padding: 0 12px; 
-  border: 1px solid #e5e7eb; 
-  border-radius: 10px; 
-  background: #f9fafb; 
-  cursor: pointer; 
+  display: flex;
+  align-items: center;
+  height: 44px;
+  padding: 0 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #f9fafb;
+  cursor: pointer;
   gap: 10px;
   transition: 0.15s;
 }
@@ -642,14 +645,14 @@ watch(() => props.startHM, (newStart) => {
 }
 
 .device-badge {
-  width: 28px; 
-  height: 28px; 
-  border-radius: 6px; 
-  display: flex; 
-  align-items: center; 
-  justify-content: center; 
-  color: white; 
-  font-size: 10px; 
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 10px;
   font-weight: 700;
 }
 
@@ -667,38 +670,38 @@ watch(() => props.startHM, (newStart) => {
 }
 
 .select-text {
-  flex: 1; 
-  font-size: 14px; 
-  color: #374151; 
+  flex: 1;
+  font-size: 14px;
+  color: #374151;
   font-weight: 500;
-   white-space: nowrap; 
-  overflow: hidden; 
+   white-space: nowrap;
+  overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .custom-button-dashed {
-  height: 44px; 
-  padding: 0px 16px; 
-  border: 1px dashed rgb(209, 213, 219); 
-  border-radius: 10px; 
-  background: rgb(249, 250, 251); 
-  cursor: pointer; 
-  display: flex; 
-  align-items: center; 
-  gap: 8px; 
-  font-size: 13px; 
-  color: rgb(107, 114, 128); 
+  height: 44px;
+  padding: 0px 16px;
+  border: 1px dashed rgb(209, 213, 219);
+  border-radius: 10px;
+  background: rgb(249, 250, 251);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: rgb(107, 114, 128);
   transition: 0.15s;
   white-space: nowrap;
 }
 
 .duration-badge {
-  padding: 8px 12px; 
-  background: #eff6ff; 
-  border-radius: 8px; 
-  font-size: 12px; 
-  font-weight: 600; 
-  color: #3b82f6; 
+  padding: 8px 12px;
+  background: #eff6ff;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #3b82f6;
   white-space: nowrap;
   display: flex;
   align-items: center;

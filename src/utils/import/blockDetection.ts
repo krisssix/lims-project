@@ -2,7 +2,7 @@
  * detekce bloků pro multi-blokovou importní architekturu.
  * detekuje: klíč-hodnota, tabulku, série, statistiky, neznámé bloky.
  */
-import type { DetectedBlock, BlockType, ParseProposal } from '@/types/import-blocks'
+import type { DetectedBlock, ParseProposal } from '@/types/import-blocks'
 import { generateBlockId } from '@/types/import-blocks'
 
 // ============ konstanty ============
@@ -227,6 +227,7 @@ function detectTableBlocks(lines: string[], delimiter: string, excludeBlocks: De
     return blocks
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function extractHeaders(parsed: string[][], startRow: number, _delimiter: string): string[] {
     if (startRow >= parsed.length) return []
     const row = parsed[startRow]
@@ -268,6 +269,7 @@ function calculateTableConfidence(parsed: string[][], startRow: number, endRow: 
 /**
  * detekce bloků statistik (průměr, směrodatná odchylka atd.).
  */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function detectStatsBlocks(lines: string[], _delimiter: string): DetectedBlock[] {
     const blocks: DetectedBlock[] = []
     let statsStart: number | null = null
@@ -368,7 +370,7 @@ function detectSeriesBlocks(lines: string[], delimiter: string, tableBlocks: Det
  * detekce bloků horizontálních sérií (transponovaná data).
  * vzor: první řádek je osa x (např. vlnová délka 230, 232, 234...)
  * následující řádky jsou hodnoty y seskupené podle popisku v prvním sloupci.
- * 
+ *
  * příklad:
  *   vln. d.  230    232    234    236   ...
  *   k2       0.77   0.76   0.84   0.05  ...

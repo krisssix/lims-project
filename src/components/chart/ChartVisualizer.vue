@@ -1,5 +1,7 @@
 <script setup lang="ts">
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { ref, computed, watch } from 'vue'
+import * as XLSX from 'xlsx'
 import {
   type MultiSeriesItem,
   type StatsObj,
@@ -65,11 +67,11 @@ watch(() => props.sharedZoomLevel, (newLevel) => {
 function handleWheel(e: WheelEvent) {
   if (!e.ctrlKey) return
   e.preventDefault()
-  
+
   const delta = e.deltaY > 0 ? -0.1 : 0.1
   const newZoom = Math.min(maxZoom, Math.max(minZoom, zoomLevel.value + delta))
   zoomLevel.value = newZoom
-  
+
   // Emit zoom change for sync (only if not updating from external source)
   if (!isUpdatingFromExternal) {
     emit('zoom-change', newZoom)
@@ -93,12 +95,30 @@ function exportCsv() {
   }
   downloadBlob(lines.join('\n'), 'chart-data.csv', 'text/csv;charset=utf-8;')
 }
+
+function exportXlsx() {
+  const header = ['index', ...props.series.map((s) => s.label)]
+  const maxLen = Math.max(...props.series.map((s) => s.points.length), 0)
+  const data: (string | number)[][] = [header]
+  for (let i = 0; i < maxLen; i++) {
+    const row: (string | number)[] = [xLabelsSafe.value[i] ?? i]
+    for (const s of props.series) {
+      row.push(s.points[i] != null ? s.points[i] : '')
+    }
+    data.push(row)
+  }
+  const ws = XLSX.utils.aoa_to_sheet(data)
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, 'Chart Data')
+  XLSX.writeFile(wb, 'chart-data.xlsx')
+}
 function exportSvg() {
   if (!svgRef.value) return
   const serializer = new XMLSerializer()
   const source = serializer.serializeToString(svgRef.value)
   downloadBlob(source, 'chart.svg', 'image/svg+xml;charset=utf-8')
 }
+
 function exportPng() {
   if (!svgRef.value) return
   const serializer = new XMLSerializer()
@@ -106,8 +126,8 @@ function exportPng() {
   const img = new Image()
   const svgBlob = new Blob([source], { type: 'image/svg+xml;charset=utf-8' })
   const url = URL.createObjectURL(svgBlob)
-  const w = 1200
-  const h = 800
+  const w = 1400
+  const h = 600
   img.onload = () => {
     const canvas = document.createElement('canvas')
     canvas.width = w
@@ -144,7 +164,7 @@ function downloadBlob(content: string, filename: string, type: string) {
   a.click()
   URL.revokeObjectURL(url)
 }
-defineExpose({ exportCsv, exportSvg, exportPng })
+defineExpose({ exportCsv, exportXlsx, exportSvg, exportPng })
 /* -------------------------------------------------
    Math helpers
    ------------------------------------------------- */
@@ -276,24 +296,24 @@ const scatterSeries = computed(() => {
 const histogram = computed(() => {
   const vals = props.series[0]?.points || []
   if (!vals.length) return { bins: [], maxCount: 0, minVal: 0, maxVal: 0, binEdges: [], binCount: 0 }
-  
+
   const mn = Math.min(...vals)
   const mx = Math.max(...vals)
   const range = mx - mn
   const n = vals.length
-  
+
   // Sturges' rule for better bin count
   const binCount = range === 0 ? 1 : Math.max(5, Math.min(20, Math.ceil(1 + 3.322 * Math.log10(n))))
   const binWidth = range === 0 ? 1 : range / binCount
-  
+
   // Create bin edges for proper labeling
   const binEdges: number[] = []
   for (let i = 0; i <= binCount; i++) {
     binEdges.push(mn + i * binWidth)
   }
-  
+
   const counts = Array.from({ length: binCount }, () => 0)
-  
+
   for (const v of vals) {
     if (range === 0) {
       counts[0] += 1
@@ -305,11 +325,11 @@ const histogram = computed(() => {
       counts[idx] += 1
     }
   }
-  
+
   const maxCount = Math.max(...counts, 1)
   const { minX, maxX } = layout.value
   const totalW = maxX - minX
-  
+
   const bins = counts.map((c, i) => {
     const binStart = binEdges[i]
     const binEnd = binEdges[i + 1]
@@ -317,18 +337,18 @@ const histogram = computed(() => {
     const w = (totalW / binCount) * 0.92 // Slightly narrower for visual separation
     const h = maxCount === 0 ? 0 : (c / maxCount) * 75 // Use 75% of available height
     const y = 90 - h
-    return { 
-      x, 
-      y, 
-      w, 
-      h, 
+    return {
+      x,
+      y,
+      w,
+      h,
       count: c,
       binStart,
       binEnd,
       label: `${fmt2(binStart)} - ${fmt2(binEnd)}`
     }
   })
-  
+
   return { bins, maxCount, minVal: mn, maxVal: mx, binEdges, binCount }
 })
 
@@ -393,44 +413,44 @@ const regression = computed(() => {
   if (!props.showTrend || (props.activeTab !== 'LINE' && props.activeTab !== 'SCATTER')) {
     return null
   }
-  
+
   const vals = props.series[0]?.points || []
   if (vals.length < 2) return null
-  
+
   const n = vals.length
-  
+
   if (props.trendType === 'linear') {
     // Linear regression: y = a*x + b
     let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0
-    
+
     for (let i = 0; i < n; i++) {
       sumX += i
       sumY += vals[i]
       sumXY += i * vals[i]
       sumX2 += i * i
     }
-    
+
     const a = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX)
     const b = (sumY - a * sumX) / n
-    
+
     // Calculate R² (coefficient of determination)
     const meanY = sumY / n
     let ssTotal = 0, ssResidual = 0
-    
+
     for (let i = 0; i < n; i++) {
       const predicted = a * i + b
       ssTotal += (vals[i] - meanY) ** 2
       ssResidual += (vals[i] - predicted) ** 2
     }
-    
+
     const r2 = ssTotal === 0 ? 1 : 1 - (ssResidual / ssTotal)
-    
+
     // Generate line points
     const x1 = 0
     const y1 = a * x1 + b
     const x2 = n - 1
     const y2 = a * x2 + b
-    
+
     return {
       type: 'linear' as const,
       a,
@@ -445,7 +465,7 @@ const regression = computed(() => {
   } else {
     // Logarithmic regression: y = a*ln(x+1) + b
     let sumLnX = 0, sumY = 0, sumLnXY = 0, sumLnX2 = 0
-    
+
     for (let i = 0; i < n; i++) {
       const lnX = Math.log(i + 1)
       sumLnX += lnX
@@ -453,26 +473,26 @@ const regression = computed(() => {
       sumLnXY += lnX * vals[i]
       sumLnX2 += lnX * lnX
     }
-    
+
     const a = (n * sumLnXY - sumLnX * sumY) / (n * sumLnX2 - sumLnX * sumLnX)
     const b = (sumY - a * sumLnX) / n
-    
+
     // Calculate R²
     const meanY = sumY / n
     let ssTotal = 0, ssResidual = 0
-    
+
     for (let i = 0; i < n; i++) {
       const predicted = a * Math.log(i + 1) + b
       ssTotal += (vals[i] - meanY) ** 2
       ssResidual += (vals[i] - predicted) ** 2
     }
-    
+
     const r2 = ssTotal === 0 ? 1 : 1 - (ssResidual / ssTotal)
-    
+
     // Generate curve points
     const points: Array<{ x: number; y: number }> = []
     const steps = Math.min(50, n * 2)
-    
+
     for (let i = 0; i <= steps; i++) {
       const x = (n - 1) * (i / steps)
       const y = a * Math.log(x + 1) + b
@@ -481,7 +501,7 @@ const regression = computed(() => {
         y: mapYValue(y),
       })
     }
-    
+
     return {
       type: 'logarithmic' as const,
       a,
@@ -522,7 +542,7 @@ function onMouseMoveLine(e: MouseEvent) {
   const rect = el.getBoundingClientRect()
   const mouseX = e.clientX - rect.left
   const { width, height, minX, maxX } = layout.value
-  
+
   // X calculation
   const scaleX = width / rect.width
   const svgX = mouseX * scaleX - 5 // compensate viewBox offset
@@ -530,11 +550,11 @@ function onMouseMoveLine(e: MouseEvent) {
   const totalW = maxX - minX
   let idx = Math.round(((svgX - minX) / totalW) * (n - 1))
   idx = Math.max(0, Math.min(n - 1, idx))
-  
+
   hoverIdx.value = idx
   hoverValue.value = props.series[0].points[idx]
   hoverXPercent.value = mapXValue(idx, n)
-  
+
   // Y calculation for Mean hover
   const scaleY = height / rect.height
   const svgY = (e.clientY - rect.top) * scaleY
@@ -604,16 +624,16 @@ const hoverMedianActive = computed<boolean>(() =>
 )
 const hoverYValueLabel = computed<string | null>(() => {
   if (hoverYPercent.value == null) return null
-  // svgY is 10..90 range typically (mapped y). 
+  // svgY is 10..90 range typically (mapped y).
   // mapYValue does: 100 - (norm * 80 + 10). So 90 is min, 10 is max.
   // Inverse: val = 100 - svgY.
   // norm * 80 + 10 = val
   // norm * 80 = val - 10
   // norm = (val - 10) / 80
-  
+
   const rawY = hoverYPercent.value
   const norm = (100 - rawY - 10) / 80 // inverse mapYValue logic
-  
+
   const clamped = Math.max(0, Math.min(1, norm))
   const val = yMin.value + clamped * yRange.value
   return niceNumber(val)
@@ -649,7 +669,7 @@ const ariaLabel = computed(() => {
     >
       Žádná data pro graf
     </div>
-    
+
     <div
       v-if="zoomLevel !== 1"
       class="d-flex justify-end mb-1"
@@ -725,7 +745,7 @@ const ariaLabel = computed(() => {
               stroke="#eeeeee"
               stroke-width="0.4"
             />
-            
+
             <!-- Y-axis value labels for LINE/SCATTER -->
             <template v-if="activeTab === 'LINE' || activeTab === 'SCATTER'">
               <text
@@ -738,7 +758,7 @@ const ariaLabel = computed(() => {
                 fill="#666"
               >{{ fmt2(yMin + ((i - 1) / 4) * yRange) }}</text>
             </template>
-            
+
             <!-- X‑ticks & labels (except histogram) -->
             <template v-if="activeTab !== 'HISTOGRAM' && activeTab !== 'BOXPLOT'">
               <line
@@ -795,7 +815,7 @@ const ariaLabel = computed(() => {
               >
                 Počet hodnot
               </text>
-              
+
               <!-- X-axis bin labels (show only a few key bins) -->
               <template v-if="histogram.binCount <= 10">
                 <text
@@ -838,7 +858,7 @@ const ariaLabel = computed(() => {
                   {{ fmt2(histogram.maxVal) }}
                 </text>
               </template>
-              
+
               <!-- X-axis title -->
               <text
                 :x="(layout.minX + layout.maxX) / 2"
@@ -852,7 +872,7 @@ const ariaLabel = computed(() => {
               </text>
             </template>
           </template>
-          
+
           <!-- Axis titles for LINE/SCATTER -->
           <template v-if="activeTab === 'LINE' || activeTab === 'SCATTER'">
             <!-- Y-axis title -->
@@ -879,7 +899,7 @@ const ariaLabel = computed(() => {
               {{ xLabels && xLabels.length ? 'Index měření' : 'Pořadí' }}
             </text>
           </template>
-          
+
           <!-- Axis titles for BOXPLOT -->
           <template v-if="activeTab === 'BOXPLOT'">
             <text
@@ -1042,7 +1062,7 @@ const ariaLabel = computed(() => {
             "
             stroke-width="1"
           />
-          
+
           <!-- Hover tooltip for scatter -->
           <g
             v-if="
@@ -1094,7 +1114,7 @@ const ariaLabel = computed(() => {
             stroke-dasharray="5,3"
             opacity="0.9"
           />
-          
+
           <!-- Logarithmic regression curve -->
           <polyline
             v-else-if="regression.type === 'logarithmic'"
@@ -1105,7 +1125,7 @@ const ariaLabel = computed(() => {
             stroke-dasharray="5,3"
             opacity="0.9"
           />
-          
+
           <!-- Regression info box -->
           <g>
             <rect
@@ -1159,7 +1179,7 @@ const ariaLabel = computed(() => {
               />
             </linearGradient>
           </defs>
-          
+
           <!-- Histogram bars -->
           <rect
             v-for="(b, i) in histogram.bins"
@@ -1174,7 +1194,7 @@ const ariaLabel = computed(() => {
             :opacity="hoveredBin !== null && hoveredBin !== i ? 0.6 : 1"
             style="transition: all 0.2s ease"
           />
-          
+
           <!-- Hover tooltip -->
           <template v-if="showHover && hoveredBin !== null && histogram.bins[hoveredBin]">
             <g>
@@ -1200,7 +1220,7 @@ const ariaLabel = computed(() => {
                 font-weight="700"
                 fill="#1976d2"
               >{{ histogram.bins[hoveredBin].count }} {{ histogram.bins[hoveredBin].count === 1 ? 'hodnota' : histogram.bins[hoveredBin].count < 5 ? 'hodnoty' : 'hodnot' }}</text>
-              
+
               <!-- Range label -->
               <text
                 :x="histogram.bins[hoveredBin].x + histogram.bins[hoveredBin].w / 2"
@@ -1212,7 +1232,7 @@ const ariaLabel = computed(() => {
               >{{ histogram.bins[hoveredBin].label }}</text>
             </g>
           </template>
-          
+
           <!-- Mean line -->
           <g v-if="showMean && meanXForHistogram !== null">
             <line

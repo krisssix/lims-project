@@ -98,7 +98,7 @@ watch(() => props.includeWeekends, () => {
    if (props.modelValue.preset === 'thisWeek') selectThisWeek()
    if (props.modelValue.preset === 'nextWeek') selectNextWeek()
  })
- 
+
  // Reset range selection mode if switching to daily-machines
  watch(() => props.viewMode, (val) => {
    if (val === 'daily-machines') {
@@ -106,7 +106,7 @@ watch(() => props.includeWeekends, () => {
      pendingStart.value = null
    }
  })
- 
+
  // Mutual exclusion: when showTwoWeeks is enabled, disable range mode
  watch(() => props.showTwoWeeks, (val) => {
    if (val && isRangeSelectMode.value) {
@@ -166,12 +166,12 @@ const hasAnyFilter = computed(() =>
 
 const filteredDevices = computed(() => {
   if (!props.devices) return []
-  
+
   // Filter out inactive devices unless toggle is on
-  const devicesToShow = showInactiveDevices.value 
-    ? props.devices 
+  const devicesToShow = showInactiveDevices.value
+    ? props.devices
     : props.devices.filter(d => d.active !== false)
-  
+
   if (!deviceSearch.value.trim()) return devicesToShow
 
   const search = deviceSearch.value.toLowerCase()
@@ -237,7 +237,7 @@ const calendarDays = computed(() => {
   // Calculate custom range for highlighting (any date range selection)
   let rangeStart: Date | null = null
   let rangeEnd: Date | null = null
-  
+
   if (props.modelValue.from && props.modelValue.to) {
     rangeStart = new Date(props.modelValue.from)
     rangeStart.setHours(0, 0, 0, 0)
@@ -249,15 +249,15 @@ const calendarDays = computed(() => {
   const shouldHighlight = (d: Date, start: Date | null, end: Date | null) => {
     if (!start || !end) return false
     if (d < start || d > end) return false
-    
+
     // Check weekend exclusion
     // If includeWeekends is FALSE, and we are NOT in week-all view, then weekends are NOT highlighted
     const dDay = d.getDay()
     const isWeekend = dDay === 0 || dDay === 6
     const weekendsIncluded = props.includeWeekends || props.viewMode === 'week-all'
-    
+
     if (isWeekend && !weekendsIncluded) return false
-    return true 
+    return true
   }
 
   const days: Array<{ day: number; isCurrentMonth: boolean; isToday: boolean; isSelected: boolean; isWeekend: boolean; isInWeek: boolean; isInMonth: boolean; isInRange: boolean; isPendingStart: boolean; date: Date }> = []
@@ -268,10 +268,10 @@ const calendarDays = computed(() => {
     const isInWeek = shouldHighlight(date, weekStart, weekEnd)
     const isInMonth = monthStart && monthEnd ? date >= monthStart && date <= monthEnd : false
     const isInRange = shouldHighlight(date, rangeStart, rangeEnd)
-    
+
     const dDay = date.getDay()
     const isWeekend = dDay === 0 || dDay === 6
-    
+
     days.push({
       day: d,
       isCurrentMonth: false,
@@ -319,7 +319,7 @@ const calendarDays = computed(() => {
     const isInWeek = shouldHighlight(date, weekStart, weekEnd)
     const isInMonth = monthStart && monthEnd ? date >= monthStart && date <= monthEnd : false
     const isInRange = shouldHighlight(date, rangeStart, rangeEnd)
-    
+
     const dDay = date.getDay()
     const isWeekend = dDay === 0 || dDay === 6
 
@@ -373,7 +373,7 @@ function endOfMonth(d: Date): Date {
 function prevMonth() {
   const newDate = new Date(viewDate.value.getFullYear(), viewDate.value.getMonth() - 1, 1)
   viewDate.value = newDate
-  
+
   // If in month mode, update selection too
   if (props.modelValue.preset === 'thisMonth') {
     emit('update:modelValue', {
@@ -388,7 +388,7 @@ function prevMonth() {
 function nextMonth() {
   const newDate = new Date(viewDate.value.getFullYear(), viewDate.value.getMonth() + 1, 1)
   viewDate.value = newDate
-  
+
   // If in month mode, update selection too
   if (props.modelValue.preset === 'thisMonth') {
     emit('update:modelValue', {
@@ -406,7 +406,7 @@ const pendingStart = ref<Date | null>(null)
 function selectToday() {
   const today = new Date()
   pendingStart.value = null // Clear pending on preset usage
-  
+
   // Update local field to reflect the change visually immediately
   localField.value = 'createdAt'
 
@@ -423,7 +423,7 @@ function selectThisWeek() {
   const today = new Date()
   const start = startOfWeek(today)
   const end = new Date(start)
-  
+
   const baseAdd = (props.includeWeekends || props.viewMode === 'week-all') ? 6 : 4
   const finalAdd = props.showTwoWeeks ? baseAdd + 7 : baseAdd
   end.setDate(start.getDate() + finalAdd)
@@ -444,7 +444,7 @@ function selectNextWeek() {
   nextWeekDate.setDate(today.getDate() + 7)
   const start = startOfWeek(nextWeekDate)
   const end = new Date(start)
-  
+
   const baseAdd = (props.includeWeekends || props.viewMode === 'week-all') ? 6 : 4
   const finalAdd = props.showTwoWeeks ? baseAdd + 7 : baseAdd
   end.setDate(start.getDate() + finalAdd)
@@ -477,7 +477,7 @@ function selectWeekOf(date: Date) {
      const baseAdd = (props.includeWeekends || props.viewMode === 'week-all') ? 6 : 4
      const finalAdd = props.showTwoWeeks ? baseAdd + 7 : baseAdd
      end.setDate(start.getDate() + finalAdd)
- 
+
      pendingStart.value = null
      emit('update:modelValue', {
        field: localField.value,
@@ -487,7 +487,7 @@ function selectWeekOf(date: Date) {
      })
      emit('close')
  }
- 
+
  function selectDay(date: Date) {
   if (!isRangeSelectMode.value) {
     // If explicitly in a week view, selecting a day selects the whole week
@@ -864,7 +864,7 @@ const dateToInput = computed({
           </div>
         </div>
       </div>
-      
+
       <template v-if="!hideFilterTypeButtons">
         <div class="filter-section-title">
           <v-icon
@@ -956,7 +956,7 @@ const dateToInput = computed({
       </v-tooltip>
 
       <!-- CUSTOM RANGE SELECT MODE -->
-      <v-tooltip
+<!--      <v-tooltip
         v-if="viewMode !== 'daily-machines'"
         text="Umožní vybrat libovolný rozsah dat kliknutím na začátek a konec v kalendáři"
         location="top"
@@ -966,19 +966,19 @@ const dateToInput = computed({
             <ModernSwitch
               :model-value="isRangeSelectMode"
               label="Vlastní časové rozmezí"
-              @update:model-value="v => { 
-                isRangeSelectMode = v; 
-                pendingStart = null; 
+              @update:model-value="v => {
+                isRangeSelectMode = v;
+                pendingStart = null;
                 // Mutual exclusion: disable 2-weeks when enabling custom range
                 if (v && showTwoWeeks) emit('update:showTwoWeeks', false);
               }"
             />
           </div>
         </template>
-      </v-tooltip>
+      </v-tooltip>-->
 
       <!-- Two Weeks Toggle (for week views) -->
-      <v-tooltip
+<!--      <v-tooltip
         v-if="showWeekendToggle"
         :text="isRangeSelectMode ? 'Nejprve vypněte Vlastní rozmezí' : 'Zobrazí dva týdny najednou pod sebou'"
         location="top"
@@ -1001,7 +1001,7 @@ const dateToInput = computed({
             />
           </div>
         </template>
-      </v-tooltip>
+      </v-tooltip>-->
     </div>
     <!-- MANUAL RANGE -->
     <div
@@ -2134,7 +2134,7 @@ const dateToInput = computed({
 .clear-filter-btn {
   font-size: 11px;
   font-weight: 600;
-  color: #3b82f6; 
+  color: #3b82f6;
   background: transparent;
   border: none;
   cursor: pointer;

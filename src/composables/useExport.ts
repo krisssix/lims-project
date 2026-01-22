@@ -283,6 +283,7 @@ export function useExport() {
 
     function exportToJSON(measurements: ExportMeasurement[], columns: ExportColumn[], filename: string): void {
         const enabledCols = columns.filter(c => c.enabled)
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const includeValues = enabledCols.some(c => c.key === 'values')
 
         const data = measurements.map(m => {

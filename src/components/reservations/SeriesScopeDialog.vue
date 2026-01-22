@@ -4,7 +4,7 @@ import Dialog from '@/components/Dialog.vue'
 
 const props = defineProps<{
   isOpen:boolean
-  mode:'edit' | 'delete'
+  mode:'edit' | 'delete' | 'copy'
   isFirstInSeries?: boolean
   eventTitle?:string
   seriesCount?:number
@@ -24,9 +24,18 @@ watch(() => props.isOpen, (v) => {
 })
 
 const isDelete = computed(() => props.mode === 'delete')
+const isCopy = computed(() => props.mode === 'copy')
 
-const dialogIcon = computed(() => isDelete.value ? 'mdi-delete-alert':'mdi-calendar-edit')
-const dialogColor = computed(() => isDelete.value ? 'error':'primary')
+const dialogIcon = computed(() => {
+  if (isDelete.value) return 'mdi-delete-alert'
+  if (isCopy.value) return 'mdi-content-copy'
+  return 'mdi-calendar-edit'
+})
+const dialogColor = computed(() => {
+  if (isDelete.value) return 'error'
+  if (isCopy.value) return 'success'
+  return 'primary'
+})
 
 function confirm() {
   emit('confirm', scope.value)
@@ -64,7 +73,7 @@ function cancel() {
           </div>
           <div class="header-text">
             <div class="header-title">
-              {{ isDelete ? 'Smazat opakovanou událost':'Upravit opakovanou událost' }}
+              {{ isDelete ? 'Smazat opakovanou událost' : isCopy ? 'Kopírovat opakovanou událost' : 'Upravit opakovanou událost' }}
             </div>
             <div
               v-if="eventTitle"
@@ -84,7 +93,7 @@ function cancel() {
           />
           <span>
             Tato událost je součástí série{{ seriesCount ? ` (${seriesCount} událostí)`:'' }}.
-            Vyberte rozsah změny.
+            {{ isCopy ? 'Vyberte rozsah kopírování.' : 'Vyberte rozsah změny.' }}
           </span>
         </div>
 
@@ -110,7 +119,7 @@ function cancel() {
             <div class="option-content">
               <div class="option-title">Pouze tuto událost</div>
               <div class="option-desc">
-                {{ isDelete ? 'Smaže pouze tuto jednu instanci':'Vytvoří výjimku, ostatní zůstanou beze změny' }}
+                {{ isDelete ? 'Smaže pouze tuto jednu instanci' : isCopy ? 'Zkopíruje pouze tuto jednu událost' : 'Vytvoří výjimku, ostatní zůstanou beze změny' }}
               </div>
             </div>
             <div
@@ -146,7 +155,7 @@ function cancel() {
             <div class="option-content">
               <div class="option-title">Tuto a všechny následující</div>
               <div class="option-desc">
-                {{ isDelete ? 'Smaže tuto a všechny budoucí události':'Rozdělí sérii od tohoto data' }}
+                {{ isDelete ? 'Smaže tuto a všechny budoucí události' : isCopy ? 'Zkopíruje tuto a všechny následující události' : 'Rozdělí sérii od tohoto data' }}
               </div>
             </div>
             <div
@@ -187,7 +196,7 @@ function cancel() {
             <div class="option-content">
               <div class="option-title">Všechny události v sérii</div>
               <div class="option-desc">
-                {{ isDelete ? 'Trvale smaže celou sérii včetně historie':'Změní všechny události v sérii' }}
+                {{ isDelete ? 'Trvale smaže celou sérii včetně historie' : isCopy ? 'Zkopíruje celou sérii událostí' : 'Změní všechny události v sérii' }}
               </div>
             </div>
             <div

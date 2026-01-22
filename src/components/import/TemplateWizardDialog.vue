@@ -2308,10 +2308,10 @@ import {buildProposal} from '@/utils/import/blockDetection'
 import type {BlockAction, DetectedBlock, ParseProposal} from '@/types/import-blocks'
 import * as XLSX from 'xlsx'
 import {inferFieldType} from "@/utils/importParsing";
-// třívrstvá architektura (3-layer architecture): surová data → návrhy parsování → šablona (autorita uživatele)
+// třívrstvá architektura: surová data → návrhy parsování → šablona
 /* typy (types) */
 type DeviceItem = { id: string; name: string; color?: string }
-type FieldType = 'float' | 'int' | 'text' | 'file' | 'bool' | 'date' | 'array'
+type FieldType = 'float' | 'int' | 'text' | 'file' | 'bool' | 'date'// | 'array'
 type FieldRow = { id: string; orderIndex: number; type: FieldType; required: boolean; name: string; unit?: string }
 
 // Datová série přidružená k tabulce hodnot
@@ -2336,8 +2336,8 @@ interface InitialTemplate {
   blocks?: Array<{
     blockIndex: number
     title: string
-    kind?: 'table' | 'series'
-    fields: Array<{ orderIndex: number; type: FieldType; required: boolean; name: string }>
+    kind?: 'table' | 'stats' | 'series' | 'kv'
+    fields: Array<{ orderIndex: number; type: ValueType; required: boolean; name: string }>
   }>
   version?: string
   updatedAt?: string
@@ -2377,7 +2377,7 @@ const mainTab = ref<'structure' | 'versions' | 'mappings'>('structure')
 type VersionField = {
   id?: string | number
   name?: string
-  type?: FieldType | string // FieldType máš definovaný o kousek výš
+  type?: ValueType | string // ValueType used
   required?: boolean
   orderIndex?: number
   unit?: string

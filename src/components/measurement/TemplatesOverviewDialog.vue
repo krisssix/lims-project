@@ -116,7 +116,7 @@ type TemplateGroup = {
 // Grouped logic
 const groupedTemplates = computed<TemplateGroup[]>(() => {
   const groups = new Map<string, TemplateItem[]>()
-  
+
   // 1. Group by deviceId + name
   filtered.value.forEach(t => {
      const key = `${t.deviceId}|${t.name}`
@@ -129,7 +129,7 @@ const groupedTemplates = computed<TemplateGroup[]>(() => {
   groups.forEach((items, key) => {
     // Sort items by version desc (newest first) for internal consistency
     items.sort((a, b) => {
-       // Simple string compare for semantic version validation is tricky, 
+       // Simple string compare for semantic version validation is tricky,
        // but assuming format x.y.z or date-based, simple string compare desc might approximate
        // ideally use semver compare. For now relying on CreatedAt or Version string.
        // Let's use UpdatedAt latest first.
@@ -139,15 +139,15 @@ const groupedTemplates = computed<TemplateGroup[]>(() => {
     const activeVersion = items.find(i => i.status === 'ACTIVE')
     // If we are NOT showing versions, we only want to show the 'main' item (Active preferred, else latest)
     // AND we must filter out draft/deprecated if they are the only ones, unless logic says otherwise.
-    
+
     // Logic as per user request: "included grouped in folders".
     // If !showVersions: We mostly want to see active templates.
-    
+
     let main: TemplateItem = activeVersion || items[0]
-    
+
     if (!showVersions.value) {
        if (!activeVersion) {
-         return 
+         return
        }
        main = activeVersion
        result.push({ groupKey: key, main, versions: [main], activeVersion })
@@ -191,13 +191,13 @@ const selectedCount = computed(() => selection.value.size)
 const allSelected = computed(() => totalSelectableItems.value > 0 && selection.value.size === totalSelectableItems.value)
 const someSelected = computed(() => selection.value.size > 0)
 
-const selectedItems = computed(() => 
+const selectedItems = computed(() =>
   props.templates.filter(t => selection.value.has(t.id))
 )
 
 const canSetToActive = computed(() => {
   if (selection.value.size === 0) return false
-  return selectedItems.value.some(t => { 
+  return selectedItems.value.some(t => {
     const isActive = !t.status || t.status === 'ACTIVE'
     return !isActive
   })
@@ -224,7 +224,7 @@ function toggleSelect(id: string) {
 function toggleGroupSelect(group: TemplateGroup) {
   const allIds = getAllGroupIds(group)
   const allSelected = isGroupFullySelected(group)
-  
+
   if (allSelected) {
      allIds.forEach(id => selection.value.delete(id))
   } else {
@@ -276,7 +276,7 @@ function bulkSetStatus(status: 'ACTIVE' | 'DRAFT' | 'DEPRECATED') {
   if (selection.value.size === 0) return
   const ids = Array.from(selection.value)
   emits('bulkStatusUpdate', ids, status)
-  
+
   const statusLabels: Record<string, string> = {
     'ACTIVE': 'Aktivní',
     'DRAFT': 'Koncept',
@@ -365,16 +365,16 @@ const highlightedTemplateId = ref<string | null>(null)
 
 function highlightTemplate(id: string) {
   highlightedTemplateId.value = id
-  
+
   // Find group for this template
   // If it's a version inside a collapsed group, expand it
-  const group = groupedTemplates.value.find(g => 
+  const group = groupedTemplates.value.find(g =>
       g.main.id === id || g.versions.some(v => v.id === id)
   )
   if (group) {
       // If we are showing versions and the target is NOT the main one (or main is one of versions), expand
       // Actually simpler: just ensure the group is expanded if we are targeting something inside it
-      // But only if versions view is active OR if we force it? 
+      // But only if versions view is active OR if we force it?
       // User implies "TemplateOverviewDialog", usually versions are hidden by default unless toggled.
       // If target is inside a group that has multiple versions, we should probably toggle versions ON or just expand?
       // Let's just expand if we are in versions mode.
@@ -493,7 +493,7 @@ watch(() => props.templates, () => {
             v-model="showVersions"
             label="Včetně verzí"
           />
-
+<!--
           <button
             type="button"
             class="sort-btn"
@@ -527,7 +527,7 @@ watch(() => props.templates, () => {
             >
               {{ sortDir === 'asc' ? 'mdi-arrow-up' : 'mdi-arrow-down' }}
             </v-icon>
-          </button>
+          </button>-->
         </div>
       </div>
 
@@ -540,9 +540,9 @@ watch(() => props.templates, () => {
           Vybráno {{ selectedCount }}
         </div>
         <div class="bulk-actions-group">
-          <button 
-            class="bulk-action-btn btn-active" 
-            title="Nastavit jako Aktivní" 
+          <button
+            class="bulk-action-btn btn-active"
+            title="Nastavit jako Aktivní"
             :disabled="loading || !canSetToActive"
             @click="bulkSetStatus('ACTIVE')"
           >
@@ -551,9 +551,9 @@ watch(() => props.templates, () => {
             </v-icon>
             Aktivní
           </button>
-          <button 
-            class="bulk-action-btn btn-draft" 
-            title="Nastavit jako Koncept" 
+          <button
+            class="bulk-action-btn btn-draft"
+            title="Nastavit jako Koncept"
             :disabled="loading || !canSetToDraft"
             @click="bulkSetStatus('DRAFT')"
           >
@@ -562,9 +562,9 @@ watch(() => props.templates, () => {
             </v-icon>
             Koncept
           </button>
-          <button 
-            class="bulk-action-btn btn-deprecated" 
-            title="Nastavit jako Zastaralé" 
+          <button
+            class="bulk-action-btn btn-deprecated"
+            title="Nastavit jako Zastaralé"
             :disabled="loading || !canSetToDeprecated"
             @click="bulkSetStatus('DEPRECATED')"
           >
@@ -574,7 +574,7 @@ watch(() => props.templates, () => {
             Zastaralé
           </button>
           <div class="divider-vertical" />
-          <button 
+          <button
             class="bulk-action-btn btn-delete"
             title="Smazat vybrané"
             :disabled="loading"
@@ -591,12 +591,12 @@ watch(() => props.templates, () => {
 
       <div class="table-header-row">
         <div class="th-col col-check">
-          <v-checkbox 
+          <v-checkbox
             :model-value="allSelected"
             :indeterminate="someSelected && !allSelected"
-            density="compact" 
+            density="compact"
             hide-details
-            @update:model-value="toggleAll" 
+            @update:model-value="toggleAll"
           />
         </div>
         <div
@@ -635,15 +635,15 @@ watch(() => props.templates, () => {
           :key="group.groupKey"
         >
           <!-- Group Header (Main Folder Row) -->
-          <div 
-            class="template-group-row" 
+          <div
+            class="template-group-row"
             :class="{ 'group-expanded': group.versions.length > 1 && showVersions }"
           >
             <!-- Wrapper for the main row content -->
-            <div 
+            <div
               :ref="(el) => setItemRef(group.main.id, el)"
               class="template-table-row group-main-row"
-              :class="{ 
+              :class="{
                 'row-selected': isGroupFullySelected(group),
                 'row-partial': isGroupPartiallySelected(group),
                 'row-highlight': highlightedTemplateId === group.main.id
@@ -654,21 +654,21 @@ watch(() => props.templates, () => {
                 class="td-col col-check"
                 @click.stop
               >
-                <v-checkbox 
+                <v-checkbox
                   :model-value="isGroupFullySelected(group)"
                   :indeterminate="isGroupPartiallySelected(group)"
-                  density="compact" 
+                  density="compact"
                   hide-details
                   @update:model-value="toggleGroupSelect(group)"
                 />
               </div>
 
               <div class="td-col col-device">
-                <div 
+                <div
                   class="device-badge"
-                  :style="{ 
-                    background: group.main.deviceColor || '#6b7280', 
-                    color: contrastText(group.main.deviceColor || '#6b7280') 
+                  :style="{
+                    background: group.main.deviceColor || '#6b7280',
+                    color: contrastText(group.main.deviceColor || '#6b7280')
                   }"
                 >
                   {{ group.main.deviceId }}
@@ -680,29 +680,29 @@ watch(() => props.templates, () => {
                   class="d-flex align-center"
                   style="width: 100%;"
                 >
-                  <div 
+                  <div
                     class="template-icon-box mr-3"
                     :style="{ backgroundColor: lightBg(group.main.deviceColor) }"
                   >
                     <!-- Folder icon if multiple versions and we are in version mode -->
-                    <v-icon 
+                    <v-icon
                       v-if="showVersions && group.versions.length > 1"
-                      size="18" 
+                      size="18"
                       :class="{ 'rotate-90': expandedGroups.has(group.groupKey) }"
                       style="transition: transform 0.2s;"
                       :style="{ color: group.main.deviceColor || '#6b7280' }"
                     >
                       mdi-folder-outline
                     </v-icon>
-                    <v-icon 
+                    <v-icon
                       v-else
-                      size="18" 
+                      size="18"
                       :style="{ color: group.main.deviceColor || '#6b7280' }"
                     >
                       mdi-file-document-outline
                     </v-icon>
                   </div>
-                       
+
                   <div class="d-flex flex-column">
                     <span class="text-body-2 font-weight-bold text-high-emphasis">
                       {{ group.main.name }}
@@ -757,7 +757,7 @@ watch(() => props.templates, () => {
                     </div>
                   </div>
                   <!-- Expand indicator chevron -->
-                  <v-icon 
+                  <v-icon
                     v-if="showVersions && group.versions.length > 1"
                     class="ml-auto text-medium-emphasis"
                     size="20"
@@ -780,12 +780,12 @@ watch(() => props.templates, () => {
                 v-if="showVersions && group.versions.length > 1 && expandedGroups.has(group.groupKey)"
                 class="group-versions-list"
               >
-                <div 
-                  v-for="ver in group.versions" 
+                <div
+                  v-for="ver in group.versions"
                   :key="ver.id"
                   :ref="(el) => setItemRef(ver.id, el)"
                   class="version-row"
-                  :class="{ 
+                  :class="{
                     'row-selected': selection.has(ver.id),
                     'row-highlight': highlightedTemplateId === ver.id
                   }"
@@ -795,9 +795,9 @@ watch(() => props.templates, () => {
                     class="td-col col-check"
                     @click.stop
                   >
-                    <v-checkbox 
+                    <v-checkbox
                       :model-value="selection.has(ver.id)"
-                      density="compact" 
+                      density="compact"
                       hide-details
                       @update:model-value="toggleSelect(ver.id)"
                     />
@@ -806,9 +806,9 @@ watch(() => props.templates, () => {
                   <div class="td-col col-name pl-10">
                     <!-- Connecting line visual could go here -->
                     <div class="d-flex align-center">
-                      <v-chip 
-                        size="small" 
-                        :color="getStatusColor(ver.status)" 
+                      <v-chip
+                        size="small"
+                        :color="getStatusColor(ver.status)"
                         :variant="ver.status === 'ACTIVE' ? 'flat' : 'tonal'"
                         class="mr-2"
                       >
@@ -821,7 +821,7 @@ watch(() => props.templates, () => {
                           mdi-check
                         </v-icon>
                       </v-chip>
-                           
+
                       <span
                         v-if="ver.status === 'ACTIVE'"
                         class="text-caption font-weight-bold text-success mr-2"
@@ -860,7 +860,7 @@ watch(() => props.templates, () => {
             </v-expand-transition>
           </div>
         </template>
-        
+
         <div
           v-if="groupedTemplates.length === 0"
           class="empty-state"
@@ -1065,7 +1065,7 @@ watch(() => props.templates, () => {
 .toolbar-actions {
   display:flex;
   gap:8px;
-  align-items: center; 
+  align-items: center;
   flex-shrink: 0;
 }
 
@@ -1321,15 +1321,15 @@ watch(() => props.templates, () => {
   .col-updated, .col-device {
     display:none;
   }
-  
+
   .templates-header {
     padding:16px;
   }
-  
+
   .header-left {
     gap: 8px;
   }
-  
+
   .header-title {
     font-size:16px;
   }
@@ -1340,11 +1340,11 @@ watch(() => props.templates, () => {
     height: 100vh;
     border-radius: 0;
   }
-  
+
   .filter-toggle {
     display: none; /* Hide toggle on very small screens if needed, or adjust styling */
   }
-  
+
   .filter-toggle :deep(.v-switch .v-label) {
     font-size:12px;
   }

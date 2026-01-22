@@ -19,13 +19,13 @@ const filterText = ref<string>('')
 const baseList = computed<Device[]>(() => store.allDevices.length ?  store.allDevices : store.devices)
 const filtered = computed<Device[]>(() => {
   let base = baseList.value
-  
+
   if (filterStatus.value === 'active') {
     base = base.filter(d => d.active)
   } else if (filterStatus.value === 'inactive') {
     base = base.filter(d => !d.active)
   }
-  
+
   const q = filterText.value.trim().toLowerCase()
   if (! q) return base
   return base.filter(d => d.name.toLowerCase().includes(q) || d.code.toLowerCase().includes(q))
@@ -308,8 +308,8 @@ function adjustColor(color: string): string {
           {{ errorText }}
         </v-alert>
       </v-scroll-y-transition>
-       
-      <!-- Statistics Cards -->
+
+<!--      &lt;!&ndash; Statistics Cards &ndash;&gt;
       <v-row class="mb-6">
         <v-col
           cols="12"
@@ -319,7 +319,7 @@ function adjustColor(color: string): string {
           <v-card
             flat
             class="pa-4 rounded-xl border cursor-pointer transition-swing"
-            :style="{ 
+            :style="{
               background: '#eff6ff',
               borderColor: filterStatus === 'all' ? '#3b82f6 !important' : undefined,
               boxShadow: filterStatus === 'all' ? '0 0 0 2px rgba(59, 130, 246, 0.2)' : undefined
@@ -340,7 +340,7 @@ function adjustColor(color: string): string {
             </div>
           </v-card>
         </v-col>
-          
+
         <v-col
           cols="12"
           sm="6"
@@ -349,7 +349,7 @@ function adjustColor(color: string): string {
           <v-card
             flat
             class="pa-4 rounded-xl border cursor-pointer transition-swing"
-            :style="{ 
+            :style="{
               background: '#f0fdf4',
               borderColor: filterStatus === 'active' ? '#10b981 !important' : undefined,
               boxShadow: filterStatus === 'active' ? '0 0 0 2px rgba(16, 185, 129, 0.2)' : undefined
@@ -370,7 +370,7 @@ function adjustColor(color: string): string {
             </div>
           </v-card>
         </v-col>
-          
+
         <v-col
           cols="12"
           sm="6"
@@ -379,7 +379,7 @@ function adjustColor(color: string): string {
           <v-card
             flat
             class="pa-4 rounded-xl border cursor-pointer transition-swing"
-            :style="{ 
+            :style="{
               background: '#fef2f2',
               borderColor: filterStatus === 'inactive' ? '#ef4444 !important' : undefined,
               boxShadow: filterStatus === 'inactive' ? '0 0 0 2px rgba(239, 68, 68, 0.2)' : undefined
@@ -401,7 +401,7 @@ function adjustColor(color: string): string {
           </v-card>
         </v-col>
       </v-row>
-       
+       -->
       <!-- Content Card -->
       <v-card
         flat
@@ -416,10 +416,10 @@ function adjustColor(color: string): string {
               placeholder="Hledat přístroje..."
             />
           </div>
-              
-          <div 
+
+          <div
             class="view-selector-modern ml-auto"
-            style="background: #eaecf0;" 
+            style="background: #eaecf0;"
           >
             <button
               :class="['view-option-modern', { active: filterStatus === 'all' }]"
@@ -441,7 +441,7 @@ function adjustColor(color: string): string {
             </button>
           </div>
         </div>
-          
+
         <!-- Bulk Actions Header -->
         <v-expand-transition>
           <div
@@ -462,7 +462,7 @@ function adjustColor(color: string): string {
               vertical
               class="mx-2"
             />
-                 
+
             <v-btn
               size="small"
               variant="flat"
@@ -476,7 +476,7 @@ function adjustColor(color: string): string {
             >
               Deaktivovat
             </v-btn>
-                 
+
             <v-btn
               size="small"
               variant="flat"
@@ -489,7 +489,7 @@ function adjustColor(color: string): string {
             >
               Aktivovat
             </v-btn>
-                 
+
             <v-spacer />
             <v-btn
               size="small"
@@ -504,7 +504,7 @@ function adjustColor(color: string): string {
             </v-btn>
           </div>
         </v-expand-transition>
-          
+
         <!-- Grid View Content -->
         <div
           v-if="viewMode === 'grid'"
@@ -524,7 +524,7 @@ function adjustColor(color: string): string {
               Režim výběru rozsahu (Shift)
             </v-chip>
           </div>
-             
+
           <v-row>
             <v-col
               v-for="device in filtered"
@@ -548,7 +548,7 @@ function adjustColor(color: string): string {
                     color="primary"
                     @click.stop="toggleSelection(device)"
                   />
-                        
+
                   <v-chip
                     size="x-small"
                     :color="device.active ? 'success' : 'grey'"
@@ -558,7 +558,7 @@ function adjustColor(color: string): string {
                     {{ device.active ? 'Aktivní' : 'Neaktivní' }}
                   </v-chip>
                 </div>
-                     
+
                 <v-card-text class="text-center pt-2 pb-4">
                   <v-avatar
                     :style="{ background: `linear-gradient(135deg, ${device.color || '#3b82f6'} 0%, ${adjustColor(device.color || '#3b82f6')} 100%)` }"
@@ -566,7 +566,7 @@ function adjustColor(color: string): string {
                     rounded="xl"
                     class="mb-3 elevation-4"
                   >
-                    <span 
+                    <span
                       :class="[
                         'font-weight-bold text-white px-1 text-wrap',
                         device.code.length <= 3 ? 'text-h4' : device.code.length <= 6 ? 'text-h5' : 'text-h6'
@@ -576,12 +576,12 @@ function adjustColor(color: string): string {
                       {{ device.code }}
                     </span>
                   </v-avatar>
-                         
+
                   <div class="text-subtitle-1 font-weight-bold text-truncate px-2">
                     {{ device.name }}
                   </div>
                 </v-card-text>
-                     
+
                 <v-divider />
                 <v-card-actions>
                   <v-btn
@@ -600,7 +600,7 @@ function adjustColor(color: string): string {
                 </v-card-actions>
               </v-card>
             </v-col>
-                
+
             <v-col
               v-if="filtered.length === 0"
               cols="12"
@@ -628,7 +628,7 @@ function adjustColor(color: string): string {
             </v-col>
           </v-row>
         </div>
-          
+
         <!-- Table View Content -->
         <v-data-table
           v-else
@@ -832,7 +832,7 @@ function adjustColor(color: string): string {
   .top-toolbar {
     padding: 20px 24px;
   }
-  
+
   .filter-toolbar-modern {
     padding: 16px 20px;
   }
@@ -843,17 +843,17 @@ function adjustColor(color: string): string {
     padding: 16px 20px;
     flex-wrap: wrap;
   }
-  
+
   .filter-toolbar-modern {
     padding: 16px 20px;
     flex-direction: column;
     align-items: stretch;
   }
-  
+
   .search-field-modern {
     max-width: 100%;
   }
-  
+
   .toggle-switch-wrapper {
     margin-left: 0;
     justify-content: flex-start;

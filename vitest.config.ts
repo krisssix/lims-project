@@ -3,7 +3,7 @@ import vue from '@vitejs/plugin-vue'
 import { fileURLToPath } from 'node:url'
 
 export default defineConfig({
-    plugins: [vue()],
+    plugins: [vue() as never],
     test: {
         environment: 'happy-dom',
         globals: true,

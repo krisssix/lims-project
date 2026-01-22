@@ -45,8 +45,8 @@ export function formatVersion(version: string | undefined): string {
     if (!version) return 'v1.0'
     const v = version.replace(/^v/, '')
     const parts = v.split('.')
-    if (parts.length === 1) return `v${parts[0]}.0`
-    if (parts.length === 2) return `v${parts[0]}.${parts[1]}`
+    if (parts.length === 1) return `${parts[0]}.0`
+    if (parts.length === 2) return `${parts[0]}.${parts[1]}`
     return `v${parts[0]}.${parts[1]}.${parts[2]}`
 }
 

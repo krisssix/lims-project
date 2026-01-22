@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { defineStore } from "pinia";
 import { ref } from "vue";
 import { get } from "@/services/api/api-requests";

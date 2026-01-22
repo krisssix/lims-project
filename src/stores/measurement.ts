@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { get, post, del, patch } from '@/services/api/api-requests'
 
-export type ValueType = 'float' | 'int' | 'text' | 'file' | 'bool' | 'date' | 'time' | 'datetime'
+import { type ValueType } from '@/types/measurement-ui'
 
 export interface MeasuredValue {
   orderIndex: number
@@ -135,6 +135,8 @@ function normalizeResp(m: MeasurementResponse): MeasurementResponse {
     groupId: m.groupId ?? null,
     templateId: m.templateId ?? null,
     measuredByUsername: m.measuredByUsername ?? null,
+    zenodoDoi: m.zenodoDoi ?? null,
+    zenodoRecordId: m.zenodoRecordId ?? null,
     values: Array.isArray(m.values)
       ? m.values.map((v: BackendValue) => ({
         ...v,

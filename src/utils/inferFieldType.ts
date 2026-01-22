@@ -1,13 +1,14 @@
-export type FieldType = 'float' | 'int' | 'text' | 'file' | 'bool' | 'date'
+import type { ValueType } from '@/types/measurement-ui'
 
 function includesOne(haystack: string, needles: string[]): boolean {
   const s = haystack.toLowerCase()
   return needles.some(n => s.includes(n))
 }
 
-function headerHeuristic(headerRaw: string): FieldType | null {
+function headerHeuristic(headerRaw: string): ValueType | null {
   const h = headerRaw.trim().toLowerCase()
-  if (includesOne(h, ['date', 'datum', 'time', 'čas', 'measurement date'])) return 'date'
+  if (includesOne(h, ['date', 'datum', 'measurement date'])) return 'date'
+  if (includesOne(h, ['time', 'čas'])) return 'time'
   if (includesOne(h, ['yes/no', 'true/false', 'boolean'])) return 'bool'
   if (includesOne(h, ['file', 'image', 'screenshot'])) return 'file'
   if (includesOne(h, ['count', 'number ']) || /^number\b/u.test(h)) return 'int'
@@ -15,7 +16,7 @@ function headerHeuristic(headerRaw: string): FieldType | null {
   return null
 }
 
-export function inferFieldType(detectedTypeRaw: string | undefined, headerRaw: string | undefined): FieldType {
+export function inferFieldType(detectedTypeRaw: string | undefined, headerRaw: string | undefined): ValueType {
   const dt = (detectedTypeRaw || '').trim().toLowerCase()
   const h = (headerRaw || '').trim()
   switch (dt) {
@@ -25,8 +26,12 @@ export function inferFieldType(detectedTypeRaw: string | undefined, headerRaw: s
       return 'int'
     case 'bool': case 'boolean':
       return 'bool'
-    case 'date': case 'datetime': case 'timestamp':
+    case 'date':
       return 'date'
+    case 'datetime': case 'timestamp':
+      return 'datetime'
+    case 'time':
+      return 'time'
     case 'file': case 'binary': case 'blob':
       return 'file'
     case 'text': case 'string': case 'varchar': case 'unknown': case 'empty':

@@ -50,7 +50,7 @@ const dialogState = ref({
 const displayText = computed(() => {
   const m = props.modelValue
   if (!m) return 'Neopakuje se'
-  
+
   if (m.recurrenceType === 'DAILY' && m.interval === 1 && ! m.until && !m.count) {
     return 'Denně'
   }
@@ -70,7 +70,7 @@ const displayText = computed(() => {
   if (m.recurrenceType === 'YEARLY' && m.interval === 1 && !m.until && !m.count) {
     return `Ročně ${props.startDate.getDate()}. ${props.startDate.getMonth() + 1}.`
   }
-  
+
   const typeCode = m.recurrenceType || 'WEEKLY'
   const forms: Record<string, [string, string, string]> = {
     DAILY:['den', 'dny', 'dní'],
@@ -78,15 +78,15 @@ const displayText = computed(() => {
     MONTHLY: ['měsíc', 'měsíce', 'měsíců'],
     YEARLY:['rok', 'roky', 'let']
   }
-  
+
   const n = m.interval || 1
   const unitTxt = pluralize(n, forms[typeCode] || forms.WEEKLY)
   const prefixWord = getIntervalPrefix(n)
-  
+
   let endTxt = ''
   if (m.count) endTxt = `, ${m.count}×`
   else if (m.until) endTxt = `, do ${new Date(m.until).toLocaleDateString('cs-CZ')}`
-  
+
   let mainText = ''
   if (n === 1 && typeCode === 'DAILY') {
     mainText = 'Denně'
@@ -97,7 +97,7 @@ const displayText = computed(() => {
     // Capitalize first letter
     mainText = mainText.charAt(0).toUpperCase() + mainText.slice(1)
   }
-  
+
   return `${mainText}${endTxt}`
 })
 
@@ -122,7 +122,7 @@ function openDialog() {
     else if (m.recurrenceType === 'WEEKLY' && m.daysOfWeek?.length === 5 && [1,2,3,4,5].every(d => m.daysOfWeek!.includes(d))) {
       mode = 'WEEKDAY'
     }
-    
+
     dialogState.value = {
       mode,
       interval:m.interval || 1,
@@ -141,16 +141,16 @@ function closeDialog() {
 
 function saveRecurrence() {
   const s = dialogState.value
-  
+
   if (s.mode === 'NONE') {
     emit('update:modelValue', null)
     dialogOpen.value = false
     return
   }
-  
+
   let recurrenceType:'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY'
   let daysOfWeek: number[] | undefined
-  
+
   switch (s.mode) {
     case 'DAILY':
       recurrenceType = 'DAILY'
@@ -173,14 +173,14 @@ function saveRecurrence() {
     default:
       recurrenceType = 'WEEKLY'
   }
-  
+
   const req:RecurrenceRequest = {
     recurrenceType,
     interval:s.interval
   }
-  
+
   if (daysOfWeek) req.daysOfWeek = daysOfWeek
-  
+
   if (s.endMode === 'COUNT' && s.count > 0) {
     req.count = s.count
   } else if (s.endMode === 'UNTIL' && s.untilDate) {
@@ -188,7 +188,7 @@ function saveRecurrence() {
     const d = new Date(year, month - 1, day, 23, 59, 59, 999)
     req.until = d.getTime()
   }
-  
+
   emit('update:modelValue', req)
   dialogOpen.value = false
 }
@@ -239,25 +239,25 @@ const gridOptions = [
 const estimatedCount = computed(() => {
   const s = dialogState.value
   if (s.mode === 'NONE') return 0
-  
+
   // Pokud je nastavený počet opakování, vrátit přímo
   if (s.endMode === 'COUNT' && s.count > 0) {
     return s.count
   }
-  
+
   // Pokud je nastaveno datum ukončení
   if (s.endMode === 'UNTIL' && s.untilDate) {
     const start = props.startDate
     const [year, month, day] = s.untilDate.split('-').map(Number)
     const end = new Date(year, month - 1, day, 23, 59, 59)
-    
+
     if (end <= start) return 0
-    
+
     const diffMs = end.getTime() - start.getTime()
     const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24))
-    
+
     const interval = s.interval || 1
-    
+
     switch (s.mode) {
       case 'DAILY':
         return Math.ceil(diffDays / interval)
@@ -278,7 +278,7 @@ const estimatedCount = computed(() => {
         return 0
     }
   }
-  
+
   // Pro "nikdy nekončí" vrátit null (nekonečno)
   return null
 })
@@ -286,7 +286,7 @@ const estimatedCount = computed(() => {
 // Text pro zobrazení počtu
 const countDisplayText = computed(() => {
   const count = estimatedCount.value
-  if (count === null) return 'Neomezený počet rezervací'
+  if (count === null) return '1000 rezervací'
   if (count === 0) return ''
   if (count === 1) return '1 rezervace'
   if (count >= 2 && count <= 4) return `${count} rezervace`
@@ -298,12 +298,12 @@ const countDisplayText = computed(() => {
   <div class="recurrence-editor">
     <!-- Trigger Button -->
     <!-- Trigger Button (Slot or Default) -->
-    <slot 
-      name="activator" 
-      :props="{ 
-        onClick: openDialog, 
-        text: displayText, 
-        hasValue: hasRecurrence 
+    <slot
+      name="activator"
+      :props="{
+        onClick: openDialog,
+        text: displayText,
+        hasValue: hasRecurrence
       }"
     >
       <button
@@ -312,8 +312,8 @@ const countDisplayText = computed(() => {
         :class="{ 'has-value':hasRecurrence }"
         @click="openDialog"
       >
-        <v-icon 
-          size="18" 
+        <v-icon
+          size="18"
           :color="hasRecurrence ? 'primary' :undefined"
         >
           mdi-repeat
@@ -352,10 +352,10 @@ const countDisplayText = computed(() => {
               </div>
             </div>
           </div>
-          <v-btn 
-            icon="mdi-close" 
-            variant="text" 
-            size="small" 
+          <v-btn
+            icon="mdi-close"
+            variant="text"
+            size="small"
             @click="closeDialog"
           />
         </div>
@@ -394,7 +394,7 @@ const countDisplayText = computed(() => {
                   :key="d.val"
                   type="button"
                   class="day-btn"
-                  :class="{ 
+                  :class="{
                     active:dialogState.daysOfWeek.includes(d.val),
                     weekend:d.weekend
                   }"
@@ -408,8 +408,8 @@ const countDisplayText = computed(() => {
 
           <!-- Interval -->
           <Transition name="fade">
-            <div 
-              v-if="dialogState.mode !== 'NONE' && dialogState.mode !== 'WEEKDAY'" 
+            <div
+              v-if="dialogState.mode !== 'NONE' && dialogState.mode !== 'WEEKDAY'"
               class="interval-section"
             >
               <span class="interval-label">Opakovat každý</span>
@@ -436,29 +436,30 @@ const countDisplayText = computed(() => {
 
               <div class="end-options">
                 <!-- Never -->
-                <label
+<!--                <label
                   class="end-option"
                   :class="{ active: dialogState.endMode === 'NEVER' }"
                 >
-                  <input 
-                    v-model="dialogState.endMode" 
-                    type="radio" 
+                  <input
+                    v-model="dialogState.endMode"
+                    type="radio"
                     value="NEVER"
                   >
                   <div class="radio-indicator">
                     <div class="radio-dot" />
                   </div>
                   <span class="end-label">Nikdy nekončí</span>
-                </label>
+
+                </label>-->
 
                 <!-- Count -->
                 <label
                   class="end-option"
                   :class="{ active:dialogState.endMode === 'COUNT' }"
                 >
-                  <input 
-                    v-model="dialogState.endMode" 
-                    type="radio" 
+                  <input
+                    v-model="dialogState.endMode"
+                    type="radio"
                     value="COUNT"
                   >
                   <div class="radio-indicator">
@@ -482,9 +483,9 @@ const countDisplayText = computed(() => {
                   class="end-option"
                   :class="{ active:dialogState.endMode === 'UNTIL' }"
                 >
-                  <input 
-                    v-model="dialogState.endMode" 
-                    type="radio" 
+                  <input
+                    v-model="dialogState.endMode"
+                    type="radio"
                     value="UNTIL"
                   >
                   <div class="radio-indicator">
@@ -529,8 +530,8 @@ const countDisplayText = computed(() => {
             Zrušit
           </v-btn>
           <v-spacer />
-          <v-btn 
-            variant="flat" 
+          <v-btn
+            variant="flat"
             color="primary"
             prepend-icon="mdi-check"
             @click="saveRecurrence"

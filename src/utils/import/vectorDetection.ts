@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
+
 /**
  * detekce vektorových buněk pro identifikaci datových sérií.
  * vektorová buňka obsahuje více číselných hodnot oddělených mezerami.

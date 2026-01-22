@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
+
 import { detectDelimiter } from './detectDelimeter'
 import { isProbableUnitRow } from './detectUnitRow'
 import { extractKeyValueMeta } from './kvMeta'

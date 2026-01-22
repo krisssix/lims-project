@@ -1,4 +1,4 @@
-// bez 'any'. jednoduchý csv/tsv parser a kompatibilita šablony vůči souboru.
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { isVectorCell, parseVectorCell } from './vectorDetection'
 import * as XLSX from 'xlsx'
 import Papa from 'papaparse'

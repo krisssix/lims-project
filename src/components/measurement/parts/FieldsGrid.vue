@@ -4,7 +4,7 @@ import { nextTick } from 'vue'
 
 const props = defineProps<{
   fields: RecordField[]
-  typeLabelMap: Record<'float' | 'int' | 'text' | 'file' | 'bool' | 'date', string>
+  typeLabelMap: Record<'float' | 'int' | 'text' | 'file' | 'bool' | 'time' | 'date' | 'datetime', string>
   getTextModel: (f: RecordField) => string | number | null
   getDateModel: (f: RecordField) => string | null
   getTimeModel: (f: RecordField) => string | null
@@ -51,7 +51,7 @@ function focusNextField(currentIdx: number): void {
       <!-- Label -->
       <label class="field-label">
         {{ field.name }}
-        
+
         <!-- Type Badge with Menu -->
         <v-menu location="bottom start">
           <template #activator="{ props }">
@@ -113,7 +113,7 @@ function focusNextField(currentIdx: number): void {
           @update:model-value.stop="val => emits('update', field, val)"
           @blur="emits('touch', field)"
         />
-        
+
         <input
           v-else-if="field.type === 'int'"
           :value="props.getTextModel(field)"
@@ -127,7 +127,7 @@ function focusNextField(currentIdx: number): void {
           @blur="emits('touch', field)"
           @keydown.enter.prevent="focusNextField(idx)"
         >
-        
+
         <input
           v-else-if="field.type === 'float'"
           :value="props.getTextModel(field)"
@@ -141,7 +141,7 @@ function focusNextField(currentIdx: number): void {
           @blur="emits('touch', field)"
           @keydown.enter.prevent="focusNextField(idx)"
         >
-        
+
         <div
           v-else-if="field.type === 'date'"
           class="date-time-inputs"
@@ -166,7 +166,7 @@ function focusNextField(currentIdx: number): void {
             @blur="emits('touch', field)"
           >
         </div>
-        
+
         <v-file-input
           v-else-if="field.type === 'file'"
           :model-value="props.getFileModel(field)"
@@ -180,7 +180,7 @@ function focusNextField(currentIdx: number): void {
           @update:model-value="val => emits('update', field, (Array.isArray(val) ? val[0] : val))"
           @blur="emits('touch', field)"
         />
-        
+
         <input
           v-else
           :value="props.getTextModel(field)"

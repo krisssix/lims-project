@@ -1,4 +1,4 @@
-export type ValueType = 'float' | 'int' | 'text' | 'file' | 'bool' | 'date' | 'time' | 'datetime'
+export type ValueType = 'float' | 'int' | 'text' | 'file' | 'bool' | 'date' | 'time' | 'datetime' //| 'array'
 
 export type TemplateFieldRow = {
   orderIndex: number

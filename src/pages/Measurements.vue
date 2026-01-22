@@ -1,4 +1,6 @@
 <script setup lang="ts" name=src/pages/Measurements.vue>
+/* eslint-disable @typescript-eslint/no-unused-vars */
+
 import { computed, ref, onMounted, watch, onBeforeUnmount } from 'vue'
 import { useRoute } from 'vue-router'
 import Dialog from '@/components/Dialog.vue'
@@ -20,9 +22,8 @@ import {
   useMeasurementStore,
   type MeasurementRequest,
   type MeasurementResponse,
-  type ValueType
 } from '@/stores/measurement'
-import { useReservationsStore } from '@/stores/reservations'
+import type { ValueType } from '@/types/measurement-ui'
 import { useDeviceStore } from '@/stores/devices'
 import {
   useMeasurementTemplatesStore,
@@ -59,8 +60,8 @@ const devicesWithMeasurements = computed<DeviceItem[]>(() => {
 /* Templates */
 const templatesStore = useMeasurementTemplatesStore()
 
-type FieldType = 'float' | 'int' | 'text' | 'file' | 'bool' | 'date'
-type FieldRow = { orderIndex: number; type: FieldType; required: boolean; name: string }
+// FieldType removed - use ValueType everywhere
+// type FieldRow = ... removed, using direct structure or TemplateFieldRow
 
 /* Templates - s bloky */
 const templates = computed<TemplateItem[]>(() =>
@@ -335,6 +336,7 @@ const filteredMeasurements = computed(() => {
         updatedAt: updatedAt ? toMs(updatedAt) : undefined, // Datum změny
         count: valuesCount,
         note,
+        zenodoDoi: m.zenodoDoi ?? null,
         _raw: m
       }
     })
@@ -373,9 +375,10 @@ function startEditTemplate(t: TemplateItem): void {
     blocks: fullTemplate?.blocks?.map(b => ({
       blockIndex: b.blockIndex,
       title: b.title ?? `Blok ${b.blockIndex}`,
+      kind: b.kind,
       fields: (b.fields ?? []).map((f, i) => ({
         orderIndex: i + 1,
-        type: f.type as FieldType,
+        type: f.type as ValueType,
         required: !!f.required,
         name: f.name,
       })),
@@ -415,11 +418,12 @@ const initialWizardTemplate = ref<{
   templateId: string
   name: string
   deviceCode: string
-  fields: Array<{ orderIndex: number; type: FieldType; required: boolean; name: string }>
+  fields: Array<{ orderIndex: number; type: ValueType; required: boolean; name: string }>
   blocks?: Array<{
     blockIndex: number
     title: string
-    fields: Array<{ orderIndex: number; type: FieldType; required: boolean; name: string }>
+    kind?: 'table' | 'stats' | 'series' | 'kv'
+    fields: Array<{ orderIndex: number; type: ValueType; required: boolean; name: string }>
   }>
   version?: string
   updatedAt?: string
@@ -466,7 +470,7 @@ function startDeriveTemplate(templateId: string): void {
       title: b.title ?? `Blok ${b.blockIndex}`,
       fields: (b.fields ?? []).map((f, i) => ({
         orderIndex: i + 1,
-        type: f.type as FieldType,
+        type: f.type as ValueType,
         required: !!f.required,
         name: f.name,
       })),
@@ -673,7 +677,7 @@ const templateFromClipboardOpen = ref(false)
 async function createTemplateFromClipboard(payload: {
   deviceCode: string
   templateName: string
-  fields: Array<{ orderIndex: number; type: FieldType; required: boolean; name: string }>
+  fields: Array<{ orderIndex: number; type: ValueType; required: boolean; name: string }>
   templateId?: string
 }): Promise<void> {
   // pro jednoduchost: 1 blok z fields
@@ -754,17 +758,16 @@ function onPublishZenodo(ids: number[]): void {
 }
 
 async function onZenodoPublished(payload: { doi: string; recordId: number; measurementIds: number[] }): Promise<void> {
-  // Update local measurements with DOI and recordId if they were part of the publish
-  const list = measurementStore.allMeasurements || []
-  list.forEach(m => {
-    if (payload.measurementIds.includes(m.id)) {
-      m.zenodoDoi = payload.doi
-      m.zenodoRecordId = payload.recordId
-    }
-  })
-  snackbar.value = { open: true, text: 'Měření byla publikována v Zenodo' }
-  // Optionally reload from server to be sure
+  // Save DOI and recordId to database for each measurement
+  for (const measurementId of payload.measurementIds) {
+    await measurementStore.updateMeasurement(measurementId, {
+      zenodoDoi: payload.doi,
+      zenodoRecordId: payload.recordId
+    })
+  }
+  
   await loadMeasurements()
+  snackbar.value = { open: true, text: 'Měření byla publikována v Zenodo' }
 }
 
 function prevDetail(): void {

@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { get, post, patch, del } from '@/services/api/api-requests'
 
-export type ValueType = 'float' | 'int' | 'text' | 'file' | 'bool' | 'date' | 'time' | 'datetime'
+import { type ValueType } from '@/types/measurement-ui'
 
 export interface TemplateFieldResponse {
   id: number

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { ref, watch, computed, nextTick, onMounted, onBeforeUnmount, toRaw } from 'vue'
 import EntityEditorDialog from '@/components/EntityEditorDialog.vue'
 import ChartPanel from '@/components/chart/ChartPanel.vue'
@@ -62,10 +63,13 @@ const TYPE_LABEL: Record<ValueType, string> = {
   text: 'Text',
   file: 'Soubor',
   bool: 'Boolean',
-  date: 'Datum'
+  date: 'Datum',
+  time: 'Čas',
+  datetime: 'Datum a čas',
+ // array: 'Seznam hodnot'
 }
 
-// pomocná funkce: získání správné zenodo url (sandbox vs produkce)
+// získání správné zenodo url (sandbox vs produkce)
 function getZenodoUrl(doi: string): string {
   if (doi.startsWith('10.5072/')) {
     const recordId = doi.replace('10.5072/zenodo.', '')
@@ -579,7 +583,7 @@ const previewImage = ref({ show: false, src: '', title: '' })
 
 async function openPreview(field: RecordField): Promise<void> {
   if (!hasExistingFileUrl(field)) return
-  
+
   const rawUrl = getFileDisplayUrl(field)
   if (!rawUrl) return
 
@@ -588,12 +592,12 @@ async function openPreview(field: RecordField): Promise<void> {
     const resp = await fetch(rawUrl, {
       headers: { Authorization: `Bearer ${token}` }
     })
-    
+
     if (!resp.ok) throw new Error('Failed to load file')
-    
+
     const blob = await resp.blob()
     const objectUrl = URL.createObjectURL(blob)
-    
+
     if (isImageFile(field)) {
       previewImage.value = {
         show: true,
@@ -844,8 +848,8 @@ const liveStatus = computed<string>(() => {
 
     <div class="tabs-container-modern">
       <div class="inspector-tabs-modern">
-        <button 
-          class="tab-btn-modern" 
+        <button
+          class="tab-btn-modern"
           :class="{ active: !metaCollapsed }"
           @click="toggleMeta"
         >
@@ -854,8 +858,8 @@ const liveStatus = computed<string>(() => {
           </v-icon>
           <span>Meta</span>
         </button>
-        <button 
-          class="tab-btn-modern" 
+        <button
+          class="tab-btn-modern"
           :class="{ active: !valuesCollapsed }"
           @click="toggleValues"
         >
@@ -868,8 +872,8 @@ const liveStatus = computed<string>(() => {
             class="tab-badge-modern"
           >{{ invalidCount }}</span>
         </button>
-        <button 
-          class="tab-btn-modern" 
+        <button
+          class="tab-btn-modern"
           :class="{ active: !statsCollapsed }"
           @click="toggleStats"
         >
@@ -878,8 +882,8 @@ const liveStatus = computed<string>(() => {
           </v-icon>
           <span>Statistika</span>
         </button>
-        <button 
-          class="tab-btn-modern" 
+        <button
+          class="tab-btn-modern"
           :class="{ active: !attachmentsCollapsed }"
           @click="toggleAttachments"
         >
@@ -951,6 +955,56 @@ const liveStatus = computed<string>(() => {
           v-show="!metaCollapsed"
           class="meta-content"
         >
+          <!-- Zenodo publikace - zobrazena jako první -->
+          <div
+            v-if="item?.zenodoDoi"
+            class="subsection-label d-flex align-center"
+            style="gap: 6px;"
+          >
+            <v-icon
+              size="16"
+              color="deep-purple"
+            >
+              mdi-cloud-check
+            </v-icon>
+            Zenodo publikace
+          </div>
+          <v-alert
+            v-if="item?.zenodoDoi"
+            type="info"
+            variant="tonal"
+            color="deep-purple"
+            class="mb-4"
+            density="compact"
+          >
+            <div
+              class="d-flex align-center justify-space-between flex-wrap"
+              style="gap: 8px;"
+            >
+              <div>
+                <strong>DOI:</strong>
+                <a
+                  :href="getZenodoUrl(item.zenodoDoi)"
+                  target="_blank"
+                  class="text-decoration-none ml-2"
+                  style="font-family: monospace;"
+                >
+                  {{ item.zenodoDoi }}
+                </a>
+              </div>
+              <v-btn
+                :href="getZenodoUrl(item.zenodoDoi)"
+                target="_blank"
+                size="small"
+                variant="tonal"
+                color="deep-purple"
+                prepend-icon="mdi-open-in-new"
+              >
+                Otevřít v Zenodo
+              </v-btn>
+            </div>
+          </v-alert>
+
           <div class="subsection-label">
             ZÁKLADNÍ INFORMACE
           </div>
@@ -1107,9 +1161,6 @@ const liveStatus = computed<string>(() => {
               />
             </v-col>
           </v-row>
-
-
-
           <div
             v-if="updatedAtFormatted.date"
             class="subsection-label"
@@ -1155,9 +1206,6 @@ const liveStatus = computed<string>(() => {
               />
             </v-col>
           </v-row>
-
-
-
           <div
             class="subsection-label d-flex align-center"
             style="gap: 6px;"
@@ -1172,57 +1220,6 @@ const liveStatus = computed<string>(() => {
             :min-height="'150px'"
             placeholder="Pište poznámky v markdown formátu..."
           />
-
-
-
-          <div
-            v-if="item?.zenodoDoi"
-            class="subsection-label d-flex align-center mt-4"
-            style="gap: 6px;"
-          >
-            <v-icon
-              size="16"
-              color="deep-purple"
-            >
-              mdi-cloud-check
-            </v-icon>
-            Zenodo publikace
-          </div>
-          <v-alert
-            v-if="item?.zenodoDoi"
-            type="info"
-            variant="tonal"
-            color="deep-purple"
-            class="mt-2"
-            density="compact"
-          >
-            <div
-              class="d-flex align-center justify-space-between flex-wrap"
-              style="gap: 8px;"
-            >
-              <div>
-                <strong>DOI:</strong>
-                <a
-                  :href="getZenodoUrl(item.zenodoDoi)"
-                  target="_blank"
-                  class="text-decoration-none ml-2"
-                  style="font-family: monospace;"
-                >
-                  {{ item.zenodoDoi }}
-                </a>
-              </div>
-              <v-btn
-                :href="getZenodoUrl(item.zenodoDoi)"
-                target="_blank"
-                size="small"
-                variant="tonal"
-                color="deep-purple"
-                prepend-icon="mdi-open-in-new"
-              >
-                Otevřít v Zenodo
-              </v-btn>
-            </div>
-          </v-alert>
         </div>
       </section>
 
