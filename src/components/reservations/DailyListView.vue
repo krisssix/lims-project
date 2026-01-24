@@ -60,7 +60,7 @@ const DAILY_LIST_HEADERS: Header[] = [
 ]
 const headersToUse = computed<Header[]>(() => props.headers?.length ? props.headers : DAILY_LIST_HEADERS)
 
-const DEFAULT_DAYS = 60
+//const DEFAULT_DAYS = 60
 const listFrom = ref<string>(props.filterFrom || '')
 const listTo   = ref<string>(props.filterTo || '')
 const listSearch = ref<string>('')
@@ -121,11 +121,11 @@ const fmtTime      = (d: Date) => fmtTimeFmt.format(d)
 
 const rangeFromMs = computed<number | null>(() => listFrom.value ? startOfDayMs(listFrom.value) : null)
 const rangeToMs   = computed<number | null>(() => listTo.value ? endOfDayMs(listTo.value) : null)
-const listRangeDays = computed(() => {
-  if (rangeFromMs.value == null || rangeToMs.value == null) return 0
-  const diff = rangeToMs.value - rangeFromMs.value
-  return diff >= 0 ? (diff / 86400000) + 1 : 0
-})
+//const listRangeDays = computed(() => {
+//  if (rangeFromMs.value == null || rangeToMs.value == null) return 0
+//  const diff = rangeToMs.value - rangeFromMs.value
+//  return diff >= 0 ? (diff / 86400000) + 1 : 0
+//})
 
 const includeNotesInSearch = ref(true)
 const listFiltered = computed<ReservationDto[]>(() => {
@@ -166,6 +166,46 @@ const listFiltered = computed<ReservationDto[]>(() => {
   return result
 })
 
+/* Decoupled filters for dropdown options */
+const listFilteredBase = computed<ReservationDto[]>(() => {
+  let result = listRaw.value
+  const needle = listSearch.value.trim().toLowerCase()
+  if (needle) {
+    result = result.filter(r => {
+      const inTitle = (r.title || '').toLowerCase().includes(needle)
+      const inNote = includeNotesInSearch.value ? (r.note || '').toLowerCase().includes(needle) : false
+      const inUser = (r.username || '').toLowerCase().includes(needle)
+      const inDevice = (r.deviceCode || '').toLowerCase().includes(needle)
+      return inTitle || inNote || inUser || inDevice
+    })
+  }
+  return result
+})
+
+// List filtered by Members only (to determine available Devices)
+const listForDevices = computed<ReservationDto[]>(() => {
+  let result = listFilteredBase.value
+  const memberFilter = localFilterMembers.value.length > 0
+    ? localFilterMembers.value
+    : (props.memberUsernames?.length ? props.memberUsernames : [])
+  if (memberFilter.length > 0) {
+    result = result.filter(r => r.username && memberFilter.includes(r.username))
+  }
+  return result
+})
+
+// List filtered by Devices only (to determine available Members)
+const listForMembers = computed<ReservationDto[]>(() => {
+  let result = listFilteredBase.value
+  const deviceFilter = localFilterDevices.value.length > 0
+    ? localFilterDevices.value
+    : (props.deviceCodes?.length ? props.deviceCodes : [])
+  if (deviceFilter.length > 0) {
+    result = result.filter(r => deviceFilter.includes(r.deviceCode))
+  }
+  return result
+})
+
 // For series reservations, use the earliest createdAt from the series
 // so all reservations in a series sort and display with the same creation date
 const seriesCreatedAtMap = computed<Map<string, number>>(() => {
@@ -197,8 +237,8 @@ const tableItems = computed<DailyListRow[]>(() =>
       const field = sortBy.value
       const desc = sortDesc.value ? -1 : 1
       
-      let valA: any = a[field as keyof ReservationDto]
-      let valB: any = b[field as keyof ReservationDto]
+      let valA: string | number | null | undefined = a[field as keyof ReservationDto] as (string | number | null | undefined)
+      let valB: string | number | null | undefined = b[field as keyof ReservationDto] as (string | number | null | undefined)
 
       // Special handling for computed/alias fields if needed, but for now strict DTO fields
       if (field === 'device') valA = a.deviceCode; valB = b.deviceCode
@@ -520,7 +560,7 @@ const editForm = ref<{
   endHM: string
   username: string | null
   note: string
-  recurrence?: any
+  recurrence?: any // eslint-disable-line @typescript-eslint/no-explicit-any
 } | null>(null)
 
 function buildEditFormFrom(raw: ReservationDto | null) {
@@ -673,7 +713,7 @@ onMounted(async () => {
     // Fetch members for edit dialog
     const mResp = await get(`projectMember/${props.projectId}`)
     if (mResp?.data?.content?.members) {
-      members.value = mResp.data.content.members.map((m: any) => m.username).filter(Boolean)
+      members.value = mResp.data.content.members.map((m: any) => m.username).filter(Boolean) // eslint-disable-line @typescript-eslint/no-explicit-any
     }
   } catch (e) { console.warn('Nešlo načíst data pro editaci', e) }
 
@@ -727,10 +767,10 @@ function setHM(base: Date, hm: string) {
   d.setHours(h, m, 0, 0)
   return d
 }
-function addDays(d: Date, n: number): Date { const x = new Date(d); x.setDate(d.getDate() + n); return x }
+//function addDays(d: Date, n: number): Date { const x = new Date(d); x.setDate(d.getDate() + n); return x }
 function startOfDayMs(ymd: string): number { const [y, m, d] = ymd.split('-').map(Number); return new Date(y, (m || 1) - 1, d || 1, 0, 0, 0, 0).getTime() }
 function endOfDayMs(ymd: string): number   { const [y, m, d] = ymd.split('-').map(Number); return new Date(y, (m || 1) - 1, d || 1, 23, 59, 59, 999).getTime() }
-function statusColor(status: StatusType): string { return status === 'done' ? 'green' : status === 'running' ? 'blue' : 'grey' }
+//function statusColor(status: StatusType): string { return status === 'done' ? 'green' : status === 'running' ? 'blue' : 'grey' }
 function statusLabel(status: StatusType): string { return status === 'plan' ? 'Čeká' : status === 'running' ? 'Probíhá' : 'Hotovo' }
 
 // Helper functions for new table design
@@ -846,8 +886,8 @@ function removeReservation(id: number) {
 /* Expose for parent */
 const usedDeviceCodes = computed<string[]>(() => {
   const s = new Set<string>()
-  // Use listFiltered instead of listRaw to reflect client-size filters (member filter)
-  for (const r of listFiltered.value) {
+  // Use listForDevices (filtered by search + members, but NOT by devices)
+  for (const r of listForDevices.value) {
     if (r.deviceCode) s.add(r.deviceCode)
   }
   return Array.from(s)
@@ -855,7 +895,8 @@ const usedDeviceCodes = computed<string[]>(() => {
 
 const usedUsernames = computed<string[]>(() => {
   const s = new Set<string>()
-  for (const r of listFiltered.value) {
+  // Use listForMembers (filtered by search + devices, but NOT by members)
+  for (const r of listForMembers.value) {
     if (r.username) s.add(r.username)
   }
   return Array.from(s)

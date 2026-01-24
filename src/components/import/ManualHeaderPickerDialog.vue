@@ -5,6 +5,7 @@ import Dialog from '@/components/Dialog.vue'
 const props = defineProps<{
   modelValue: boolean
   rawGrid: (string | number)[][]
+  parsedGrid?: (string | number)[][]
   fileName?: string
 }>()
 
@@ -22,6 +23,20 @@ const emits = defineEmits<{
 // režim výběru: 'cell' | 'row' | 'column'
 type SelectionMode = 'cell' | 'row' | 'column'
 const selectionMode = ref<SelectionMode>('cell')
+
+// stav zobrazení: parsed (naparsovaná) nebo raw (surová) data
+const showRawData = ref(false)
+
+// aktuální mřížka pro zobrazení (parsed má přednost, pokud není showRawData)
+const displayGrid = computed(() => {
+  if (showRawData.value || !props.parsedGrid || props.parsedGrid.length === 0) {
+    return props.rawGrid
+  }
+  return props.parsedGrid
+})
+
+// má k dispozici parsed data?
+const hasParsedData = computed(() => !!props.parsedGrid && props.parsedGrid.length > 0)
 
 // vybrané buňky jako Set řetězců ve formátu „řádek,sloupec“
 const selectedCells = ref<Set<string>>(new Set())
@@ -48,6 +63,8 @@ watch(() => props.modelValue, (open) => {
     selectionMode.value = 'cell'
     noHeaderMode.value = false
     renamedHeaders.value = new Map()
+    // výchozí zobrazení: parsed data, pokud jsou k dispozici
+    showRawData.value = false
   }
 })
 
@@ -75,8 +92,8 @@ function saveColumnName() {
 
 // získání maximálního počtu sloupců
 const maxCols = computed(() => {
-  if (!props.rawGrid.length) return 0
-  return Math.max(...props.rawGrid.map(r => r.length))
+  if (!displayGrid.value.length) return 0
+  return Math.max(...displayGrid.value.map(r => r.length))
 })
 
 // obsluha kliknutí na buňku s podporou shiftu (shift-click)
@@ -114,14 +131,14 @@ function handleCellClick(rowIdx: number, colIdx: number, event: MouseEvent): voi
 
 // obsluha kliknutí na hlavičku řádku: výběr celého řádku
 function handleRowClick(rowIdx: number, event: MouseEvent): void {
-  const row = props.rawGrid[rowIdx]
+  const row = displayGrid.value[rowIdx]
   if (!row) return
 
   if (event.shiftKey && lastClickedCell.value) {
     const startRow = Math.min(lastClickedCell.value.row, rowIdx)
     const endRow = Math.max(lastClickedCell.value.row, rowIdx)
     for (let r = startRow; r <= endRow; r++) {
-      const currentRow = props.rawGrid[r]
+      const currentRow = displayGrid.value[r]
       if (currentRow) {
         for (let c = 0; c < currentRow.length; c++) {
           selectedCells.value.add(`${r},${c}`)
@@ -150,25 +167,25 @@ function handleColClick(colIdx: number, event: MouseEvent): void {
   if (event.shiftKey && lastClickedCell.value) {
     const startCol = Math.min(lastClickedCell.value.col, colIdx)
     const endCol = Math.max(lastClickedCell.value.col, colIdx)
-    for (let r = 0; r < props.rawGrid.length; r++) {
+    for (let r = 0; r < displayGrid.value.length; r++) {
       for (let c = startCol; c <= endCol; c++) {
-        if (props.rawGrid[r] && c < props.rawGrid[r].length) {
+        if (displayGrid.value[r] && c < displayGrid.value[r].length) {
           selectedCells.value.add(`${r},${c}`)
         }
       }
     }
   } else if (event.ctrlKey || event.metaKey) {
     // přidání sloupce do výběru
-    for (let r = 0; r < props.rawGrid.length; r++) {
-      if (props.rawGrid[r] && colIdx < props.rawGrid[r].length) {
+    for (let r = 0; r < displayGrid.value.length; r++) {
+      if (displayGrid.value[r] && colIdx < displayGrid.value[r].length) {
         selectedCells.value.add(`${r},${colIdx}`)
       }
     }
   } else {
     // nahrazení výběru sloupcem
     selectedCells.value = new Set()
-    for (let r = 0; r < props.rawGrid.length; r++) {
-      if (props.rawGrid[r] && colIdx < props.rawGrid[r].length) {
+    for (let r = 0; r < displayGrid.value.length; r++) {
+      if (displayGrid.value[r] && colIdx < displayGrid.value[r].length) {
         selectedCells.value.add(`${r},${colIdx}`)
       }
     }
@@ -204,7 +221,7 @@ function handleHeaderCellClick(colIdx: number, event: MouseEvent) {
 
 // získání hodnoty buňky
 function getCellValue(rowIdx: number, colIdx: number): string {
-  const cell = props.rawGrid[rowIdx]?.[colIdx]
+  const cell = displayGrid.value[rowIdx]?.[colIdx]
   if (cell === undefined || cell === null) return ''
   return String(cell)
 }
@@ -427,7 +444,7 @@ function colLetter(idx: number): string {
             <div
               v-if="fileName"
               class="text-subtitle-2 text-primary font-weight-bold mb-1"
-              style="max-width: 400px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
+              style="max-width: 400px;color: white; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"
             >
               {{ fileName }}
             </div>
@@ -444,7 +461,7 @@ function colLetter(idx: number): string {
             size="small"
             variant="outlined"
           >
-            {{ rawGrid.length }} řádků × {{ maxCols }} sloupců
+            {{ displayGrid.length }} řádků × {{ maxCols }} sloupců
           </v-chip>
           <v-chip
             v-if="selectedCells.size > 0"
@@ -529,6 +546,37 @@ function colLetter(idx: number): string {
             >
               Zrušit výběr
             </v-btn>
+
+            <!-- Raw data toggle -->
+            <template v-if="hasParsedData">
+              <v-divider
+                vertical
+                class="mx-2"
+                style="height: 24px;"
+              />
+              <v-btn-toggle
+                v-model="showRawData"
+                density="compact"
+                variant="outlined"
+                divided
+                mandatory
+              >
+                <v-btn
+                  :value="false"
+                  size="small"
+                >
+                  <v-icon start size="16">mdi-table-check</v-icon>
+                  Naparsovaná
+                </v-btn>
+                <v-btn
+                  :value="true"
+                  size="small"
+                >
+                  <v-icon start size="16">mdi-table-alert</v-icon>
+                  Raw data
+                </v-btn>
+              </v-btn-toggle>
+            </template>
           </div>
         </div>
 
@@ -563,7 +611,7 @@ function colLetter(idx: number): string {
             </thead>
             <tbody>
               <tr
-                v-for="(row, rowIdx) in rawGrid"
+                v-for="(row, rowIdx) in displayGrid"
                 :key="rowIdx"
               >
                 <td

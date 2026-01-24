@@ -646,6 +646,15 @@ const week2DaysWork = computed<Date[]>(() => {
   return weekRange(nextMonday, false).slice(0, 5)
 })
 
+const isToday = computed(() => {
+  const now = new Date()
+  const y = now.getFullYear()
+  const m = now.getMonth() + 1
+  const d = now.getDate()
+  const todayStr = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+  return selectedDate.value === todayStr
+})
+
 const daysForView = computed<Date[]>(() => {
   // 1. Custom range logic (only if NOT in 2-week mode, because 2-week mode uses split views)
   if (!showTwoWeeks.value && dateFilterModel.value.preset === 'custom' && dateFilterModel.value.from && dateFilterModel.value.to) {
@@ -2273,12 +2282,25 @@ async function handleConfirmConflict(slot: { start: Date; end: Date }) {
   resForm.value.startHM = hmFromDate(slot.start)
   resForm.value.endHM = hmFromDate(slot.end)
 
+  // Verify validity immediately
+  if (!isEditorValid.value) {
+      console.warn('Conflict resolution produced invalid slot', slot, resForm.value)
+      alert('Vybraný slot nelze použít (neplatný čas).')
+      return
+  }
+
   // Close conflict dialog
   conflictOpen.value = false
+  // Clear any pending legacy payload to avoid double-firing
+  pendingForcePayload.value = null
 
   // Actually save the reservation with the new time
   await nextTick()
-  await saveReservation()
+  try {
+      await saveReservation()
+  } catch (e) {
+      console.error('Save failed after conflict resolution', e)
+  }
 }
 
 function handleSuggestNextDay() {
@@ -2501,6 +2523,7 @@ onBeforeUnmount(() => {
                 :open-edit="openEdit"
                 :ask-delete="askDelete"
                 :set-viewport-ref="setDailyViewportRef"
+                :is-today="isToday"
               />
               <DailyListView
                 v-else-if="isDailyList"

@@ -1,3 +1,4 @@
+<!--suppress ALL -->
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import FilterMultiSelect from '@/components/ui/FilterMultiSelect.vue'
@@ -1865,14 +1866,19 @@ const dateToInput = computed({
   background: #2563eb;
 }
 
-.day-btn.selected {
-  /* Use a Violet/Purple gradient to distinguish from the Blue "Today" color */
-  background: linear-gradient(135deg, #3b82f6 0%, #1751af 100%);
+.day-btn.today.selected {
   color: white !important;
+  background: #2563eb !important;
+
+}
+
+
+.day-btn.selected {
+  background: linear-gradient(135deg, #3b82f6 0%, #1751af 100%);
   font-weight: 700;
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
   transform: scale(1.05);
 }
+
 
 .day-btn.selected::after {
   display: none;
@@ -1894,12 +1900,14 @@ const dateToInput = computed({
   background: #93c5fd;
 }
 
+/*
 .day-btn.in-week.selected {
   background: linear-gradient(135deg, #3b82f6 0%, #1751af 100%);
   color: white !important;
 }
+*/
 
-/* Month range highlighting (for thisMonth preset) */
+
 .day-btn.in-month {
   background: #dbeafe;
   color: #1e40af;
@@ -1921,9 +1929,8 @@ const dateToInput = computed({
 }
 
 /* Custom range highlighting (any date range) */
-.day-btn.in-range {
+.day-btn.in-range, .day-btn.weekend.selected {
   background: #dbeafe;
-  color: #1e40af;
   font-weight: 600;
   border-radius: 4px;
 }
@@ -1936,10 +1943,14 @@ const dateToInput = computed({
   background: #93c5fd;
 }
 
+
+/*
 .day-btn.in-range.selected {
   background: linear-gradient(135deg, #3b82f6 0%, #3b82f6 100%);
   color: white !important;
 }
+*/
+
 
 /* Weekends toggle in panel */
 .weekends-toggle-panel {

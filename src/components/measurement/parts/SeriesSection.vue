@@ -529,36 +529,66 @@ function updateChart(sIdx: number): void {
   const yColsSet = chartYAxes.value.get(sIdx)
   if (!xCol || !yColsSet || yColsSet.size === 0) return
   
-  // Get data
-  const xData = series.data.map(row => {
-    const val = row[xCol]
-    return typeof val === 'number' ? val : parseFloat(String(val) || '0')
-  }).filter(v => !isNaN(v))
+  // Heuristic for DLS Size Distribution charts (Log X-axis)
+  const isSizeDistribution = (xCol.toLowerCase().includes('size') || xCol.toLowerCase().includes('d.nm'))
   
+  // Prepare datasets
   const datasets = Array.from(yColsSet).map((yCol, i) => {
-    const yData = series.data.map(row => {
-      const val = row[yCol]
-      return typeof val === 'number' ? val : parseFloat(String(val) || '0')
-    })
+    let dataPoints: any[] = []
+    
+    if (isSizeDistribution) {
+      // For log scale, we need {x, y} points and NO zeros on X
+      dataPoints = series.data.map(row => {
+        const xVal = row[xCol]
+        const yVal = row[yCol]
+        const x = typeof xVal === 'number' ? xVal : parseFloat(String(xVal) || '0')
+        const y = typeof yVal === 'number' ? yVal : parseFloat(String(yVal) || '0')
+        return { x, y }
+      }).filter(p => !isNaN(p.x) && !isNaN(p.y) && p.x > 0)
+    } else {
+      // Standard linear/category chart - just Y values, X provided via labels
+      dataPoints = series.data.map(row => {
+        const val = row[yCol]
+        return typeof val === 'number' ? val : parseFloat(String(val) || '0')
+      })
+    }
+    
     return {
       label: yCol,
-      data: yData,
+      data: dataPoints,
       borderColor: CHART_COLORS[i % CHART_COLORS.length],
       backgroundColor: CHART_COLORS[i % CHART_COLORS.length] + '33',
       tension: 0.3,
-      pointRadius: 2
+      pointRadius: 2,
+      // Scatter style for log plot to ensure points are rendered correctly
+      showLine: true 
     }
   })
+
+  // Prepare X-axis labels (only for standard linear chart)
+  let xLabels: any[] = []
+  if (!isSizeDistribution) {
+    xLabels = series.data.map(row => {
+      const val = row[xCol]
+      return typeof val === 'number' ? val : parseFloat(String(val) || '0')
+    }).filter(v => !isNaN(v))
+  }
   
   // Destroy existing chart
   const existing = chartInstances.value.get(sIdx)
   if (existing) existing.destroy()
   
+  // Chart Title
+  const yAxisNames = Array.from(yColsSet).join(', ')
+  const chartTitle = isSizeDistribution 
+    ? `Size Distribution by ${yAxisNames}`
+    : `${yAxisNames} vs ${xCol}`
+
   // Create new chart
   const chart = new Chart(canvas, {
-    type: 'line',
+    type: 'line', // 'line' supports scatter data structure too if showLine: true
     data: {
-      labels: xData,
+      labels: isSizeDistribution ? undefined : xLabels,
       datasets
     },
     options: {
@@ -568,26 +598,12 @@ function updateChart(sIdx: number): void {
         mode: 'index',
         intersect: false,
       },
-      scales: {
-        x: {
-          title: { display: true, text: xCol },
-          ticks: {
-            autoSkip: false, // Show all labels
-            maxRotation: 45,
-            minRotation: 0
-          },
-          grid: {
-            display: false
-          }
-        },
-        y: {
-          title: { display: true, text: 'Hodnota' },
-          grid: {
-            color: '#f0f0f0'
-          }
-        }
-      },
       plugins: {
+        title: {
+          display: true,
+          text: chartTitle,
+          font: { size: 14 }
+        },
         legend: {
           position: 'top',
           align: 'end',
@@ -607,18 +623,51 @@ function updateChart(sIdx: number): void {
               if (context.parsed.y !== null) {
                 label += context.parsed.y;
               }
+              if (isSizeDistribution) {
+                  label += ` (Size: ${context.parsed.x})`;
+              }
               return label;
             }
           }
         }
       },
+      scales: {
+        x: {
+          type: isSizeDistribution ? 'logarithmic' : 'category', // Use logarithmic for DLS
+          title: { display: true, text: xCol },
+          ticks: {
+             autoSkip: true,
+             maxRotation: 45,
+             callback: isSizeDistribution 
+               ? function(value, index, values) { // Custom log ticks if needed
+                   const v = Number(value);
+                   if (v === 0.1 || v === 1 || v === 10 || v === 100 || v === 1000 || v === 10000) return v.toString();
+                   return ''; // Hide intermediate ticks for clarity
+                 }
+               : undefined
+          },
+          grid: {
+            display: true,
+            color: isSizeDistribution ? '#e0e0e0' : undefined
+          },
+          min: isSizeDistribution ? 0.1 : undefined,
+          max: isSizeDistribution ? 10000 : undefined
+        },
+        y: {
+          title: { display: true, text: 'Hodnota' },
+          grid: {
+            color: '#f0f0f0'
+          },
+          beginAtZero: true
+        }
+      },
       elements: {
         point: {
-          radius: 3,
-          hoverRadius: 6
+          radius: 2,
+          hoverRadius: 5
         },
         line: {
-          tension: 0.2,
+          tension: 0.2, // Less tension for smoother curves
           borderWidth: 2
         }
       }

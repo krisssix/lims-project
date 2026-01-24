@@ -13,6 +13,8 @@ const props = defineProps<{
   stats: StatsObj | null
   fields: string[]
   selectedField: string | null
+  selectedXField?: string | null  // null = use index/order for X-axis
+  xAxisPoints?: number[]  // X-axis values when a field is selected
   xLabels?: Array<number | string>
   outliers?: OutliersMeta | null
   multiSeries?: MultiSeriesItem[] | null
@@ -21,6 +23,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'select-field', field: string): void
+  (e: 'select-x-field', field: string | null): void
   (e: 'point-click', payload: { event: MouseEvent; idx: number; val: number }): void
   (e: 'zoom-change', zoomLevel: number): void
 }>()
@@ -51,6 +54,30 @@ const showMean = ref(true)
 const showHover = ref(true)
 const showTrend = ref(false)
 const trendType = ref<'linear' | 'logarithmic'>('linear')
+
+// X-axis selection - only visible for LINE and SCATTER charts
+const X_AXIS_INDEX_VALUE = '__index__'
+const supportsXAxisSelection = computed(() => 
+  activeTab.value === 'LINE' || activeTab.value === 'SCATTER'
+)
+
+const xAxisFieldOptions = computed(() => {
+  const options = [
+    { title: 'Pořadí (index)', value: X_AXIS_INDEX_VALUE }
+  ]
+  for (const field of props.fields) {
+    options.push({ title: field, value: field })
+  }
+  return options
+})
+
+const selectedXFieldInternal = computed(() => 
+  props.selectedXField ?? X_AXIS_INDEX_VALUE
+)
+
+function onSelectXField(val: string): void {
+  emit('select-x-field', val === X_AXIS_INDEX_VALUE ? null : val)
+}
 
 /* -------------------------------------------------
    Data preparation
@@ -98,6 +125,9 @@ function triggerCsv() {
 }
 function triggerSvg() {
   visualizerRef.value?.exportSvg()
+}
+function triggerXlsx() {
+  visualizerRef.value?.exportXlsx()
 }
 function triggerPng() {
   visualizerRef.value?.exportPng()
@@ -244,13 +274,39 @@ function openFieldSelect() {
     :aria-label="liveStatus"
     aria-live="polite"
   >
-    <!-- Compact field selector -->
+    <!-- Compact field selectors -->
     <div class="field-selector-compact">
+      <!-- X-axis selector (only for LINE and SCATTER) -->
+      <v-select
+        v-if="supportsXAxisSelection"
+        :model-value="selectedXFieldInternal"
+        :items="xAxisFieldOptions"
+        item-title="title"
+        item-value="value"
+        label="Osa X"
+        variant="outlined"
+        density="compact"
+        hide-details
+        class="field-select-compact"
+        style="max-width: 200px;"
+        @update:model-value="onSelectXField"
+      >
+        <template #prepend-inner>
+          <v-icon
+            size="18"
+            color="secondary"
+          >
+            mdi-axis-x-arrow
+          </v-icon>
+        </template>
+      </v-select>
+
+      <!-- Y-axis selector -->
       <v-select
         v-model:menu="isFieldMenuOpen"
         :model-value="selectedField"
         :items="fields"
-        label="Vyberte pole pro vizualizaci"
+        :label="supportsXAxisSelection ? 'Osa Y' : 'Vyberte pole pro vizualizaci'"
         variant="outlined"
         density="compact"
         hide-details
@@ -262,7 +318,7 @@ function openFieldSelect() {
             size="18"
             color="primary"
           >
-            mdi-tag-multiple
+            {{ supportsXAxisSelection ? 'mdi-axis-y-arrow' : 'mdi-tag-multiple' }}
           </v-icon>
         </template>
         <template #selection="{ item }">
@@ -420,6 +476,20 @@ function openFieldSelect() {
             </template>
           </v-tooltip>
           <v-tooltip
+            text="Export XLSX"
+            location="top"
+          >
+            <template #activator="{ props: tooltipProps }">
+              <v-btn
+                v-bind="tooltipProps"
+                size="small"
+                variant="text"
+                icon="mdi-microsoft-excel"
+                @click="triggerXlsx"
+              />
+            </template>
+          </v-tooltip>
+          <v-tooltip
             text="Export SVG (Ctrl+Shift+E)"
             location="top"
           >
@@ -482,6 +552,7 @@ function openFieldSelect() {
             :stats="stats"
             :outliers="outliers"
             :x-labels="xLabels"
+            :x-axis-points="xAxisPoints"
             :show-grid="showGrid"
             :show-mean="showMean"
             :show-hover="showHover"

@@ -23,7 +23,7 @@ export interface VectorParseResult {
 
 const MIN_VECTOR_TOKENS = 5
 const NUMERIC_RATIO_THRESHOLD = 0.8
-const MAX_CELL_LENGTH = 20000
+const MAX_CELL_LENGTH = 500000
 const MIN_CONSISTENT_ROWS = 2
 
 // ============ parsování čísel ============

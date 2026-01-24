@@ -2278,6 +2278,7 @@
   <ManualHeaderPickerDialog
     v-model="showManualHeaderPicker"
     :raw-grid="fullRawDataRows"
+    :parsed-grid="parsedGridWithHeader"
     :file-name="currentFileName"
     @apply="onManualHeadersApply"
   />
@@ -2303,7 +2304,7 @@ import {
   type ParseStatus,
   parseWithOptions
 } from '@/utils/import/clientParser'
-import {hasVectorCells as checkVectorCells, isVectorCell} from '@/utils/import/vectorDetection'
+import {hasVectorCells as checkVectorCells, isVectorCell, parseVectorCell} from '@/utils/import/vectorDetection'
 import {buildProposal} from '@/utils/import/blockDetection'
 import type {BlockAction, DetectedBlock, ParseProposal} from '@/types/import-blocks'
 import * as XLSX from 'xlsx'
@@ -3132,6 +3133,12 @@ const excelWorkbook = ref<XLSX.WorkBook | null>(null)
 const rawDataRows = ref<string[][]>([])
 const fullRawDataRows = computed(() => parseRawPreview(rawText.value))
 const hasUserEditedFields = ref(false)
+const parsedGridWithHeader = computed(() => {
+  if (mainHeader.value.length > 0) {
+    return [mainHeader.value, ...rawDataRows.value]
+  }
+  return rawDataRows.value
+})
 /* Parsed structures */
 const mainHeader = ref<string[]>([])      // Block 1 headers (including Sizes, Intensities, Volumes, Numbers)
 const statsLines = ref<string[]>([])      // Ignored statistics lines (Mean, Std Dev, RSD %)
@@ -3718,7 +3725,10 @@ const previewHeaders = computed(() => {
   if (!grid || grid.length === 0) {
     return mainHeader.value.map((h, i) => {
       const field = currentBlock?.fieldRows[i]
-      return field?.unit ? `${field.name} (${field.unit})` : h
+      if (field?.unit && !field.name.toLowerCase().includes(field.unit.toLowerCase())) {
+        return `${field.name} (${field.unit})`
+      }
+      return field?.name || h
     })
   }
 
@@ -4411,26 +4421,32 @@ function createBlocksFromParsed(keepExistingBlocks = false): void {
   const vectorHeaders: string[] = []
 
   if (hasVectorCells.value) {
+    console.log('[createBlocksFromParsed] hasVectorCells is TRUE')
     for (let colIdx = 0; colIdx < mainHeader.value.length; colIdx++) {
       // Check if first data row has a vector in this column
       const sampleCell = rawDataRows.value[0]?.[colIdx]
+      console.log(`[createBlocksFromParsed] Checking col ${colIdx} "${mainHeader.value[colIdx]}":`, sampleCell ? sampleCell.slice(0, 50) + '...' : 'empty')
       if (sampleCell && isVectorCell(sampleCell)) {
+        console.log(`[createBlocksFromParsed] -> DETECTED as VECTOR`)
         vectorColumnIndices.add(colIdx)
         vectorHeaders.push(mainHeader.value[colIdx] || `Series ${colIdx + 1}`)
         console.log('[createBlocksFromParsed] Vector column detected:', colIdx, mainHeader.value[colIdx])
+      } else if (sampleCell) {
+         console.log(`[createBlocksFromParsed] -> NOT vector. Parsing check:`, parseVectorCell(sampleCell))
       }
+    }
+  } else {
+    console.log('[createBlocksFromParsed] hasVectorCells is FALSE. RawDataRows sample:', rawDataRows.value[0]?.map(c => c.slice(0, 20)))
+    // Force check anyway for debugging
+    for (let colIdx = 0; colIdx < mainHeader.value.length; colIdx++) {
+        const sampleCell = rawDataRows.value[0]?.[colIdx]
+         if (sampleCell) {
+             console.log(`[DEBUG FORCE] Col ${colIdx}: isVector=${isVectorCell(sampleCell)}`)
+         }
     }
   }
 
-  for (let colIdx = 0; colIdx < mainHeader.value.length; colIdx++) {
-    // Check if first data row has a vector in this column
-    const sampleCell = rawDataRows.value[0]?.[colIdx]
-    if (sampleCell && isVectorCell(sampleCell)) {
-      vectorColumnIndices.add(colIdx)
-      vectorHeaders.push(mainHeader.value[colIdx] || `Series ${colIdx + 1}`)
-      console.log('[createBlocksFromParsed] Vector column detected:', colIdx, mainHeader.value[colIdx])
-    }
-  }
+
 
   // Filter out vector columns from headers for regular fields
   const nonVectorHeaders = mainHeader.value.filter((_, i) => !vectorColumnIndices.has(i))

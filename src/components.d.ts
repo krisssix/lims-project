@@ -77,7 +77,6 @@ declare module 'vue' {
     SeriesSection: typeof import('./components/measurement/parts/SeriesSection.vue')['default']
     SideFilter: typeof import('./components/board/sideFilter/SideFilter.vue')['default']
     SideFilterRow: typeof import('./components/board/sideFilter/SideFilterRow.vue')['default']
-    SmartImportWizard: typeof import('./components/import/SmartImportWizard.vue')['default']
     TemplateSelect: typeof import('./components/measurement/TemplateSelect.vue')['default']
     TemplatesOverviewDialog: typeof import('./components/measurement/TemplatesOverviewDialog.vue')['default']
     TemplateWizardDialog: typeof import('./components/import/TemplateWizardDialog.vue')['default']

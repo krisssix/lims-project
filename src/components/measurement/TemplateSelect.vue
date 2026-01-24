@@ -8,6 +8,7 @@ type TemplateOption = {
   deviceColor?: string
   status?: 'DRAFT' | 'ACTIVE' | 'DEPRECATED'
   version?: string
+  parentVersionId?: number
 }
 
 const props = defineProps<{
@@ -49,10 +50,21 @@ const filteredItems = computed<TemplateOption[]>(() => {
     
     return matchesDevice && isActive
   })
+
+  // get set of parent IDs that are present in the list (meaning they are superseded by another visible template)
+  const supersededIds = new Set<string>()
+  filtered.forEach(t => {
+    if (t.parentVersionId) {
+      supersededIds.add(String(t.parentVersionId))
+    }
+  })
+
+  // filter out those that are superseded
+  const uniqueVersions = filtered.filter(t => !supersededIds.has(t.id))
   
   // odstranění duplicit podle id
   const seen = new Set<string>()
-  return filtered.filter(t => {
+  return uniqueVersions.filter(t => {
     if (seen.has(t.id)) return false
     seen.add(t.id)
     return true

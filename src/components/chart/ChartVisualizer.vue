@@ -1,5 +1,4 @@
 <script setup lang="ts">
-/* eslint-disable @typescript-eslint/no-unused-vars */
 import { ref, computed, watch } from 'vue'
 import * as XLSX from 'xlsx'
 import {
@@ -20,6 +19,7 @@ const props = withDefaults(
     stats: StatsObj | null
     outliers?: OutliersMeta | null
     xLabels?: Array<number | string>
+    xAxisPoints?: number[]  // Custom X-axis values (if provided, use these instead of indices)
     showGrid?: boolean
     showMean?: boolean
     showHover?: boolean
@@ -30,6 +30,7 @@ const props = withDefaults(
   }>(),
   {
     xLabels: undefined,
+    xAxisPoints: undefined,
     outliers: null,
     showGrid: true,
     showMean: true,
@@ -190,6 +191,20 @@ const yMax = computed(() => {
   return allValuesFlat.value.length ? Math.max(...allValuesFlat.value) : 1
 })
 const yRange = computed(() => yMax.value - yMin.value)
+
+// X-axis min/max/range for custom X-axis data
+const hasCustomXAxis = computed(() => 
+  props.xAxisPoints && props.xAxisPoints.length === pointCount.value
+)
+const xMin = computed(() => {
+  if (!hasCustomXAxis.value) return 0
+  return Math.min(...props.xAxisPoints!)
+})
+const xMax = computed(() => {
+  if (!hasCustomXAxis.value) return pointCount.value - 1
+  return Math.max(...props.xAxisPoints!)
+})
+const xRange = computed(() => xMax.value - xMin.value)
 /* -------------------------------------------------
    Box‑plot helper (avoids circular deps)
    ------------------------------------------------- */
@@ -261,8 +276,22 @@ function mapYValue(v: number): number {
 }
 function mapXValue(idx: number, total: number): number {
   const { minX, maxX } = layout.value
+  
+  // If we have custom X-axis values, map by actual value rather than index
+  if (hasCustomXAxis.value && props.xAxisPoints) {
+    const xVal = props.xAxisPoints[idx]
+    if (xVal !== undefined) {
+      const range = xRange.value
+      if (range === 0) return (minX + maxX) / 2
+      const norm = (xVal - xMin.value) / range
+      return minX + norm * (maxX - minX)
+    }
+  }
+  
+  // Default: map by index
   return total <= 1 ? (minX + maxX) / 2 : minX + (idx / (total - 1)) * (maxX - minX)
 }
+
 function buildPolyline(points: number[]): string {
   if (!points.length) return ''
   return points.map((v, i) => `${mapXValue(i, points.length)},${mapYValue(v)}`).join(' ')

@@ -8,6 +8,8 @@ import MarkdownEditor from '@/components/editor/MarkdownEditor.vue'
 import FileUploader from '@/components/measurement/FileUploader.vue'
 import AttachmentList from '@/components/measurement/AttachmentList.vue'
 import { isEditableElement } from '@/components/ui/hotkeyGuard'
+import { Chart, registerables } from 'chart.js'
+Chart.register(...registerables)
 import { type DeviceItem, type ValueType, type TemplateItem, type TemplateBlockRow } from '@/types/measurement-ui'
 import { type MeasurementResponse, type MeasuredValue, type MeasurementSeriesResponse } from '@/stores/measurement'
 import {
@@ -653,6 +655,18 @@ const chartPoints = computed<number[]>(() => {
   const subsetRecords = records.value.filter(r => subset.includes(r.recordIndex))
   return extractSeries(subsetRecords, selectedField.value)
 })
+
+// X-axis field selection for charts
+const selectedXField = ref<string | null>(null)
+const chartXPoints = computed<number[] | undefined>(() => {
+  if (!selectedXField.value) return undefined
+  const subset = selectedRecordIndexes.value.size
+      ? Array.from(selectedRecordIndexes.value)
+      : records.value.map(r => r.recordIndex)
+  const subsetRecords = records.value.filter(r => subset.includes(r.recordIndex))
+  return extractSeries(subsetRecords, selectedXField.value)
+})
+
 const statsObj = computed(() => computeBasicStats(chartPoints.value))
 const outliers = computed(() => detectOutliersIqr(chartPoints.value))
 const statsSummary = computed<string[]>(() => {
@@ -1655,7 +1669,10 @@ const liveStatus = computed<string>(() => {
             :stats="statsObj"
             :fields="numericFieldNames"
             :selected-field="selectedField"
+            :selected-x-field="selectedXField"
+            :x-axis-points="chartXPoints"
             @select-field="f => (selectedField = f)"
+            @select-x-field="f => (selectedXField = f)"
           />
           <div
             v-if="outliers.outlierIndexes.length"

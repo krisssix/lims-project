@@ -256,6 +256,12 @@ function getChartStats(records: MeasurementRecord[], fieldName: string | null) {
   return { points, stats, outliers }
 }
 
+// Get X-axis points for a field
+function getChartXPoints(records: MeasurementRecord[], fieldName: string | null): number[] | undefined {
+  if (!fieldName) return undefined
+  return extractSeries(records, fieldName)
+}
+
 // Per-panel state management
 interface PanelState {
   item: MeasurementResponse
@@ -263,6 +269,7 @@ interface PanelState {
   currentRecordIndex: number
   currentBlockIndex: number
   selectedField: string | null
+  selectedXField: string | null  // X-axis field selection
   metaCollapsed: boolean
   valuesCollapsed: boolean
   statsCollapsed: boolean
@@ -278,6 +285,7 @@ watch(() => props.items, (items) => {
     currentRecordIndex: 1,
     currentBlockIndex: 0,
     selectedField: null,
+    selectedXField: null,
     metaCollapsed: false,
     valuesCollapsed: false,
     statsCollapsed: false,
@@ -841,8 +849,11 @@ onBeforeUnmount(() => {
                     :stats="getChartStats(state.records, state.selectedField).stats"
                     :fields="getNumericFieldNames(state.records)"
                     :selected-field="state.selectedField"
+                    :selected-x-field="state.selectedXField"
+                    :x-axis-points="getChartXPoints(state.records, state.selectedXField)"
                     :shared-zoom-level="syncZoomEnabled ? sharedZoomLevel : null"
                     @select-field="f => (state.selectedField = f)"
+                    @select-x-field="f => (state.selectedXField = f)"
                     @zoom-change="(zoomLevel) => handleZoomChange(panelIndex, zoomLevel)"
                   />
                 </div>

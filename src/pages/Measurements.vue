@@ -109,7 +109,8 @@ const templates = computed<TemplateItem[]>(() =>
       createdAt: t.createdAt,
       updatedAt: t.updatedAt,
       status: t.status || 'ACTIVE',
-      version: t.version || '1.0'
+      version: t.version || '1.0',
+      parentVersionId: t.parentVersionId
     }
   })
 )

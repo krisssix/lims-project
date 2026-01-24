@@ -36,6 +36,7 @@ export interface HorizontalSeriesInfo {
     xAxisLabel: string // popisek pro osu x (např. „vlnová délka“, „čas“)
     xValues: number[] // zparsované hodnoty x
     groups: HorizontalSeriesGroup[] // skupiny hodnot y
+    seriesStartCol?: number // index prvního sloupce, kde začínají data série
 }
 
 export interface HorizontalSeriesGroup {

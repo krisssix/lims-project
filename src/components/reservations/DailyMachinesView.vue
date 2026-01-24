@@ -167,6 +167,7 @@ function onKeydown(e: KeyboardEvent) {
     : (currentIdx < 0 ? 0 : Math.min(currentIdx + 1, list.length - 1))
   if (list[nextIdx]) focusDevice(list[nextIdx])
 }
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function onDeviceHeaderClick(d: Device, _ev?: MouseEvent) {
   focusDevice(d)
   if (viewportEl.value) {
@@ -216,6 +217,7 @@ onMounted(() => {
 })
 onBeforeUnmount(() => { ro?.disconnect(); ro = null })
 const minWidth = computed(() => props.minCalendarWidth ?? 900)
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const showCompactFilters = computed(() => containerWidth.value > 0 && containerWidth.value < minWidth.value)
 /* Filter logic removed */
 /* --------- event coloring based on device color, avatar white ---------- */
