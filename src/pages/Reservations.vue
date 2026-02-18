@@ -553,6 +553,7 @@ const PX_PER_MIN = computed<number>(() => HOUR_HEIGHT / 60)
 const FULL_TRACK_HEIGHT = computed<number>(() => DAY_HOURS * HOUR_HEIGHT)
 function clamp(v: number, min: number, max: number) { return Math.max(min, Math.min(max, v)) }
 function roundToStep(v: number, step: number) { return Math.round(v / step) * step }
+
 function topFromDate(d: Date) {
   const minutes = (d.getHours() - HOURS_START) * 60 + d.getMinutes()
   return Math.max(0, minutes * PX_PER_MIN.value)
@@ -1059,7 +1060,6 @@ function onEventPointerDown(e: PointerEvent, item: ResItem) {
   const rect = target.getBoundingClientRect()
   const start = new Date(item.start)
   const end = new Date(item.end)
-
   pointerStart.value = { x: e.clientX, y: e.clientY }
   movedBeyondThreshold.value = false
 
@@ -1099,7 +1099,6 @@ function onEventPointerDown(e: PointerEvent, item: ResItem) {
     origHeight: rect.height,
     copyMode: false
   }
-
   try { target.setPointerCapture(e.pointerId) } catch {}
   window.addEventListener('pointermove', onPointerMove, { passive: true })
   window.addEventListener('pointerup', onPointerUp, { once: true })
@@ -1542,7 +1541,6 @@ async function commitMove(d: DragState, x: number, y: number): Promise<void> {
      console.error('Move failed, rolled back.', err)
   }
 }
-
 function onPointerUp(e: PointerEvent) {
   window.removeEventListener('pointermove', onPointerMove)
   window.removeEventListener('pointerup', onPointerUp)
@@ -2012,7 +2010,6 @@ async function executeDragAction(scope: 'single' | 'following' | 'series', p: an
   if (scope === 'single') {
      doOptimistic()
   }
-
   try {
 
      if (scope === 'single') {
@@ -2751,6 +2748,10 @@ onBeforeUnmount(() => {
 .track {
   position: relative;
   border-left: 1px solid #f1f1f1;
+  /* background pattern aligned to hour height:
+     - thin tint for half hour
+     - transparent to complete hour
+  */
   background:
     repeating-linear-gradient(
       to bottom,
