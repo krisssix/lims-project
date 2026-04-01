@@ -200,28 +200,13 @@ npm run test:watch
 
 ---
 
-## 📎 Documentation & Presentation
+## 📎 Documentation & Live Demo
 
-> 📑 A detailed PowerPoint presentation with **live demonstrations** of the system is available in the [`docs/`](docs/) folder.
+> 📑 **A full interactive presentation with live demonstrations** of the system is available online:
 >
-> [📥 Download Presentation (PPTX)](docs/presentation.pptx)
-
----
-
-## 📸 Screenshots
-
-> *Screenshots coming soon — see the [presentation](docs/presentation.pptx) for live demos.*
-
-<!-- Uncomment and add when screenshots are available:
-<p align="center">
-  <img src="docs/images/measurements.png" width="45%" alt="Measurements" />
-  <img src="docs/images/reservations.png" width="45%" alt="Reservations" />
-</p>
-<p align="center">
-  <img src="docs/images/kanban.png" width="45%" alt="Kanban Board" />
-  <img src="docs/images/import.png" width="45%" alt="Smart Import Wizard" />
-</p>
--->
+> ### [🎬 View Live Presentation →](https://nazarjanova.my.canva.site/lims)
+>
+> The presentation covers system architecture, feature walk-throughs, and real-time demos of measurements, reservations, and data import workflows.
 
 ---
 
