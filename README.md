@@ -212,7 +212,7 @@ npm run test:watch
 
 ## 👤 Author
 
-**Kristýna Nazarjanová**
+**Kristina Nazarjanová**
 - 🎓 Master's Student — [Mendel University in Brno](https://mendelu.cz)
 - 🐙 GitHub: [@krisssix](https://github.com/krisssix)
 
