@@ -1,5 +1,6 @@
 <p align="center">
-  <img src="docs/images/banner.png" alt="LIM — Laboratory Information Management System" width="100%"/>
+  <img width="100%" height="1408" alt="LIMS — Laboratory Information Management System" src="https://github.com/user-attachments/assets/b35a16d2-2e8f-4a73-849a-feef9de558ec" />
+
 </p>
 
 <h1 align="center">🔬 LIM — Laboratory Information Management</h1>
