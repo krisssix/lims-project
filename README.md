@@ -3,7 +3,7 @@
 
 </p>
 
-<h1 align="center">🔬 LIM — Laboratory Information Management</h1>
+<h1 align="center">🔬 LIMS: Laboratory Information Management</h1>
 
 <p align="center">
   <strong>A modern web-based system for managing laboratory measurements, device reservations, and research data — built as a Master's thesis project.</strong>
